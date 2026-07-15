@@ -886,16 +886,16 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
           <button type="button" className="psi-exp-back" onClick={() => navigate('/admin/psicologia')}>
             ← Volver al buscador
           </button>
-          <Typography variant="h5" sx={{ mt: 1, fontWeight: 800, color: '#1e293b' }}>
+          <Typography variant="h5" className="psi-exp-nombre" sx={{ mt: 1, fontWeight: 800 }}>
             {nombre}
           </Typography>
           {matriculaId && (
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" className="psi-exp-sub">
               Matrícula de referencia: #{matriculaId}
             </Typography>
           )}
         </div>
-        <Button variant="outlined" onClick={reloadAll} disabled={loading}>
+        <Button variant="outlined" className="psi-exp-refresh" onClick={reloadAll} disabled={loading}>
           Actualizar
         </Button>
       </div>

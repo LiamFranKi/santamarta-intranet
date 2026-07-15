@@ -285,33 +285,57 @@ export default function AdminInstitucional() {
   return (
     <DashboardLayout>
       <div className="inst-page">
-        <header className="inst-page-header">
-          <h1>Institucional</h1>
-          <p>
-            Documentación institucional en PDF, organizada por categorías. Si indica fecha de vencimiento, los
-            administradores recibirán avisos en la campanita (y push, si está activo) a los 10, 5 y 1 día antes, el día
-            del vencimiento y el día siguiente, una vez por cada aviso.
-          </p>
-        </header>
-
-        <div className="inst-toolbar" aria-label="Acciones de categorías y documentos">
-          <div className="inst-toolbar-row">
-            <span className="inst-toolbar-title">Categorías y documentos</span>
-            <div className="inst-toolbar-actions">
-              <button type="button" className="dg-btn-primary" onClick={() => abrirModalCat(null)}>
-                + Nueva categoría
-              </button>
-              <button
-                type="button"
-                className="dg-btn-primary"
-                onClick={() => abrirModalDoc(null)}
-                disabled={!categorias.length}
-              >
-                + Subir documento
-              </button>
+        <header className="inst-hero">
+          <div className="inst-hero-icon" aria-hidden="true">
+            🏛️
+          </div>
+          <div className="inst-hero-text">
+            <h1>Institucional</h1>
+            <p>
+              Documentación institucional en PDF, organizada por categorías. Con fecha de vencimiento, los
+              administradores reciben avisos en la campanita (y push, si está activo) a los 10, 5 y 1 día antes,
+              el día del vencimiento y el día siguiente.
+            </p>
+            <div className="inst-hero-meta">
+              <span className="inst-hero-chip">{categorias.length} categorí{categorias.length === 1 ? 'a' : 'as'}</span>
+              <span className="inst-hero-chip">{documentos.length} documento{documentos.length === 1 ? '' : 's'}</span>
             </div>
           </div>
-          <div className="inst-toolbar-row inst-filter">
+        </header>
+
+        <div className="inst-help">
+          <div className="inst-help-icon" aria-hidden="true">
+            💡
+          </div>
+          <div>
+            <h2>Categorías y documentos</h2>
+            <p>
+              Expandí una categoría para ver sus PDF. Podés filtrar, crear categorías y subir documentos. Los
+              vencidos o próximos a vencer se marcan en la lista.
+            </p>
+          </div>
+        </div>
+
+        <div className="inst-toolbar" aria-label="Acciones de categorías y documentos">
+          <nav className="inst-tabs" aria-label="Vista institucional">
+            <button type="button" className="inst-tab is-active" disabled>
+              Categorías
+            </button>
+          </nav>
+          <div className="inst-toolbar-actions">
+            <button type="button" className="inst-btn-primary" onClick={() => abrirModalCat(null)}>
+              + Nueva categoría
+            </button>
+            <button
+              type="button"
+              className="inst-btn-primary inst-btn-primary--teal"
+              onClick={() => abrirModalDoc(null)}
+              disabled={!categorias.length}
+            >
+              + Subir documento
+            </button>
+          </div>
+          <div className="inst-filter">
             <label>
               Mostrar
               <select value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)}>
@@ -356,6 +380,9 @@ export default function AdminInstitucional() {
                         aria-hidden
                       >
                         <ExpandMoreIcon fontSize="small" />
+                      </span>
+                      <span className="inst-acc-folder" aria-hidden="true">
+                        📁
                       </span>
                       <span className="inst-acc-header-main">
                         <span className="inst-acc-name">{c.nombre}</span>
@@ -405,7 +432,7 @@ export default function AdminInstitucional() {
                             </span>
                             <button
                               type="button"
-                              className="dg-btn-ghost inst-btn-nuevo-doc"
+                              className="inst-btn-nuevo-doc"
                               onClick={() => abrirModalDoc(null, c.id)}
                               disabled={!categorias.length}
                             >
@@ -414,7 +441,8 @@ export default function AdminInstitucional() {
                           </div>
                           {lista.length === 0 ? (
                             <p className="inst-empty">
-                              Sin documentos. Use &quot;+ Nuevo&quot; aquí o &quot;Subir documento&quot; en la barra superior.
+                              Sin documentos. Use &quot;+ Nuevo&quot; aquí o &quot;Subir documento&quot; en la barra
+                              superior.
                             </p>
                           ) : (
                             <div className="inst-table-wrap">

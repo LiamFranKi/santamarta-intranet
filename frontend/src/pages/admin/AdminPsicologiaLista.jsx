@@ -91,8 +91,7 @@ export default function AdminPsicologiaLista() {
   const [piarLista, setPiarLista] = useState([]);
   const [loadingPiarLista, setLoadingPiarLista] = useState(true);
   const [piarListaErr, setPiarListaErr] = useState(null);
-  /** Acordeón PIAR: colapsado por defecto para no empujar «Buscar alumnos por grupo» hacia abajo. */
-  const [piarAccordionOpen, setPiarAccordionOpen] = useState(false);
+  const [tabActiva, setTabActiva] = useState('pendientes');
 
   const cargarPendientes = useCallback(() => {
     setLoadingPendientes(true);
@@ -289,13 +288,91 @@ export default function AdminPsicologiaLista() {
 
   return (
     <div className="psi-page">
-      <div className="psi-hero">
-        <h1>Psicología</h1>
-        <p>Busque por aula y abra el expediente de cada estudiante: atenciones, derivaciones, actas con familias y PIAR.</p>
+      <header className="psi-hero psi-hero--banner">
+        <div className="psi-hero-icon" aria-hidden="true">
+          🧠
+        </div>
+        <div className="psi-hero-text">
+          <h1>Psicología</h1>
+          <p>
+            Busque por aula y abra el expediente de cada estudiante: atenciones, derivaciones, actas con
+            familias y PIAR.
+          </p>
+          <div className="psi-hero-meta">
+            <span className="psi-hero-chip">
+              {loadingPendientes ? '…' : `${pendientes.length} pendiente(s)`}
+            </span>
+            <span className="psi-hero-chip">
+              {loadingPiarLista ? '…' : `${piarLista.length} PIAR`}
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <div
+        className={`psi-help psi-help--${tabActiva === 'pendientes' ? 'amber' : tabActiva === 'piar' ? 'violet' : 'sky'}`}
+      >
+        <div className="psi-help-icon" aria-hidden="true">
+          💡
+        </div>
+        <div>
+          <h2>
+            {tabActiva === 'pendientes'
+              ? 'Derivaciones pendientes'
+              : tabActiva === 'piar'
+                ? 'Planes PIAR'
+                : 'Búsqueda por aula'}
+          </h2>
+          <p>
+            {tabActiva === 'pendientes'
+              ? 'Marcá como vista cuando revises una derivación RECIBIDA. Abrir lleva al expediente sin quitarla del listado.'
+              : tabActiva === 'piar'
+                ? 'Consulta rápida de planes PIAR. Abrí el expediente del alumno desde la fila.'
+                : 'Filtrá sede, nivel, grado y sección, o buscá por apellido/DNI en «Buscar aquí».'}
+          </p>
+        </div>
       </div>
 
+      <div className="psi-toolbar">
+        <nav className="psi-tabs" role="tablist" aria-label="Secciones de psicología">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tabActiva === 'pendientes'}
+            className={`psi-tab psi-tab--amber${tabActiva === 'pendientes' ? ' is-active' : ''}`}
+            onClick={() => setTabActiva('pendientes')}
+          >
+            Pendientes ({loadingPendientes ? '…' : pendientes.length})
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tabActiva === 'piar'}
+            className={`psi-tab psi-tab--violet${tabActiva === 'piar' ? ' is-active' : ''}`}
+            onClick={() => setTabActiva('piar')}
+          >
+            PIAR ({loadingPiarLista ? '…' : piarLista.length})
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tabActiva === 'buscar'}
+            className={`psi-tab${tabActiva === 'buscar' ? ' is-active' : ''}`}
+            onClick={() => setTabActiva('buscar')}
+          >
+            Buscar alumnos
+          </button>
+        </nav>
+      </div>
+
+      {tabActiva === 'pendientes' && (
       <div className="psi-pendientes-card">
-        <div className="psi-pendientes-title">Derivaciones pendientes (RECIBIDA)</div>
+        <div className="psi-pendientes-title">
+          <span className="psi-card-ico" aria-hidden="true">
+            📬
+          </span>
+          Derivaciones pendientes (RECIBIDA)
+        </div>
         <p className="psi-pendientes-sub">
           Listado de derivaciones <strong>RECIBIDA</strong> que el equipo aún no ha marcado como vistas. Pulse{' '}
           <strong>Marcar vista</strong> cuando ya la revisó: dejará de aparecer aquí (sigue en el expediente del alumno). “Abrir” va al
@@ -368,101 +445,91 @@ export default function AdminPsicologiaLista() {
           </div>
         )}
       </div>
+      )}
 
-      <div className="psi-pendientes-card psi-piar-accordion">
-        <button
-          type="button"
-          className="psi-piar-accordion__trigger"
-          onClick={() => setPiarAccordionOpen((v) => !v)}
-          aria-expanded={piarAccordionOpen}
-          id="psi-piar-accordion-trigger"
-          aria-controls="psi-piar-accordion-panel"
-        >
-          <div className="psi-piar-accordion__trigger-main">
-            <span className="psi-pendientes-title psi-piar-accordion__title">Lista de alumnos con PIAR</span>
-            <span className="psi-piar-accordion__meta" aria-live="polite">
-              {loadingPiarLista ? (
-                <CircularProgress size={20} sx={{ color: '#c2410c' }} />
-              ) : (
-                <span className="psi-piar-accordion__count">
-                  {piarLista.length === 0 ? 'Sin registros' : `${piarLista.length} registro${piarLista.length === 1 ? '' : 's'}`}
-                </span>
-              )}
-            </span>
-          </div>
-          <span className="psi-piar-accordion__chevron" aria-hidden>
-            {piarAccordionOpen ? '▲' : '▼'}
+      {tabActiva === 'piar' && (
+      <div className="psi-pendientes-card psi-piar-card">
+        <div className="psi-pendientes-title">
+          <span className="psi-card-ico" aria-hidden="true">
+            📋
           </span>
-        </button>
-        <p className="psi-pendientes-sub psi-piar-accordion__sub">
-          Consulta rápida de planes PIAR registrados por Psicología (incluye versiones y estado actual).{' '}
-          <strong>{piarAccordionOpen ? 'Pulse ▲ arriba para ocultar la tabla.' : 'Pulse el encabezado para desplegar la tabla.'}</strong>
+          Lista de alumnos con PIAR
+          <span className="psi-piar-accordion__count" style={{ marginLeft: '0.5rem' }}>
+            {loadingPiarLista
+              ? '…'
+              : piarLista.length === 0
+                ? 'Sin registros'
+                : `${piarLista.length} registro${piarLista.length === 1 ? '' : 's'}`}
+          </span>
+        </div>
+        <p className="psi-pendientes-sub">
+          Consulta rápida de planes PIAR registrados por Psicología (incluye versiones y estado actual).
         </p>
         {piarListaErr && (
           <Alert severity="warning" sx={{ mb: 1 }}>
             {piarListaErr}
           </Alert>
         )}
-        <div
-          id="psi-piar-accordion-panel"
-          role="region"
-          aria-labelledby="psi-piar-accordion-trigger"
-          className="psi-piar-accordion__panel"
-          hidden={!piarAccordionOpen}
-        >
-          {loadingPiarLista ? (
-            <Box display="flex" justifyContent="center" py={2}>
-              <CircularProgress size={28} />
-            </Box>
-          ) : piarLista.length === 0 ? (
-            <p className="psi-muted" style={{ margin: 0 }}>
-              No hay PIAR registrados todavía.
-            </p>
-          ) : (
-            <div className="psi-pendientes-table-wrap">
-              <table className="psi-pendientes-table">
-                <thead>
-                  <tr>
-                    <th>Alumno</th>
-                    <th>Año</th>
-                    <th>Versión</th>
-                    <th>Estado</th>
-                    <th>Docente responsable</th>
-                    <th>Actualización</th>
-                    <th style={{ minWidth: 120 }}>Acciones</th>
+        {loadingPiarLista ? (
+          <Box display="flex" justifyContent="center" py={2}>
+            <CircularProgress size={28} />
+          </Box>
+        ) : piarLista.length === 0 ? (
+          <p className="psi-muted" style={{ margin: 0 }}>
+            No hay PIAR registrados todavía.
+          </p>
+        ) : (
+          <div className="psi-pendientes-table-wrap">
+            <table className="psi-pendientes-table">
+              <thead>
+                <tr>
+                  <th>Alumno</th>
+                  <th>Año</th>
+                  <th>Versión</th>
+                  <th>Estado</th>
+                  <th>Docente responsable</th>
+                  <th>Actualización</th>
+                  <th style={{ minWidth: 120 }}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {piarLista.map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.alumno_nombre || `Alumno ${p.alumno_id}`}</td>
+                    <td>{p.anio}</td>
+                    <td>{p.numero_version}</td>
+                    <td>{p.estado}</td>
+                    <td>{p.docente_responsable_nombre || '—'}</td>
+                    <td>{formatLimaSoloFecha(p.updated_at)}</td>
+                    <td>
+                      <div className="psi-pend-actions">
+                        <button
+                          type="button"
+                          className="psi-pend-btn-abrir"
+                          onClick={() => navigate(`/admin/psicologia/alumno/${p.alumno_id}`)}
+                        >
+                          Abrir
+                        </button>
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {piarLista.map((p) => (
-                    <tr key={p.id}>
-                      <td>{p.alumno_nombre || `Alumno ${p.alumno_id}`}</td>
-                      <td>{p.anio}</td>
-                      <td>{p.numero_version}</td>
-                      <td>{p.estado}</td>
-                      <td>{p.docente_responsable_nombre || '—'}</td>
-                      <td>{formatLimaSoloFecha(p.updated_at)}</td>
-                      <td>
-                        <div className="psi-pend-actions">
-                          <button
-                            type="button"
-                            className="psi-pend-btn-abrir"
-                            onClick={() => navigate(`/admin/psicologia/alumno/${p.alumno_id}`)}
-                          >
-                            Abrir
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
+      )}
 
+      {tabActiva === 'buscar' && (
+      <>
       <div className="psi-filter-card">
-        <div className="psi-filter-title">Buscar alumnos por grupo</div>
+        <div className="psi-filter-title">
+          <span className="psi-card-ico" aria-hidden="true">
+            🔎
+          </span>
+          Buscar alumnos por grupo
+        </div>
         <Stack direction="row" flexWrap="wrap" gap={1.5} alignItems="center" useFlexGap>
           {meta.sedes?.length > 0 && (
             <TextField
@@ -652,6 +719,8 @@ export default function AdminPsicologiaLista() {
           Pulse <strong>Buscar</strong> para listar el aula. En <strong>Buscar aquí</strong> puede escribir apellido, nombre o DNI y pulsar{' '}
           <strong>Enter</strong> (deje vacío y Enter para volver al aula si ya la cargó).
         </Typography>
+      )}
+      </>
       )}
     </div>
   );

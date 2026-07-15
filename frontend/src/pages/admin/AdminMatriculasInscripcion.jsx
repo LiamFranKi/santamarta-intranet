@@ -386,18 +386,28 @@ export default function AdminMatriculasInscripcion() {
 
   return (
     <div className="admin-mat-page">
-      <header className="admin-mat-hero">
+      <header className="admin-mat-hero admin-mat-hero--banner">
+        <div className="admin-mat-hero-icon" aria-hidden="true">
+          📝
+        </div>
         <div className="admin-mat-hero-intro">
           <p className="admin-mat-kicker">Administración · Inscripciones</p>
           <h1 className="admin-mat-title">Inscripción de alumno nuevo</h1>
           <p className="admin-mat-sub">
-            Solo para estudiantes que aún no existen en el sistema. Si el DNI ya está registrado, use Alumnos → historial → «Registrar nueva matrícula». Se generan pensiones
-            pendientes y, si lo indica, la línea de matrícula.
+            Solo para estudiantes que aún no existen en el sistema. Si el DNI ya está registrado, use Alumnos →
+            historial → «Registrar nueva matrícula». Se generan pensiones pendientes y, si lo indica, la línea de
+            matrícula.
           </p>
+          <div className="admin-mat-hero-meta">
+            <span className="admin-mat-hero-chip">Año {anioFiltro}</span>
+            <span className="admin-mat-hero-chip">5 pasos</span>
+          </div>
         </div>
         <aside className="admin-mat-context-card" aria-label="Año académico">
           <div className="admin-mat-context-card__head">
-            <span className="admin-mat-context-icon" aria-hidden="true" />
+            <span className="admin-mat-context-icon" aria-hidden="true">
+              📅
+            </span>
             <div>
               <strong className="admin-mat-context-title">Año lectivo</strong>
               <p className="admin-mat-context-desc">Nivel, grado, sección y turno aplican a este año.</p>
@@ -429,6 +439,42 @@ export default function AdminMatriculasInscripcion() {
         </aside>
       </header>
 
+      <div className="admin-mat-help">
+        <div className="admin-mat-help-icon" aria-hidden="true">
+          💡
+        </div>
+        <div>
+          <h2>Guía rápida</h2>
+          <p>
+            Completá alumno → apoderados → aula → costos → pagos. El DNI del alumno verifica existencia al salir del
+            campo. Usá los pasos de abajo para saltar a cada sección.
+          </p>
+        </div>
+      </div>
+
+      <nav className="admin-mat-steps" aria-label="Pasos de la inscripción">
+        <a className="admin-mat-step admin-mat-step--alumno" href="#mat-step-alumno">
+          <span className="admin-mat-step-num">1</span>
+          Alumno
+        </a>
+        <a className="admin-mat-step admin-mat-step--apoderados" href="#mat-step-apoderados">
+          <span className="admin-mat-step-num">2</span>
+          Apoderados
+        </a>
+        <a className="admin-mat-step admin-mat-step--academico" href="#mat-step-academico">
+          <span className="admin-mat-step-num">3</span>
+          Académico
+        </a>
+        <a className="admin-mat-step admin-mat-step--costos" href="#mat-step-costos">
+          <span className="admin-mat-step-num">4</span>
+          Costos
+        </a>
+        <a className="admin-mat-step admin-mat-step--pagos" href="#mat-step-pagos">
+          <span className="admin-mat-step-num">5</span>
+          Pagos
+        </a>
+      </nav>
+
       <form onSubmit={enviar} className="admin-mat-form">
         {alumnoYaExiste && (
           <div className="admin-mat-alert admin-mat-alert--danger">
@@ -437,7 +483,7 @@ export default function AdminMatriculasInscripcion() {
           </div>
         )}
 
-        <section className="admin-mat-card admin-mat-card--alumno">
+        <section id="mat-step-alumno" className="admin-mat-card admin-mat-card--alumno">
           <div className="admin-mat-card-head">
             <div className="admin-mat-card-head-main">
               <span className="admin-mat-badge admin-mat-badge--alumno">1</span>
@@ -539,7 +585,7 @@ export default function AdminMatriculasInscripcion() {
           </div>
         </section>
 
-        <section className="admin-mat-card admin-mat-card--apoderados">
+        <section id="mat-step-apoderados" className="admin-mat-card admin-mat-card--apoderados">
           <div className="admin-mat-card-head admin-mat-card-head--with-action">
             <div className="admin-mat-card-head-main">
               <span className="admin-mat-badge admin-mat-badge--apoderados">2</span>
@@ -660,7 +706,7 @@ export default function AdminMatriculasInscripcion() {
           ))}
         </section>
 
-        <section className="admin-mat-card admin-mat-card--academico">
+        <section id="mat-step-academico" className="admin-mat-card admin-mat-card--academico">
           <div className="admin-mat-card-head admin-mat-card-head--academico">
             <div className="admin-mat-card-head-main">
               <span className="admin-mat-badge admin-mat-badge--academico">3</span>
@@ -769,7 +815,7 @@ export default function AdminMatriculasInscripcion() {
           </div>
         </section>
 
-        <section className="admin-mat-card admin-mat-card--costos">
+        <section id="mat-step-costos" className="admin-mat-card admin-mat-card--costos">
           <div className="admin-mat-card-head">
             <div className="admin-mat-card-head-main">
               <span className="admin-mat-badge admin-mat-badge--costos">4</span>
@@ -870,7 +916,7 @@ export default function AdminMatriculasInscripcion() {
           )}
         </section>
 
-        <section className="admin-mat-card admin-mat-card--pagos">
+        <section id="mat-step-pagos" className="admin-mat-card admin-mat-card--pagos">
           <div className="admin-mat-card-head">
             <div className="admin-mat-card-head-main">
               <span className="admin-mat-badge admin-mat-badge--pagos">5</span>

@@ -42,6 +42,7 @@ function DocentePerfil({ apiPrefix = '/docente', dashboardPath = '/docente/dashb
   const [activandoNotificaciones, setActivandoNotificaciones] = useState(false);
   const [desuscribiendoNotificaciones, setDesuscribiendoNotificaciones] = useState(false);
   const [tieneSuscripcionPush, setTieneSuscripcionPush] = useState(null);
+  const [tabActiva, setTabActiva] = useState('datos');
 
   useEffect(() => {
     cargarPerfil();
@@ -469,21 +470,15 @@ function DocentePerfil({ apiPrefix = '/docente', dashboardPath = '/docente/dashb
   return (
     <DashboardLayout>
       <div className="docente-perfil">
-        <div className="page-header">
-          <h1>Mi Perfil</h1>
-          <p>Gestiona tu información personal y foto de perfil</p>
-        </div>
-
-        <form className="perfil-form" onSubmit={handleSubmit}>
-          {/* Sección de Foto */}
-          <div className="perfil-section mundo-card">
-            <h2 className="section-title">Foto de Perfil</h2>
-            <div className="foto-upload-container">
-              <div className="foto-preview-wrapper">
+        <header className="perfil-hero">
+          <div className="perfil-hero-bg" aria-hidden="true" />
+          <div className="perfil-hero-body">
+            <div className="perfil-hero-avatar-col">
+              <div className="foto-preview-wrapper perfil-hero-avatar">
                 <div className="foto-preview">
                   {fotoPreview ? (
-                    <img 
-                      src={fotoPreview} 
+                    <img
+                      src={fotoPreview}
                       alt="Foto de perfil"
                       onError={(e) => {
                         e.target.style.display = 'none';
@@ -493,7 +488,11 @@ function DocentePerfil({ apiPrefix = '/docente', dashboardPath = '/docente/dashb
                     />
                   ) : null}
                   <div className="foto-placeholder" style={{ display: fotoPreview ? 'none' : 'flex' }}>
-                    {getInitials(formData.nombres && formData.apellidos ? `${formData.nombres} ${formData.apellidos}` : formData.nombres || 'Docente')}
+                    {getInitials(
+                      formData.nombres && formData.apellidos
+                        ? `${formData.nombres} ${formData.apellidos}`
+                        : formData.nombres || 'Docente'
+                    )}
                   </div>
                 </div>
                 {uploadingPhoto && (
@@ -503,11 +502,14 @@ function DocentePerfil({ apiPrefix = '/docente', dashboardPath = '/docente/dashb
                       <div className="spinner-ring"></div>
                       <div className="spinner-ring"></div>
                     </div>
-                    <p className="upload-text">Subiendo foto...</p>
+                    <p className="upload-text">Subiendo…</p>
                   </div>
                 )}
               </div>
-              <label className="foto-upload-btn" style={{ opacity: uploadingPhoto ? 0.6 : 1, pointerEvents: uploadingPhoto ? 'none' : 'auto' }}>
+              <label
+                className="foto-upload-btn"
+                style={{ opacity: uploadingPhoto ? 0.6 : 1, pointerEvents: uploadingPhoto ? 'none' : 'auto' }}
+              >
                 <input
                   type="file"
                   accept="image/*"
@@ -515,107 +517,213 @@ function DocentePerfil({ apiPrefix = '/docente', dashboardPath = '/docente/dashb
                   style={{ display: 'none' }}
                   disabled={uploadingPhoto}
                 />
-                📷 Cambiar Foto
+                📷 Cambiar foto
               </label>
-              <p className="foto-hint">Formatos: JPG, PNG, GIF, WEBP (máx. 5MB)</p>
+              <p className="foto-hint">JPG, PNG, GIF, WEBP · máx. 5MB</p>
             </div>
-          </div>
-
-          {/* Información Personal */}
-          <div className="perfil-section mundo-card">
-            <h2 className="section-title">Información Personal</h2>
-            <div className="form-grid">
-              <div className="form-group">
-                <label htmlFor="nombres">Nombres *</label>
-                <input
-                  type="text"
-                  id="nombres"
-                  name="nombres"
-                  value={formData.nombres}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="apellidos">Apellidos *</label>
-                <input
-                  type="text"
-                  id="apellidos"
-                  name="apellidos"
-                  value={formData.apellidos}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="email">Email *</label>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="telefono_celular">Teléfono Celular</label>
-                <input
-                  type="tel"
-                  id="telefono_celular"
-                  name="telefono_celular"
-                  value={formData.telefono_celular}
-                  onChange={handleInputChange}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="fecha_nacimiento">Fecha de Nacimiento</label>
-                <input
-                  type="date"
-                  id="fecha_nacimiento"
-                  name="fecha_nacimiento"
-                  value={formData.fecha_nacimiento}
-                  onChange={handleInputChange}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="direccion">Dirección</label>
-                <input
-                  type="text"
-                  id="direccion"
-                  name="direccion"
-                  value={formData.direccion}
-                  onChange={handleInputChange}
-                />
+            <div className="perfil-hero-text">
+              <p className="perfil-hero-kicker">Mi perfil</p>
+              <h1>
+                {[formData.nombres, formData.apellidos].filter(Boolean).join(' ') || 'Tu cuenta'}
+              </h1>
+              <p className="perfil-hero-sub">
+                Actualizá tus datos, foto, contraseña y notificaciones en un solo lugar.
+              </p>
+              <div className="perfil-hero-meta">
+                {perfil?.cargo ? <span className="perfil-hero-chip">{perfil.cargo}</span> : null}
+                {perfil?.dni ? <span className="perfil-hero-chip">DNI {perfil.dni}</span> : null}
+                {perfil?.email || formData.email ? (
+                  <span className="perfil-hero-chip">{perfil?.email || formData.email}</span>
+                ) : null}
               </div>
             </div>
           </div>
+        </header>
 
-          {/* Información de Solo Lectura */}
-          {perfil && (
+        <div className="perfil-help">
+          <div className="perfil-help-icon" aria-hidden="true">
+            💡
+          </div>
+          <div>
+            <h2>
+              {tabActiva === 'datos'
+                ? 'Datos personales'
+                : tabActiva === 'sistema'
+                  ? 'Información del sistema'
+                  : tabActiva === 'notificaciones'
+                    ? 'Notificaciones push'
+                    : 'Seguridad'}
+            </h2>
+            <p>
+              {tabActiva === 'datos'
+                ? 'Editá nombre, correo, teléfono y dirección. Guardá los cambios al final.'
+                : tabActiva === 'sistema'
+                  ? 'Datos de solo lectura asociados a tu ficha laboral (DNI, cargo, horarios).'
+                  : tabActiva === 'notificaciones'
+                    ? 'Activá alertas en el dispositivo aunque la app esté cerrada.'
+                    : 'Cambiá tu contraseña cuando lo necesites. Mínimo 6 caracteres.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="perfil-toolbar">
+          <nav className="perfil-tabs" role="tablist" aria-label="Secciones del perfil">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tabActiva === 'datos'}
+              className={`perfil-tab${tabActiva === 'datos' ? ' is-active' : ''}`}
+              onClick={() => setTabActiva('datos')}
+            >
+              Datos
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tabActiva === 'sistema'}
+              className={`perfil-tab perfil-tab--teal${tabActiva === 'sistema' ? ' is-active' : ''}`}
+              onClick={() => setTabActiva('sistema')}
+            >
+              Sistema
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tabActiva === 'notificaciones'}
+              className={`perfil-tab perfil-tab--amber${tabActiva === 'notificaciones' ? ' is-active' : ''}`}
+              onClick={() => setTabActiva('notificaciones')}
+            >
+              Notificaciones
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tabActiva === 'seguridad'}
+              className={`perfil-tab perfil-tab--violet${tabActiva === 'seguridad' ? ' is-active' : ''}`}
+              onClick={() => setTabActiva('seguridad')}
+            >
+              Seguridad
+            </button>
+          </nav>
+        </div>
+
+        {tabActiva === 'datos' && (
+          <form className="perfil-form" onSubmit={handleSubmit}>
             <div className="perfil-section mundo-card">
-              <h2 className="section-title">Información del Sistema</h2>
+              <h2 className="section-title">
+                <span className="section-title-ico" aria-hidden="true">
+                  👤
+                </span>
+                Información personal
+              </h2>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label htmlFor="nombres">Nombres *</label>
+                  <input
+                    type="text"
+                    id="nombres"
+                    name="nombres"
+                    value={formData.nombres}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="apellidos">Apellidos *</label>
+                  <input
+                    type="text"
+                    id="apellidos"
+                    name="apellidos"
+                    value={formData.apellidos}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="email">Email *</label>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="telefono_celular">Teléfono celular</label>
+                  <input
+                    type="tel"
+                    id="telefono_celular"
+                    name="telefono_celular"
+                    value={formData.telefono_celular}
+                    onChange={handleInputChange}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="fecha_nacimiento">Fecha de nacimiento</label>
+                  <input
+                    type="date"
+                    id="fecha_nacimiento"
+                    name="fecha_nacimiento"
+                    value={formData.fecha_nacimiento}
+                    onChange={handleInputChange}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="direccion">Dirección</label>
+                  <input
+                    type="text"
+                    id="direccion"
+                    name="direccion"
+                    value={formData.direccion}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="form-actions">
+              <button type="button" className="btn-cancel" onClick={() => navigate(dashboardPath)}>
+                Cancelar
+              </button>
+              <button type="submit" className="btn-save" disabled={saving}>
+                {saving ? 'Guardando…' : 'Guardar cambios'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {tabActiva === 'sistema' && (
+          <div className="perfil-section mundo-card">
+            <h2 className="section-title">
+              <span className="section-title-ico" aria-hidden="true">
+                🗂️
+              </span>
+              Información del sistema
+            </h2>
+            {perfil ? (
               <div className="info-grid">
                 <div className="info-item">
-                  <span className="info-label">DNI:</span>
+                  <span className="info-label">DNI</span>
                   <span className="info-value">{perfil.dni || 'N/A'}</span>
                 </div>
                 <div className="info-item">
-                  <span className="info-label">Cargo:</span>
+                  <span className="info-label">Cargo</span>
                   <span className="info-value">{perfil.cargo || 'N/A'}</span>
                 </div>
                 <div className="info-item">
-                  <span className="info-label">Profesión:</span>
+                  <span className="info-label">Profesión</span>
                   <span className="info-value">{perfil.profesion || 'N/A'}</span>
                 </div>
                 {perfil.fecha_ingreso && (
                   <div className="info-item">
-                    <span className="info-label">Fecha de Ingreso:</span>
+                    <span className="info-label">Fecha de ingreso</span>
                     <span className="info-value">
                       {new Date(perfil.fecha_ingreso).toLocaleDateString('es-PE')}
                     </span>
@@ -623,184 +731,161 @@ function DocentePerfil({ apiPrefix = '/docente', dashboardPath = '/docente/dashb
                 )}
                 {perfil.hora_entrada && (
                   <div className="info-item">
-                    <span className="info-label">Hora de Entrada:</span>
-                    <span className="info-value">
-                      {perfil.hora_entrada}
-                    </span>
+                    <span className="info-label">Hora de entrada</span>
+                    <span className="info-value">{perfil.hora_entrada}</span>
                   </div>
                 )}
                 {perfil.hora_salida && (
                   <div className="info-item">
-                    <span className="info-label">Hora de Salida:</span>
-                    <span className="info-value">
-                      {perfil.hora_salida}
-                    </span>
+                    <span className="info-label">Hora de salida</span>
+                    <span className="info-value">{perfil.hora_salida}</span>
                   </div>
                 )}
               </div>
-            </div>
-          )}
-
-          {/* Botones */}
-          <div className="form-actions">
-            <button type="button" className="btn-cancel" onClick={() => navigate(dashboardPath)}>
-              <span className="btn-icon">❌</span>
-              Cancelar
-            </button>
-            <button type="submit" className="btn-save" disabled={saving}>
-              <span className="btn-icon">💾</span>
-              {saving ? 'Guardando...' : 'Guardar Cambios'}
-            </button>
-          </div>
-        </form>
-
-        {/* Notificaciones Push */}
-        <div className="perfil-section mundo-card">
-          <h2 className="section-title">Notificaciones Push</h2>
-          <div className="notificaciones-info">
-            <p className="notificaciones-descripcion">
-              Activa las notificaciones push para recibir alertas importantes en tu dispositivo, incluso cuando la aplicación esté cerrada.
-            </p>
-            {notificacionesEstado && (
-              <div className="notificaciones-estado">
-                <div className="estado-item">
-                  <span className="estado-label">Estado:</span>
-                  <span className={`estado-value estado-${notificacionesEstado.permiso}`}>
-                    {notificacionesEstado.permiso === 'granted' ? '✅ Activadas' : 
-                     notificacionesEstado.permiso === 'denied' ? '❌ Bloqueadas' : 
-                     notificacionesEstado.permiso === 'default' ? '⚠️ No configuradas' : 
-                     '❓ No disponible'}
-                  </span>
-                </div>
-                {!notificacionesEstado.disponible && (
-                  <p className="estado-mensaje">Tu navegador no soporta notificaciones push</p>
-                )}
-                {notificacionesEstado.permiso === 'denied' && (
-                  <p className="estado-mensaje">
-                    Las notificaciones están bloqueadas. Por favor, habilítalas en la configuración de tu navegador.
-                  </p>
-                )}
-              </div>
+            ) : (
+              <p className="perfil-empty">No hay datos del sistema para mostrar.</p>
             )}
-            <div className="notificaciones-buttons">
-              <button
-                type="button"
-                className="btn-activar-notificaciones"
-                onClick={handleActivarNotificaciones}
-                disabled={activandoNotificaciones || (tieneSuscripcionPush === true)}
-              >
-                {activandoNotificaciones ? (
-                  <>
-                    <span className="btn-icon">⏳</span>
-                    Activando...
-                  </>
-                ) : tieneSuscripcionPush ? (
-                  <>
-                    <span className="btn-icon">✅</span>
-                    Notificaciones Activadas
-                  </>
-                ) : (
-                  <>
-                    <span className="btn-icon">🔔</span>
-                    Activar Notificaciones
-                  </>
-                )}
-              </button>
-              {notificacionesEstado?.permiso === 'granted' && tieneSuscripcionPush && (
+          </div>
+        )}
+
+        {tabActiva === 'notificaciones' && (
+          <div className="perfil-section mundo-card">
+            <h2 className="section-title">
+              <span className="section-title-ico" aria-hidden="true">
+                🔔
+              </span>
+              Notificaciones push
+            </h2>
+            <div className="notificaciones-info">
+              <p className="notificaciones-descripcion">
+                Activa las notificaciones push para recibir alertas importantes en tu dispositivo, incluso cuando
+                la aplicación esté cerrada.
+              </p>
+              {notificacionesEstado && (
+                <div className="notificaciones-estado">
+                  <div className="estado-item">
+                    <span className="estado-label">Estado</span>
+                    <span className={`estado-value estado-${notificacionesEstado.permiso}`}>
+                      {notificacionesEstado.permiso === 'granted'
+                        ? '✅ Activadas'
+                        : notificacionesEstado.permiso === 'denied'
+                          ? '❌ Bloqueadas'
+                          : notificacionesEstado.permiso === 'default'
+                            ? '⚠️ No configuradas'
+                            : '❓ No disponible'}
+                    </span>
+                  </div>
+                  {!notificacionesEstado.disponible && (
+                    <p className="estado-mensaje">Tu navegador no soporta notificaciones push</p>
+                  )}
+                  {notificacionesEstado.permiso === 'denied' && (
+                    <p className="estado-mensaje">
+                      Las notificaciones están bloqueadas. Habilítalas en la configuración de tu navegador.
+                    </p>
+                  )}
+                </div>
+              )}
+              <div className="notificaciones-buttons">
                 <button
                   type="button"
-                  className="btn-desuscribir-notificaciones"
-                  onClick={handleDesuscribirNotificaciones}
-                  disabled={desuscribiendoNotificaciones || activandoNotificaciones}
-                  title="Si no recibes notificaciones, desuscribir y volver a activar puede solucionarlo"
+                  className="btn-activar-notificaciones"
+                  onClick={handleActivarNotificaciones}
+                  disabled={activandoNotificaciones || tieneSuscripcionPush === true}
                 >
-                  {desuscribiendoNotificaciones ? (
-                    <>⏳ Desuscribiendo...</>
-                  ) : (
-                    <>🔄 Desuscribir y renovar</>
-                  )}
+                  {activandoNotificaciones
+                    ? 'Activando…'
+                    : tieneSuscripcionPush
+                      ? 'Notificaciones activadas'
+                      : 'Activar notificaciones'}
                 </button>
-              )}
+                {notificacionesEstado?.permiso === 'granted' && tieneSuscripcionPush && (
+                  <button
+                    type="button"
+                    className="btn-desuscribir-notificaciones"
+                    onClick={handleDesuscribirNotificaciones}
+                    disabled={desuscribiendoNotificaciones || activandoNotificaciones}
+                    title="Si no recibes notificaciones, desuscribir y volver a activar puede solucionarlo"
+                  >
+                    {desuscribiendoNotificaciones ? 'Desuscribiendo…' : 'Desuscribir y renovar'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Cambio de Contraseña - Fuera del formulario principal */}
-        <div className="perfil-section mundo-card">
-          <h2 className="section-title">Cambiar Contraseña</h2>
-          {!showPasswordChange ? (
-            <button 
-              type="button" 
-              className="btn-change-password"
-              onClick={() => setShowPasswordChange(true)}
-            >
-              🔒 Cambiar Contraseña
-            </button>
-          ) : (
-            <form onSubmit={handlePasswordSubmit} className="password-form">
-              <div className="form-group">
-                <label htmlFor="password_actual">Contraseña Actual *</label>
-                <input
-                  type="password"
-                  id="password_actual"
-                  name="password_actual"
-                  value={passwordData.password_actual}
-                  onChange={handlePasswordChange}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="password_nueva">Nueva Contraseña *</label>
-                <input
-                  type="password"
-                  id="password_nueva"
-                  name="password_nueva"
-                  value={passwordData.password_nueva}
-                  onChange={handlePasswordChange}
-                  required
-                  minLength={6}
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="password_confirmar">Confirmar Nueva Contraseña *</label>
-                <input
-                  type="password"
-                  id="password_confirmar"
-                  name="password_confirmar"
-                  value={passwordData.password_confirmar}
-                  onChange={handlePasswordChange}
-                  required
-                  minLength={6}
-                />
-              </div>
-              <div className="password-form-actions">
-                <button 
-                  type="button" 
-                  className="btn-cancel"
-                  onClick={() => {
-                    setShowPasswordChange(false);
-                    setPasswordData({
-                      password_actual: '',
-                      password_nueva: '',
-                      password_confirmar: ''
-                    });
-                  }}
-                >
-                  <span className="btn-icon">❌</span>
-                  Cancelar
-                </button>
-                <button 
-                  type="submit" 
-                  className="btn-save"
-                  disabled={changingPassword}
-                >
-                  <span className="btn-icon">💾</span>
-                  {changingPassword ? 'Cambiando...' : 'Cambiar Contraseña'}
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
+        {tabActiva === 'seguridad' && (
+          <div className="perfil-section mundo-card">
+            <h2 className="section-title">
+              <span className="section-title-ico" aria-hidden="true">
+                🔒
+              </span>
+              Cambiar contraseña
+            </h2>
+            {!showPasswordChange ? (
+              <button type="button" className="btn-change-password" onClick={() => setShowPasswordChange(true)}>
+                Cambiar contraseña
+              </button>
+            ) : (
+              <form onSubmit={handlePasswordSubmit} className="password-form">
+                <div className="form-group">
+                  <label htmlFor="password_actual">Contraseña actual *</label>
+                  <input
+                    type="password"
+                    id="password_actual"
+                    name="password_actual"
+                    value={passwordData.password_actual}
+                    onChange={handlePasswordChange}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="password_nueva">Nueva contraseña *</label>
+                  <input
+                    type="password"
+                    id="password_nueva"
+                    name="password_nueva"
+                    value={passwordData.password_nueva}
+                    onChange={handlePasswordChange}
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="password_confirmar">Confirmar nueva contraseña *</label>
+                  <input
+                    type="password"
+                    id="password_confirmar"
+                    name="password_confirmar"
+                    value={passwordData.password_confirmar}
+                    onChange={handlePasswordChange}
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <div className="password-form-actions">
+                  <button
+                    type="button"
+                    className="btn-cancel"
+                    onClick={() => {
+                      setShowPasswordChange(false);
+                      setPasswordData({
+                        password_actual: '',
+                        password_nueva: '',
+                        password_confirmar: ''
+                      });
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                  <button type="submit" className="btn-save" disabled={changingPassword}>
+                    {changingPassword ? 'Cambiando…' : 'Cambiar contraseña'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

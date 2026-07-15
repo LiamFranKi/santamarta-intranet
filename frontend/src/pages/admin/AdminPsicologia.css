@@ -1,43 +1,238 @@
 .psi-page {
   max-width: 1200px;
   margin: 0 auto;
+  padding-bottom: 2rem;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 .psi-hero {
-  background: linear-gradient(135deg, #5b6ee8 0%, #7c4dff 45%, #00bcd4 100%);
-  border-radius: 16px;
-  padding: 1.5rem 1.75rem;
+  background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 55%, #14b8a6 100%);
+  border-radius: 18px;
+  padding: 1.5rem 1.65rem;
   color: #fff;
-  margin-bottom: 1.5rem;
-  box-shadow: 0 8px 32px rgba(91, 110, 232, 0.35);
+  margin-bottom: 1rem;
+  box-shadow: 0 12px 32px rgba(14, 165, 233, 0.28);
+}
+
+.psi-hero--banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.15rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.psi-hero--banner::after {
+  content: '';
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.psi-hero-icon {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.45rem;
+  background: rgba(255, 255, 255, 0.18);
+  position: relative;
+  z-index: 1;
+}
+
+.psi-hero-text {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
 }
 
 .psi-hero h1 {
   margin: 0 0 0.35rem;
-  font-size: 1.5rem;
-  font-weight: 700;
+  font-size: clamp(1.35rem, 4vw, 1.85rem);
+  font-weight: 800;
+  color: #fff !important;
+  letter-spacing: -0.02em;
 }
 
 .psi-hero p {
   margin: 0;
-  opacity: 0.92;
+  color: #fff !important;
   font-size: 0.95rem;
+  line-height: 1.45;
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
+}
+
+.psi-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.85rem;
+}
+
+.psi-hero-chip {
+  display: inline-flex;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #fff !important;
+}
+
+.psi-help {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  margin-bottom: 0.9rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #bae6fd;
+  border-left: 4px solid #0ea5e9;
+  background: #f0f9ff;
+}
+
+.psi-help--amber {
+  border-color: #fde68a;
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.psi-help--amber h2 {
+  color: #92400e;
+}
+
+.psi-help--amber p {
+  color: #b45309;
+}
+
+.psi-help--violet {
+  border-color: #ddd6fe;
+  border-left-color: #8b5cf6;
+  background: #f5f3ff;
+}
+
+.psi-help--violet h2 {
+  color: #5b21b6;
+}
+
+.psi-help--violet p {
+  color: #6d28d9;
+}
+
+.psi-help--sky h2 {
+  color: #0c4a6e;
+}
+
+.psi-help--sky p {
+  color: #075985;
+}
+
+.psi-help-icon {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.psi-help h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.02rem;
+  color: #0c4a6e;
+  font-weight: 750;
+}
+
+.psi-help p {
+  margin: 0;
+  font-size: 0.86rem;
+  color: #075985;
+  line-height: 1.45;
+}
+
+.psi-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.psi-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.4rem;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+}
+
+.psi-tab {
+  padding: 0.55rem 0.95rem;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.psi-tab:hover {
+  background: #f8fafc;
+  color: #334155;
+}
+
+.psi-tab.is-active {
+  color: #fff;
+  background: linear-gradient(135deg, #1d4ed8, #0ea5e9);
+}
+
+.psi-tab--amber.is-active {
+  background: linear-gradient(135deg, #d97706, #f59e0b);
+}
+
+.psi-tab--violet.is-active {
+  background: linear-gradient(135deg, #7c3aed, #8b5cf6);
+}
+
+.psi-card-ico {
+  margin-right: 0.35rem;
 }
 
 .psi-filter-card {
-  background: linear-gradient(145deg, #f0f7ff 0%, #fdf2ff 55%, #f0fdf9 100%);
+  background: #fff;
   border-radius: 14px;
   padding: 1.25rem 1.5rem;
   margin-bottom: 1.5rem;
-  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
-  border: 1px solid #e8e0f4;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+  border: 1px solid #cbd5e1;
+  border-top: 3px solid #14b8a6;
 }
 
 .psi-filter-title {
-  font-weight: 700;
-  color: #334155;
+  display: flex;
+  align-items: center;
+  font-weight: 750;
+  color: #0f766e;
   margin-bottom: 1rem;
-  font-size: 1rem;
+  font-size: 1.05rem;
 }
 
 /* Campo “Buscar aquí” junto al botón Buscar (Psicología lista) */
@@ -174,20 +369,42 @@
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1.25rem;
+  padding: 1.25rem 1.4rem;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 55%, #14b8a6 100%);
+  box-shadow: 0 10px 28px rgba(14, 165, 233, 0.25);
+  color: #fff;
+}
+
+.psi-exp-header .psi-exp-nombre {
+  margin-top: 0.5rem !important;
+  font-weight: 800 !important;
+  color: #fff !important;
+}
+
+.psi-exp-header .psi-exp-sub {
+  color: rgba(255, 255, 255, 0.9) !important;
 }
 
 .psi-exp-back {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 10px;
   padding: 0.5rem 1rem;
   cursor: pointer;
   font-weight: 600;
-  color: #475569;
+  color: #fff;
 }
 
 .psi-exp-back:hover {
-  background: #f8fafc;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.psi-exp-refresh {
+  background: #fff !important;
+  color: #1d4ed8 !important;
+  border-color: #fff !important;
+  font-weight: 700 !important;
 }
 
 .psi-stat-cards {
@@ -238,9 +455,10 @@
 }
 
 .psi-tabs-wrap {
-  background: linear-gradient(180deg, #fafbff 0%, #ffffff 40%);
+  background: #fff;
   border-radius: 14px;
-  border: 1px solid #e8ecf4;
+  border: 1px solid #cbd5e1;
+  border-top: 3px solid #14b8a6;
   overflow: hidden;
   box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
 }
@@ -250,18 +468,21 @@
   border-radius: 0 0 12px 12px;
 }
 
-/* Modales / formularios pastel */
+/* Modales / formularios */
 .psi-dialog-paper.MuiPaper-root {
-  background: linear-gradient(165deg, #fdf8ff 0%, #f5f9ff 45%, #f4fffb 100%) !important;
-  border: 1px solid #e8e0f0;
+  background: #fff !important;
+  border: 1px solid #cbd5e1;
+  border-top: 3px solid #14b8a6;
   border-radius: 16px !important;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12) !important;
 }
 
 .psi-dialog-paper .MuiDialogTitle-root {
   font-weight: 800;
-  color: #334155;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  color: #0f172a;
+  border-bottom: 1px solid #e2e8f0;
   padding-bottom: 0.75rem;
+  background: linear-gradient(180deg, #f0f9ff 0%, #fff 100%);
 }
 
 .psi-dialog-paper .MuiDialogActions-root {
@@ -271,11 +492,13 @@
 }
 
 .psi-form-section {
-  background: rgba(255, 255, 255, 0.65);
+  background: #fff;
   border-radius: 12px;
-  padding: 0.75rem 1rem;
-  margin-bottom: 0.75rem;
-  border: 1px solid rgba(226, 232, 240, 0.9);
+  padding: 1rem 1.15rem;
+  margin-bottom: 0.85rem;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #0ea5e9;
+  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.04);
 }
 
 .psi-timeline {
@@ -454,17 +677,25 @@
 }
 
 .psi-pendientes-card {
-  background: linear-gradient(145deg, #fff7ed 0%, #fffbeb 50%, #fef3c7 100%);
+  background: #fff;
   border-radius: 14px;
   padding: 1.15rem 1.35rem;
   margin-bottom: 1.5rem;
-  border: 1px solid #fde68a;
-  box-shadow: 0 2px 12px rgba(180, 83, 9, 0.08);
+  border: 1px solid #cbd5e1;
+  border-top: 3px solid #f59e0b;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+}
+
+.psi-piar-card {
+  border-top-color: #8b5cf6;
 }
 
 .psi-pendientes-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   font-weight: 800;
-  color: #9a3412;
+  color: #0f172a;
   font-size: 1.05rem;
   margin-bottom: 0.35rem;
 }
@@ -472,14 +703,14 @@
 .psi-pendientes-sub {
   margin: 0 0 0.85rem;
   font-size: 0.88rem;
-  color: #78350f;
+  color: #64748b;
   line-height: 1.45;
 }
 
 .psi-pendientes-table-wrap {
   overflow: auto;
   border-radius: 10px;
-  border: 1px solid rgba(180, 83, 9, 0.2);
+  border: 1px solid #e2e8f0;
   background: #fff;
 }
 
@@ -492,22 +723,26 @@
 .psi-pendientes-table th {
   text-align: left;
   padding: 0.65rem 0.75rem;
-  background: #fffbeb;
-  color: #78350f;
+  background: linear-gradient(135deg, #1d4ed8, #0ea5e9);
+  color: #fff;
   font-weight: 700;
-  border-bottom: 1px solid #fde68a;
+  border-bottom: none;
   white-space: nowrap;
 }
 
 .psi-pendientes-table td {
   padding: 0.55rem 0.75rem;
-  border-bottom: 1px solid #fef3c7;
+  border-bottom: 1px solid #f1f5f9;
   color: #334155;
   vertical-align: middle;
 }
 
 .psi-pendientes-table tr:last-child td {
   border-bottom: none;
+}
+
+.psi-pendientes-table tbody tr:hover td {
+  background: #f8fafc;
 }
 
 .psi-pend-resumen {
@@ -522,8 +757,8 @@
   border: none;
   cursor: pointer;
   color: #fff;
-  background: linear-gradient(135deg, #ea580c 0%, #f97316 100%);
-  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.25);
+  background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 100%);
+  box-shadow: 0 2px 8px rgba(29, 78, 216, 0.25);
 }
 
 .psi-pend-btn-abrir:hover {
@@ -568,7 +803,7 @@
 .psi-exp-tabs.MuiTabs-root {
   min-height: 52px;
   padding: 0.4rem 0.5rem 0;
-  background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 55%, #ffffff 100%);
+  background: linear-gradient(180deg, #f0f9ff 0%, #f8fafc 55%, #ffffff 100%);
   border-bottom: 1px solid #e2e8f0;
 }
 
@@ -579,35 +814,34 @@
   letter-spacing: 0.02em;
   color: #64748b;
   min-height: 46px;
-  border-radius: 12px 12px 0 0;
-  margin: 0 3px;
-  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+  border-radius: 10px 10px 0 0;
+  margin: 0 0.15rem;
 }
 
 .psi-exp-tabs .MuiTab-root.psi-exp-tab:hover {
-  color: #4338ca;
+  color: #0369a1;
   background: rgba(255, 255, 255, 0.65);
 }
 
 .psi-exp-tabs .MuiTab-root.psi-exp-tab.Mui-selected {
-  color: #312e81;
+  color: #0c4a6e;
   background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 -3px 14px rgba(99, 102, 241, 0.18);
+  box-shadow: 0 -3px 14px rgba(14, 165, 233, 0.16);
 }
 
 .psi-exp-tabs .MuiTabs-indicator {
   height: 3px;
   border-radius: 3px 3px 0 0;
-  background: linear-gradient(90deg, #6366f1, #8b5cf6, #a855f7);
+  background: linear-gradient(90deg, #1d4ed8, #0ea5e9, #14b8a6);
 }
 
 .psi-timeline-ver-btn {
-  border: 1px solid #c7d2fe !important;
+  border: 1px solid #bae6fd !important;
   background: #fff !important;
 }
 
 .psi-timeline-ver-btn:hover {
-  background: #eef2ff !important;
+  background: #e0f2fe !important;
 }
 
 /* Tarjetas reunión / acta */

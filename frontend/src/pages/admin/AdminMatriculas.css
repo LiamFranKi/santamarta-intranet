@@ -1,81 +1,138 @@
-/* Nueva inscripción / matrícula — alineado con tonos admin (#4a83c1) */
+/* Nueva inscripción / matrícula — hero + pasos (alineado al resto de la intranet) */
 
 .admin-mat-page {
-  max-width: 1040px;
+  max-width: 1080px;
   margin: 0 auto;
-  padding: 1.25rem 1rem 2.75rem;
+  padding: 0 0 2.75rem;
   min-height: 100%;
   box-sizing: border-box;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
-/* Fondo suave tipo “app” */
-.admin-mat-page::before {
+/* —— Hero banner —— */
+.admin-mat-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  align-items: stretch;
+  gap: 1.25rem 1.35rem;
+  margin-bottom: 1rem;
+}
+
+.admin-mat-hero--banner {
+  position: relative;
+  overflow: hidden;
+  padding: 1.5rem 1.5rem;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 55%, #14b8a6 100%);
+  box-shadow: 0 14px 36px rgba(14, 165, 233, 0.28);
+  align-items: center;
+}
+
+.admin-mat-hero--banner::after {
   content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(ellipse 100% 80% at 50% -30%, rgba(74, 131, 193, 0.14), transparent 55%),
-    radial-gradient(ellipse 70% 50% at 100% 0%, rgba(102, 126, 234, 0.08), transparent 45%),
-    linear-gradient(180deg, #f1f5f9 0%, #f8fafc 35%, #ffffff 100%);
+  position: absolute;
+  right: -50px;
+  top: -60px;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
   pointer-events: none;
 }
 
-/* —— Hero —— */
-.admin-mat-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
-  align-items: stretch;
-  gap: 1.25rem 1.5rem;
-  margin-bottom: 1.75rem;
+.admin-mat-hero-icon {
+  position: absolute;
+  left: 1.35rem;
+  top: 1.5rem;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  background: rgba(255, 255, 255, 0.18);
+  z-index: 1;
+}
+
+.admin-mat-hero--banner .admin-mat-hero-intro {
+  padding: 0 0 0 3.75rem;
+  position: relative;
+  z-index: 1;
 }
 
 @media (max-width: 880px) {
-  .admin-mat-hero {
+  .admin-mat-hero,
+  .admin-mat-hero--banner {
     grid-template-columns: 1fr;
+  }
+
+  .admin-mat-hero-icon {
+    position: static;
+    margin-bottom: 0.65rem;
+  }
+
+  .admin-mat-hero--banner .admin-mat-hero-intro {
+    padding-left: 0;
   }
 }
 
-.admin-mat-hero-intro {
-  padding: 0.25rem 0 0;
-}
-
 .admin-mat-kicker {
-  margin: 0 0 0.4rem;
+  margin: 0 0 0.35rem;
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #4a83c1;
+  color: rgba(255, 255, 255, 0.85);
 }
 
-.admin-mat-title {
-  margin: 0 0 0.5rem;
-  font-size: clamp(1.45rem, 2.5vw, 1.85rem);
+.admin-mat-hero--banner .admin-mat-title {
+  margin: 0 0 0.4rem;
+  font-size: clamp(1.4rem, 3vw, 1.85rem);
   font-weight: 800;
-  color: #0f172a;
+  color: #fff !important;
   letter-spacing: -0.03em;
   line-height: 1.2;
 }
 
-.admin-mat-sub {
+.admin-mat-hero--banner .admin-mat-sub {
   margin: 0;
-  font-size: 0.95rem;
-  color: #64748b;
-  line-height: 1.6;
+  font-size: 0.92rem;
+  color: #fff !important;
+  line-height: 1.5;
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
   max-width: 52ch;
 }
 
-/* Tarjeta contexto año */
-.admin-mat-context-card {
-  background: linear-gradient(155deg, #ffffff 0%, #f8fafc 100%);
-  border: 1px solid rgba(74, 131, 193, 0.22);
+.admin-mat-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.85rem;
+}
+
+.admin-mat-hero-chip {
+  display: inline-flex;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #fff !important;
+}
+
+/* Tarjeta contexto año (glass sobre el banner) */
+.admin-mat-hero--banner .admin-mat-context-card {
+  position: relative;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 16px;
-  padding: 1rem 1.15rem 1.15rem;
-  box-shadow:
-    0 4px 22px rgba(74, 131, 193, 0.1),
-    0 1px 0 rgba(255, 255, 255, 0.9) inset;
-  align-self: start;
+  padding: 1rem 1.1rem 1.1rem;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+  align-self: stretch;
 }
 
 .admin-mat-context-card__head {
@@ -84,7 +141,7 @@
   align-items: flex-start;
   margin-bottom: 1rem;
   padding-bottom: 0.85rem;
-  border-bottom: 1px solid rgba(74, 131, 193, 0.12);
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .admin-mat-context-icon {
@@ -92,24 +149,18 @@
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #4a83c1 0%, #2d5a8f 100%);
-  box-shadow: 0 4px 12px rgba(74, 131, 193, 0.35);
-  position: relative;
-}
-
-.admin-mat-context-icon::after {
-  content: '';
-  position: absolute;
-  inset: 10px;
-  border: 2px solid rgba(255, 255, 255, 0.85);
-  border-radius: 6px;
-  opacity: 0.9;
+  background: linear-gradient(135deg, #1d4ed8 0%, #14b8a6 100%);
+  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
 }
 
 .admin-mat-context-title {
   display: block;
   font-size: 0.95rem;
-  font-weight: 700;
+  font-weight: 750;
   color: #0f172a;
   margin-bottom: 0.2rem;
 }
@@ -148,26 +199,125 @@
   font-weight: 700;
   font-size: 1.05rem;
   text-align: center;
-  border-color: rgba(74, 131, 193, 0.35);
+  border-color: #bae6fd;
   padding: 0.6rem 0.75rem;
 }
 
 .admin-mat-btn--context {
-  background: linear-gradient(135deg, #4a83c1 0%, #2d5a8f 100%);
+  background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 100%);
   color: #fff;
   border: none;
   padding: 0.6rem 1.1rem;
   border-radius: 10px;
-  box-shadow: 0 3px 12px rgba(74, 131, 193, 0.35);
+  box-shadow: 0 3px 12px rgba(29, 78, 216, 0.35);
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
   white-space: nowrap;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .admin-mat-btn--context:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 5px 16px rgba(74, 131, 193, 0.42);
+  filter: brightness(1.05);
+}
+
+.admin-mat-help {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  margin-bottom: 0.9rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #bae6fd;
+  border-left: 4px solid #0ea5e9;
+  background: #f0f9ff;
+}
+
+.admin-mat-help-icon {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.admin-mat-help h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.02rem;
+  color: #0c4a6e;
+  font-weight: 750;
+}
+
+.admin-mat-help p {
+  margin: 0;
+  font-size: 0.86rem;
+  color: #075985;
+  line-height: 1.45;
+}
+
+.admin-mat-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 1.15rem;
+  padding: 0.45rem;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+}
+
+.admin-mat-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 10px;
+  text-decoration: none;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #64748b;
+  transition: background 0.15s, color 0.15s;
+}
+
+.admin-mat-step:hover {
+  background: #f8fafc;
+  color: #334155;
+}
+
+.admin-mat-step-num {
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #fff;
+  background: #94a3b8;
+}
+
+.admin-mat-step--alumno .admin-mat-step-num {
+  background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+}
+.admin-mat-step--apoderados .admin-mat-step-num {
+  background: linear-gradient(135deg, #7c3aed, #8b5cf6);
+}
+.admin-mat-step--academico .admin-mat-step-num {
+  background: linear-gradient(135deg, #059669, #10b981);
+}
+.admin-mat-step--costos .admin-mat-step-num {
+  background: linear-gradient(135deg, #0284c7, #0ea5e9);
+}
+.admin-mat-step--pagos .admin-mat-step-num {
+  background: linear-gradient(135deg, #d97706, #f59e0b);
 }
 
 .admin-mat-spinner {
@@ -201,6 +351,7 @@
     0 6px 28px rgba(15, 23, 42, 0.07),
     0 1px 0 rgba(255, 255, 255, 0.65) inset;
   overflow: hidden;
+  scroll-margin-top: 5.5rem;
 }
 
 .admin-mat-card::before {
@@ -368,7 +519,7 @@
 }
 
 .admin-mat-badge--alumno {
-  background: linear-gradient(135deg, #4a83c1, #2563eb);
+  background: linear-gradient(135deg, #1d4ed8, #0ea5e9);
 }
 
 .admin-mat-badge--apoderados {
@@ -491,8 +642,8 @@
 
 .admin-mat-input:focus {
   outline: none;
-  border-color: #4a83c1;
-  box-shadow: 0 0 0 3px rgba(74, 131, 193, 0.22);
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.18);
 }
 
 .admin-mat-input--sm {
@@ -538,14 +689,16 @@
 }
 
 .admin-mat-btn--primary {
-  background: linear-gradient(135deg, #4a83c1 0%, #3b5bdb 100%);
+  background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 100%);
   color: #fff;
-  box-shadow: 0 4px 14px rgba(74, 131, 193, 0.38);
+  box-shadow: 0 4px 14px rgba(29, 78, 216, 0.35);
+  border: none;
 }
 
 .admin-mat-btn--primary:hover:not(:disabled) {
+  filter: brightness(1.05);
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(74, 131, 193, 0.45);
+  box-shadow: 0 6px 18px rgba(29, 78, 216, 0.4);
 }
 
 .admin-mat-btn--secondary {
@@ -668,8 +821,9 @@
   gap: 1rem;
   margin-top: 0.25rem;
   padding: 1.15rem 1.25rem;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-  border: 1px solid rgba(74, 131, 193, 0.18);
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-top: 3px solid #14b8a6;
   border-radius: 16px;
   box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08);
 }
