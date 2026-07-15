@@ -1,114 +1,336 @@
-/* Reportes de notas — estilo alineado a Deudores / Estadísticas */
+/* Reportes de notas — tabs + hero alineado a Documentos / Encuestas */
 .admin-notas-reporte {
   --notas-font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --notas-blue: #1e40af;
   --notas-blue-soft: #3b82f6;
   --notas-border: #cbd5e1;
   --notas-bg: #f8fafc;
+  --notas-teal: #14b8a6;
+  --notas-sky: #0ea5e9;
+  --tone-rankings: #d97706;
+  --tone-analisis: #1d4ed8;
+  --tone-matrices: #7c3aed;
+  --tone-inicial: #059669;
   max-width: min(1280px, 100%);
   margin: 0 auto;
   font-family: var(--notas-font);
 }
 
-.admin-notas-reporte .admin-estadisticas-header {
-  margin-bottom: 1.25rem;
-}
-
-.admin-notas-layout {
-  display: grid;
-  grid-template-columns: minmax(220px, 260px) 1fr;
-  gap: 1rem;
-  align-items: start;
-}
-
-@media (max-width: 900px) {
-  .admin-notas-layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-.admin-notas-sidebar {
-  background: #fff;
-  border: 1px solid var(--notas-border);
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
-  overflow: hidden;
-  position: sticky;
-  top: 0.75rem;
-  max-height: calc(100vh - 120px);
-  overflow-y: auto;
-}
-
-.admin-notas-sidebar-title {
-  background: linear-gradient(135deg, #1e3a8a 0%, var(--notas-blue) 100%);
+.admin-notas-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.15rem;
+  margin-bottom: 1.35rem;
+  padding: 1.5rem 1.65rem;
+  border-radius: 18px;
   color: #fff;
-  padding: 0.65rem 0.85rem;
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 55%, #14b8a6 100%);
+  box-shadow: 0 12px 32px rgba(14, 165, 233, 0.28);
+  position: relative;
+  overflow: hidden;
 }
 
-.admin-notas-bloque-label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 0.55rem 0.85rem 0.2rem;
-  margin-top: 0.25rem;
+.admin-notas-hero::after {
+  content: '';
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  pointer-events: none;
 }
 
-.admin-notas-nav-btn {
-  display: block;
-  width: 100%;
+.admin-notas-hero-icon {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.65rem;
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+  position: relative;
+  z-index: 1;
+}
+
+.admin-notas-hero-text {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.admin-notas-hero h1 {
+  font-size: clamp(1.35rem, 4vw, 1.85rem);
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 0.35rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.admin-notas-hero p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.95rem;
+  max-width: 52rem;
+  line-height: 1.45;
+}
+
+.admin-notas-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.admin-notas-tabs-cat {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.admin-notas-tab-cat {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  flex: 1 1 200px;
+  max-width: 100%;
   text-align: left;
-  border: none;
-  background: transparent;
-  padding: 0.45rem 0.85rem;
-  font-size: 0.82rem;
-  color: #334155;
+  border: 1px solid var(--notas-border);
+  background: #fff;
+  border-radius: 14px;
+  padding: 0.7rem 0.85rem;
   cursor: pointer;
-  border-left: 3px solid transparent;
   font-family: var(--notas-font);
-  line-height: 1.35;
+  color: #334155;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s, color 0.15s;
 }
 
-.admin-notas-nav-btn:hover {
+.admin-notas-tab-cat:hover {
+  border-color: #94a3b8;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+
+.admin-notas-tab-cat-icon {
+  flex-shrink: 0;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
   background: #f1f5f9;
 }
 
-.admin-notas-nav-btn.is-active {
-  background: #eff6ff;
-  border-left-color: var(--notas-blue);
-  color: #1e3a8a;
-  font-weight: 600;
+.admin-notas-tab-cat-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.admin-notas-tab-cat-body strong {
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.admin-notas-tab-cat-body small {
+  font-size: 0.72rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.admin-notas-tab-cat--rankings.is-active {
+  background: var(--tone-rankings);
+  border-color: var(--tone-rankings);
+  color: #fff;
+}
+.admin-notas-tab-cat--analisis.is-active {
+  background: var(--tone-analisis);
+  border-color: var(--tone-analisis);
+  color: #fff;
+}
+.admin-notas-tab-cat--matrices.is-active {
+  background: var(--tone-matrices);
+  border-color: var(--tone-matrices);
+  color: #fff;
+}
+.admin-notas-tab-cat--inicial.is-active {
+  background: var(--tone-inicial);
+  border-color: var(--tone-inicial);
+  color: #fff;
+}
+
+.admin-notas-tab-cat.is-active .admin-notas-tab-cat-icon {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.admin-notas-tab-cat.is-active .admin-notas-tab-cat-body small {
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .admin-notas-main {
   background: #fff;
   border: 1px solid var(--notas-border);
-  border-radius: 12px;
+  border-radius: 14px;
   box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
   overflow: hidden;
 }
 
-.admin-notas-main-head {
-  padding: 1rem 1.15rem 0.5rem;
-  border-bottom: 1px solid #e2e8f0;
+.admin-notas-main--rankings {
+  border-top: 3px solid var(--tone-rankings);
+}
+.admin-notas-main--analisis {
+  border-top: 3px solid var(--tone-analisis);
+}
+.admin-notas-main--matrices {
+  border-top: 3px solid var(--tone-matrices);
+}
+.admin-notas-main--inicial {
+  border-top: 3px solid var(--tone-inicial);
 }
 
-.admin-notas-main-head h2 {
-  margin: 0 0 0.35rem;
+.admin-notas-tabs-report {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+  padding: 0.75rem 1rem 0.35rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fafbfc;
+}
+
+.admin-notas-tab-report {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: none;
+  background: transparent;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.84rem;
+  color: #475569;
+  cursor: pointer;
+  font-family: var(--notas-font);
+  border-radius: 8px 8px 0 0;
+  border-bottom: 2px solid transparent;
+  line-height: 1.3;
+}
+
+.admin-notas-tab-report:hover {
+  color: #1e3a8a;
+  background: #f1f5f9;
+}
+
+.admin-notas-tab-report.is-active {
+  color: #1e3a8a;
+  font-weight: 600;
+  border-bottom-color: var(--notas-blue-soft);
+  background: #eff6ff;
+}
+
+.admin-notas-main--rankings .admin-notas-tab-report.is-active {
+  color: #92400e;
+  border-bottom-color: var(--tone-rankings);
+  background: #fffbeb;
+}
+.admin-notas-main--analisis .admin-notas-tab-report.is-active {
+  color: #1e3a8a;
+  border-bottom-color: var(--tone-analisis);
+  background: #eff6ff;
+}
+.admin-notas-main--matrices .admin-notas-tab-report.is-active {
+  color: #5b21b6;
+  border-bottom-color: var(--tone-matrices);
+  background: #f5f3ff;
+}
+.admin-notas-main--inicial .admin-notas-tab-report.is-active {
+  color: #065f46;
+  border-bottom-color: var(--tone-inicial);
+  background: #ecfdf5;
+}
+
+.admin-notas-help {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  margin: 0.85rem 1.15rem 0;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  border-left-width: 4px;
+  background: #f8fafc;
+}
+
+.admin-notas-help--rankings {
+  border-left-color: var(--tone-rankings);
+  background: #fffbeb;
+}
+.admin-notas-help--analisis {
+  border-left-color: var(--tone-analisis);
+  background: #eff6ff;
+}
+.admin-notas-help--matrices {
+  border-left-color: var(--tone-matrices);
+  background: #f5f3ff;
+}
+.admin-notas-help--inicial {
+  border-left-color: var(--tone-inicial);
+  background: #ecfdf5;
+}
+
+.admin-notas-help-icon {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 1.15rem;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.admin-notas-help h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
   color: #0f172a;
 }
 
-.admin-notas-main-head p {
+.admin-notas-help-desc {
+  margin: 0 0 0.35rem;
+  font-size: 0.86rem;
+  color: #475569;
+  line-height: 1.4;
+}
+
+.admin-notas-help-more {
   margin: 0;
-  font-size: 0.88rem;
-  color: #64748b;
+  font-size: 0.84rem;
+  color: #334155;
   line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  .admin-notas-hero {
+    padding: 1.15rem 1.2rem;
+    gap: 0.85rem;
+  }
+
+  .admin-notas-tab-cat {
+    flex: 1 1 100%;
+  }
+
+  .admin-notas-help {
+    margin: 0.75rem 0.85rem 0;
+    padding: 0.75rem;
+  }
 }
 
 .admin-notas-toolbar {

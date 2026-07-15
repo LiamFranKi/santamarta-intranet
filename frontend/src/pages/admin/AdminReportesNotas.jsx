@@ -11,29 +11,44 @@ const REPORT_CATALOG = [
   {
     bloque: 'A',
     titulo: 'Rankings',
+    icon: '🏆',
+    tone: 'rankings',
+    resumen: 'Compare salones y secciones de mayor a menor promedio.',
     items: [
       {
         tipo: 'ranking-salones-general',
         label: 'Ranking de salones (general)',
+        icon: '🏫',
         desc: 'Promedio académico por salón, sin conducta. Mayor a menor.',
+        ayuda:
+          'Sirve para ver qué aulas tienen mejor promedio académico en el bimestre. No incluye conducta: use el informe «Ranking — Conducta» para eso.',
         needs: []
       },
       {
         tipo: 'ranking-salones-curso',
         label: 'Ranking por curso',
+        icon: '📘',
         desc: 'Compara salones en una materia específica.',
+        ayuda:
+          'Elija un curso y verá el ranking de salones solo en esa materia. Ideal para coordinaciones por área o reforzar aulas en un curso puntual.',
         needs: ['curso_id']
       },
       {
         tipo: 'comparativa-secciones',
         label: 'Comparativa de secciones',
+        icon: '⚖️',
         desc: 'Mismo grado y nivel: secciones lado a lado.',
+        ayuda:
+          'Compare A, B, C… del mismo grado y nivel (por ejemplo 3° Primaria). Requiere nivel y grado para alinear las secciones.',
         needs: ['nivel_id', 'grado']
       },
       {
         tipo: 'conducta-salones',
         label: 'Ranking — Conducta',
+        icon: '😊',
         desc: 'Nota de conducta por salón (aparte del promedio académico).',
+        ayuda:
+          'Usa solo la nota de conducta por salón. No mezcle este ranking con el promedio académico: son métricas distintas.',
         needs: []
       }
     ]
@@ -41,35 +56,53 @@ const REPORT_CATALOG = [
   {
     bloque: 'B',
     titulo: 'Análisis global',
+    icon: '📊',
+    tone: 'analisis',
+    resumen: 'Vista institucional: KPIs, áreas, cursos y cobertura de registro.',
     items: [
       {
         tipo: 'resumen-ejecutivo',
         label: 'Resumen ejecutivo',
+        icon: '📌',
         desc: 'KPIs institucionales y ranking de salones.',
+        ayuda:
+          'Vista rápida para dirección: promedios, aprobados y mejores/menores salones del bimestre, con ranking de apoyo.',
         needs: []
       },
       {
         tipo: 'panel-general',
         label: 'Panel general',
+        icon: '📈',
         desc: 'Distribución por rangos de nota y aprobación.',
+        ayuda:
+          'Muestra cómo se distribuyen las notas (rangos) y el nivel de aprobación a escala del colegio o filtros elegidos.',
         needs: []
       },
       {
         tipo: 'mejores-cursos-colegio',
         label: 'Mejores cursos del colegio',
+        icon: '🥇',
         desc: 'Promedio institucional por materia.',
+        ayuda:
+          'Ordena las materias según su promedio institucional. Útil para ver fortalezas académicas a nivel colegio.',
         needs: []
       },
       {
         tipo: 'por-area',
         label: 'Promedio por área',
+        icon: '🧩',
         desc: 'Desempeño por área curricular.',
+        ayuda:
+          'Agrupa el desempeño por área curricular (comunicación, matemática, etc.). Puede filtrar un área concreta.',
         needs: []
       },
       {
         tipo: 'cobertura',
         label: 'Cobertura de registro',
+        icon: '✅',
         desc: '% de notas registradas vs esperadas por salón. Clic en un salón para ver detalle.',
+        ayuda:
+          'Indica qué porcentaje de notas ya están registradas frente a las esperadas. Pulse un salón para ver cursos o alumnos pendientes.',
         needs: []
       }
     ]
@@ -77,23 +110,35 @@ const REPORT_CATALOG = [
   {
     bloque: 'C',
     titulo: 'Matrices y detalle',
+    icon: '🗂️',
+    tone: 'matrices',
+    resumen: 'Detalle por aula, heatmap por curso y evolución entre bimestres.',
     items: [
       {
         tipo: 'matriz-cursos-salones',
         label: 'Matriz cursos × salones',
+        icon: '🔲',
         desc: 'Heatmap de promedios por materia y aula.',
+        ayuda:
+          'Tabla tipo heatmap: cada celda es el promedio de un curso en un salón. Sirve para detectar patrones entre materias y aulas.',
         needs: []
       },
       {
         tipo: 'detalle-salon',
         label: 'Detalle del salón',
+        icon: '👥',
         desc: 'Alumnos, promedios y cursos del aula seleccionada.',
+        ayuda:
+          'Requiere elegir un salón. Lista alumnos con promedio académico y conducta, y el desglose por cursos del aula.',
         needs: ['grupo_id']
       },
       {
         tipo: 'evolucion-bimestres',
         label: 'Evolución bimestral',
+        icon: '📉',
         desc: 'Promedio por bimestre (salón, nivel o institucional).',
+        ayuda:
+          'Sigue el promedio a lo largo de los bimestres (institucional, por nivel o por salón). Ideal para ver mejora o caída en el año.',
         needs: []
       }
     ]
@@ -101,18 +146,32 @@ const REPORT_CATALOG = [
   {
     bloque: 'D',
     titulo: 'Inicial',
+    icon: '🌱',
+    tone: 'inicial',
+    resumen: 'Reportes cualitativos (AD / A / B / C) para nivel Inicial.',
     items: [
       {
         tipo: 'inicial-cualitativo',
         label: 'Inicial — Cualitativo',
+        icon: '🔤',
         desc: 'Distribución AD / A / B / C y salones de inicial.',
+        ayuda:
+          'Pensado para Inicial: distribución de letras (AD, A, B, C) y salones de ese nivel. Seleccione el nivel Inicial correspondiente.',
         needs: ['nivel_id']
       }
     ]
   }
 ];
 
-const ALL_REPORTS = REPORT_CATALOG.flatMap((b) => b.items.map((r) => ({ ...r, bloque: b.bloque, bloqueTitulo: b.titulo })));
+const ALL_REPORTS = REPORT_CATALOG.flatMap((b) =>
+  b.items.map((r) => ({
+    ...r,
+    bloque: b.bloque,
+    bloqueTitulo: b.titulo,
+    bloqueIcon: b.icon,
+    tone: b.tone
+  }))
+);
 
 function fmtNota(n) {
   if (n == null || n === '') return '\u2014';
@@ -467,6 +526,7 @@ export default function AdminReportesNotas() {
   const [meta, setMeta] = useState(null);
   const [loadingMeta, setLoadingMeta] = useState(true);
   const [activeTipo, setActiveTipo] = useState(ALL_REPORTS[0].tipo);
+  const [activeBloque, setActiveBloque] = useState(REPORT_CATALOG[0].bloque);
   const [anio, setAnio] = useState('');
   const [ciclo, setCiclo] = useState('1');
   const [nivelId, setNivelId] = useState('');
@@ -481,6 +541,26 @@ export default function AdminReportesNotas() {
   const [coberturaLoading, setCoberturaLoading] = useState(false);
 
   const report = useMemo(() => ALL_REPORTS.find((r) => r.tipo === activeTipo) || ALL_REPORTS[0], [activeTipo]);
+  const bloqueActivo = useMemo(
+    () => REPORT_CATALOG.find((b) => b.bloque === activeBloque) || REPORT_CATALOG[0],
+    [activeBloque]
+  );
+
+  const seleccionarBloque = (bloqueId) => {
+    const bloque = REPORT_CATALOG.find((b) => b.bloque === bloqueId);
+    if (!bloque) return;
+    setActiveBloque(bloqueId);
+    const first = bloque.items[0];
+    if (first) {
+      setActiveTipo(first.tipo);
+      setData(null);
+    }
+  };
+
+  const seleccionarInforme = (tipo) => {
+    setActiveTipo(tipo);
+    setData(null);
+  };
 
   const esInicial = report.tipo === 'inicial-cualitativo';
 
@@ -659,45 +739,68 @@ export default function AdminReportesNotas() {
   return (
     <DashboardLayout>
       <div className="dashboard-container admin-notas-reporte">
-        <div className="admin-estadisticas-header">
-          <h1 className="admin-estadisticas-title">Reportes de notas</h1>
-          <p className="admin-estadisticas-desc">
-            Rankings, matrices, conducta, evolución bimestral y exportación PDF. El promedio académico no incluye conducta; use el reporte específico de conducta.
-          </p>
-        </div>
+        <header className="admin-notas-hero">
+          <div className="admin-notas-hero-icon" aria-hidden="true">
+            📑
+          </div>
+          <div className="admin-notas-hero-text">
+            <h1>Reportes de notas</h1>
+            <p>
+              Elija una categoría y luego el informe. El promedio académico no incluye conducta: use el ranking de
+              conducta cuando lo necesite. Puede exportar a PDF tras generar el reporte.
+            </p>
+          </div>
+        </header>
 
         {loadingMeta ? (
           <p className="admin-estadisticas-placeholder">Cargando opciones…</p>
         ) : (
-          <div className="admin-notas-layout">
-            <nav className="admin-notas-sidebar" aria-label="Tipos de reporte">
-              <div className="admin-notas-sidebar-title">Informes</div>
+          <div className="admin-notas-shell">
+            <nav className="admin-notas-tabs-cat" aria-label="Categorías de reportes">
               {REPORT_CATALOG.map((bloque) => (
-                <div key={bloque.bloque}>
-                  <div className="admin-notas-bloque-label">
-                    {bloque.bloque}. {bloque.titulo}
-                  </div>
-                  {bloque.items.map((item) => (
-                    <button
-                      key={item.tipo}
-                      type="button"
-                      className={`admin-notas-nav-btn ${activeTipo === item.tipo ? 'is-active' : ''}`}
-                      onClick={() => {
-                        setActiveTipo(item.tipo);
-                        setData(null);
-                      }}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
+                <button
+                  key={bloque.bloque}
+                  type="button"
+                  className={`admin-notas-tab-cat admin-notas-tab-cat--${bloque.tone} ${
+                    activeBloque === bloque.bloque ? 'is-active' : ''
+                  }`}
+                  onClick={() => seleccionarBloque(bloque.bloque)}
+                >
+                  <span className="admin-notas-tab-cat-icon" aria-hidden="true">
+                    {bloque.icon}
+                  </span>
+                  <span className="admin-notas-tab-cat-body">
+                    <strong>{bloque.titulo}</strong>
+                    <small>{bloque.resumen}</small>
+                  </span>
+                </button>
               ))}
             </nav>
 
-            <div className="admin-notas-main">
-              <div className="admin-notas-main-head">
-                <h2>{report.label}</h2>
-                <p>{report.desc}</p>
+            <div className={`admin-notas-main admin-notas-main--${bloqueActivo.tone}`}>
+              <nav className="admin-notas-tabs-report" aria-label={`Informes de ${bloqueActivo.titulo}`}>
+                {bloqueActivo.items.map((item) => (
+                  <button
+                    key={item.tipo}
+                    type="button"
+                    className={`admin-notas-tab-report ${activeTipo === item.tipo ? 'is-active' : ''}`}
+                    onClick={() => seleccionarInforme(item.tipo)}
+                  >
+                    <span aria-hidden="true">{item.icon || '📄'}</span>
+                    {item.label}
+                  </button>
+                ))}
+              </nav>
+
+              <div className={`admin-notas-help admin-notas-help--${bloqueActivo.tone}`}>
+                <div className="admin-notas-help-icon" aria-hidden="true">
+                  {report.icon || bloqueActivo.icon}
+                </div>
+                <div>
+                  <h2>{report.label}</h2>
+                  <p className="admin-notas-help-desc">{report.desc}</p>
+                  <p className="admin-notas-help-more">{report.ayuda || report.desc}</p>
+                </div>
               </div>
 
               <div className="admin-notas-toolbar" role="toolbar" aria-label="Filtros">

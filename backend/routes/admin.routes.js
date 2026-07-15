@@ -3530,14 +3530,27 @@ router.get('/tutoria-general/personal-candidatos', requireSoloAdministrador, asy
   try {
     const { colegio_id } = req.user;
     const q = (req.query.q || '').trim();
+    // Un solo usuario por personal (evita duplicados si hay varias cuentas activas).
     let sql = `SELECT p.id AS personal_id, p.nombres, p.apellidos, p.nro_documento,
                       u.id AS usuario_id, u.usuario AS dni, u.tipo
                FROM personal p
-               INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = p.colegio_id
-               WHERE p.colegio_id = ? AND u.estado = 'ACTIVO'`;
+               INNER JOIN usuarios u ON u.id = (
+                 SELECT u2.id FROM usuarios u2
+                 WHERE u2.personal_id = p.id AND u2.colegio_id = p.colegio_id AND u2.estado = 'ACTIVO'
+                 ORDER BY u2.id ASC
+                 LIMIT 1
+               )
+               WHERE p.colegio_id = ?`;
     const params = [colegio_id];
     if (q) {
-      sql += ` AND (u.usuario LIKE ? OR p.nombres LIKE ? OR p.apellidos LIKE ? OR p.nro_documento LIKE ?)`;
+      sql += ` AND (
+        p.nombres LIKE ? OR p.apellidos LIKE ? OR p.nro_documento LIKE ?
+        OR EXISTS (
+          SELECT 1 FROM usuarios u3
+          WHERE u3.personal_id = p.id AND u3.colegio_id = p.colegio_id AND u3.estado = 'ACTIVO'
+            AND u3.usuario LIKE ?
+        )
+      )`;
       const like = `%${q}%`;
       params.push(like, like, like, like);
     }
@@ -3626,14 +3639,27 @@ router.get('/caja-chica-cajeros/personal-candidatos', requireSoloAdministrador, 
   try {
     const { colegio_id } = req.user;
     const q = (req.query.q || '').trim();
+    // Un solo usuario por personal (evita duplicados si hay varias cuentas activas).
     let sql = `SELECT p.id AS personal_id, p.nombres, p.apellidos, p.nro_documento,
                       u.id AS usuario_id, u.usuario AS dni, u.tipo
                FROM personal p
-               INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = p.colegio_id
-               WHERE p.colegio_id = ? AND u.estado = 'ACTIVO'`;
+               INNER JOIN usuarios u ON u.id = (
+                 SELECT u2.id FROM usuarios u2
+                 WHERE u2.personal_id = p.id AND u2.colegio_id = p.colegio_id AND u2.estado = 'ACTIVO'
+                 ORDER BY u2.id ASC
+                 LIMIT 1
+               )
+               WHERE p.colegio_id = ?`;
     const params = [colegio_id];
     if (q) {
-      sql += ` AND (u.usuario LIKE ? OR p.nombres LIKE ? OR p.apellidos LIKE ? OR p.nro_documento LIKE ?)`;
+      sql += ` AND (
+        p.nombres LIKE ? OR p.apellidos LIKE ? OR p.nro_documento LIKE ?
+        OR EXISTS (
+          SELECT 1 FROM usuarios u3
+          WHERE u3.personal_id = p.id AND u3.colegio_id = p.colegio_id AND u3.estado = 'ACTIVO'
+            AND u3.usuario LIKE ?
+        )
+      )`;
       const like = `%${q}%`;
       params.push(like, like, like, like);
     }
