@@ -8,6 +8,11 @@
  * El bloqueo por deudas solo evalúa pensiones (tipo=1); la matrícula no se incluye.
  */
 
+const {
+  parsePensionesVencimiento,
+  calcularFechaVencimientoDdMmYyyy,
+} = require('./fechaFacturacionJson');
+
 /**
  * @param {unknown} raw — valor de colegios.bloquear_deudores_hasta_mes
  * @returns {number|null} índice de mes 0-11, o null si no hay límite
@@ -75,8 +80,67 @@ function calcularPensionesAVerificar({
   return keys.sort((a, b) => a - b);
 }
 
+/**
+ * nro_pago de pensiones cuya fecha de vencimiento ya pasó (solo día de vencimiento, sin tolerancia).
+ * No incluye matrícula (clave -1). Útil para dashboards / estadísticas “deuda real hasta hoy”.
+ *
+ * @param {object} opts
+ * @param {number} opts.anio
+ * @param {number} opts.totalPensiones
+ * @param {number} [opts.inicioPensiones=2]
+ * @param {string|object|null} opts.pensionesVencimientoRaw — columna colegios.pensiones_vencimiento o mapa ya parseado
+ * @param {Date} [opts.hoy]
+ * @returns {{ nros: number[], fechas: Record<number, string> }}
+ */
+function listarPensionesVencidasHastaHoy({
+  anio,
+  totalPensiones,
+  inicioPensiones = 2,
+  pensionesVencimientoRaw,
+  hoy = new Date(),
+}) {
+  let map = {};
+  if (
+    pensionesVencimientoRaw &&
+    typeof pensionesVencimientoRaw === 'object' &&
+    !Array.isArray(pensionesVencimientoRaw)
+  ) {
+    map = pensionesVencimientoRaw;
+  } else {
+    map = parsePensionesVencimiento(pensionesVencimientoRaw);
+  }
+
+  const fechaHoy = new Date(hoy);
+  fechaHoy.setHours(0, 0, 0, 0);
+
+  const nros = [];
+  const fechas = {};
+  const total = Math.max(0, parseInt(totalPensiones, 10) || 0);
+
+  for (let i = 1; i <= total; i += 1) {
+    const ddMmYyyy = calcularFechaVencimientoDdMmYyyy(i, anio, inicioPensiones, map);
+    const partes = String(ddMmYyyy || '').split('-');
+    if (partes.length !== 3) continue;
+    const fechaVenc = new Date(
+      parseInt(partes[2], 10),
+      parseInt(partes[1], 10) - 1,
+      parseInt(partes[0], 10)
+    );
+    if (Number.isNaN(fechaVenc.getTime())) continue;
+    fechaVenc.setHours(23, 59, 59, 999);
+    // Deuda desde el día siguiente al vencimiento
+    if (fechaHoy > fechaVenc) {
+      nros.push(i);
+      fechas[i] = ddMmYyyy;
+    }
+  }
+
+  return { nros, fechas };
+}
+
 module.exports = {
   parseBloquearDeudoresHastaMes,
   nroPagoDesdeMesCalendario,
   calcularPensionesAVerificar,
+  listarPensionesVencidasHastaHoy,
 };

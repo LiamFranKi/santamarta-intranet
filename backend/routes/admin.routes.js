@@ -17,6 +17,7 @@ const { registrarAccion } = require('../utils/auditoria');
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
 const { sqlFiltroAnioPago } = require('../utils/pagoFechaHora');
 const { normalizarUrlsImagenesEnHtml } = require('../utils/mensajesHtml');
+const { listarPensionesVencidasHastaHoy } = require('../utils/deudaPensiones');
 
 const ANIO_PAGO_SQL = sqlFiltroAnioPago('p');
 const phpSerialize = require('php-serialize');
@@ -628,25 +629,34 @@ router.get('/estadisticas/kpis', async (req, res) => {
 
 /**
  * GET /api/admin/estadisticas/deudas-por-nivel
- * Saldo pendiente agregado por nivel académico (año activo o ?anio=).
- * Misma lógica de tarifa/pagado que KPIs (matrícula sin filtro de año; pensiones del año).
+ * Saldo vencido por nivel + alumnos al día / con deuda, según fechas de vencimiento
+ * de pensiones (hasta hoy, sin tolerancia, sin matrícula ni meses futuros).
  */
 router.get('/estadisticas/deudas-por-nivel', async (req, res) => {
   try {
     const { colegio_id } = req.user;
     const anioParam = parseInt(req.query.anio, 10);
     const [colegio] = await query(
-      'SELECT anio_activo, total_pensiones, moneda FROM colegios WHERE id = ? LIMIT 1',
+      `SELECT anio_activo, total_pensiones, moneda, inicio_pensiones, pensiones_vencimiento
+       FROM colegios WHERE id = ? LIMIT 1`,
       [colegio_id]
     );
     const anio = !isNaN(anioParam) && anioParam > 0
       ? anioParam
       : parseInt(colegio?.anio_activo || new Date().getFullYear(), 10);
     const totalPensiones = parseInt(colegio?.total_pensiones || 10, 10);
+    const inicioPensiones = parseInt(colegio?.inicio_pensiones || 2, 10);
     const moneda = colegio?.moneda || 'S/';
 
+    const { nros: pensionesVencidas, fechas: fechasVencimiento } = listarPensionesVencidasHastaHoy({
+      anio,
+      totalPensiones,
+      inicioPensiones,
+      pensionesVencimientoRaw: colegio?.pensiones_vencimiento,
+    });
+
     const matriculas = await query(
-      `SELECT m.id, c.pension, c.matricula, n.id AS nivel_id, n.nombre AS nivel_nombre
+      `SELECT m.id, c.pension, n.id AS nivel_id, n.nombre AS nivel_nombre
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        INNER JOIN niveles n ON n.id = g.nivel_id
@@ -658,32 +668,33 @@ router.get('/estadisticas/deudas-por-nivel', async (req, res) => {
 
     const matIds = (matriculas || []).map((m) => m.id);
     const pagosPorMatricula = {};
-    if (matIds.length > 0) {
+    if (matIds.length > 0 && pensionesVencidas.length > 0) {
       const ph = matIds.map(() => '?').join(',');
+      const phNros = pensionesVencidas.map(() => '?').join(',');
       const detRows = await query(
-        `SELECT p.matricula_id, p.tipo, COALESCE(p.nro_pago, 0) AS nro_pago,
-                COALESCE(SUM(p.monto), 0) AS total
+        `SELECT p.matricula_id, p.nro_pago, COALESCE(SUM(p.monto), 0) AS total
          FROM pagos p
          WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
            AND p.matricula_id IN (${ph})
-           AND (p.tipo = 0 OR (p.tipo = 1 AND p.nro_pago >= 1 AND p.nro_pago <= ? AND ${ANIO_PAGO_SQL}))
-         GROUP BY p.matricula_id, p.tipo, p.nro_pago`,
-        [colegio_id, ...matIds, totalPensiones, anio, anio]
+           AND p.tipo = 1 AND p.nro_pago IN (${phNros})
+           AND ${ANIO_PAGO_SQL}
+         GROUP BY p.matricula_id, p.nro_pago`,
+        [colegio_id, ...matIds, ...pensionesVencidas, anio, anio]
       );
       (detRows || []).forEach((row) => {
         const mid = row.matricula_id;
-        if (!pagosPorMatricula[mid]) pagosPorMatricula[mid] = { t0: 0, pens: {} };
-        const t = parseInt(row.tipo, 10);
-        const tot = parseFloat(row.total || 0);
-        if (t === 0) pagosPorMatricula[mid].t0 = tot;
-        else if (t === 1) {
-          const np = parseInt(row.nro_pago, 10);
-          if (np >= 1 && np <= totalPensiones) pagosPorMatricula[mid].pens[np] = tot;
+        if (!pagosPorMatricula[mid]) pagosPorMatricula[mid] = {};
+        const np = parseInt(row.nro_pago, 10);
+        if (pensionesVencidas.includes(np)) {
+          pagosPorMatricula[mid][np] = parseFloat(row.total || 0);
         }
       });
     }
 
     const porNivel = {};
+    let cantidadDeudores = 0;
+    const alumnosTotal = (matriculas || []).length;
+
     for (const mat of matriculas || []) {
       const nivelId = mat.nivel_id;
       if (!porNivel[nivelId]) {
@@ -693,20 +704,25 @@ router.get('/estadisticas/deudas-por-nivel', async (req, res) => {
           tarifa: 0,
           pagado: 0,
           saldo: 0,
-          alumnos: 0
+          alumnos: 0,
+          deudores: 0,
         };
       }
-      const espMat = parseFloat(mat.matricula || 0);
       const espPen = parseFloat(mat.pension || 0);
-      const pm = pagosPorMatricula[mat.id] || { t0: 0, pens: {} };
-      let tarifa = espMat;
-      let pagado = Math.min(pm.t0, espMat);
-      let saldo = Math.max(0, espMat - pm.t0);
-      for (let i = 1; i <= totalPensiones; i += 1) {
+      const pm = pagosPorMatricula[mat.id] || {};
+      let tarifa = 0;
+      let pagado = 0;
+      let saldo = 0;
+      for (const i of pensionesVencidas) {
         tarifa += espPen;
-        const pag = pm.pens[i] || 0;
+        const pag = pm[i] || 0;
         pagado += Math.min(pag, espPen);
         saldo += Math.max(0, espPen - pag);
+      }
+      const esDeudor = saldo > 0.009;
+      if (esDeudor) {
+        cantidadDeudores += 1;
+        porNivel[nivelId].deudores += 1;
       }
       porNivel[nivelId].tarifa += tarifa;
       porNivel[nivelId].pagado += pagado;
@@ -714,16 +730,28 @@ router.get('/estadisticas/deudas-por-nivel', async (req, res) => {
       porNivel[nivelId].alumnos += 1;
     }
 
+    const alumnosAlDia = Math.max(0, alumnosTotal - cantidadDeudores);
+
     const niveles = Object.values(porNivel)
       .map((n) => ({
         ...n,
         tarifa: Math.round(n.tarifa * 100) / 100,
         pagado: Math.round(n.pagado * 100) / 100,
-        saldo: Math.round(n.saldo * 100) / 100
+        saldo: Math.round(n.saldo * 100) / 100,
       }))
       .sort((a, b) => b.saldo - a.saldo);
 
-    res.json({ anio, moneda, niveles });
+    res.json({
+      anio,
+      moneda,
+      criterio: 'pensiones_vencidas_hasta_hoy',
+      pensiones_vencidas: pensionesVencidas,
+      fechas_vencimiento: fechasVencimiento,
+      alumnos_total: alumnosTotal,
+      alumnos_al_dia: alumnosAlDia,
+      cantidad_deudores: cantidadDeudores,
+      niveles,
+    });
   } catch (error) {
     console.error('Error estadísticas deudas-por-nivel:', error);
     res.status(500).json({ error: 'Error al obtener deudas por nivel' });

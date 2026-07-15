@@ -44,9 +44,10 @@ function TooltipMonto({ active, payload, label, moneda }) {
 
 /**
  * Tres gráficos del dashboard admin (Recharts).
- * Recibe KPIs ya cargados + deuda por nivel.
+ * - Barras por concepto y torta anual: saldos del año (KPIs).
+ * - Alumnos y barras por nivel: solo pensiones ya vencidas (hasta hoy).
  */
-function DashboardCharts({ kpis, niveles, loadingNiveles, moneda = 'S/' }) {
+function DashboardCharts({ kpis, niveles, nivelesMeta, loadingNiveles, moneda = 'S/' }) {
   if (!kpis || !Array.isArray(kpis.conceptos) || kpis.conceptos.length === 0) {
     return null;
   }
@@ -64,17 +65,16 @@ function DashboardCharts({ kpis, niveles, loadingNiveles, moneda = 'S/' }) {
     { name: 'Saldo pendiente', value: Math.max(0, totalSaldo), color: COLOR_SALDO }
   ].filter((d) => d.value > 0);
 
-  const alDia = parseInt(kpis.alumnos_al_dia, 10) || 0;
-  const deudores = parseInt(kpis.cantidad_deudores, 10) || 0;
+  const alDia = parseInt(nivelesMeta?.alumnos_al_dia, 10) || 0;
+  const deudores = parseInt(nivelesMeta?.cantidad_deudores, 10) || 0;
   const dataAlumnos = [
     { name: 'Al día', value: alDia, color: COLOR_AL_DIA },
-    { name: 'Con deuda', value: deudores, color: COLOR_DEUDORES }
+    { name: 'Con deuda vencida', value: deudores, color: COLOR_DEUDORES }
   ].filter((d) => d.value > 0);
 
   const dataNiveles = (niveles || []).map((n) => ({
     nivel: n.nivel,
-    Saldo: Math.round((parseFloat(n.saldo) || 0) * 100) / 100,
-    Pagado: Math.round((parseFloat(n.pagado) || 0) * 100) / 100
+    'Saldo vencido': Math.round((parseFloat(n.saldo) || 0) * 100) / 100
   }));
 
   const tickMoney = (v) => {
@@ -87,7 +87,8 @@ function DashboardCharts({ kpis, niveles, loadingNiveles, moneda = 'S/' }) {
     <div className="admin-charts-section">
       <h2 className="admin-estadisticas-subtitle">Gráficos estadísticos</h2>
       <p className="admin-estadisticas-lead">
-        Misma base de datos que la tabla de conceptos: montos tarifarios (sin mora).
+        Barras por concepto y torta de montos: año completo. Alumnos y saldo por nivel: solo pensiones
+        cuya fecha de vencimiento ya pasó (hasta hoy; sin matrícula ni meses futuros).
       </p>
 
       <div className="admin-charts-grid">
@@ -147,8 +148,10 @@ function DashboardCharts({ kpis, niveles, loadingNiveles, moneda = 'S/' }) {
               )}
             </div>
             <div className="admin-charts-body admin-charts-body--pie">
-              <p className="admin-charts-pie-caption">Alumnos: al día vs con deuda</p>
-              {dataAlumnos.length > 0 ? (
+              <p className="admin-charts-pie-caption">Alumnos: al día vs con deuda vencida</p>
+              {loadingNiveles ? (
+                <p className="admin-charts-empty">Cargando…</p>
+              ) : dataAlumnos.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -181,9 +184,10 @@ function DashboardCharts({ kpis, niveles, loadingNiveles, moneda = 'S/' }) {
           </div>
         </div>
 
-        {/* 3) Deuda por nivel */}
+        {/* 3) Deuda vencida por nivel */}
         <div className="admin-charts-card">
-          <h3 className="admin-charts-card-title">Saldo pendiente por nivel</h3>
+          <h3 className="admin-charts-card-title">Saldo vencido por nivel</h3>
+          <p className="admin-charts-pie-caption">Solo pensiones con fecha de vencimiento pasada</p>
           <div className="admin-charts-body admin-charts-body--bar">
             {loadingNiveles ? (
               <p className="admin-charts-empty">Cargando niveles…</p>
@@ -206,7 +210,7 @@ function DashboardCharts({ kpis, niveles, loadingNiveles, moneda = 'S/' }) {
                   />
                   <Tooltip content={<TooltipMonto moneda={moneda} />} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="Saldo" radius={[0, 4, 4, 0]} maxBarSize={22}>
+                  <Bar dataKey="Saldo vencido" radius={[0, 4, 4, 0]} maxBarSize={22}>
                     {dataNiveles.map((_, idx) => (
                       <Cell key={`nv-${idx}`} fill={COLORES_NIVEL[idx % COLORES_NIVEL.length]} />
                     ))}

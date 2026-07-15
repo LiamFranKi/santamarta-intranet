@@ -66,6 +66,7 @@ function Dashboard() {
   const [loadingKpis, setLoadingKpis] = useState(true);
   const [errorKpis, setErrorKpis] = useState(null);
   const [deudasNivel, setDeudasNivel] = useState([]);
+  const [deudasNivelMeta, setDeudasNivelMeta] = useState(null);
   const [loadingNiveles, setLoadingNiveles] = useState(true);
 
   useEffect(() => {
@@ -86,6 +87,7 @@ function Dashboard() {
       setErrorKpis(null);
       setLoadingKpis(false);
       setDeudasNivel([]);
+      setDeudasNivelMeta(null);
       setLoadingNiveles(false);
       return;
     }
@@ -95,8 +97,18 @@ function Dashboard() {
       .finally(() => setLoadingKpis(false));
 
     api.get('/admin/estadisticas/deudas-por-nivel')
-      .then((res) => setDeudasNivel(res.data?.niveles || []))
-      .catch(() => setDeudasNivel([]))
+      .then((res) => {
+        setDeudasNivel(res.data?.niveles || []);
+        setDeudasNivelMeta({
+          alumnos_al_dia: res.data?.alumnos_al_dia ?? 0,
+          cantidad_deudores: res.data?.cantidad_deudores ?? 0,
+          pensiones_vencidas: res.data?.pensiones_vencidas || [],
+        });
+      })
+      .catch(() => {
+        setDeudasNivel([]);
+        setDeudasNivelMeta(null);
+      })
       .finally(() => setLoadingNiveles(false));
   }, [user?.tipo]);
 
@@ -885,6 +897,7 @@ function Dashboard() {
                     <DashboardCharts
                       kpis={kpis}
                       niveles={deudasNivel}
+                      nivelesMeta={deudasNivelMeta}
                       loadingNiveles={loadingNiveles}
                       moneda={kpis.moneda || stats?.moneda || 'S/'}
                     />
