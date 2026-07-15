@@ -15,6 +15,7 @@ const { ACTIVIDADES_SELECT_SQL, ACTIVIDADES_SELECT_CON_EVENTO_SQL } = require('.
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 const { fetchMatriculaAnioActivoOperativa } = require('../utils/matriculaAnioActivo');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
+const { urlStaticFotos } = require('../utils/staticStorage');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 const { esCompletarCorrecto } = require('../utils/examenCompletar');
 const { programarNotificacionApoderadosExamen } = require('../utils/examenNotificarApoderados');
@@ -2634,6 +2635,12 @@ router.get('/mensajes/recibidos', async (req, res) => {
                 WHEN ap.id IS NOT NULL THEN CONCAT(ap.nombres, ' ', ap.apellido_paterno, ' ', ap.apellido_materno)
                 ELSE 'Usuario desconocido'
               END as remitente_nombre_completo,
+              CASE
+                WHEN p.id IS NOT NULL THEN p.foto
+                WHEN a.id IS NOT NULL THEN a.foto
+                WHEN ap.id IS NOT NULL THEN ap.foto
+                ELSE NULL
+              END as remitente_foto,
               u1.tipo as remitente_tipo,
               u1.usuario as remitente_usuario
        FROM mensajes m
@@ -2667,6 +2674,7 @@ router.get('/mensajes/recibidos', async (req, res) => {
 
     // Obtener archivos adjuntos para cada mensaje
     for (const mensaje of mensajes) {
+      mensaje.remitente_foto_url = urlStaticFotos(mensaje.remitente_foto);
       const archivos = await query(
         `SELECT id, nombre_archivo, archivo
          FROM mensajes_archivos
@@ -2733,6 +2741,12 @@ router.get('/mensajes/enviados', async (req, res) => {
                 WHEN ap.id IS NOT NULL THEN CONCAT(ap.nombres, ' ', ap.apellido_paterno, ' ', ap.apellido_materno)
                 ELSE 'Usuario desconocido'
               END as destinatario_nombre_completo,
+              CASE
+                WHEN p.id IS NOT NULL THEN p.foto
+                WHEN a.id IS NOT NULL THEN a.foto
+                WHEN ap.id IS NOT NULL THEN ap.foto
+                ELSE NULL
+              END as destinatario_foto,
               u2.tipo as destinatario_tipo,
               u2.usuario as destinatario_usuario
        FROM mensajes m
@@ -2766,6 +2780,7 @@ router.get('/mensajes/enviados', async (req, res) => {
 
     // Obtener archivos adjuntos para cada mensaje
     for (const mensaje of mensajes) {
+      mensaje.destinatario_foto_url = urlStaticFotos(mensaje.destinatario_foto);
       const archivos = await query(
         `SELECT id, nombre_archivo, archivo
          FROM mensajes_archivos

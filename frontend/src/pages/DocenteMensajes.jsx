@@ -1136,6 +1136,11 @@ function DocenteMensajes() {
                       const estaSeleccionado = mensajesSeleccionados.has(mensaje.id);
                       const tieneArchivos = Array.isArray(mensaje.archivos) && mensaje.archivos.length > 0;
 
+                      const fotoUrl =
+                        vista === 'recibidos'
+                          ? mensaje.remitente_foto_url
+                          : mensaje.destinatario_foto_url;
+
                       return (
                         <div
                           key={mensaje.id}
@@ -1154,7 +1159,24 @@ function DocenteMensajes() {
                             />
                           </div>
                           <div className="mensaje-avatar" aria-hidden="true">
-                            {inicialesDe(nombre)}
+                            {fotoUrl ? (
+                              <img
+                                src={fotoUrl}
+                                alt=""
+                                className="mensaje-avatar-img"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  const fallback = e.currentTarget.nextElementSibling;
+                                  if (fallback) fallback.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <span
+                              className="mensaje-avatar-fallback"
+                              style={fotoUrl ? { display: 'none' } : undefined}
+                            >
+                              {inicialesDe(nombre)}
+                            </span>
                           </div>
                           <div className="mensaje-info">
                             <div className="mensaje-nombre">{nombre || 'Sin nombre'}</div>

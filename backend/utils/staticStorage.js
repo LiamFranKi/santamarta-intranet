@@ -46,9 +46,18 @@ function urlStaticArchivos(filename) {
 }
 
 function urlStaticFotos(filenameOrPath) {
+  if (filenameOrPath == null || String(filenameOrPath).trim() === '') return null;
   const f = String(filenameOrPath || '').replace(/^\/+/, '');
   if (f.startsWith('http://') || f.startsWith('https://')) {
     return normalizeLegacyStaticUrl(f);
+  }
+  if (f.startsWith('uploads/') || f.startsWith('/uploads/')) {
+    const pathPart = f.startsWith('/') ? f : `/${f}`;
+    const isDev =
+      process.env.NODE_ENV !== 'production' &&
+      !process.env.STATIC_PUBLIC_URL &&
+      !process.env.PHP_SYSTEM_URL;
+    return isDev ? `http://localhost:5000${pathPart}` : `${getPublicStaticBaseUrl()}${pathPart}`;
   }
   if (f.startsWith('Static/')) return `${getPublicStaticBaseUrl()}/${f}`;
   return `${getPublicStaticBaseUrl()}/Static/Image/Fotos/${path.basename(f)}`;
