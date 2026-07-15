@@ -9,6 +9,8 @@ const { authenticateToken } = require('../middleware/auth');
 const {
   listarAsignaturasCuantitativas,
   aplicarPlantillaAAsignatura,
+  expandirItemsPlantillaPorDesdeCiclo,
+  normalizarDesdeCiclo,
 } = require('../utils/indicadoresPlantillaService');
 
 router.use(authenticateToken);
@@ -79,7 +81,24 @@ router.get('/meta-asignacion', async (req, res) => {
        ORDER BY n.nombre`,
       [colegio_id, anio]
     );
-    res.json({ niveles, conteo_por_nivel: conteo, anio_activo: anio });
+    const cursos = await query(
+      `SELECT DISTINCT c.id, c.nombre, n.id AS nivel_id, n.nombre AS nivel_nombre
+       FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN cursos c ON c.id = a.curso_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       WHERE a.colegio_id = ? AND g.anio = ? AND n.tipo_calificacion = 1
+       ORDER BY n.nombre ASC, c.nombre ASC`,
+      [colegio_id, anio]
+    );
+    const asignaturas = await listarAsignaturasCuantitativas(colegio_id, anio, {});
+    res.json({
+      niveles,
+      conteo_por_nivel: conteo,
+      cursos,
+      asignaturas,
+      anio_activo: anio,
+    });
   } catch (error) {
     console.error('Error meta asignación:', error);
     res.status(500).json({ error: 'Error al cargar datos de asignación' });
@@ -305,9 +324,19 @@ router.post('/:id/preview-asignacion', async (req, res) => {
       return res.status(400).json({ error: 'La plantilla no tiene ítems' });
     }
 
-    const { nivel_ids = [], asignatura_ids = [], modo = 'agregar' } = req.body;
+    const {
+      nivel_ids = [],
+      curso_ids = [],
+      asignatura_ids = [],
+      modo = 'agregar',
+      desde_ciclo = 1,
+    } = req.body;
+    const desde = normalizarDesdeCiclo(desde_ciclo);
+    const itemsEfectivos = expandirItemsPlantillaPorDesdeCiclo(items, desde);
+
     const asignaturas = await listarAsignaturasCuantitativas(colegio_id, anio, {
       nivel_ids,
+      curso_ids,
       asignatura_ids,
     });
 
@@ -315,7 +344,14 @@ router.post('/:id/preview-asignacion', async (req, res) => {
     if (modo === 'solo_vacias') {
       const ids = asignaturas.map((a) => a.id);
       if (!ids.length) {
-        return res.json({ total_asignaturas: 0, con_criterios: 0, destino: 0, items: items.length });
+        return res.json({
+          total_asignaturas: 0,
+          con_criterios: 0,
+          destino: 0,
+          items: items.length,
+          items_efectivos: itemsEfectivos.length,
+          desde_ciclo: desde,
+        });
       }
       const conCriterios = await query(
         `SELECT DISTINCT asignatura_id FROM asignaturas_criterios
@@ -329,6 +365,8 @@ router.post('/:id/preview-asignacion', async (req, res) => {
         con_criterios: setCon.size,
         destino,
         items: items.length,
+        items_efectivos: itemsEfectivos.length,
+        desde_ciclo: desde,
         modo,
       });
     }
@@ -337,6 +375,8 @@ router.post('/:id/preview-asignacion', async (req, res) => {
       total_asignaturas: asignaturas.length,
       destino,
       items: items.length,
+      items_efectivos: itemsEfectivos.length,
+      desde_ciclo: desde,
       modo,
     });
   } catch (error) {
@@ -360,9 +400,11 @@ router.post('/:id/asignar', async (req, res) => {
 
     const {
       nivel_ids = [],
+      curso_ids = [],
       asignatura_ids = [],
       modo = 'agregar',
       eliminar_obsoletos_sin_notas = false,
+      desde_ciclo = 1,
     } = req.body;
 
     const modosValidos = ['solo_vacias', 'agregar', 'reemplazar_sin_notas'];
@@ -370,8 +412,12 @@ router.post('/:id/asignar', async (req, res) => {
       return res.status(400).json({ error: 'Modo de asignación no válido' });
     }
 
+    const desde = normalizarDesdeCiclo(desde_ciclo);
+    const itemsEfectivos = expandirItemsPlantillaPorDesdeCiclo(items, desde);
+
     const asignaturas = await listarAsignaturasCuantitativas(colegio_id, anio, {
       nivel_ids,
+      curso_ids,
       asignatura_ids,
     });
 
@@ -386,6 +432,8 @@ router.post('/:id/asignar', async (req, res) => {
       eliminados: 0,
       no_eliminados_con_notas: 0,
       asignaturas_saltadas_vacias: 0,
+      desde_ciclo: desde,
+      items_efectivos: itemsEfectivos.length,
     };
 
     for (const asig of asignaturas) {
@@ -395,13 +443,14 @@ router.post('/:id/asignar', async (req, res) => {
         items,
         modo,
         eliminarObsoletosSinNotas: !!eliminar_obsoletos_sin_notas,
+        desde_ciclo: desde,
       });
       resumen.asignaturas_procesadas += 1;
       resumen.creados += r.creados;
       resumen.omitidos += r.omitidos;
       resumen.eliminados += r.eliminados;
       resumen.no_eliminados_con_notas += r.no_eliminados_con_notas;
-      if (modo === 'solo_vacias' && r.omitidos === items.length && r.creados === 0) {
+      if (modo === 'solo_vacias' && r.creados === 0) {
         resumen.asignaturas_saltadas_vacias += 1;
       }
     }

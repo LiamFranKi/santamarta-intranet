@@ -194,14 +194,57 @@ function criterioCoincideItem(criterio, item) {
   );
 }
 
+function normalizarDesdeCiclo(v) {
+  const n = parseInt(v, 10);
+  if (!Number.isFinite(n) || n < 1 || n > 4) return 1;
+  return n;
+}
+
+/**
+ * Expande ítems de plantilla según desde_ciclo.
+ * desde_ciclo=1: sin cambios (ciclo 0 permanece 0 = TODOS).
+ * desde_ciclo>1: ciclo 0 se materializa como un criterio por cada bimestre desde..4;
+ *                ciclo específico solo se aplica si ciclo >= desde.
+ */
+function expandirItemsPlantillaPorDesdeCiclo(items, desdeCiclo = 1) {
+  const desde = normalizarDesdeCiclo(desdeCiclo);
+  const out = [];
+  for (const it of items || []) {
+    const ciclo = parseInt(it.ciclo, 10);
+    const cicloNorm = Number.isFinite(ciclo) ? ciclo : 0;
+    if (desde <= 1) {
+      out.push({ ...it, ciclo: cicloNorm });
+      continue;
+    }
+    if (cicloNorm === 0) {
+      for (let c = desde; c <= 4; c += 1) {
+        out.push({ ...it, ciclo: c });
+      }
+      continue;
+    }
+    if (cicloNorm >= desde) {
+      out.push({ ...it, ciclo: cicloNorm });
+    }
+  }
+  return out;
+}
+
+/** Criterios de bimestres anteriores al alcance: no eliminar al limpiar obsoletos. */
+function criterioProtegidoPorDesdeCiclo(criterio, desdeCiclo) {
+  const desde = normalizarDesdeCiclo(desdeCiclo);
+  if (desde <= 1) return false;
+  const ciclo = parseInt(criterio.ciclo, 10) || 0;
+  return ciclo > 0 && ciclo < desde;
+}
+
 /**
  * Lista asignaturas cuantitativas del colegio/año según filtros.
  */
 async function listarAsignaturasCuantitativas(colegioId, anioActivo, filtros = {}) {
-  const { nivel_ids = [], asignatura_ids = [] } = filtros;
+  const { nivel_ids = [], curso_ids = [], asignatura_ids = [] } = filtros;
   const params = [colegioId, anioActivo];
   let sql = `
-    SELECT a.id, a.grupo_id, c.nombre AS curso_nombre, g.grado, g.seccion,
+    SELECT a.id, a.grupo_id, a.curso_id, c.nombre AS curso_nombre, g.grado, g.seccion,
            n.id AS nivel_id, n.nombre AS nivel_nombre, g.anio
     FROM asignaturas a
     INNER JOIN grupos g ON g.id = a.grupo_id
@@ -213,6 +256,10 @@ async function listarAsignaturasCuantitativas(colegioId, anioActivo, filtros = {
   if (nivel_ids.length > 0) {
     sql += ` AND n.id IN (${nivel_ids.map(() => '?').join(',')})`;
     params.push(...nivel_ids.map((x) => parseInt(x, 10)));
+  }
+  if (curso_ids.length > 0) {
+    sql += ` AND a.curso_id IN (${curso_ids.map(() => '?').join(',')})`;
+    params.push(...curso_ids.map((x) => parseInt(x, 10)));
   }
   if (asignatura_ids.length > 0) {
     sql += ` AND a.id IN (${asignatura_ids.map(() => '?').join(',')})`;
@@ -226,6 +273,7 @@ async function listarAsignaturasCuantitativas(colegioId, anioActivo, filtros = {
 /**
  * Aplica plantilla a una asignatura.
  * @param {'solo_vacias'|'agregar'|'reemplazar_sin_notas'} modo
+ * @param {number} [desde_ciclo=1] bimestre desde el cual aplicar (1 = todo el año / comportamiento histórico)
  */
 async function aplicarPlantillaAAsignatura({
   colegioId,
@@ -233,13 +281,19 @@ async function aplicarPlantillaAAsignatura({
   items,
   modo,
   eliminarObsoletosSinNotas,
+  desde_ciclo = 1,
 }) {
+  const desde = normalizarDesdeCiclo(desde_ciclo);
+  const itemsExp = expandirItemsPlantillaPorDesdeCiclo(items, desde);
+
   const resultado = {
     asignatura_id: asignaturaId,
     creados: 0,
     omitidos: 0,
     eliminados: 0,
     no_eliminados_con_notas: 0,
+    desde_ciclo: desde,
+    items_efectivos: itemsExp.length,
   };
 
   const criteriosActuales = await query(
@@ -248,16 +302,17 @@ async function aplicarPlantillaAAsignatura({
   );
 
   if (modo === 'solo_vacias' && criteriosActuales.length > 0) {
-    resultado.omitidos = items.length;
+    resultado.omitidos = itemsExp.length;
     return resultado;
   }
 
   const plantillaKeys = new Set(
-    items.map((it) => `${normAbrev(it.abreviatura) || normDesc(it.descripcion)}|${parseInt(it.ciclo, 10)}`)
+    itemsExp.map((it) => `${normAbrev(it.abreviatura) || normDesc(it.descripcion)}|${parseInt(it.ciclo, 10)}`)
   );
 
   if (eliminarObsoletosSinNotas || modo === 'reemplazar_sin_notas') {
     for (const c of criteriosActuales) {
+      if (criterioProtegidoPorDesdeCiclo(c, desde)) continue;
       const key = `${normAbrev(c.abreviatura) || normDesc(c.descripcion)}|${parseInt(c.ciclo, 10)}`;
       const enPlantilla = plantillaKeys.has(key);
       if (enPlantilla) continue;
@@ -277,8 +332,12 @@ async function aplicarPlantillaAAsignatura({
       [asignaturaId, colegioId]
     );
     for (const c of restantes) {
+      if (criterioProtegidoPorDesdeCiclo(c, desde)) continue;
       const tieneNotas = await criterioTieneNotas(asignaturaId, c.id);
-      if (tieneNotas) continue;
+      if (tieneNotas) {
+        resultado.no_eliminados_con_notas += 1;
+        continue;
+      }
       await eliminarCriterioSeguro(c.id);
       resultado.eliminados += 1;
     }
@@ -291,7 +350,7 @@ async function aplicarPlantillaAAsignatura({
 
   let maxOrden = criteriosDespuesDelete.reduce((m, c) => Math.max(m, c.orden || 0), 0);
 
-  for (const item of items) {
+  for (const item of itemsExp) {
     const existe = criteriosDespuesDelete.some((c) => criterioCoincideItem(c, item));
     if (existe) {
       resultado.omitidos += 1;
@@ -313,4 +372,6 @@ module.exports = {
   insertarCriterioDesdeItem,
   listarAsignaturasCuantitativas,
   aplicarPlantillaAAsignatura,
+  expandirItemsPlantillaPorDesdeCiclo,
+  normalizarDesdeCiclo,
 };

@@ -25,6 +25,46 @@ const TIPO_ETIQUETA = {
   tema_legacy: 'Tema',
 };
 
+const TIPO_ICONO = {
+  tema_interactivo: '💡',
+  sesion: '📅',
+  tarea: '📝',
+  video: '🎬',
+  enlace: '🔗',
+  examen_aula: '🧪',
+  tema_legacy: '📄',
+};
+
+const MODO_CATALOG = [
+  {
+    id: 'grado_curso',
+    label: 'Grado × Curso',
+    icon: '🏫',
+    tone: 'curso',
+    resumen: 'Contenido de un curso en un salón concreto.',
+    ayuda:
+      'Sirve para revisar temas, sesiones y tareas de una materia en un grupo (nivel · grado · sección). Ideal para coordinaciones por curso.',
+  },
+  {
+    id: 'grado_docente',
+    label: 'Grado × Docente',
+    icon: '👨‍🏫',
+    tone: 'grado',
+    resumen: 'Todo lo que un docente publicó en un salón.',
+    ayuda:
+      'Sirve para ver el material de un docente dentro de un grupo específico. Útil para tutores o jefes de área revisando un aula.',
+  },
+  {
+    id: 'docente',
+    label: 'Por docente',
+    icon: '🔎',
+    tone: 'docente',
+    resumen: 'Todas las aulas asignadas a un docente.',
+    ayuda:
+      'Sirve para listar el contenido de un docente en todas sus asignaturas y salones. No requiere elegir grado primero.',
+  },
+];
+
 function sortItems(list) {
   return [...(list || [])].sort((a, b) => {
     const ia = TYPE_ORDER.indexOf(a.tipo);
@@ -275,6 +315,11 @@ export default function AdminReportesTemas() {
     [bloques]
   );
 
+  const modoActivo = useMemo(
+    () => MODO_CATALOG.find((m) => m.id === tab) || MODO_CATALOG[0],
+    [tab]
+  );
+
   if (loadingMeta && !meta) {
     return (
       <DashboardLayout>
@@ -289,20 +334,25 @@ export default function AdminReportesTemas() {
     <DashboardLayout>
       <div className="art-root">
         <div className="art-inner">
-          <header className="admin-estadisticas-header art-header">
-            <h1 className="admin-estadisticas-title">Temas del aula virtual</h1>
-            <p className="admin-estadisticas-desc">
-              Consulta centralizada de temas interactivos, sesiones, tareas, videos, enlaces y exámenes del aula,
-              filtrados por grupo (nivel · grado · sección), curso y/o docente. Cada salón (A, B, …) es un grupo distinto.
-              El bimestre aplica a los contenidos que lo usan en base de datos; los temas históricos sin bimestre siguen listándose aparte.
-            </p>
+          <header className="art-hero">
+            <div className="art-hero-icon" aria-hidden="true">
+              📚
+            </div>
+            <div className="art-hero-text">
+              <h1>Temas del aula virtual</h1>
+              <p>
+                Consulta centralizada de temas interactivos, sesiones, tareas, videos, enlaces y exámenes.
+                Filtre por grupo (cada salón A, B… es distinto), curso o docente. Tras buscar, puede cambiar el
+                bimestre y la lista se actualiza sola.
+              </p>
+            </div>
           </header>
 
           <div className="art-toolbar">
-            <span>
-              <label htmlFor="bim-art">Bimestre</label>
+            <span className="art-toolbar-label" id="bim-art-label">
+              Bimestre
             </span>
-            <div className="art-ciclos" id="bim-art">
+            <div className="art-ciclos" id="bim-art" role="group" aria-labelledby="bim-art-label">
               {[1, 2, 3, 4].map((n) => (
                 <button
                   key={n}
@@ -321,31 +371,36 @@ export default function AdminReportesTemas() {
             )}
           </div>
 
-          <div className="art-tabs">
-            <button
-              type="button"
-              className={`art-tab ${tab === 'grado_curso' ? 'active' : ''}`}
-              onClick={() => setTab('grado_curso')}
-            >
-              Grado × Curso
-            </button>
-            <button
-              type="button"
-              className={`art-tab ${tab === 'grado_docente' ? 'active' : ''}`}
-              onClick={() => setTab('grado_docente')}
-            >
-              Grado × Docente
-            </button>
-            <button
-              type="button"
-              className={`art-tab ${tab === 'docente' ? 'active' : ''}`}
-              onClick={() => setTab('docente')}
-            >
-              Por docente
-            </button>
+          <nav className="art-tabs-modos" aria-label="Modos de consulta">
+            {MODO_CATALOG.map((modo) => (
+              <button
+                key={modo.id}
+                type="button"
+                className={`art-tab-modo art-tab-modo--${modo.tone} ${tab === modo.id ? 'is-active' : ''}`}
+                onClick={() => setTab(modo.id)}
+              >
+                <span className="art-tab-modo-icon" aria-hidden="true">
+                  {modo.icon}
+                </span>
+                <span className="art-tab-modo-body">
+                  <strong>{modo.label}</strong>
+                  <small>{modo.resumen}</small>
+                </span>
+              </button>
+            ))}
+          </nav>
+
+          <div className={`art-help art-help--${modoActivo.tone}`}>
+            <div className="art-help-icon" aria-hidden="true">
+              {modoActivo.icon}
+            </div>
+            <div>
+              <h2>{modoActivo.label}</h2>
+              <p>{modoActivo.ayuda}</p>
+            </div>
           </div>
 
-          <div className="art-panel">
+          <div className={`art-panel art-panel--${modoActivo.tone}`}>
             {tab === 'grado_curso' && (
               <div className="art-fila-filtros">
                 <div className="art-field art-field--grupo">
@@ -473,7 +528,7 @@ export default function AdminReportesTemas() {
             )}
 
             <p className="art-hint">
-              Tras una búsqueda, puedes cambiar el bimestre arriba y la lista se actualizará automáticamente.
+              Tras una búsqueda, puede cambiar el bimestre arriba y la lista se actualizará automáticamente.
             </p>
 
             {loadingContenido && <div className="art-loading">Cargando contenido…</div>}
@@ -481,26 +536,47 @@ export default function AdminReportesTemas() {
             {!loadingContenido && bloques.length > 0 && (
               <>
                 <div className="art-stats">
-                  <span className="art-stat">
-                    Asignaturas: <strong>{bloques.length}</strong>
+                  <span className="art-stat art-stat--asignaturas">
+                    <span className="art-stat-icon" aria-hidden="true">
+                      📗
+                    </span>
+                    <span>
+                      Asignaturas <strong>{bloques.length}</strong>
+                    </span>
                   </span>
-                  <span className="art-stat">
-                    Ítems totales: <strong>{totalItems}</strong>
+                  <span className="art-stat art-stat--items">
+                    <span className="art-stat-icon" aria-hidden="true">
+                      📦
+                    </span>
+                    <span>
+                      Ítems totales <strong>{totalItems}</strong>
+                    </span>
                   </span>
-                  <span className="art-stat">
-                    Bimestre mostrado: <strong>{ciclo}</strong>
+                  <span className="art-stat art-stat--ciclo">
+                    <span className="art-stat-icon" aria-hidden="true">
+                      📆
+                    </span>
+                    <span>
+                      Bimestre <strong>{ciclo}</strong>
+                    </span>
                   </span>
                 </div>
                 {bloques.map((b) => (
                   <article key={b.asignatura_id} className="art-bloque">
                     <div className="art-bloque-head">
-                      <h3>
-                        {b.curso_nombre || 'Curso'}{' '}
-                        <span className="art-bloque-subtitle">
-                          · {b.nivel_nombre || ''} {b.grado != null ? `${b.grado}°` : ''} — Secc. {b.seccion || '—'}
-                        </span>
-                      </h3>
-                      <p className="art-bloque-meta">Docente: {b.docente_nombre || '—'}</p>
+                      <div className="art-bloque-head-icon" aria-hidden="true">
+                        📖
+                      </div>
+                      <div className="art-bloque-head-text">
+                        <h3>
+                          {b.curso_nombre || 'Curso'}{' '}
+                          <span className="art-bloque-subtitle">
+                            · {b.nivel_nombre || ''} {b.grado != null ? `${b.grado}°` : ''} — Secc.{' '}
+                            {b.seccion || '—'}
+                          </span>
+                        </h3>
+                        <p className="art-bloque-meta">Docente: {b.docente_nombre || '—'}</p>
+                      </div>
                     </div>
                     {(!b.items || b.items.length === 0) && (
                       <div className="art-empty">No hay ítems registrados para este bimestre.</div>
@@ -510,6 +586,7 @@ export default function AdminReportesTemas() {
                         {sortItems(b.items).map((it) => (
                           <li key={`${it.tipo}-${it.id}`} className="art-item">
                             <span className={`art-badge art-badge-${it.tipo}`}>
+                              <span aria-hidden="true">{TIPO_ICONO[it.tipo] || '📄'}</span>
                               {TIPO_ETIQUETA[it.tipo] || it.tipo}
                             </span>
                             <span className="art-item-titulo">{it.titulo || '—'}</span>
@@ -519,9 +596,7 @@ export default function AdminReportesTemas() {
                               </span>
                             )}
                             {it.tipo === 'examen_aula' && it.estado && (
-                              <span className="art-stat art-item-meta">
-                                {it.estado}
-                              </span>
+                              <span className="art-stat art-item-meta">{it.estado}</span>
                             )}
                             <button
                               type="button"
@@ -544,7 +619,7 @@ export default function AdminReportesTemas() {
             )}
 
             {!loadingContenido && !ultimoReq && (
-              <div className="art-empty">Elige filtros y pulsa Buscar para ver el contenido del aula virtual.</div>
+              <div className="art-empty">Elija filtros y pulse Buscar para ver el contenido del aula virtual.</div>
             )}
           </div>
         </div>

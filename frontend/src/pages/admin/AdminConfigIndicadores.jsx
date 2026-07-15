@@ -31,6 +31,7 @@ export default function AdminConfigIndicadores() {
   const [itemForm, setItemForm] = useState(emptyItemForm);
   const [guardandoItem, setGuardandoItem] = useState(false);
   const [modalAsignar, setModalAsignar] = useState(false);
+  const [tabsAbiertos, setTabsAbiertos] = useState(true);
 
   const cargarLista = useCallback(async () => {
     const { data } = await api.get('/admin/indicadores-plantillas');
@@ -63,7 +64,14 @@ export default function AdminConfigIndicadores() {
     cargarDetalle(selectedId);
   }, [selectedId, cargarDetalle]);
 
+  useEffect(() => {
+    if (!selectedId && plantillas.length > 0) {
+      setSelectedId(plantillas[0].id);
+    }
+  }, [plantillas, selectedId]);
+
   const sumaPeso = useMemo(() => items.reduce((s, it) => s + (parseFloat(it.peso) || 0), 0), [items]);
+  const pesoOk = items.length === 0 || Math.abs(sumaPeso - 100) <= 0.01;
 
   const crearPlantilla = async () => {
     const { value: nombre } = await Swal.fire({
@@ -77,6 +85,7 @@ export default function AdminConfigIndicadores() {
       const { data } = await api.post('/admin/indicadores-plantillas', { nombre: nombre.trim() });
       await cargarLista();
       setSelectedId(data.plantilla.id);
+      setTabsAbiertos(true);
     } catch (e) {
       Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
     }
@@ -101,6 +110,7 @@ export default function AdminConfigIndicadores() {
     const { data } = await api.post(`/admin/indicadores-plantillas/${plantilla.id}/duplicar`, {});
     await cargarLista();
     setSelectedId(data.plantilla.id);
+    setTabsAbiertos(true);
   };
 
   const eliminarPlantilla = async () => {
@@ -114,6 +124,8 @@ export default function AdminConfigIndicadores() {
     if (!c.isConfirmed) return;
     await api.delete(`/admin/indicadores-plantillas/${plantilla.id}`);
     setSelectedId(null);
+    setPlantilla(null);
+    setItems([]);
     await cargarLista();
   };
 
@@ -131,6 +143,7 @@ export default function AdminConfigIndicadores() {
       });
       setItems(data.items || []);
       setItemForm(emptyItemForm());
+      await cargarLista();
     } catch (err) {
       Swal.fire({ icon: 'error', text: err.response?.data?.error || 'Error' });
     } finally {
@@ -144,127 +157,211 @@ export default function AdminConfigIndicadores() {
     if (!c.isConfirmed) return;
     const { data } = await api.delete(`/admin/indicadores-plantillas/${plantilla.id}/items/${itemId}`);
     setItems(data.items || []);
+    await cargarLista();
   };
 
   if (loading) {
     return (
       <div className="admin-ind-plantillas">
-        <p>Cargando…</p>
+        <div className="admin-ind-loading">Cargando plantillas…</div>
       </div>
     );
   }
 
   return (
     <div className="admin-ind-plantillas">
-      <div className="admin-ind-plantillas-header">
-        <h1>Plantillas de indicadores</h1>
-        <p>
-          Para niveles cuantitativos. Editar la plantilla no cambia criterios ni notas ya copiados en asignaturas.
-        </p>
-      </div>
-      <div className="admin-ind-plantillas-layout">
-        <aside className="admin-ind-lista">
-          <h2>Plantillas</h2>
-          <ul>
-            {plantillas.map((p) => (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  className={`admin-ind-lista-item ${selectedId === p.id ? 'active' : ''}`}
-                  onClick={() => setSelectedId(p.id)}
-                >
-                  {p.nombre}
-                  <small>{p.total_items || 0} ítem(s)</small>
-                </button>
-              </li>
-            ))}
-          </ul>
+      <header className="admin-ind-hero">
+        <div className="admin-ind-hero-icon" aria-hidden="true">
+          📐
+        </div>
+        <div className="admin-ind-hero-text">
+          <h1>Plantillas de indicadores</h1>
+          <p>
+            Diseñe modelos de criterios para niveles cuantitativos y asígnelos por nivel, curso o asignatura.
+            Editar la plantilla no cambia cursos ya configurados ni altera notas ya registradas.
+          </p>
+        </div>
+      </header>
+
+      <div className="admin-ind-tabs-bar">
+        <div className="admin-ind-tabs-bar-top">
+          <button
+            type="button"
+            className="admin-ind-tabs-toggle"
+            onClick={() => setTabsAbiertos((v) => !v)}
+            aria-expanded={tabsAbiertos}
+          >
+            <span aria-hidden="true">{tabsAbiertos ? '▾' : '▸'}</span>
+            Plantillas ({plantillas.length})
+          </button>
           <button type="button" className="admin-ind-btn-nueva" onClick={crearPlantilla}>
             + Nueva plantilla
           </button>
-        </aside>
-        <section className="admin-ind-panel">
-          {!plantilla ? (
-            <p className="admin-ind-empty">Seleccione o cree una plantilla.</p>
-          ) : loadingDetalle ? (
-            <p>Cargando detalle…</p>
-          ) : (
-            <>
-              <div className="admin-ind-panel-toolbar">
+        </div>
+
+        {tabsAbiertos && (
+          <nav className="admin-ind-tabs" aria-label="Plantillas de indicadores">
+            {plantillas.length === 0 && (
+              <p className="admin-ind-tabs-empty">Aún no hay plantillas. Cree la primera.</p>
+            )}
+            {plantillas.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className={`admin-ind-tab ${selectedId === p.id ? 'is-active' : ''}`}
+                onClick={() => setSelectedId(p.id)}
+              >
+                <span className="admin-ind-tab-icon" aria-hidden="true">
+                  📋
+                </span>
+                <span className="admin-ind-tab-body">
+                  <strong>{p.nombre}</strong>
+                  <small>{p.total_items || 0} ítem(s)</small>
+                </span>
+              </button>
+            ))}
+          </nav>
+        )}
+
+        {!tabsAbiertos && plantilla && (
+          <div className="admin-ind-tabs-collapsed-hint">
+            Editando: <strong>{plantilla.nombre}</strong>
+          </div>
+        )}
+      </div>
+
+      <section className="admin-ind-panel">
+        {!plantilla ? (
+          <p className="admin-ind-empty">Seleccione o cree una plantilla.</p>
+        ) : loadingDetalle ? (
+          <div className="admin-ind-loading">Cargando detalle…</div>
+        ) : (
+          <>
+            <div className="admin-ind-panel-toolbar">
+              <div className="admin-ind-panel-title">
+                <span className="admin-ind-panel-title-icon" aria-hidden="true">
+                  ✏️
+                </span>
                 <h2>{plantilla.nombre}</h2>
-                <button type="button" className="admin-ind-btn" onClick={renombrarPlantilla}>Renombrar</button>
-                <button type="button" className="admin-ind-btn" onClick={duplicarPlantilla}>Duplicar</button>
-                <button type="button" className="admin-ind-btn admin-ind-btn-danger" onClick={eliminarPlantilla}>Eliminar</button>
+              </div>
+              <div className="admin-ind-panel-actions">
+                <button type="button" className="admin-ind-btn" onClick={renombrarPlantilla}>
+                  ✏️ Renombrar
+                </button>
+                <button type="button" className="admin-ind-btn" onClick={duplicarPlantilla}>
+                  📄 Duplicar
+                </button>
+                <button type="button" className="admin-ind-btn admin-ind-btn-danger" onClick={eliminarPlantilla}>
+                  🗑️ Eliminar
+                </button>
                 <button
                   type="button"
                   className="admin-ind-btn admin-ind-btn-primary"
                   onClick={() => setModalAsignar(true)}
                   disabled={!items.length}
                 >
-                  Asignar a asignaturas
+                  🚀 Asignar a asignaturas
                 </button>
               </div>
-              <div className="admin-ind-aviso">
-                Los cambios aquí no modifican asignaturas ya configuradas. Use Asignar para copiar a cursos.
+            </div>
+
+            <div className="admin-ind-aviso">
+              <span className="admin-ind-aviso-icon" aria-hidden="true">
+                💡
+              </span>
+              <div>
+                Los cambios aquí no modifican asignaturas ya configuradas. Use{' '}
+                <strong>Asignar</strong> para copiar a niveles, cursos o salas concretas. Cada asignatura
+                guarda sus propios criterios: no afectan las notas de otros cursos.
               </div>
-              <form onSubmit={guardarItem} className="admin-ind-form-item">
-                <div className="admin-ind-form-item--wide">
-                  <label>Descripción *</label>
-                  <input
-                    value={itemForm.descripcion}
-                    onChange={(e) => setItemForm((f) => ({ ...f, descripcion: e.target.value }))}
-                    placeholder="Ej. Prácticas"
-                    required
-                  />
-                </div>
+            </div>
+
+            <div className="admin-ind-kpis">
+              <div className={`admin-ind-kpi ${pesoOk ? 'admin-ind-kpi--ok' : 'admin-ind-kpi--warn'}`}>
+                <span className="admin-ind-kpi-icon" aria-hidden="true">
+                  ⚖️
+                </span>
                 <div>
-                  <label>Abreviatura</label>
-                  <input
-                    value={itemForm.abreviatura}
-                    onChange={(e) => setItemForm((f) => ({ ...f, abreviatura: e.target.value }))}
-                    placeholder="PRA"
-                  />
+                  <small>Suma de pesos</small>
+                  <strong>{sumaPeso.toFixed(2)}%</strong>
                 </div>
+              </div>
+              <div className="admin-ind-kpi admin-ind-kpi--items">
+                <span className="admin-ind-kpi-icon" aria-hidden="true">
+                  📦
+                </span>
                 <div>
-                  <label>Peso %</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={itemForm.peso}
-                    onChange={(e) => setItemForm((f) => ({ ...f, peso: e.target.value }))}
-                  />
+                  <small>Ítems</small>
+                  <strong>{items.length}</strong>
                 </div>
-                <div>
-                  <label>Cuadros</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="30"
-                    value={itemForm.cuadros}
-                    onChange={(e) => setItemForm((f) => ({ ...f, cuadros: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label>Bimestre</label>
-                  <select
-                    value={itemForm.ciclo}
-                    onChange={(e) => setItemForm((f) => ({ ...f, ciclo: parseInt(e.target.value, 10) }))}
-                  >
-                    {BIMESTRE_OPCIONES.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                  <button type="submit" className="admin-ind-btn admin-ind-btn-primary" disabled={guardandoItem}>
-                    {guardandoItem ? 'Guardando…' : '+ Agregar'}
-                  </button>
-                </div>
-              </form>
-              <p className={`admin-ind-suma-peso ${sumaPeso > 0 && Math.abs(sumaPeso - 100) > 0.01 ? 'warn' : ''}`}>
-                Suma de pesos: {sumaPeso.toFixed(2)}%
-              </p>
+              </div>
+            </div>
+
+            <form onSubmit={guardarItem} className="admin-ind-form-item">
+              <div className="admin-ind-form-item-head">Agregar indicador a la plantilla</div>
+              <div className="admin-ind-form-item--wide">
+                <label htmlFor="ind-desc">Descripción *</label>
+                <input
+                  id="ind-desc"
+                  value={itemForm.descripcion}
+                  onChange={(e) => setItemForm((f) => ({ ...f, descripcion: e.target.value }))}
+                  placeholder="Ej. Prácticas"
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="ind-abr">Abreviatura</label>
+                <input
+                  id="ind-abr"
+                  value={itemForm.abreviatura}
+                  onChange={(e) => setItemForm((f) => ({ ...f, abreviatura: e.target.value }))}
+                  placeholder="PRA"
+                />
+              </div>
+              <div>
+                <label htmlFor="ind-peso">Peso %</label>
+                <input
+                  id="ind-peso"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={itemForm.peso}
+                  onChange={(e) => setItemForm((f) => ({ ...f, peso: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label htmlFor="ind-cuadros">Cuadros</label>
+                <input
+                  id="ind-cuadros"
+                  type="number"
+                  min="1"
+                  max="30"
+                  value={itemForm.cuadros}
+                  onChange={(e) => setItemForm((f) => ({ ...f, cuadros: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label htmlFor="ind-ciclo">Bimestre</label>
+                <select
+                  id="ind-ciclo"
+                  value={itemForm.ciclo}
+                  onChange={(e) => setItemForm((f) => ({ ...f, ciclo: parseInt(e.target.value, 10) }))}
+                >
+                  {BIMESTRE_OPCIONES.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="admin-ind-form-item-actions">
+                <button type="submit" className="admin-ind-btn admin-ind-btn-primary" disabled={guardandoItem}>
+                  {guardandoItem ? 'Guardando…' : '+ Agregar'}
+                </button>
+              </div>
+            </form>
+
+            <div className="admin-ind-tabla-wrap">
               <table className="admin-ind-tabla">
                 <thead>
                   <tr>
@@ -280,22 +377,36 @@ export default function AdminConfigIndicadores() {
                   {items.map((it) => (
                     <tr key={it.id}>
                       <td>{it.descripcion}</td>
-                      <td>{it.abreviatura}</td>
+                      <td>
+                        <span className="admin-ind-abr">{it.abreviatura || '—'}</span>
+                      </td>
                       <td>{parseFloat(it.peso) || 0}</td>
                       <td>{it.cuadros}</td>
-                      <td>{etiquetaBimestre(it.ciclo)}</td>
                       <td>
-                        <button type="button" className="admin-ind-btn admin-ind-btn-danger" onClick={() => eliminarItem(it.id)}>🗑️</button>
+                        <span className={`admin-ind-bim admin-ind-bim--${parseInt(it.ciclo, 10) || 0}`}>
+                          {etiquetaBimestre(it.ciclo)}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="admin-ind-btn admin-ind-btn-danger admin-ind-btn-icon"
+                          onClick={() => eliminarItem(it.id)}
+                          aria-label="Eliminar ítem"
+                        >
+                          🗑️
+                        </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
               {!items.length && <p className="admin-ind-empty">Agregue ítems a la plantilla.</p>}
-            </>
-          )}
-        </section>
-      </div>
+            </div>
+          </>
+        )}
+      </section>
+
       <ModalAsignarIndicadoresPlantilla
         open={modalAsignar && !!plantilla}
         plantillaId={plantilla?.id}
