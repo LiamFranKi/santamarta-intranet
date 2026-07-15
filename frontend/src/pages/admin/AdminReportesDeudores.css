@@ -1,52 +1,148 @@
-/* Tipografía clara (stack del sistema, sin depender de fuentes externas) */
+/* Tipografía clara + hero alineado a Documentos / Notas / Temas */
 .admin-deudores-reporte {
   --deudores-font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --deudores-blue: #1e40af;
-  --deudores-blue-hover: #1d4ed8;
+  --deudores-blue: #1d4ed8;
+  --deudores-blue-hover: #1e40af;
+  --deudores-teal: #14b8a6;
+  --deudores-sky: #0ea5e9;
   --deudores-border: #cbd5e1;
   max-width: min(1200px, 100%);
   margin: 0 auto;
   font-family: var(--deudores-font);
 }
 
-.admin-deudores-reporte .admin-estadisticas-header {
-  margin-bottom: 1.25rem;
+.admin-deudores-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.15rem;
+  margin-bottom: 1.1rem;
+  padding: 1.5rem 1.65rem;
+  border-radius: 18px;
+  color: #fff;
+  background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 55%, #14b8a6 100%);
+  box-shadow: 0 12px 32px rgba(14, 165, 233, 0.28);
+  position: relative;
+  overflow: hidden;
 }
 
-.admin-deudores-reporte .admin-estadisticas-title,
-.admin-deudores-reporte .admin-estadisticas-desc {
-  font-family: var(--deudores-font);
+.admin-deudores-hero::after {
+  content: '';
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.admin-deudores-hero-icon {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.65rem;
+  background: rgba(255, 255, 255, 0.18);
+  position: relative;
+  z-index: 1;
+}
+
+.admin-deudores-hero-text {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.admin-deudores-hero h1 {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.35rem, 4vw, 1.85rem);
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.admin-deudores-hero p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.95rem;
+  line-height: 1.45;
+  max-width: 52rem;
+}
+
+.admin-deudores-help {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  margin-bottom: 0.9rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #fde68a;
+  border-left: 4px solid #f59e0b;
+  background: #fffbeb;
+}
+
+.admin-deudores-help-icon {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  font-size: 1.1rem;
+}
+
+.admin-deudores-help h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+  color: #92400e;
+}
+
+.admin-deudores-help p {
+  margin: 0;
+  font-size: 0.86rem;
+  color: #78350f;
+  line-height: 1.45;
 }
 
 .admin-deudores-card {
-  border-radius: 10px;
+  border-radius: 14px;
   border: 1px solid var(--deudores-border);
   overflow: hidden;
   background: #fff;
   box-shadow: 0 2px 12px rgba(15, 23, 42, 0.07);
   margin-bottom: 1rem;
+  border-top: 3px solid var(--deudores-teal);
 }
 
 .admin-deudores-card-header {
-  background: var(--deudores-blue);
+  background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 55%, #0ea5e9 100%);
   color: #fff;
-  padding: 0.6rem 1rem;
+  padding: 0.7rem 1rem;
   font-weight: 700;
-  font-size: 0.98rem;
-  letter-spacing: 0.03em;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
   font-family: var(--deudores-font);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
 }
 
-/* Una sola línea de controles (scroll horizontal en pantallas muy estrechas) */
 .admin-deudores-toolbar {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
   gap: 0.65rem 0.85rem;
-  padding: 0.75rem 1rem;
+  padding: 0.85rem 1rem;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
+  background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
 }
 
 .admin-deudores-toolbar label {
@@ -81,7 +177,6 @@
   flex-shrink: 0;
 }
 
-/* ~20% más angosto que la versión anterior para que la barra de filtros entre mejor */
 .admin-deudores-toolbar select.admin-deudores-select-grado {
   min-width: min(17.5rem, 44vw);
   max-width: min(22.5rem, 56vw);
@@ -89,16 +184,17 @@
 
 .admin-deudores-segment {
   display: inline-flex;
-  border-radius: 8px;
+  border-radius: 999px;
   overflow: hidden;
   border: 1px solid var(--deudores-border);
   flex-shrink: 0;
+  background: #fff;
 }
 
 .admin-deudores-segment button {
-  padding: 0.45rem 0.85rem;
+  padding: 0.45rem 0.9rem;
   border: none;
-  background: #f8fafc;
+  background: transparent;
   color: #334155;
   font-size: 0.85rem;
   font-weight: 700;
@@ -107,17 +203,13 @@
   white-space: nowrap;
 }
 
-.admin-deudores-segment button + button {
-  border-left: 1px solid var(--deudores-border);
-}
-
 .admin-deudores-segment button.is-active {
-  background: var(--deudores-blue);
+  background: linear-gradient(135deg, var(--deudores-blue) 0%, var(--deudores-teal) 100%);
   color: #fff;
 }
 
 .admin-deudores-segment button:not(.is-active):hover {
-  background: #e2e8f0;
+  background: #f1f5f9;
 }
 
 .admin-deudores-toolbar-spacer {
@@ -126,8 +218,8 @@
 }
 
 .admin-deudores-btn-compact {
-  padding: 0.45rem 0.75rem;
-  border-radius: 8px;
+  padding: 0.45rem 0.85rem;
+  border-radius: 10px;
   font-weight: 700;
   font-size: 0.82rem;
   font-family: var(--deudores-font);
@@ -138,37 +230,99 @@
 }
 
 .admin-deudores-btn-compact--primary {
-  background: var(--deudores-blue);
+  background: linear-gradient(135deg, var(--deudores-blue) 0%, var(--deudores-teal) 100%);
   color: #fff;
+  box-shadow: 0 4px 14px rgba(29, 78, 216, 0.28);
 }
 
 .admin-deudores-btn-compact--primary:hover:not(:disabled) {
-  background: var(--deudores-blue-hover);
+  filter: brightness(1.05);
 }
 
 .admin-deudores-btn-compact--ghost {
-  background: #fff;
-  color: #1e293b;
-  border: 1px solid var(--deudores-border);
+  background: #eff6ff;
+  color: var(--deudores-blue);
+  border: 1px solid #93c5fd;
 }
 
 .admin-deudores-btn-compact--ghost:hover:not(:disabled) {
-  background: #f1f5f9;
+  background: var(--deudores-blue);
+  color: #fff;
 }
 
 .admin-deudores-btn-compact:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  box-shadow: none;
+}
+
+.admin-deudores-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin: 0.85rem 0;
+}
+
+.admin-deudores-kpis--below {
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 2px solid #bfdbfe;
+}
+
+.admin-deudores-kpi {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.6rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  min-width: 150px;
+}
+
+.admin-deudores-kpi small {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #64748b;
+}
+
+.admin-deudores-kpi strong {
+  font-size: 1.05rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-deudores-kpi-icon {
+  font-size: 1.2rem;
+}
+
+.admin-deudores-kpi--alumnos {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+.admin-deudores-kpi--alumnos strong {
+  color: #1d4ed8;
+}
+
+.admin-deudores-kpi--monto {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+.admin-deudores-kpi--monto strong {
+  color: #047857;
 }
 
 .admin-deudores-preview-wrap {
-  border-radius: 10px;
+  border-radius: 12px;
   border: 1px solid #e2e8f0;
   overflow-x: auto;
   overflow-y: visible;
   max-height: none;
   background: #fff;
   width: 100%;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
 }
 
 .admin-deudores-preview-table {
@@ -180,7 +334,7 @@
 }
 
 .admin-deudores-preview-table thead th {
-  background: var(--deudores-blue);
+  background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 55%, #0ea5e9 100%);
   color: #fff;
   padding: 0.65rem 0.35rem;
   text-align: center;
@@ -219,6 +373,10 @@
 
 .admin-deudores-preview-table tbody tr:nth-child(even) td {
   background: #f8fafc;
+}
+
+.admin-deudores-preview-table tbody tr:hover td {
+  background: #f0f9ff;
 }
 
 .admin-deudores-preview-table .col-alumno {
@@ -297,41 +455,20 @@
   word-break: break-word;
 }
 
-.admin-deudores-preview-headline {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0.5rem 1rem;
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 1rem 0 0.5rem;
-  font-family: var(--deudores-font);
-}
-
-.admin-deudores-preview-headline-left {
-  flex: 1;
-  min-width: 0;
-}
-
-.admin-deudores-preview-headline-right {
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-.admin-deudores-preview-summary-below {
-  margin-top: 0.75rem;
-  margin-bottom: 0;
-  padding-top: 0.65rem;
-  border-top: 2px solid var(--deudores-blue);
-}
-
 .admin-deudores-hint {
   font-size: 0.8rem;
   color: #64748b;
   margin: 0.5rem 0 0;
   line-height: 1.45;
   font-family: var(--deudores-font);
+  padding: 0.55rem 0.85rem;
+  background: #f0f9ff;
+  border-radius: 10px;
+  border: 1px solid #e0f2fe;
 }
 
+@media (max-width: 720px) {
+  .admin-deudores-hero {
+    padding: 1.15rem 1.2rem;
+  }
+}

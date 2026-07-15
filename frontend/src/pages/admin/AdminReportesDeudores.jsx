@@ -170,11 +170,30 @@ export default function AdminReportesDeudores() {
   return (
     <DashboardLayout>
       <div className="dashboard-container admin-deudores-reporte">
-        <div className="admin-estadisticas-header">
-          <h1 className="admin-estadisticas-title">Deudores</h1>
-          <p className="admin-estadisticas-desc">
-            Lista con teléfono del apoderado. La columna Detalle muestra lo registrado por el tutor en su seguimiento de deudores por concepto.
-          </p>
+        <header className="admin-deudores-hero">
+          <div className="admin-deudores-hero-icon" aria-hidden="true">
+            💰
+          </div>
+          <div className="admin-deudores-hero-text">
+            <h1>Deudores</h1>
+            <p>
+              Lista de alumnos con saldo pendiente, teléfono del apoderado y detalle registrado por el tutor.
+              Filtre por concepto y grado, genere la vista y exporte a PDF.
+            </p>
+          </div>
+        </header>
+
+        <div className="admin-deudores-help">
+          <div className="admin-deudores-help-icon" aria-hidden="true">
+            💡
+          </div>
+          <div>
+            <h2>Alumnos deudores</h2>
+            <p>
+              La columna Detalle muestra lo que el tutor anotó en su seguimiento por concepto. «Todos» / «Separados»
+              solo afecta cómo se agrupa el PDF.
+            </p>
+          </div>
         </div>
 
         <div className="admin-estadisticas-content">
@@ -182,7 +201,9 @@ export default function AdminReportesDeudores() {
             <p className="admin-estadisticas-placeholder">Cargando opciones…</p>
           ) : (
             <div className="admin-deudores-card">
-              <div className="admin-deudores-card-header">Alumnos deudores</div>
+              <div className="admin-deudores-card-header">
+                <span aria-hidden="true">📋</span> Filtros y acciones
+              </div>
               <div className="admin-deudores-toolbar" role="toolbar" aria-label="Filtros de deudores">
                 <label htmlFor="deudores-anio">Año</label>
                 <input
@@ -243,7 +264,7 @@ export default function AdminReportesDeudores() {
                   disabled={loadingLista}
                   onClick={cargarLista}
                 >
-                  {loadingLista ? '…' : 'Ver'}
+                  {loadingLista ? '…' : '👁 Ver'}
                 </button>
                 <button
                   type="button"
@@ -251,25 +272,38 @@ export default function AdminReportesDeudores() {
                   disabled={!filas.length}
                   onClick={descargarPdf}
                 >
-                  PDF
+                  📄 PDF
                 </button>
               </div>
             </div>
           )}
 
           <p className="admin-deudores-hint">
-            El PDF replica la misma tabla: grado con nivel debajo, teléfono y columna Detalle (tutor) cuando exista texto guardado.
+            El PDF replica la misma tabla: grado con nivel debajo, teléfono y columna Detalle (tutor) cuando exista
+            texto guardado.
           </p>
 
           {meta && (
             <div>
-              <div className="admin-deudores-preview-headline">
-                <span className="admin-deudores-preview-headline-left">
-                  Total alumnos ({totalAlumnosUnicos})
-                </span>
-                <span className="admin-deudores-preview-headline-right">
-                  Monto total {fmtMonto(totales.totalDeuda, meta.moneda)}
-                </span>
+              <div className="admin-deudores-kpis">
+                <div className="admin-deudores-kpi admin-deudores-kpi--alumnos">
+                  <span className="admin-deudores-kpi-icon" aria-hidden="true">
+                    👥
+                  </span>
+                  <div>
+                    <small>Total alumnos</small>
+                    <strong>{totalAlumnosUnicos}</strong>
+                  </div>
+                </div>
+                <div className="admin-deudores-kpi admin-deudores-kpi--monto">
+                  <span className="admin-deudores-kpi-icon" aria-hidden="true">
+                    💵
+                  </span>
+                  <div>
+                    <small>Monto total</small>
+                    <strong>{fmtMonto(totales.totalDeuda, meta.moneda)}</strong>
+                  </div>
+                </div>
               </div>
               <div className="admin-deudores-preview-wrap">
                 <table className="admin-deudores-preview-table">
@@ -304,13 +338,25 @@ export default function AdminReportesDeudores() {
                   </tbody>
                 </table>
               </div>
-              <div className="admin-deudores-preview-headline admin-deudores-preview-summary-below">
-                <span className="admin-deudores-preview-headline-left">
-                  Total alumnos ({totalAlumnosUnicos})
-                </span>
-                <span className="admin-deudores-preview-headline-right">
-                  Monto total {fmtMonto(totales.totalDeuda, meta.moneda)}
-                </span>
+              <div className="admin-deudores-kpis admin-deudores-kpis--below">
+                <div className="admin-deudores-kpi admin-deudores-kpi--alumnos">
+                  <span className="admin-deudores-kpi-icon" aria-hidden="true">
+                    👥
+                  </span>
+                  <div>
+                    <small>Total alumnos</small>
+                    <strong>{totalAlumnosUnicos}</strong>
+                  </div>
+                </div>
+                <div className="admin-deudores-kpi admin-deudores-kpi--monto">
+                  <span className="admin-deudores-kpi-icon" aria-hidden="true">
+                    💵
+                  </span>
+                  <div>
+                    <small>Monto total</small>
+                    <strong>{fmtMonto(totales.totalDeuda, meta.moneda)}</strong>
+                  </div>
+                </div>
               </div>
             </div>
           )}
