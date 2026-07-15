@@ -27,7 +27,7 @@ const REPORT_CATALOG = [
     titulo: 'Matrícula',
     icon: '🎒',
     tone: 'matricula',
-    resumen: 'Listas, resúmenes, retirados y nóminas.',
+    resumen: 'Listas, antigüedad, retirados y nóminas.',
     items: [
       {
         id: 'lista-matriculados',
@@ -57,6 +57,13 @@ const REPORT_CATALOG = [
         icon: '📝',
         ayuda: 'Registro académico por grado con cuadros para anotaciones; vista previa y PDF.',
         Component: ReporteNominasAlumnos,
+      },
+      {
+        id: 'alumnos-matricula',
+        label: 'Reporte de alumnos',
+        icon: '🧒',
+        ayuda: 'Listado de matriculados con antigüedad (nuevos o antiguos en el colegio).',
+        Component: ReporteAlumnos,
       },
     ],
   },
@@ -101,13 +108,6 @@ const REPORT_CATALOG = [
         icon: '💰',
         ayuda: 'Montos de matrícula y pensiones asignados, agrupados por aula.',
         Component: ReporteMontoPagarReal,
-      },
-      {
-        id: 'alumnos-pagos',
-        label: 'Reporte de alumnos',
-        icon: '🧒',
-        ayuda: 'Listado de matriculados con antigüedad (nuevos o antiguos).',
-        Component: ReporteAlumnos,
       },
       {
         id: 'deuda-anual',
