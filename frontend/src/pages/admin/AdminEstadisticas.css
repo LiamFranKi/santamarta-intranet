@@ -151,139 +151,109 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Gráfico de barras Pagado vs Deuda */
-.admin-estadisticas-chart-card {
+/* Gráficos estadísticos (Recharts) */
+.admin-charts-section {
   margin-top: 1.5rem;
-  padding: 1.25rem 1.5rem;
-  background: #fff;
-  border-radius: 12px;
-  border: 1px solid #e8e0e8;
-  box-shadow: 0 2px 12px rgba(147, 112, 219, 0.06);
   width: 100%;
   box-sizing: border-box;
 }
 
-.admin-estadisticas-chart-title {
-  font-size: 1.1rem;
+.admin-charts-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 1100px) {
+  .admin-charts-grid {
+    grid-template-columns: 1.4fr 1fr;
+  }
+
+  .admin-charts-card--wide {
+    grid-column: 1 / -1;
+  }
+}
+
+.admin-charts-card {
+  padding: 1.1rem 1.25rem 0.85rem;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.admin-charts-card-title {
+  font-size: 1rem;
   font-weight: 600;
   color: #1f2937;
-  margin: 0 0 0.75rem 0;
+  margin: 0 0 0.65rem 0;
   text-align: center;
 }
 
-.admin-estadisticas-chart-legend {
-  display: flex;
-  justify-content: center;
-  gap: 1.5rem;
-  margin-bottom: 1rem;
-}
-
-.admin-estadisticas-chart-legend-item {
-  font-size: 0.85rem;
-  color: #4b5563;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.admin-estadisticas-chart-legend-item::before {
-  content: '';
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
-}
-
-.admin-estadisticas-legend-pagado::before {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-}
-
-.admin-estadisticas-legend-deuda::before {
-  background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
-}
-
-.admin-estadisticas-chart-wrapper {
-  display: flex;
-  align-items: stretch;
+.admin-charts-body {
   width: 100%;
-  min-height: 260px;
+  min-width: 0;
 }
 
-.admin-estadisticas-chart-y-axis {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding-right: 0.5rem;
-  margin-right: 0.25rem;
-  font-size: 0.7rem;
+.admin-charts-body--bar {
+  height: 300px;
+}
+
+.admin-charts-body--pie {
+  height: 220px;
+  position: relative;
+}
+
+.admin-charts-pie-pair {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+@media (min-width: 640px) {
+  .admin-charts-pie-pair {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.admin-charts-pie-caption {
+  margin: 0 0 0.25rem;
+  text-align: center;
+  font-size: 0.78rem;
   color: #6b7280;
-  font-variant-numeric: tabular-nums;
 }
 
-.admin-estadisticas-chart-y-tick {
-  line-height: 1;
-}
-
-.admin-estadisticas-chart-bars-container {
-  flex: 1;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 2px;
-  min-width: 0;
-  padding-bottom: 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.admin-estadisticas-chart-group {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 0;
-  max-width: 110px;
-}
-
-.admin-estadisticas-chart-bars {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 10px;
-  width: 100%;
-  height: 200px;
-  min-height: 200px;
-}
-
-.admin-estadisticas-bar {
-  width: 100%;
-  max-width: 28px;
-  min-height: 2px;
-  border-radius: 6px 6px 0 0;
-  transition: opacity 0.2s;
-}
-
-.admin-estadisticas-bar:hover {
-  opacity: 0.9;
-}
-
-.admin-estadisticas-bar-pagado {
-  background: linear-gradient(180deg, #34d399 0%, #10b981 100%);
-}
-
-.admin-estadisticas-bar-deuda {
-  background: linear-gradient(180deg, #f87171 0%, #ef4444 100%);
-}
-
-.admin-estadisticas-chart-x-label {
-  font-size: 0.6rem;
-  color: #4b5563;
-  margin-top: 0.35rem;
+.admin-charts-empty {
+  margin: 0;
+  padding: 2rem 1rem;
   text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-  transform: rotate(-28deg);
-  transform-origin: top center;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.admin-charts-tooltip {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.55rem 0.75rem;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.1);
+  font-size: 0.8rem;
+  color: #374151;
+}
+
+.admin-charts-tooltip-label {
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+  color: #111827;
+}
+
+.admin-charts-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.2rem;
 }
 
 .admin-estadisticas-deudas-col {

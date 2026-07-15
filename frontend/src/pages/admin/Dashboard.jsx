@@ -25,6 +25,7 @@ import AdminReportesDeudores from './AdminReportesDeudores';
 import AdminReportesGeneral from './AdminReportesGeneral';
 import AdminReportesTemas from './AdminReportesTemas';
 import AdminReportesNotas from './AdminReportesNotas';
+import DashboardCharts from './DashboardCharts';
 const PSICOLOGA_RUTAS_ADMIN = [
   '/admin/psicologia',
   '/admin/usuarios/alumnos',
@@ -64,6 +65,8 @@ function Dashboard() {
   const [kpis, setKpis] = useState(null);
   const [loadingKpis, setLoadingKpis] = useState(true);
   const [errorKpis, setErrorKpis] = useState(null);
+  const [deudasNivel, setDeudasNivel] = useState([]);
+  const [loadingNiveles, setLoadingNiveles] = useState(true);
 
   useEffect(() => {
     if (user?.tipo === 'PSICOLOGA') {
@@ -82,12 +85,19 @@ function Dashboard() {
       setKpis(null);
       setErrorKpis(null);
       setLoadingKpis(false);
+      setDeudasNivel([]);
+      setLoadingNiveles(false);
       return;
     }
     api.get('/admin/estadisticas/kpis')
       .then((res) => setKpis(res.data))
       .catch((err) => setErrorKpis(err.response?.data?.error || 'Error al cargar estadísticas por concepto'))
       .finally(() => setLoadingKpis(false));
+
+    api.get('/admin/estadisticas/deudas-por-nivel')
+      .then((res) => setDeudasNivel(res.data?.niveles || []))
+      .catch(() => setDeudasNivel([]))
+      .finally(() => setLoadingNiveles(false));
   }, [user?.tipo]);
 
   const navigate = useNavigate();
@@ -870,62 +880,14 @@ function Dashboard() {
                       </table>
                     </div>
 
-                    {/* Gráfico Pagado vs saldo pendiente por concepto */}
-                    <div className="admin-estadisticas-chart-card">
-                      <h3 className="admin-estadisticas-chart-title">Pagado vs saldo pendiente por concepto</h3>
-                      <div className="admin-estadisticas-chart-legend">
-                        <span className="admin-estadisticas-chart-legend-item admin-estadisticas-legend-pagado">Pagado</span>
-                        <span className="admin-estadisticas-chart-legend-item admin-estadisticas-legend-deuda">Saldo pendiente</span>
-                      </div>
-                      <div className="admin-estadisticas-chart-wrapper">
-                        {(() => {
-                          const conceptos = kpis.conceptos;
-                          const maxVal = Math.max(
-                            ...conceptos.flatMap(r => [parseFloat(r.pagado) || 0, parseFloat(r.deuda) || 0]),
-                            1
-                          );
-                          const step = maxVal <= 0 ? 1 : Math.ceil(maxVal / 5 / 10000) * 10000;
-                          const yMax = Math.ceil(maxVal / step) * step || 1;
-                          return (
-                            <>
-                              <div className="admin-estadisticas-chart-y-axis">
-                                {[yMax, yMax * 0.8, yMax * 0.6, yMax * 0.4, yMax * 0.2, 0].map((v, i) => (
-                                  <div key={i} className="admin-estadisticas-chart-y-tick">
-                                    {v.toLocaleString('es-PE', { maximumFractionDigits: 0 })}
-                                  </div>
-                                ))}
-                              </div>
-                              <div className="admin-estadisticas-chart-bars-container">
-                                {conceptos.map((row) => {
-                                  const pagado = parseFloat(row.pagado) || 0;
-                                  const deuda = parseFloat(row.deuda) || 0;
-                                  const pctPagado = yMax > 0 ? (pagado / yMax) * 100 : 0;
-                                  const pctDeuda = yMax > 0 ? (deuda / yMax) * 100 : 0;
-                                  return (
-                                    <div key={row.tipo} className="admin-estadisticas-chart-group">
-                                      <div className="admin-estadisticas-chart-bars">
-                                        <div
-                                          className="admin-estadisticas-bar admin-estadisticas-bar-pagado"
-                                          style={{ height: `${Math.max(pctPagado, 0.5)}%` }}
-                                          title={`${row.concepto}: Pagado ${pagado.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
-                                        />
-                                        <div
-                                          className="admin-estadisticas-bar admin-estadisticas-bar-deuda"
-                                          style={{ height: `${Math.max(pctDeuda, 0.5)}%` }}
-                                          title={`${row.concepto}: Saldo pendiente ${deuda.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
-                                        />
-                                      </div>
-                                      <div className="admin-estadisticas-chart-x-label">{row.concepto}</div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </>
-                          );
-                        })()}
-                      </div>
                     </div>
-                    </div>
+
+                    <DashboardCharts
+                      kpis={kpis}
+                      niveles={deudasNivel}
+                      loadingNiveles={loadingNiveles}
+                      moneda={kpis.moneda || stats?.moneda || 'S/'}
+                    />
                   </div>
                 ) : (
                   <p className="admin-estadisticas-placeholder">No hay datos de estadísticas por concepto disponibles.</p>

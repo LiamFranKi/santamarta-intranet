@@ -171,6 +171,7 @@ router.use((req, res, next) => {
     const permitidasPromotoria = [
       '/dashboard',
       '/estadisticas/kpis',
+      '/estadisticas/deudas-por-nivel',
       '/estadisticas/deudas-por-aula',
       '/estadisticas/deudas-por-aula/alumnos',
       '/estadisticas/deudores-lista'
@@ -622,6 +623,110 @@ router.get('/estadisticas/kpis', async (req, res) => {
   } catch (error) {
     console.error('Error estadísticas KPIs:', error);
     res.status(500).json({ error: 'Error al obtener KPIs de estadísticas' });
+  }
+});
+
+/**
+ * GET /api/admin/estadisticas/deudas-por-nivel
+ * Saldo pendiente agregado por nivel académico (año activo o ?anio=).
+ * Misma lógica de tarifa/pagado que KPIs (matrícula sin filtro de año; pensiones del año).
+ */
+router.get('/estadisticas/deudas-por-nivel', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const anioParam = parseInt(req.query.anio, 10);
+    const [colegio] = await query(
+      'SELECT anio_activo, total_pensiones, moneda FROM colegios WHERE id = ? LIMIT 1',
+      [colegio_id]
+    );
+    const anio = !isNaN(anioParam) && anioParam > 0
+      ? anioParam
+      : parseInt(colegio?.anio_activo || new Date().getFullYear(), 10);
+    const totalPensiones = parseInt(colegio?.total_pensiones || 10, 10);
+    const moneda = colegio?.moneda || 'S/';
+
+    const matriculas = await query(
+      `SELECT m.id, c.pension, c.matricula, n.id AS nivel_id, n.nombre AS nivel_nombre
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       INNER JOIN costos c ON c.id = m.costo_id
+       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)
+       ORDER BY n.nombre ASC`,
+      [colegio_id, anio]
+    );
+
+    const matIds = (matriculas || []).map((m) => m.id);
+    const pagosPorMatricula = {};
+    if (matIds.length > 0) {
+      const ph = matIds.map(() => '?').join(',');
+      const detRows = await query(
+        `SELECT p.matricula_id, p.tipo, COALESCE(p.nro_pago, 0) AS nro_pago,
+                COALESCE(SUM(p.monto), 0) AS total
+         FROM pagos p
+         WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
+           AND p.matricula_id IN (${ph})
+           AND (p.tipo = 0 OR (p.tipo = 1 AND p.nro_pago >= 1 AND p.nro_pago <= ? AND ${ANIO_PAGO_SQL}))
+         GROUP BY p.matricula_id, p.tipo, p.nro_pago`,
+        [colegio_id, ...matIds, totalPensiones, anio, anio]
+      );
+      (detRows || []).forEach((row) => {
+        const mid = row.matricula_id;
+        if (!pagosPorMatricula[mid]) pagosPorMatricula[mid] = { t0: 0, pens: {} };
+        const t = parseInt(row.tipo, 10);
+        const tot = parseFloat(row.total || 0);
+        if (t === 0) pagosPorMatricula[mid].t0 = tot;
+        else if (t === 1) {
+          const np = parseInt(row.nro_pago, 10);
+          if (np >= 1 && np <= totalPensiones) pagosPorMatricula[mid].pens[np] = tot;
+        }
+      });
+    }
+
+    const porNivel = {};
+    for (const mat of matriculas || []) {
+      const nivelId = mat.nivel_id;
+      if (!porNivel[nivelId]) {
+        porNivel[nivelId] = {
+          nivel_id: nivelId,
+          nivel: mat.nivel_nombre || 'Sin nivel',
+          tarifa: 0,
+          pagado: 0,
+          saldo: 0,
+          alumnos: 0
+        };
+      }
+      const espMat = parseFloat(mat.matricula || 0);
+      const espPen = parseFloat(mat.pension || 0);
+      const pm = pagosPorMatricula[mat.id] || { t0: 0, pens: {} };
+      let tarifa = espMat;
+      let pagado = Math.min(pm.t0, espMat);
+      let saldo = Math.max(0, espMat - pm.t0);
+      for (let i = 1; i <= totalPensiones; i += 1) {
+        tarifa += espPen;
+        const pag = pm.pens[i] || 0;
+        pagado += Math.min(pag, espPen);
+        saldo += Math.max(0, espPen - pag);
+      }
+      porNivel[nivelId].tarifa += tarifa;
+      porNivel[nivelId].pagado += pagado;
+      porNivel[nivelId].saldo += saldo;
+      porNivel[nivelId].alumnos += 1;
+    }
+
+    const niveles = Object.values(porNivel)
+      .map((n) => ({
+        ...n,
+        tarifa: Math.round(n.tarifa * 100) / 100,
+        pagado: Math.round(n.pagado * 100) / 100,
+        saldo: Math.round(n.saldo * 100) / 100
+      }))
+      .sort((a, b) => b.saldo - a.saldo);
+
+    res.json({ anio, moneda, niveles });
+  } catch (error) {
+    console.error('Error estadísticas deudas-por-nivel:', error);
+    res.status(500).json({ error: 'Error al obtener deudas por nivel' });
   }
 });
 
