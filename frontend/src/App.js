@@ -5,6 +5,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AvatarWidgetProvider } from './context/AvatarWidgetContext';
 import { ColegioProvider } from './context/ColegioContext';
+import api from './services/api';
 import Login from './pages/Login';
 import Dashboard from './pages/admin/Dashboard';
 import PsicologaDashboard from './pages/admin/PsicologaDashboard';
@@ -169,6 +170,48 @@ function PrivateRoute({ children, requiredType = null, requiredTypes = null }) {
     return <Navigate to="/login" />;
   }
 
+  return children;
+}
+
+/** Caja Chica: admin/secretaría/tipo CAJERO, o personal en lista Configuración → Cajero. */
+function CajaChicaRoute({ children }) {
+  const { isAuthenticated, loading, user } = useAuth();
+  const [ok, setOk] = React.useState(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const tiposDirectos = ['ADMINISTRADOR', 'SECRETARIA', 'CAJERO'];
+    if (!isAuthenticated || !user) {
+      setOk(false);
+      return undefined;
+    }
+    if (tiposDirectos.includes(user.tipo)) {
+      setOk(true);
+      return undefined;
+    }
+    (async () => {
+      try {
+        const { data } = await api.get('/docente/roles-adicionales');
+        if (!cancelled) setOk(!!data.es_cajero_caja_chica);
+      } catch {
+        if (!cancelled) setOk(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, user]);
+
+  if (loading || ok === null) {
+    return <div>Cargando...</div>;
+  }
+  if (!isAuthenticated) {
+    return <Navigate to="/login" />;
+  }
+  if (!ok) {
+    if (user?.tipo === 'DOCENTE') return <Navigate to="/docente/dashboard" />;
+    return <Navigate to="/login" />;
+  }
   return children;
 }
 
@@ -1191,9 +1234,9 @@ function AppRoutes() {
       <Route
         path="/admin/pagos-facturas/caja-chica"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'SECRETARIA', 'CAJERO']}>
+          <CajaChicaRoute>
             <AdminCajaChica />
-          </PrivateRoute>
+          </CajaChicaRoute>
         }
       />
       <Route

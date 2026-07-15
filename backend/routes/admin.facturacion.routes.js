@@ -11,6 +11,7 @@ const catalogo = require('../utils/facturacionCatalogo');
 const ventas = require('../utils/facturacionVentas');
 const compras = require('../utils/facturacionCompras');
 const caja = require('../utils/facturacionCaja');
+const { puedeUsarCajaChica } = require('../utils/cajaChicaCajeros');
 
 router.use(authenticateToken);
 
@@ -28,7 +29,17 @@ function puedeCatalogo(req) {
   return t === 'ADMINISTRADOR' || t === 'SECRETARIA';
 }
 
-router.use((req, res, next) => {
+router.use(async (req, res, next) => {
+  const path = req.path || '';
+  if (path.startsWith('/caja')) {
+    try {
+      if (await puedeUsarCajaChica(req)) return next();
+      return res.status(403).json({ error: 'No autorizado para Caja Chica.' });
+    } catch (e) {
+      console.error('[facturacion] acceso caja', e);
+      return res.status(500).json({ error: 'Error verificando acceso a Caja Chica' });
+    }
+  }
   if (!puedeFacturacion(req)) {
     return res.status(403).json({ error: 'No autorizado para facturación.' });
   }
@@ -308,26 +319,63 @@ router.delete('/caja/cuentas/:id', async (req, res) => {
 
 router.get('/caja/cuentas/:id/movimientos', async (req, res) => {
   try {
-    res.json({ items: await caja.listarMovimientos(parseInt(req.params.id, 10)) });
+    const cuentaId = parseInt(req.params.id, 10);
+    const esAdmin = req.user?.tipo === 'ADMINISTRADOR';
+    if (!esAdmin) {
+      const rows = await query(`SELECT privacy FROM cash_accounts WHERE id = ? LIMIT 1`, [cuentaId]);
+      if (!rows?.length || parseInt(rows[0].privacy, 10) !== 1) {
+        return res.status(403).json({ error: 'No puede ver esta cuenta.' });
+      }
+    }
+    res.json({ items: await caja.listarMovimientos(cuentaId) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
 router.post('/caja/movimientos', async (req, res) => {
+  const cuentaId = parseInt(req.body.cash_account_id, 10);
+  const esAdmin = req.user?.tipo === 'ADMINISTRADOR';
+  if (!esAdmin) {
+    const rows = await query(`SELECT privacy FROM cash_accounts WHERE id = ? LIMIT 1`, [cuentaId]);
+    if (!rows?.length || parseInt(rows[0].privacy, 10) !== 1) {
+      return res.status(403).json({ error: 'No puede operar esta cuenta.' });
+    }
+  }
   const r = await caja.guardarMovimiento(req.body);
   if (!r.ok) return res.status(r.status || 400).json({ error: r.error });
   res.status(201).json(r);
 });
 
 router.put('/caja/movimientos/:id', async (req, res) => {
+  const cuentaId = parseInt(req.body.cash_account_id, 10);
+  const esAdmin = req.user?.tipo === 'ADMINISTRADOR';
+  if (!esAdmin) {
+    const rows = await query(`SELECT privacy FROM cash_accounts WHERE id = ? LIMIT 1`, [cuentaId]);
+    if (!rows?.length || parseInt(rows[0].privacy, 10) !== 1) {
+      return res.status(403).json({ error: 'No puede operar esta cuenta.' });
+    }
+  }
   const r = await caja.guardarMovimiento(req.body, parseInt(req.params.id, 10));
   if (!r.ok) return res.status(r.status || 400).json({ error: r.error });
   res.json(r);
 });
 
 router.delete('/caja/movimientos/:id', async (req, res) => {
-  const r = await caja.eliminarMovimiento(parseInt(req.params.id, 10));
+  const movId = parseInt(req.params.id, 10);
+  const esAdmin = req.user?.tipo === 'ADMINISTRADOR';
+  if (!esAdmin) {
+    const rows = await query(
+      `SELECT a.privacy FROM cash_account_flows f
+       INNER JOIN cash_accounts a ON a.id = f.cash_account_id
+       WHERE f.id = ? LIMIT 1`,
+      [movId]
+    );
+    if (!rows?.length || parseInt(rows[0].privacy, 10) !== 1) {
+      return res.status(403).json({ error: 'No puede operar esta cuenta.' });
+    }
+  }
+  const r = await caja.eliminarMovimiento(movId);
   if (!r.ok) return res.status(r.status || 400).json({ error: r.error });
   res.json(r);
 });

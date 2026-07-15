@@ -143,6 +143,7 @@ export default function DashboardLayout({ children }) {
     es_apoderado: false,
     es_tutor: false,
     es_tutoria_general: false,
+    es_cajero_caja_chica: false,
   });
   const [tieneAsignaciones, setTieneAsignaciones] = useState({
     tiene_grupos: false,
@@ -206,10 +207,16 @@ export default function DashboardLayout({ children }) {
           es_apoderado: responseRoles.data.es_apoderado || false,
           es_tutor: responseRoles.data.es_tutor || false,
           es_tutoria_general: responseRoles.data.es_tutoria_general || false,
+          es_cajero_caja_chica: responseRoles.data.es_cajero_caja_chica || false,
         });
       } catch {
         if (!cancelled) {
-          setRolesAdicionales({ es_apoderado: false, es_tutor: false, es_tutoria_general: false });
+          setRolesAdicionales({
+            es_apoderado: false,
+            es_tutor: false,
+            es_tutoria_general: false,
+            es_cajero_caja_chica: false,
+          });
         }
       }
     };
@@ -223,6 +230,7 @@ export default function DashboardLayout({ children }) {
           es_apoderado: responseRoles.data.es_apoderado || false,
           es_tutor: responseRoles.data.es_tutor || false,
           es_tutoria_general: responseRoles.data.es_tutoria_general || false,
+          es_cajero_caja_chica: responseRoles.data.es_cajero_caja_chica || false,
         });
 
         const responseAsignaciones = await api.get('/docente/tiene-asignaciones');
@@ -265,7 +273,12 @@ export default function DashboardLayout({ children }) {
       resetNoDocenteAcademico();
       cargarRolesAdicionalesSolo();
     } else {
-      setRolesAdicionales({ es_apoderado: false, es_tutor: false, es_tutoria_general: false });
+      setRolesAdicionales({
+        es_apoderado: false,
+        es_tutor: false,
+        es_tutoria_general: false,
+        es_cajero_caja_chica: false,
+      });
       resetNoDocenteAcademico();
     }
 
@@ -720,6 +733,35 @@ export default function DashboardLayout({ children }) {
                     <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/tutoria-general">
                       <span className="sidebar-icon">👁️</span>
                       <span className="sidebar-label">Tutoría General</span>
+                    </NavLink>
+                  </div>
+                </>
+              )}
+
+              {rolesAdicionales.es_cajero_caja_chica && (
+                <>
+                  <div className="sidebar-section-divider"></div>
+                  <div
+                    className="sidebar-section-label"
+                    style={{
+                      fontSize: '0.75rem',
+                      color: '#9ca3af',
+                      fontWeight: '600',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      padding: '1rem 1.5rem 0.5rem 1.5rem',
+                      marginTop: '0.5rem',
+                    }}
+                  >
+                    Caja
+                  </div>
+                  <div className="sidebar-item">
+                    <NavLink
+                      className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+                      to="/admin/pagos-facturas/caja-chica"
+                    >
+                      <span className="sidebar-icon">💵</span>
+                      <span className="sidebar-label">Caja Chica</span>
                     </NavLink>
                   </div>
                 </>

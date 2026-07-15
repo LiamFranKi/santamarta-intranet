@@ -6425,6 +6425,7 @@ const {
   esTutoriaGeneralUsuario
 } = require('../utils/tutoriaGrupoAcceso');
 const { esTutoriaGeneralActivo } = require('../utils/tutoriaGeneral');
+const { esCajeroCajaChicaActivo } = require('../utils/cajaChicaCajeros');
 
 router.use('/tutoria/grupos/:grupoId', async (req, res, next) => {
   try {
@@ -9605,16 +9606,23 @@ router.get('/roles-adicionales', async (req, res) => {
 
     const esTutor = gruposTutor.length > 0;
     let esTutoriaGeneral = false;
+    let esCajeroCajaChica = false;
     try {
       esTutoriaGeneral = await esTutoriaGeneralActivo(personalId, colegio_id);
     } catch (errTg) {
       console.error('Error verificando Tutoría General:', errTg);
+    }
+    try {
+      esCajeroCajaChica = await esCajeroCajaChicaActivo(personalId, colegio_id);
+    } catch (errCj) {
+      console.error('Error verificando Cajero Caja Chica:', errCj);
     }
 
     console.log(`📋 [ROLES-ADICIONALES] Preparando respuesta JSON:`);
     console.log(`📋 [ROLES-ADICIONALES] - es_apoderado: ${tieneHijos}`);
     console.log(`📋 [ROLES-ADICIONALES] - es_tutor: ${esTutor}`);
     console.log(`📋 [ROLES-ADICIONALES] - es_tutoria_general: ${esTutoriaGeneral}`);
+    console.log(`📋 [ROLES-ADICIONALES] - es_cajero_caja_chica: ${esCajeroCajaChica}`);
     console.log(`📋 [ROLES-ADICIONALES] - hijos: ${hijos?.length || 0} hijos`);
     if (hijos && hijos.length > 0) {
       console.log(`📋 [ROLES-ADICIONALES] - Primer hijo en respuesta:`, JSON.stringify(hijos[0], null, 2));
@@ -9624,6 +9632,7 @@ router.get('/roles-adicionales', async (req, res) => {
       es_apoderado: tieneHijos,
       es_tutor: esTutor,
       es_tutoria_general: esTutoriaGeneral,
+      es_cajero_caja_chica: esCajeroCajaChica,
       hijos: hijos || [],
       grupo_tutor: esTutor ? gruposTutor[0] : null
     });

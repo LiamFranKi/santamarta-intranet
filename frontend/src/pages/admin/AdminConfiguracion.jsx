@@ -16,6 +16,7 @@ const CONFIG_TABS = [
   { id: 'facturacion', label: 'Facturación', icon: '🧾' },
   { id: 'matricula', label: 'Matrícula online', icon: '✉️' },
   { id: 'tutoria', label: 'Tutoría', icon: '🎓', soloAdmin: true },
+  { id: 'cajero', label: 'Cajero', icon: '💵', soloAdmin: true },
 ];
 
 /** Porcentajes de comisión: siempre 2 decimales (evita artefacto float 3.599999…). */
@@ -184,6 +185,137 @@ function PanelTutoriaGeneral() {
         {candidatos.map((p) => (
           <li key={p.personal_id}>
             <strong>{p.dni || p.nro_documento}</strong> — {p.nombres} {p.apellidos}{' '}
+            <button
+              type="button"
+              className="admin-usu-btn admin-usu-btn-primary"
+              style={{ marginLeft: 8 }}
+              onClick={() => add(p.personal_id)}
+            >
+              Asignar
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function PanelCajerosCajaChica() {
+  const [list, setList] = useState([]);
+  const [q, setQ] = useState('');
+  const [candidatos, setCandidatos] = useState([]);
+  const load = useCallback(
+    () => api.get('/admin/caja-chica-cajeros/personal').then((r) => setList(r.data.personal || [])),
+    []
+  );
+
+  useEffect(() => {
+    load().catch((e) => {
+      if (e.response?.status !== 403) {
+        Swal.fire('Error', e.response?.data?.error || 'No se pudo cargar la lista', 'error');
+      }
+    });
+  }, [load]);
+
+  const buscar = () =>
+    api
+      .get('/admin/caja-chica-cajeros/personal-candidatos', { params: { q } })
+      .then((r) => setCandidatos(r.data.personal || []));
+
+  const add = async (personalId) => {
+    try {
+      await api.post('/admin/caja-chica-cajeros/personal', { personal_id: personalId });
+      await load();
+      Swal.fire({ icon: 'success', title: 'Asignado', timer: 1200, showConfirmButton: false });
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.error, 'error');
+    }
+  };
+
+  const del = async (id) => {
+    const ok = await Swal.fire({
+      title: '¿Quitar cajero?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Quitar',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      await api.delete(`/admin/caja-chica-cajeros/personal/${id}`);
+      await load();
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.error, 'error');
+    }
+  };
+
+  return (
+    <div>
+      <p className="config-section-desc">
+        Personal autorizado como <strong>Cajero</strong> de <strong>Caja Chica</strong>: pueden operar las cuentas con
+        visibilidad «Pública (cajero)». Las cuentas «Privada (solo admin)» siguen siendo solo del Administrador. Solo el
+        perfil Administrador gestiona esta lista.
+      </p>
+      <h3 className="section-title" style={{ fontSize: '1.05rem', marginTop: '1rem' }}>
+        Cajeros actuales
+      </h3>
+      <div className="admin-usu-table-scroll">
+        <table className="admin-usu-table">
+          <thead>
+            <tr>
+              <th>DNI</th>
+              <th>Nombre</th>
+              <th style={{ width: 120 }}>Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.length === 0 ? (
+              <tr>
+                <td colSpan={3} style={{ textAlign: 'center', color: '#6b7280' }}>
+                  No hay cajeros asignados.
+                </td>
+              </tr>
+            ) : (
+              list.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.dni || row.nro_documento || '—'}</td>
+                  <td style={{ textAlign: 'left' }}>
+                    {row.nombres} {row.apellidos}
+                    {row.usuario_tipo ? (
+                      <span style={{ color: '#6b7280', fontSize: '0.8rem' }}> · {row.usuario_tipo}</span>
+                    ) : null}
+                  </td>
+                  <td>
+                    <button type="button" className="admin-usu-btn admin-usu-btn-danger" onClick={() => del(row.id)}>
+                      Quitar
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+      <h3 className="section-title" style={{ fontSize: '1.05rem', marginTop: '1.25rem' }}>
+        Añadir personal
+      </h3>
+      <div className="admin-usu-toolbar" style={{ marginBottom: 12 }}>
+        <input
+          className="admin-usu-grow"
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Buscar por DNI o nombre"
+        />
+        <button type="button" className="admin-usu-btn admin-usu-btn-search" onClick={buscar}>
+          Buscar
+        </button>
+      </div>
+      <ul className="admin-sup-lista-candidatos">
+        {candidatos.map((p) => (
+          <li key={p.personal_id}>
+            <strong>{p.dni || p.nro_documento}</strong> — {p.nombres} {p.apellidos}
+            {p.tipo ? <span style={{ color: '#6b7280' }}> ({p.tipo})</span> : null}{' '}
             <button
               type="button"
               className="admin-usu-btn admin-usu-btn-primary"
@@ -1681,6 +1813,15 @@ function AdminConfiguracion() {
             <div className="config-section">
               <h2 className="section-title">🎓 Tutoría General</h2>
               <PanelTutoriaGeneral />
+            </div>
+          </div>
+          )}
+
+          {activeTab === 'cajero' && user?.tipo === 'ADMINISTRADOR' && (
+          <div className="config-panel-card">
+            <div className="config-section">
+              <h2 className="section-title">💵 Cajero — Caja Chica</h2>
+              <PanelCajerosCajaChica />
             </div>
           </div>
           )}

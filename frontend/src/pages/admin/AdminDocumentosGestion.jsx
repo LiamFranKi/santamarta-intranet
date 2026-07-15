@@ -383,8 +383,8 @@ function AdminDocumentosGestion() {
                     <tr key={d.id}>
                       <td>
                         <div className="dg-doc-cell">
-                          <span className="dg-doc-pdf-icon" aria-hidden="true">
-                            PDF
+                          <span className="dg-doc-pdf-icon" aria-hidden="true" title="PDF">
+                            📄
                           </span>
                           <span className="dg-doc-titulo">{d.titulo}</span>
                         </div>

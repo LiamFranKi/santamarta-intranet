@@ -388,16 +388,17 @@
 
 .dg-doc-pdf-icon {
   flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.95rem;
+  font-size: 1rem;
+  line-height: 1;
   background: linear-gradient(145deg, #fee2e2, #fecaca);
   color: #b91c1c;
-  font-weight: 800;
+  box-shadow: inset 0 0 0 1px rgba(185, 28, 28, 0.12);
 }
 
 .dg-doc-titulo {
@@ -445,11 +446,13 @@
   inset: 0;
   background: rgba(15, 23, 42, 0.55);
   backdrop-filter: blur(3px);
-  z-index: 1200;
+  /* Por encima del sidebar (9999) y del header; evita que el formulario quede tapado */
+  z-index: 10050;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 1rem;
+  padding: 5rem 1rem 1.5rem;
+  overflow-y: auto;
   animation: dg-fade-in 0.18s ease;
 }
 
@@ -463,8 +466,9 @@
   border-radius: 18px;
   max-width: 520px;
   width: 100%;
-  max-height: 90vh;
+  max-height: calc(100vh - 6.5rem);
   overflow-y: auto;
+  margin: 0 auto;
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
   animation: dg-modal-up 0.22s ease;
   border: 1px solid rgba(255, 255, 255, 0.4);

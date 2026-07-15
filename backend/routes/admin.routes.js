@@ -3594,5 +3594,101 @@ router.delete('/tutoria-general/personal/:id', requireSoloAdministrador, async (
   }
 });
 
+// ========== Cajero Caja Chica (solo ADMINISTRADOR) ==========
+
+router.get('/caja-chica-cajeros/personal', requireSoloAdministrador, async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const rows = await query(
+      `SELECT t.id, t.personal_id, t.activo, t.created_at,
+              p.nombres, p.apellidos, p.nro_documento,
+              u.id AS usuario_id, u.usuario AS dni, u.tipo AS usuario_tipo
+       FROM caja_chica_cajeros t
+       INNER JOIN personal p ON p.id = t.personal_id AND p.colegio_id = t.colegio_id
+       LEFT JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = t.colegio_id AND u.estado = 'ACTIVO'
+       WHERE t.colegio_id = ? AND t.activo = 1
+       ORDER BY p.apellidos, p.nombres`,
+      [colegio_id]
+    );
+    res.json({ personal: rows || [] });
+  } catch (e) {
+    if (e.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({
+        error: 'Ejecute la migración 062_caja_chica_cajeros_mysql.sql en la base de datos.'
+      });
+    }
+    console.error('[admin] list caja-chica-cajeros', e);
+    res.status(500).json({ error: 'Error al listar cajeros' });
+  }
+});
+
+router.get('/caja-chica-cajeros/personal-candidatos', requireSoloAdministrador, async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const q = (req.query.q || '').trim();
+    let sql = `SELECT p.id AS personal_id, p.nombres, p.apellidos, p.nro_documento,
+                      u.id AS usuario_id, u.usuario AS dni, u.tipo
+               FROM personal p
+               INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = p.colegio_id
+               WHERE p.colegio_id = ? AND u.estado = 'ACTIVO'`;
+    const params = [colegio_id];
+    if (q) {
+      sql += ` AND (u.usuario LIKE ? OR p.nombres LIKE ? OR p.apellidos LIKE ? OR p.nro_documento LIKE ?)`;
+      const like = `%${q}%`;
+      params.push(like, like, like, like);
+    }
+    sql += ` ORDER BY p.apellidos, p.nombres LIMIT 80`;
+    const rows = await query(sql, params);
+    res.json({ personal: rows || [] });
+  } catch (e) {
+    console.error('[admin] caja-chica-cajeros candidatos', e);
+    res.status(500).json({ error: 'Error al buscar personal' });
+  }
+});
+
+router.post('/caja-chica-cajeros/personal', requireSoloAdministrador, async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const personalId = parseInt(req.body.personal_id, 10);
+    if (!personalId) return res.status(400).json({ error: 'personal_id es requerido' });
+    const prow = await query(
+      `SELECT id FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [personalId, colegio_id]
+    );
+    if (!prow.length) return res.status(404).json({ error: 'Personal no encontrado en este colegio' });
+    await execute(
+      `INSERT INTO caja_chica_cajeros (colegio_id, personal_id, activo)
+       VALUES (?, ?, 1)
+       ON DUPLICATE KEY UPDATE activo = 1`,
+      [colegio_id, personalId]
+    );
+    res.json({ success: true });
+  } catch (e) {
+    if (e.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({
+        error: 'Ejecute la migración 062_caja_chica_cajeros_mysql.sql en la base de datos.'
+      });
+    }
+    console.error('[admin] add caja-chica-cajeros', e);
+    res.status(500).json({ error: 'Error al asignar cajero' });
+  }
+});
+
+router.delete('/caja-chica-cajeros/personal/:id', requireSoloAdministrador, async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    const r = await execute(
+      `DELETE FROM caja_chica_cajeros WHERE id = ? AND colegio_id = ?`,
+      [id, colegio_id]
+    );
+    if (!r.affectedRows) return res.status(404).json({ error: 'Registro no encontrado' });
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[admin] delete caja-chica-cajeros', e);
+    res.status(500).json({ error: 'Error al quitar cajero' });
+  }
+});
+
 module.exports = router;
 
