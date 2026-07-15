@@ -1,5 +1,178 @@
 /* Complemento al estilo compartido AdminUsuarios.css */
 
+.admin-sup-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.15rem;
+  margin-bottom: 1rem;
+  padding: 1.5rem 1.65rem;
+  border-radius: 18px;
+  color: #fff;
+  background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 55%, #14b8a6 100%);
+  box-shadow: 0 12px 32px rgba(14, 165, 233, 0.28);
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-sup-hero::after {
+  content: '';
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.admin-sup-hero-icon {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.45rem;
+  background: rgba(255, 255, 255, 0.18);
+  position: relative;
+  z-index: 1;
+}
+
+.admin-sup-hero-text {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.admin-sup-hero h1 {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.35rem, 4vw, 1.85rem);
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.admin-sup-hero p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.admin-sup-help {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  margin-bottom: 0.9rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #bae6fd;
+  border-left: 4px solid #0ea5e9;
+  background: #f0f9ff;
+}
+
+.admin-sup-help-icon {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.admin-sup-help h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.02rem;
+  color: #0c4a6e;
+  font-weight: 750;
+}
+
+.admin-sup-help p {
+  margin: 0;
+  font-size: 0.86rem;
+  color: #075985;
+  line-height: 1.45;
+}
+
+.admin-sup-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.admin-sup-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.4rem;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+}
+
+.admin-sup-tab {
+  padding: 0.55rem 0.95rem;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.admin-sup-tab:hover:not(:disabled) {
+  background: #f8fafc;
+  color: #334155;
+}
+
+.admin-sup-tab.is-active {
+  color: #fff;
+  background: linear-gradient(135deg, #1d4ed8, #0ea5e9);
+  cursor: default;
+}
+
+.admin-sup-tab--amber:not(.is-active) {
+  color: #b45309;
+}
+
+.admin-sup-tab--teal:not(.is-active) {
+  color: #0f766e;
+}
+
+.admin-sup-btn-nuevo {
+  margin-left: auto;
+  padding: 0.65rem 1.15rem;
+  border: none;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #7c3aed, #6366f1);
+  color: #fff;
+  font-weight: 750;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.28);
+}
+
+.admin-sup-btn-nuevo:hover {
+  filter: brightness(1.05);
+}
+
+.admin-sup-table-card {
+  border-top: 3px solid #14b8a6;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
 /* Contenedor de la página: ancho acotado; el modal cubre solo esta área (no viewport completo) */
 .admin-sup-page.admin-usu-wrap {
   max-width: 1080px;

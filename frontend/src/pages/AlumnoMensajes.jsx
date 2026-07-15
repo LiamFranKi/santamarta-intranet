@@ -7,6 +7,7 @@ import Swal from 'sweetalert2';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import './AlumnoMensajes.css';
+import './DocenteMensajes.css';
 import DestinatarioSearchField from '../components/mensajes/DestinatarioSearchField';
 import {
   procesarHTMLMensaje,
@@ -719,53 +720,126 @@ function AlumnoMensajes() {
   };
 
   const mensajes = vista === 'recibidos' ? mensajesRecibidos : mensajesEnviados;
-  const tituloLista = vista === 'recibidos' ? 'Mensajes Recibidos' : 'Mensajes Enviados';
+  const tituloLista = vista === 'recibidos' ? 'Mensajes recibidos' : 'Mensajes enviados';
   const paginationLista = vista === 'recibidos' ? paginationRecibidos : paginationEnviados;
   const setPageLista = vista === 'recibidos' ? setPageRecibidos : setPageEnviados;
+  const noLeidosEnPagina =
+    vista === 'recibidos' ? mensajes.filter((m) => m.estado === 'NO_LEIDO').length : 0;
+
+  const inicialesDe = (nombre) => {
+    const parts = String(nombre || '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (!parts.length) return '?';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  };
 
   return (
     <DashboardLayout>
-      <div className="alumno-mensajes">
-        <div className="page-header">
-          <h1>Mensajes</h1>
-          <p>Gestiona tus comunicaciones</p>
-        </div>
-
-        <div className="mensajes-container">
-          {/* Sidebar */}
-          <div className="mensajes-sidebar">
-            <button 
-              className="btn-nuevo-mensaje"
-              onClick={() => setVista('nuevo')}
-            >
-              ✉️ Enviar Nuevo
-            </button>
-
-            <div className="sidebar-seccion">
-              <h3>LISTA DE MENSAJES</h3>
-              <button
-                className={`sidebar-item ${vista === 'recibidos' ? 'active' : ''}`}
-                onClick={() => setVista('recibidos')}
-              >
-                <span className="sidebar-icon">📥</span>
-                Mensajes Recibidos
-              </button>
-              <button
-                className={`sidebar-item ${vista === 'enviados' ? 'active' : ''}`}
-                onClick={() => setVista('enviados')}
-              >
-                <span className="sidebar-icon">📤</span>
-                Mensajes Enviados
-              </button>
+      <div className="alumno-mensajes docente-mensajes">
+        <header className="msg-hero">
+          <div className="msg-hero-icon" aria-hidden="true">
+            ✉
+          </div>
+          <div className="msg-hero-text">
+            <h1>Mensajes</h1>
+            <p>
+              Bandeja interna del colegio: lee, responde y envía mensajes con adjuntos. Los no leídos se
+              destacan en la lista.
+            </p>
+            <div className="msg-hero-meta">
+              {paginationRecibidos.total > 0 && (
+                <span className="msg-hero-chip">{paginationRecibidos.total} recibidos</span>
+              )}
+              {paginationEnviados.total > 0 && (
+                <span className="msg-hero-chip">{paginationEnviados.total} enviados</span>
+              )}
+              {vista === 'recibidos' && noLeidosEnPagina > 0 && (
+                <span className="msg-hero-chip msg-hero-chip--alert">
+                  {noLeidosEnPagina} no leído(s) en esta página
+                </span>
+              )}
             </div>
           </div>
+        </header>
 
-          {/* Contenido Principal */}
+        <div
+          className={`msg-help ${
+            vista === 'nuevo'
+              ? 'msg-help--nuevo'
+              : vista === 'enviados'
+                ? 'msg-help--enviados'
+                : 'msg-help--recibidos'
+          }`}
+        >
+          <div className="msg-help-icon" aria-hidden="true">
+            {vista === 'nuevo' ? '✎' : vista === 'enviados' ? '↑' : '↓'}
+          </div>
+          <div>
+            <h2>
+              {vista === 'nuevo'
+                ? 'Redactar mensaje'
+                : vista === 'enviados'
+                  ? 'Bandeja de enviados'
+                  : 'Bandeja de recibidos'}
+            </h2>
+            <p>
+              {vista === 'nuevo'
+                ? 'Buscá destinatarios, escribí el asunto y el cuerpo. Podés adjuntar archivos antes de enviar.'
+                : vista === 'enviados'
+                  ? 'Filtráalos por año o destinatario. Tocá una tarjeta para ver el detalle.'
+                  : 'Filtrá por año o remitente. Marcá varios para leerlos o eliminarlos sin abrirlos uno a uno.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="msg-toolbar">
+          <nav className="msg-tabs" role="tablist" aria-label="Bandejas de mensajes">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={vista === 'recibidos'}
+              className={`msg-tab msg-tab--recibidos${vista === 'recibidos' ? ' is-active' : ''}`}
+              onClick={() => setVista('recibidos')}
+            >
+              <span className="msg-tab-ico" aria-hidden="true">
+                ↓
+              </span>
+              Recibidos
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={vista === 'enviados'}
+              className={`msg-tab msg-tab--enviados${vista === 'enviados' ? ' is-active' : ''}`}
+              onClick={() => setVista('enviados')}
+            >
+              <span className="msg-tab-ico" aria-hidden="true">
+                ↑
+              </span>
+              Enviados
+            </button>
+          </nav>
+          <button
+            type="button"
+            className={`msg-btn-nuevo${vista === 'nuevo' ? ' is-active' : ''}`}
+            onClick={() => setVista('nuevo')}
+          >
+            <span aria-hidden="true">＋</span> Enviar nuevo
+          </button>
+        </div>
+
+        <div className="msg-main-card">
           <div className="mensajes-content">
             {vista === 'nuevo' ? (
               <div className={`nuevo-mensaje-form${mensajeDesdeCumpleanos ? ' nuevo-mensaje-cumpleanos-wrap' : ''}`}>
-                <h2>{mensajeDesdeCumpleanos ? '🎂 Felicitación de cumpleaños' : 'Nuevo Mensaje'}</h2>
-                
+                <div className="msg-compose-head">
+                  <h2>{mensajeDesdeCumpleanos ? 'Felicitación de cumpleaños' : 'Nuevo mensaje'}</h2>
+                  <p>Completá destinatario, asunto y contenido. Guardá adjuntos si hace falta.</p>
+                </div>
+
                 {/* Campo Para */}
                 <div className="form-group">
                   <label>Para:</label>
@@ -1014,18 +1088,19 @@ function AlumnoMensajes() {
                 </div>
 
                 {loading ? (
-                  <div className="loading-mensajes">Cargando mensajes...</div>
+                  <div className="loading-mensajes">Cargando mensajes…</div>
                 ) : mensajes.length === 0 ? (
                   <div className="empty-mensajes">
-                    <div className="empty-icon">📭</div>
+                    <div className="empty-icon" aria-hidden="true">
+                      ✉
+                    </div>
                     <h3>No hay mensajes</h3>
                     <p>No tienes mensajes {vista === 'recibidos' ? 'recibidos' : 'enviados'}</p>
                   </div>
                 ) : (
-                  <div className="mensajes-table">
-                    {/* Checkbox "Marcar todos" */}
+                  <div className="mensajes-table mensajes-cards">
                     {mensajes.length > 0 && (
-                      <div className="mensaje-row-header">
+                      <div className="mensaje-row-header mensaje-card-selectall">
                         <div className="mensaje-checkbox">
                           <input
                             type="checkbox"
@@ -1035,26 +1110,32 @@ function AlumnoMensajes() {
                           />
                         </div>
                         <div className="mensaje-header-text">
-                          {mensajesSeleccionados.size > 0 
+                          {mensajesSeleccionados.size > 0
                             ? `${mensajesSeleccionados.size} seleccionado(s)`
                             : 'Seleccionar todos'}
                         </div>
                       </div>
                     )}
                     {mensajes.map((mensaje) => {
-                      const nombre = vista === 'recibidos' 
-                        ? mensaje.remitente_nombre_completo 
-                        : mensaje.destinatario_nombre_completo;
+                      const nombre =
+                        vista === 'recibidos'
+                          ? mensaje.remitente_nombre_completo
+                          : mensaje.destinatario_nombre_completo;
                       const esNoLeido = mensaje.estado === 'NO_LEIDO';
                       const estaSeleccionado = mensajesSeleccionados.has(mensaje.id);
+                      const tieneArchivos = Array.isArray(mensaje.archivos) && mensaje.archivos.length > 0;
+                      const fotoUrl =
+                        vista === 'recibidos'
+                          ? mensaje.remitente_foto_url
+                          : mensaje.destinatario_foto_url;
 
                       return (
                         <div
                           key={mensaje.id}
-                          className={`mensaje-row ${esNoLeido ? 'no-leido' : ''} ${estaSeleccionado ? 'seleccionado' : ''}`}
+                          className={`mensaje-row mensaje-card ${esNoLeido ? 'no-leido' : ''} ${
+                            estaSeleccionado ? 'seleccionado' : ''
+                          }`}
                           onClick={() => {
-                            console.log('🔍 [DEBUG] Mensaje seleccionado:', mensaje);
-                            console.log('🔍 [DEBUG] Archivos del mensaje:', mensaje.archivos);
                             setMensajeSeleccionado(mensaje);
                           }}
                         >
@@ -1065,21 +1146,46 @@ function AlumnoMensajes() {
                               onChange={() => toggleMensajeSeleccionado(mensaje.id)}
                             />
                           </div>
-                          <div className="mensaje-favorito">
-                            <span className={mensaje.favorito === 'SI' ? 'star-filled' : 'star-empty'}>
-                              ★
+                          <div className="mensaje-avatar" aria-hidden="true">
+                            {fotoUrl ? (
+                              <img
+                                src={fotoUrl}
+                                alt=""
+                                className="mensaje-avatar-img"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  const fallback = e.currentTarget.nextElementSibling;
+                                  if (fallback) fallback.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <span
+                              className="mensaje-avatar-fallback"
+                              style={fotoUrl ? { display: 'none' } : undefined}
+                            >
+                              {inicialesDe(nombre)}
                             </span>
                           </div>
                           <div className="mensaje-info">
-                            <div className="mensaje-nombre">
-                              {nombre || 'Sin nombre'}
-                            </div>
-                            <div className="mensaje-asunto">
-                              {mensaje.asunto}
-                            </div>
+                            <div className="mensaje-nombre">{nombre || 'Sin nombre'}</div>
+                            <div className="mensaje-asunto">{mensaje.asunto}</div>
                           </div>
-                          <div className="mensaje-fecha">
-                            {formatearFecha(mensaje.fecha_hora)}
+                          <div className="mensaje-card-meta">
+                            <span
+                              className={`mensaje-favorito ${
+                                mensaje.favorito === 'SI' ? 'star-filled' : 'star-empty'
+                              }`}
+                              aria-hidden="true"
+                            >
+                              ★
+                            </span>
+                            {tieneArchivos && (
+                              <span className="mensaje-attach-pill" title="Con adjuntos">
+                                📎
+                              </span>
+                            )}
+                            {esNoLeido && <span className="mensaje-unread-dot" title="No leído" />}
+                            <div className="mensaje-fecha">{formatearFecha(mensaje.fecha_hora)}</div>
                           </div>
                         </div>
                       );

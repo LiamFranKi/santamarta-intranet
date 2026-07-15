@@ -1,7 +1,197 @@
 .admin-elcc-wrap {
-  max-width: 1100px;
+  --elcc-blue: #1d4ed8;
+  --elcc-sky: #0ea5e9;
+  --elcc-teal: #14b8a6;
+  max-width: min(1120px, 100%);
   margin: 0 auto;
-  padding: 0 1rem 2rem;
+  padding: 0 0 2rem;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.admin-elcc-hero--banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.15rem;
+  margin-bottom: 1rem;
+  padding: 1.5rem 1.65rem;
+  border-radius: 18px;
+  color: #fff;
+  background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 55%, #14b8a6 100%);
+  box-shadow: 0 12px 32px rgba(14, 165, 233, 0.28);
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-elcc-hero--banner::after {
+  content: '';
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.admin-elcc-hero-icon {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  background: rgba(255, 255, 255, 0.18);
+  position: relative;
+  z-index: 1;
+}
+
+.admin-elcc-hero-text {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.admin-elcc-hero--banner h1 {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.35rem, 4vw, 1.85rem);
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.admin-elcc-hero--banner p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 1.45;
+  max-width: 52rem;
+  font-size: 0.95rem;
+}
+
+.admin-elcc-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.85rem;
+}
+
+.admin-elcc-hero-chip {
+  display: inline-flex;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+
+.admin-elcc-help {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  margin-bottom: 0.9rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #bae6fd;
+  border-left: 4px solid #0ea5e9;
+  background: #f0f9ff;
+}
+
+.admin-elcc-help-icon {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.admin-elcc-help h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.02rem;
+  color: #0c4a6e;
+  font-weight: 750;
+}
+
+.admin-elcc-help p {
+  margin: 0;
+  font-size: 0.86rem;
+  color: #075985;
+  line-height: 1.45;
+}
+
+.admin-elcc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.admin-elcc-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.4rem;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+}
+
+.admin-elcc-tab {
+  padding: 0.55rem 0.95rem;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.admin-elcc-tab:hover {
+  background: #f8fafc;
+  color: #334155;
+}
+
+.admin-elcc-tab.is-active {
+  color: #fff;
+  background: linear-gradient(135deg, #1d4ed8, #0ea5e9);
+  box-shadow: 0 4px 14px rgba(29, 78, 216, 0.25);
+}
+
+.admin-elcc-tab--sky.is-active {
+  background: linear-gradient(135deg, #0284c7, #14b8a6);
+}
+
+.admin-elcc-tab--muted.is-active {
+  background: linear-gradient(135deg, #475569, #64748b);
+}
+
+.admin-elcc-btn-nuevo {
+  margin-left: auto;
+  padding: 0.65rem 1.15rem;
+  border: none;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #059669, #14b8a6);
+  color: #fff;
+  font-weight: 750;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.28);
+}
+
+.admin-elcc-btn-nuevo:hover {
+  filter: brightness(1.05);
 }
 
 .admin-elcc-hero h1 {

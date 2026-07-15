@@ -53,6 +53,7 @@ export default function AdminTardanzas() {
   const [listaLoading, setListaLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [rowActionId, setRowActionId] = useState(null);
+  const [tabActiva, setTabActiva] = useState('registros');
 
   const loadMeta = useCallback(async () => {
     try {
@@ -270,14 +271,57 @@ export default function AdminTardanzas() {
   return (
     <DashboardLayout>
       <div className="dashboard-container admin-tardanzas-page">
-        <header className="admin-estadisticas-header">
-          <h1 className="admin-estadisticas-title">Tardanzas del personal</h1>
-          <p className="admin-estadisticas-desc">
-            Importe el Excel del huellero y consulte descuentos por tardanza (S/. 1.00 por minuto).
-            {meta?.colegio_nombre ? ` ${meta.colegio_nombre} · Año ${meta.anio}` : ''}
-          </p>
+        <header className="admin-tz-hero">
+          <div className="admin-tz-hero-icon" aria-hidden="true">
+            ⏱
+          </div>
+          <div className="admin-tz-hero-text">
+            <h1>Tardanzas del personal</h1>
+            <p>
+              Importe el Excel del huellero y consulte descuentos por tardanza (S/. 1.00 por minuto).
+              {meta?.colegio_nombre ? ` ${meta.colegio_nombre} · Año ${meta.anio}` : ''}
+            </p>
+          </div>
         </header>
 
+        <div className={`admin-tz-help admin-tz-help--${tabActiva}`}>
+          <div className="admin-tz-help-icon" aria-hidden="true">
+            💡
+          </div>
+          <div>
+            <h2>{tabActiva === 'importar' ? 'Importación del huellero' : 'Consulta y descuentos'}</h2>
+            <p>
+              {tabActiva === 'importar'
+                ? 'Subí el Excel, revisá la vista previa y confirmá. Se toma la primera entrada del día por persona.'
+                : 'Filtrá por empleado y fechas. Podés editar, eliminar filas y exportar PDF.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="admin-tz-toolbar">
+          <nav className="admin-tz-tabs" role="tablist" aria-label="Secciones de tardanzas">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tabActiva === 'registros'}
+              className={`admin-tz-tab${tabActiva === 'registros' ? ' is-active' : ''}`}
+              onClick={() => setTabActiva('registros')}
+            >
+              Registros
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tabActiva === 'importar'}
+              className={`admin-tz-tab admin-tz-tab--amber${tabActiva === 'importar' ? ' is-active' : ''}`}
+              onClick={() => setTabActiva('importar')}
+            >
+              Importar Excel
+            </button>
+          </nav>
+        </div>
+
+        {tabActiva === 'importar' && (
         <section className="admin-tardanzas-import" aria-label="Importar Excel">
           <h2 className="admin-tardanzas-import__title">Importar marcaciones del huellero</h2>
           <p className="admin-tardanzas-import__desc">
@@ -350,118 +394,129 @@ export default function AdminTardanzas() {
             </div>
           )}
         </section>
+        )}
 
-        <section className="admin-tardanzas-toolbar" aria-label="Filtros">
-          <label>
-            Empleado
-            <select value={personalId} onChange={(e) => setPersonalId(e.target.value)}>
-              <option value="">Todos</option>
-              {(meta?.personal || []).map((p) => (
-                <option key={p.id} value={String(p.id)}>
-                  {p.nombre}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Desde
-            <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
-          </label>
-          <label>
-            Hasta
-            <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
-          </label>
-          <div className="admin-tardanzas-toolbar__actions">
-            <button type="button" className="admin-tardanzas-btn" onClick={loadLista} disabled={listaLoading}>
-              {listaLoading ? '…' : 'Actualizar'}
-            </button>
-            <button
-              type="button"
-              className="admin-tardanzas-btn"
-              onClick={exportExcel}
-              disabled={exportLoading || !lista?.filas?.length}
-            >
-              {exportLoading ? '…' : 'Excel'}
-            </button>
-            <button
-              type="button"
-              className="admin-tardanzas-btn admin-tardanzas-btn--primary"
-              onClick={exportPdf}
-              disabled={!lista?.filas?.length}
-            >
-              PDF
-            </button>
-          </div>
-        </section>
-
-        <p className="admin-tardanzas-meta">
-          Mostrando: {filtroEtiqueta}
-          {lista ? ` · ${lista.total_registros} registro(s)` : ''}
-        </p>
-
-        <div className="admin-tardanzas-table-wrap">
-          {listaLoading ? (
-            <p className="admin-tardanzas-empty">Cargando…</p>
-          ) : !lista?.filas?.length ? (
-            <p className="admin-tardanzas-empty">No hay registros. Importe un Excel del huellero o ajuste los filtros.</p>
-          ) : (
-            <>
-              <table className="admin-tardanzas-table">
-                <thead>
-                  <tr>
-                    <th>Personal</th>
-                    <th>Fecha</th>
-                    <th>Hora entrada real</th>
-                    <th>Hora marcación</th>
-                    <th>Min. tarde</th>
-                    <th>Descuento</th>
-                    <th aria-label="Acciones">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lista.filas.map((f) => (
-                    <tr key={f.id}>
-                      <td className="col-personal">{f.personal_nombre}</td>
-                      <td>{fmtFecha(f.fecha)}</td>
-                      <td>{f.hora_entrada_real_fmt}</td>
-                      <td>{f.hora_marcacion_fmt}</td>
-                      <td>{f.minutos_tardanza > 0 ? f.minutos_tardanza : '—'}</td>
-                      <td className={f.descuento > 0 ? 'col-descuento' : 'col-descuento col-descuento--cero'}>
-                        {f.descuento > 0 ? fmtSoles(f.descuento) : '—'}
-                      </td>
-                      <td className="col-acciones">
-                        <button
-                          type="button"
-                          className="admin-tardanzas-icon-btn"
-                          title="Editar hora"
-                          aria-label={`Editar hora de ${f.personal_nombre}`}
-                          disabled={rowActionId === f.id}
-                          onClick={() => editarHora(f)}
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          type="button"
-                          className="admin-tardanzas-icon-btn admin-tardanzas-icon-btn--danger"
-                          title="Eliminar registro"
-                          aria-label={`Eliminar registro de ${f.personal_nombre}`}
-                          disabled={rowActionId === f.id}
-                          onClick={() => eliminarRegistro(f)}
-                        >
-                          🗑️
-                        </button>
-                      </td>
-                    </tr>
+        {tabActiva === 'registros' && (
+          <>
+            <section className="admin-tardanzas-toolbar" aria-label="Filtros">
+              <label>
+                Empleado
+                <select value={personalId} onChange={(e) => setPersonalId(e.target.value)}>
+                  <option value="">Todos</option>
+                  {(meta?.personal || []).map((p) => (
+                    <option key={p.id} value={String(p.id)}>
+                      {p.nombre}
+                    </option>
                   ))}
-                </tbody>
-              </table>
-              <div className="admin-tardanzas-total">
-                <span className="admin-tardanzas-total__label">Total descuento</span>
-                <span className="admin-tardanzas-total__value">{fmtSoles(lista.total_descuento)}</span>
+                </select>
+              </label>
+              <label>
+                Desde
+                <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+              </label>
+              <label>
+                Hasta
+                <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+              </label>
+              <div className="admin-tardanzas-toolbar__actions">
+                <button type="button" className="admin-tardanzas-btn" onClick={loadLista} disabled={listaLoading}>
+                  {listaLoading ? '…' : 'Actualizar'}
+                </button>
+                <button
+                  type="button"
+                  className="admin-tardanzas-btn"
+                  onClick={exportExcel}
+                  disabled={exportLoading || !lista?.filas?.length}
+                >
+                  {exportLoading ? '…' : 'Excel'}
+                </button>
+                <button
+                  type="button"
+                  className="admin-tardanzas-btn admin-tardanzas-btn--primary"
+                  onClick={exportPdf}
+                  disabled={!lista?.filas?.length}
+                >
+                  PDF
+                </button>
               </div>
-            </>
-          )}
-        </div>
+            </section>
+
+            <p className="admin-tardanzas-meta">
+              Mostrando: {filtroEtiqueta}
+              {lista ? ` · ${lista.total_registros} registro(s)` : ''}
+            </p>
+
+            <div className="admin-tardanzas-table-wrap">
+              {listaLoading ? (
+                <p className="admin-tardanzas-empty">Cargando…</p>
+              ) : !lista?.filas?.length ? (
+                <p className="admin-tardanzas-empty">
+                  No hay registros. Importe un Excel del huellero o ajuste los filtros.
+                </p>
+              ) : (
+                <>
+                  <table className="admin-tardanzas-table">
+                    <thead>
+                      <tr>
+                        <th>Personal</th>
+                        <th>Fecha</th>
+                        <th>Hora entrada real</th>
+                        <th>Hora marcación</th>
+                        <th>Min. tarde</th>
+                        <th>Descuento</th>
+                        <th aria-label="Acciones">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lista.filas.map((f) => (
+                        <tr key={f.id}>
+                          <td className="col-personal">{f.personal_nombre}</td>
+                          <td>{fmtFecha(f.fecha)}</td>
+                          <td>{f.hora_entrada_real_fmt}</td>
+                          <td>{f.hora_marcacion_fmt}</td>
+                          <td>{f.minutos_tardanza > 0 ? f.minutos_tardanza : '—'}</td>
+                          <td
+                            className={
+                              f.descuento > 0 ? 'col-descuento' : 'col-descuento col-descuento--cero'
+                            }
+                          >
+                            {f.descuento > 0 ? fmtSoles(f.descuento) : '—'}
+                          </td>
+                          <td className="col-acciones">
+                            <button
+                              type="button"
+                              className="admin-tardanzas-icon-btn"
+                              title="Editar hora"
+                              aria-label={`Editar hora de ${f.personal_nombre}`}
+                              disabled={rowActionId === f.id}
+                              onClick={() => editarHora(f)}
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              type="button"
+                              className="admin-tardanzas-icon-btn admin-tardanzas-icon-btn--danger"
+                              title="Eliminar registro"
+                              aria-label={`Eliminar registro de ${f.personal_nombre}`}
+                              disabled={rowActionId === f.id}
+                              onClick={() => eliminarRegistro(f)}
+                            >
+                              🗑️
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="admin-tardanzas-total">
+                    <span className="admin-tardanzas-total__label">Total descuento</span>
+                    <span className="admin-tardanzas-total__value">{fmtSoles(lista.total_descuento)}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </DashboardLayout>
   );

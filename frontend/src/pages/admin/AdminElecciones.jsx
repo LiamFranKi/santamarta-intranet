@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CircularProgress } from '@mui/material';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -20,6 +20,7 @@ export default function AdminElecciones() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [procesos, setProcesos] = useState([]);
+  const [filtroTab, setFiltroTab] = useState('todos');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -81,19 +82,89 @@ export default function AdminElecciones() {
     }
   };
 
+  const conteos = useMemo(() => {
+    const archivo = procesos.filter((p) => p.estado === 'ARCHIVO').length;
+    return {
+      total: procesos.length,
+      activos: procesos.length - archivo,
+      archivo
+    };
+  }, [procesos]);
+
+  const procesosVisibles = useMemo(() => {
+    if (filtroTab === 'archivo') return procesos.filter((p) => p.estado === 'ARCHIVO');
+    if (filtroTab === 'activos') return procesos.filter((p) => p.estado !== 'ARCHIVO');
+    return procesos;
+  }, [procesos, filtroTab]);
+
   return (
     <DashboardLayout>
       <div className="admin-elcc-wrap">
-        <div className="admin-elcc-hero">
-          <h1>Elecciones escolares</h1>
-          <p>
-            Configura alcaldías o procesos similares: cargos de plancha, listas con logo del «partido»,
-            foto del candidato a alcalde, propuestas y enlaces. Los alumnos convocados conocen las
-            propuestas en campaña y en la urna solo eligen por el rostro del alcalde y el logo.
-          </p>
+        <header className="admin-elcc-hero admin-elcc-hero--banner">
+          <div className="admin-elcc-hero-icon" aria-hidden="true">
+            🗳
+          </div>
+          <div className="admin-elcc-hero-text">
+            <h1>Elecciones escolares</h1>
+            <p>
+              Configura alcaldías o procesos similares: cargos de plancha, listas con logo del «partido»,
+              foto del candidato a alcalde, propuestas y enlaces. Los alumnos convocados conocen las
+              propuestas en campaña y en la urna solo eligen por el rostro del alcalde y el logo.
+            </p>
+            <div className="admin-elcc-hero-meta">
+              <span className="admin-elcc-hero-chip">{conteos.total} proceso(s)</span>
+              <span className="admin-elcc-hero-chip">{conteos.activos} en curso</span>
+              {conteos.archivo > 0 && (
+                <span className="admin-elcc-hero-chip">{conteos.archivo} archivo</span>
+              )}
+            </div>
+          </div>
+        </header>
+
+        <div className="admin-elcc-help">
+          <div className="admin-elcc-help-icon" aria-hidden="true">
+            💡
+          </div>
+          <div>
+            <h2>Procesos electorales</h2>
+            <p>
+              Filtrá por estado y entrá a <strong>Configurar</strong> para cargos, listas y resultados. Archivo
+              guarda procesos cerrados sin eliminarlos.
+            </p>
+          </div>
         </div>
-        <div className="admin-usu-toolbar" style={{ justifyContent: 'flex-end' }}>
-          <button type="button" className="admin-usu-btn admin-usu-btn-new" onClick={crearProceso}>
+
+        <div className="admin-elcc-toolbar">
+          <nav className="admin-elcc-tabs" role="tablist" aria-label="Filtro de procesos">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={filtroTab === 'todos'}
+              className={`admin-elcc-tab${filtroTab === 'todos' ? ' is-active' : ''}`}
+              onClick={() => setFiltroTab('todos')}
+            >
+              Todos ({conteos.total})
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={filtroTab === 'activos'}
+              className={`admin-elcc-tab admin-elcc-tab--sky${filtroTab === 'activos' ? ' is-active' : ''}`}
+              onClick={() => setFiltroTab('activos')}
+            >
+              En curso ({conteos.activos})
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={filtroTab === 'archivo'}
+              className={`admin-elcc-tab admin-elcc-tab--muted${filtroTab === 'archivo' ? ' is-active' : ''}`}
+              onClick={() => setFiltroTab('archivo')}
+            >
+              Archivo ({conteos.archivo})
+            </button>
+          </nav>
+          <button type="button" className="admin-elcc-btn-nuevo" onClick={crearProceso}>
             + Nuevo proceso
           </button>
         </div>
@@ -103,11 +174,15 @@ export default function AdminElecciones() {
             <div className="admin-elcc-grid-loading">
               <CircularProgress />
             </div>
-          ) : procesos.length === 0 ? (
-            <div className="admin-elcc-empty">No hay procesos. Crea uno para empezar.</div>
+          ) : procesosVisibles.length === 0 ? (
+            <div className="admin-elcc-empty">
+              {procesos.length === 0
+                ? 'No hay procesos. Crea uno para empezar.'
+                : 'No hay procesos en este filtro.'}
+            </div>
           ) : (
             <div className="admin-elcc-proceso-grid">
-              {procesos.map((p) => (
+              {procesosVisibles.map((p) => (
                 <article key={p.id} className="admin-elcc-proceso-card">
                   <div className="admin-elcc-proceso-card-top">
                     <h2 className="admin-elcc-proceso-title">{p.titulo}</h2>

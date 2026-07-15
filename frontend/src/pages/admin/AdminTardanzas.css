@@ -5,6 +5,164 @@
   margin: 0 auto;
 }
 
+.admin-tz-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.15rem;
+  margin-bottom: 1rem;
+  padding: 1.5rem 1.65rem;
+  border-radius: 18px;
+  color: #fff;
+  background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 55%, #14b8a6 100%);
+  box-shadow: 0 12px 32px rgba(14, 165, 233, 0.28);
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-tz-hero::after {
+  content: '';
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.admin-tz-hero-icon {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.45rem;
+  background: rgba(255, 255, 255, 0.18);
+  position: relative;
+  z-index: 1;
+}
+
+.admin-tz-hero-text {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.admin-tz-hero h1 {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.35rem, 4vw, 1.85rem);
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.admin-tz-hero p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.admin-tz-help {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  margin-bottom: 0.9rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #bae6fd;
+  border-left: 4px solid #0ea5e9;
+  background: #f0f9ff;
+}
+
+.admin-tz-help--importar {
+  border-color: #fde68a;
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.admin-tz-help--importar h2 {
+  color: #92400e;
+}
+
+.admin-tz-help--importar p {
+  color: #b45309;
+}
+
+.admin-tz-help-icon {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.admin-tz-help h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.02rem;
+  color: #0c4a6e;
+  font-weight: 750;
+}
+
+.admin-tz-help p {
+  margin: 0;
+  font-size: 0.86rem;
+  color: #075985;
+  line-height: 1.45;
+}
+
+.admin-tz-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.admin-tz-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.4rem;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+}
+
+.admin-tz-tab {
+  padding: 0.55rem 0.95rem;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.admin-tz-tab:hover {
+  background: #f8fafc;
+  color: #334155;
+}
+
+.admin-tz-tab.is-active {
+  color: #fff;
+  background: linear-gradient(135deg, #1d4ed8, #0ea5e9);
+}
+
+.admin-tz-tab--amber.is-active {
+  background: linear-gradient(135deg, #d97706, #f59e0b);
+}
+
 .admin-tardanzas-import {
   background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
   border: 1px solid #bfdbfe;
@@ -167,9 +325,10 @@
 .admin-tardanzas-table-wrap {
   overflow-x: auto;
   border: 1px solid #e2e8f0;
+  border-top: 3px solid #14b8a6;
   border-radius: 12px;
   background: #fff;
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
 }
 
 .admin-tardanzas-table {

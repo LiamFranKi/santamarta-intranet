@@ -213,19 +213,51 @@ export default function VocabulariosPage({ variant = 'admin' }) {
   return (
     <DashboardLayout>
       <div className="voc-page">
-        <header className="voc-page-header">
-          <h1>{copy.title}</h1>
-          <p>{copy.subtitle}</p>
+        <header className="voc-hero">
+          <div className="voc-hero-icon" aria-hidden="true">
+            📚
+          </div>
+          <div className="voc-hero-text">
+            <h1>{copy.title}</h1>
+            <p>{copy.subtitle}</p>
+            {!loading && items.length > 0 && (
+              <div className="voc-hero-meta">
+                <span className="voc-hero-chip">{items.length} documento(s)</span>
+              </div>
+            )}
+          </div>
         </header>
+
+        <div className="voc-help">
+          <div className="voc-help-icon" aria-hidden="true">
+            💡
+          </div>
+          <div>
+            <h2>{copy.section}</h2>
+            <p>
+              {variant === 'alumno'
+                ? 'Abrí el PDF desde la lista. Solo aparecen materiales de tu aula.'
+                : 'Publicá por nivel, grado y sección. Cada alumno solo ve los de su grupo.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="voc-toolbar">
+          <nav className="voc-tabs" aria-label="Sección de vocabularios">
+            <button type="button" className="voc-tab is-active" disabled>
+              {variant === 'alumno' ? 'Disponibles' : 'Listado'}
+            </button>
+          </nav>
+          {puedeGestionar && opciones.length > 0 && (
+            <button type="button" className="voc-btn-primary" onClick={() => abrirModal(null)}>
+              + Subir vocabulario
+            </button>
+          )}
+        </div>
 
         <section className="voc-section">
           <div className="voc-section-head">
             <h2>{copy.section}</h2>
-            {puedeGestionar && opciones.length > 0 && (
-              <button type="button" className="voc-btn-primary" onClick={() => abrirModal(null)}>
-                + Subir vocabulario
-              </button>
-            )}
           </div>
 
           {sinOpcionesDocente && (

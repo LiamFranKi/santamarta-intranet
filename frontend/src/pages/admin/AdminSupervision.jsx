@@ -134,11 +134,29 @@ export default function AdminSupervision() {
     if (canConfig) {
       return (
         <div className="admin-usu-wrap admin-sup-page admin-sup-root">
-          <div className="admin-usu-header">
-            <h1>Supervisión</h1>
-            <p>
-              Rúbricas de supervisión, cierre global, personal autorizado y registro de supervisiones por docente (nivel, grado y aula).
-            </p>
+          <header className="admin-sup-hero">
+            <div className="admin-sup-hero-icon" aria-hidden="true">
+              ◎
+            </div>
+            <div className="admin-sup-hero-text">
+              <h1>Supervisión</h1>
+              <p>
+                Rúbricas de supervisión, cierre global, personal autorizado y registro de supervisiones por
+                docente (nivel, grado y aula).
+              </p>
+            </div>
+          </header>
+          <div className="admin-sup-help">
+            <div className="admin-sup-help-icon" aria-hidden="true">
+              💡
+            </div>
+            <div>
+              <h2>Rúbricas y permisos</h2>
+              <p>
+                Creá supervisiones, definí el cierre global y asigná supervisores. En cada fila,{' '}
+                <strong>Opciones</strong> concentra editar, registrar e historial.
+              </p>
+            </div>
           </div>
           <PanelSupervisionAdmin user={user} canExecute={canExecute} loadYo={loadYo} />
         </div>
@@ -147,11 +165,26 @@ export default function AdminSupervision() {
 
     return (
       <div className="admin-usu-wrap admin-sup-page admin-sup-root">
-        <div className="admin-usu-header">
-          <h1>Supervisión</h1>
-          <p>
-            Registro de supervisiones e historial según el acceso asignado. Use <strong>Opciones</strong> en cada fila o los botones superiores.
-          </p>
+        <header className="admin-sup-hero">
+          <div className="admin-sup-hero-icon" aria-hidden="true">
+            ◎
+          </div>
+          <div className="admin-sup-hero-text">
+            <h1>Supervisión</h1>
+            <p>
+              Registro de supervisiones e historial según el acceso asignado. Use <strong>Opciones</strong> en
+              cada fila o los botones superiores.
+            </p>
+          </div>
+        </header>
+        <div className="admin-sup-help">
+          <div className="admin-sup-help-icon" aria-hidden="true">
+            💡
+          </div>
+          <div>
+            <h2>Bandeja de ejecución</h2>
+            <p>Elegí una rúbrica activa para registrar una supervisión o revisar el historial.</p>
+          </div>
         </div>
         <PanelSupervisionEjecutor loadYo={loadYo} canExecute={canExecute} />
       </div>
@@ -520,22 +553,32 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
 
   return (
     <>
-      <div className="admin-usu-toolbar" style={{ flexWrap: 'wrap' }}>
-        <button type="button" className="admin-usu-btn admin-usu-btn-new" onClick={openNew}>
+      <div className="admin-sup-toolbar">
+        <nav className="admin-sup-tabs" aria-label="Acciones de supervisión">
+          <button type="button" className="admin-sup-tab is-active" disabled>
+            Rúbricas
+          </button>
+          <button type="button" className="admin-sup-tab admin-sup-tab--amber" onClick={() => setModal('cierre')}>
+            Cierre global
+          </button>
+          <button
+            type="button"
+            className="admin-sup-tab admin-sup-tab--teal"
+            onClick={() => setModal('supervisores')}
+          >
+            Supervisores
+          </button>
+        </nav>
+        <button type="button" className="admin-sup-btn-nuevo" onClick={openNew}>
           + Nueva supervisión
-        </button>
-        <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModal('cierre')}>
-          Cierre global
-        </button>
-        <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModal('supervisores')}>
-          Supervisores
         </button>
       </div>
 
-      <div className="admin-usu-table-card">
+      <div className="admin-usu-table-card admin-sup-table-card">
         <div className="admin-sup-panel-body">
           <p className="admin-sup-muted" style={{ marginTop: 0 }}>
-            Listado de rúbricas de supervisión. <strong>Supervisores</strong> en la barra define quién del colegio puede registrar supervisiones. Use <strong>Opciones</strong> en cada fila para editar, registrar supervisión, historial o eliminar (sin duplicar botones arriba).
+            Listado de rúbricas de supervisión. <strong>Supervisores</strong> define quién del colegio puede
+            registrar. Use <strong>Opciones</strong> en cada fila para editar, registrar, historial o eliminar.
           </p>
           <div className="admin-usu-table-scroll">
             <table className="admin-usu-table">
@@ -839,10 +882,19 @@ function PanelSupervisionEjecutor({ loadYo, canExecute }) {
 
   return (
     <>
-      <div className="admin-usu-table-card">
+      <div className="admin-sup-toolbar">
+        <nav className="admin-sup-tabs" aria-label="Sección de supervisión">
+          <button type="button" className="admin-sup-tab is-active" disabled>
+            Rúbricas activas
+          </button>
+        </nav>
+      </div>
+      <div className="admin-usu-table-card admin-sup-table-card">
         <div className="admin-sup-panel-body">
           <p className="admin-sup-muted" style={{ marginTop: 0 }}>
-            Rúbricas activas para el año lectivo. Use <strong>Opciones</strong> en cada fila para registrar una supervisión o ver el historial de esa rúbrica. El permiso de supervisor lo asigna el administrador en Herramientas → Supervisión → <strong>Supervisores</strong>.
+            Rúbricas activas para el año lectivo. Use <strong>Opciones</strong> en cada fila para registrar una
+            supervisión o ver el historial de esa rúbrica. El permiso de supervisor lo asigna el administrador en
+            Herramientas → Supervisión → <strong>Supervisores</strong>.
           </p>
           <div className="admin-sup-doc-grid">
             {list.map((r, idx) => (
