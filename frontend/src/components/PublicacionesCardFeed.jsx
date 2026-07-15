@@ -6,11 +6,12 @@ import Swal from 'sweetalert2';
 import PublicacionContenido from './PublicacionContenido';
 import '../components/PublicacionesWidget.css';
 
-function PublicacionesCardFeed({ onPublicacionEliminada, refreshTrigger }) {
+function PublicacionesCardFeed({ onPublicacionEliminada, refreshTrigger, layout = 'list' }) {
   const { user } = useAuth();
   const esAlumno = user?.tipo === 'ALUMNO';
   const esAdmin =
     user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA' || user?.tipo === 'PSICOLOGA';
+  const isGrid = layout === 'grid';
   const [publicaciones, setPublicaciones] = useState([]);
   const [publicacionesMostradas, setPublicacionesMostradas] = useState(20);
   const [imagenModal, setImagenModal] = useState(null);
@@ -88,9 +89,11 @@ function PublicacionesCardFeed({ onPublicacionEliminada, refreshTrigger }) {
 
   return (
     <>
-      <div className="publicaciones-feed card-amarillo-feed">
+      <div
+        className={`publicaciones-feed card-amarillo-feed${isGrid ? ' publicaciones-feed--grid' : ''}`}
+      >
         {publicaciones.slice(0, publicacionesMostradas).map((pub) => (
-          <div key={pub.id} className="publicacion-item card-amarillo-publicacion-item">
+          <div key={pub.id} className={`publicacion-item card-amarillo-publicacion-item${isGrid ? ' publicacion-item--grid' : ''}`}>
             {/* Nombre del autor con botón eliminar al lado */}
             <div className="publicacion-header-nombre">
               <div className="publicacion-autor-container">
@@ -146,7 +149,12 @@ function PublicacionesCardFeed({ onPublicacionEliminada, refreshTrigger }) {
               </span>
             </div>
             
-            <PublicacionContenido pub={pub} onImageClick={setImagenModal} />
+            <PublicacionContenido
+              pub={pub}
+              onImageClick={setImagenModal}
+              collapsible={isGrid}
+              clampLines={5}
+            />
             
             {/* "Para: [quién]" al final */}
             <div className="publicacion-para-container">
@@ -158,7 +166,7 @@ function PublicacionesCardFeed({ onPublicacionEliminada, refreshTrigger }) {
         {/* Botón "Cargar Más" (admin/promotoría: bloques de 20) */}
         {publicaciones.length > publicacionesMostradas && (
           <button 
-            className="btn-cargar-mas btn-outline btn-block"
+            className={`btn-cargar-mas btn-outline btn-block${isGrid ? ' btn-cargar-mas--grid-span' : ''}`}
             onClick={() => setPublicacionesMostradas(prev => prev + (esAdmin ? 20 : 5))}
           >
             <span className="btn-icon">📄</span>

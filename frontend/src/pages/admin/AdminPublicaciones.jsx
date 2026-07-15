@@ -53,7 +53,7 @@ export default function AdminPublicaciones() {
             <h2 className="section-title-blue">Listado</h2>
           </div>
           <div className="admin-publicaciones-feed-card">
-            <PublicacionesCardFeed refreshTrigger={refreshPublicaciones} />
+            <PublicacionesCardFeed refreshTrigger={refreshPublicaciones} layout="grid" />
           </div>
         </div>
       </div>

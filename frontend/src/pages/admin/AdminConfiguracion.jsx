@@ -18,6 +18,13 @@ const CONFIG_TABS = [
   { id: 'tutoria', label: 'Tutoría', icon: '🎓', soloAdmin: true },
 ];
 
+/** Porcentajes de comisión: siempre 2 decimales (evita artefacto float 3.599999…). */
+function formatComisionPct(value) {
+  const n = parseFloat(value);
+  if (Number.isNaN(n)) return '0.00';
+  return (Math.round(n * 100) / 100).toFixed(2);
+}
+
 const QUILL_MODULES_MATRICULA = {
   toolbar: [
     [{ header: [1, 2, 3, false] }],
@@ -251,8 +258,8 @@ function AdminConfiguracion() {
     dias_tolerancia: 0,
     
     // Comisión Pago con Tarjeta
-    comision_tarjeta_debito: 0,
-    comision_tarjeta_credito: 0,
+    comision_tarjeta_debito: '0.00',
+    comision_tarjeta_credito: '0.00',
     
     // Exámenes Bloques
     clave_bloques: '',
@@ -379,6 +386,8 @@ function AdminConfiguracion() {
         email_matricula_apoderado: ensureHtmlForQuill(restData.email_matricula_apoderado || ''),
         email_matricula_interno: ensureHtmlForQuill(restData.email_matricula_interno || ''),
         email_matricula_interno_asunto: restData.email_matricula_interno_asunto || '',
+        comision_tarjeta_debito: formatComisionPct(restData.comision_tarjeta_debito),
+        comision_tarjeta_credito: formatComisionPct(restData.comision_tarjeta_credito),
         login_fondo: null,
         libreta_logo: null,
         libreta_fondo: null,
@@ -425,10 +434,14 @@ function AdminConfiguracion() {
     const numericFields = ['inicio_pensiones', 'inicio_notas', 'total_pensiones', 'total_notas', 
                           'ciclo_pensiones', 'ciclo_notas', 'dias_tolerancia', 'anio_activo', 'anio_matriculas'];
     const floatFields = ['monto_adicional', 'comision_tarjeta_debito', 'comision_tarjeta_credito'];
+    const comisionPctFields = ['comision_tarjeta_debito', 'comision_tarjeta_credito'];
     
     let processedValue = type === 'checkbox' ? checked : value;
     
-    if (floatFields.includes(name) && type !== 'checkbox') {
+    if (comisionPctFields.includes(name) && type !== 'checkbox') {
+      // Permitir teclear; se normaliza a 2 decimales en onBlur
+      processedValue = value;
+    } else if (floatFields.includes(name) && type !== 'checkbox') {
       if (value === '' || value === null || value === undefined) {
         processedValue = 0;
       } else {
@@ -631,9 +644,18 @@ function AdminConfiguracion() {
             const floatFields = ['monto_adicional', 'comision_tarjeta_debito', 'comision_tarjeta_credito'];
             
             if (floatFields.includes(field)) {
-              const numValue = parseFloat(value);
+              const numValue = parseFloat(
+                field === 'comision_tarjeta_debito' || field === 'comision_tarjeta_credito'
+                  ? formatComisionPct(value)
+                  : value
+              );
               if (!Number.isNaN(numValue)) {
-                formData.append(field, numValue);
+                formData.append(
+                  field,
+                  field === 'comision_tarjeta_debito' || field === 'comision_tarjeta_credito'
+                    ? formatComisionPct(numValue)
+                    : numValue
+                );
               } else {
                 formData.append(field, value);
               }
@@ -857,6 +879,12 @@ function AdminConfiguracion() {
                     name="comision_tarjeta_debito"
                     value={config.comision_tarjeta_debito}
                     onChange={handleInputChange}
+                    onBlur={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        comision_tarjeta_debito: formatComisionPct(e.target.value)
+                      }))
+                    }
                     step="0.01"
                     min="0"
                   />
@@ -868,6 +896,12 @@ function AdminConfiguracion() {
                     name="comision_tarjeta_credito"
                     value={config.comision_tarjeta_credito}
                     onChange={handleInputChange}
+                    onBlur={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        comision_tarjeta_credito: formatComisionPct(e.target.value)
+                      }))
+                    }
                     step="0.01"
                     min="0"
                   />

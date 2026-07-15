@@ -233,11 +233,16 @@ function AdminDocumentosGestion() {
     }
   };
 
+  const CAT_ICONS = ['📁', '🛠️', '📚', '💚', '📖', '🎓'];
+
   if (loading) {
     return (
       <DashboardLayout>
         <div className="dg-page">
-          <div className="dg-loading">Cargando Documentos Vanguard…</div>
+          <div className="dg-loading">
+            <div className="dg-loading-spin" aria-hidden="true" />
+            Cargando Documentos Vanguard…
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -246,27 +251,50 @@ function AdminDocumentosGestion() {
   return (
     <DashboardLayout>
       <div className="dg-page">
-        <header className="dg-page-header">
-          <h1>Documentos Vanguard</h1>
-          <p>Suba PDFs, organícelos por categoría y defina qué perfil de usuario puede verlos.</p>
+        <header className="dg-page-header dg-hero">
+          <div className="dg-hero-icon" aria-hidden="true">
+            📑
+          </div>
+          <div className="dg-hero-text">
+            <h1>Documentos Vanguard</h1>
+            <p>Suba PDFs, organícelos por categoría y defina qué perfil de usuario puede verlos.</p>
+          </div>
         </header>
 
-        <section className="dg-section" aria-labelledby="dg-cat-heading">
+        <section className="dg-section dg-section--cats" aria-labelledby="dg-cat-heading">
           <div className="dg-section-title" id="dg-cat-heading">
-            <span>Categorías</span>
+            <div className="dg-section-title-left">
+              <span className="dg-section-badge" aria-hidden="true">
+                🗂️
+              </span>
+              <div className="dg-section-title-text">
+                <h2>Categorías</h2>
+                <p>Organice los documentos en carpetas temáticas.</p>
+              </div>
+            </div>
             <button type="button" className="dg-btn-primary" onClick={() => abrirModalCat(null)}>
               + Nueva categoría
             </button>
           </div>
           {categorias.length === 0 ? (
-            <p className="dg-empty">No hay categorías. Cree la primera para poder subir documentos.</p>
+            <div className="dg-empty">
+              <span className="dg-empty-icon" aria-hidden="true">
+                📂
+              </span>
+              No hay categorías. Cree la primera para poder subir documentos.
+            </div>
           ) : (
             <div className="dg-categorias-grid">
-              {categorias.map((c) => (
-                <div key={c.id} className="dg-cat-card">
+              {categorias.map((c, idx) => (
+                <div key={c.id} className={`dg-cat-card dg-cat-card--tone-${idx % 6}`}>
+                  <div className="dg-cat-card-top">
+                    <span className="dg-cat-icon" aria-hidden="true">
+                      {CAT_ICONS[idx % CAT_ICONS.length]}
+                    </span>
+                    <span className="dg-cat-orden">Orden {c.orden}</span>
+                  </div>
                   <h4>{c.nombre}</h4>
                   {c.descripcion ? <p className="dg-cat-meta">{c.descripcion}</p> : null}
-                  <span className="dg-cat-meta">Orden: {c.orden}</span>
                   <div className="dg-cat-actions">
                     <Tooltip title="Editar categoría">
                       <IconButton size="small" color="primary" onClick={() => abrirModalCat(c)} aria-label="Editar">
@@ -285,9 +313,17 @@ function AdminDocumentosGestion() {
           )}
         </section>
 
-        <section className="dg-section" aria-labelledby="dg-doc-heading">
+        <section className="dg-section dg-section--docs" aria-labelledby="dg-doc-heading">
           <div className="dg-section-title" id="dg-doc-heading">
-            <span>Documentos PDF</span>
+            <div className="dg-section-title-left">
+              <span className="dg-section-badge" aria-hidden="true">
+                📄
+              </span>
+              <div className="dg-section-title-text">
+                <h2>Documentos PDF</h2>
+                <p>Suba archivos y asigne a quién van dirigidos.</p>
+              </div>
+            </div>
             <button
               type="button"
               className="dg-btn-primary"
@@ -324,7 +360,12 @@ function AdminDocumentosGestion() {
           </div>
 
           {documentos.length === 0 ? (
-            <p className="dg-empty">No hay documentos con los filtros actuales.</p>
+            <div className="dg-empty">
+              <span className="dg-empty-icon" aria-hidden="true">
+                📭
+              </span>
+              No hay documentos con los filtros actuales.
+            </div>
           ) : (
             <div className="dg-table-wrap">
               <table className="dg-table">
@@ -340,12 +381,23 @@ function AdminDocumentosGestion() {
                 <tbody>
                   {documentos.map((d) => (
                     <tr key={d.id}>
-                      <td className="dg-doc-titulo">{d.titulo}</td>
-                      <td>{d.categoria_nombre}</td>
+                      <td>
+                        <div className="dg-doc-cell">
+                          <span className="dg-doc-pdf-icon" aria-hidden="true">
+                            PDF
+                          </span>
+                          <span className="dg-doc-titulo">{d.titulo}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="dg-cat-pill">{d.categoria_nombre}</span>
+                      </td>
                       <td>
                         <span className="dg-badge-perfil">{etiquetaPerfil(d.perfil_destino)}</span>
                       </td>
-                      <td>{fmtFecha(d.fecha_publicacion || d.created_at)}</td>
+                      <td>
+                        <span className="dg-fecha">{fmtFecha(d.fecha_publicacion || d.created_at)}</span>
+                      </td>
                       <td>
                         <div className="dg-icon-actions">
                           <Tooltip title="Ver PDF">
@@ -385,7 +437,12 @@ function AdminDocumentosGestion() {
       {modalCat && (
         <div className="dg-modal-overlay" role="dialog" aria-modal="true" onClick={() => setModalCat(false)}>
           <div className="dg-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="dg-modal-header">{catEdit ? 'Editar categoría' : 'Nueva categoría'}</div>
+            <div className="dg-modal-header">
+              <span className="dg-modal-header-icon" aria-hidden="true">
+                🗂️
+              </span>
+              {catEdit ? 'Editar categoría' : 'Nueva categoría'}
+            </div>
             <div className="dg-modal-body">
               <label>
                 Nombre *
@@ -423,7 +480,12 @@ function AdminDocumentosGestion() {
       {modalDoc && (
         <div className="dg-modal-overlay" role="dialog" aria-modal="true" onClick={() => setModalDoc(false)}>
           <div className="dg-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="dg-modal-header">{docEdit ? 'Editar documento' : 'Nuevo documento PDF'}</div>
+            <div className="dg-modal-header">
+              <span className="dg-modal-header-icon" aria-hidden="true">
+                📄
+              </span>
+              {docEdit ? 'Editar documento' : 'Nuevo documento PDF'}
+            </div>
             <div className="dg-modal-body">
               <label>
                 Título *
@@ -463,11 +525,15 @@ function AdminDocumentosGestion() {
               </label>
               <label>
                 Archivo PDF {docEdit ? '(opcional — dejar vacío para mantener el actual)' : '*'}
-                <input
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  onChange={(e) => setArchivoDoc(e.target.files?.[0] || null)}
-                />
+                <div className="dg-file-zone">
+                  <p className="dg-file-zone-hint">Seleccione un archivo PDF (máx. según límites del servidor)</p>
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    onChange={(e) => setArchivoDoc(e.target.files?.[0] || null)}
+                  />
+                  {archivoDoc ? <p className="dg-file-name">📎 {archivoDoc.name}</p> : null}
+                </div>
               </label>
             </div>
             <div className="dg-modal-footer">

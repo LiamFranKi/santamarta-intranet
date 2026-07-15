@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   construirUrlArchivoPublicacion,
   normalizarUrlImagenPublicacion,
@@ -16,12 +16,78 @@ function nombreArchivoCorto(archivo, index) {
   return `Archivo.${extension}`;
 }
 
-export default function PublicacionContenido({ pub, onImageClick }) {
+/**
+ * @param {boolean} [collapsible] — clamp del texto + «+ Ver más» (p. ej. grilla admin)
+ * @param {number} [clampLines] — líneas visibles cuando está colapsado
+ */
+export default function PublicacionContenido({
+  pub,
+  onImageClick,
+  collapsible = false,
+  clampLines = 5,
+}) {
   const video = resolverVideoPublicacion(pub);
+  const textoRef = useRef(null);
+  const [expanded, setExpanded] = useState(false);
+  const [needsToggle, setNeedsToggle] = useState(false);
+
+  useEffect(() => {
+    setExpanded(false);
+  }, [pub?.id, pub?.contenido]);
+
+  useEffect(() => {
+    if (!collapsible || !pub?.contenido) {
+      setNeedsToggle(false);
+      return;
+    }
+    const el = textoRef.current;
+    if (!el) return;
+
+    const medir = () => {
+      if (expanded) {
+        // Al expandir, sabemos que hizo falta el botón
+        setNeedsToggle(true);
+        return;
+      }
+      setNeedsToggle(el.scrollHeight > el.clientHeight + 1);
+    };
+
+    medir();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(medir) : null;
+    if (ro) ro.observe(el);
+    window.addEventListener('resize', medir);
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener('resize', medir);
+    };
+  }, [collapsible, pub?.contenido, expanded, clampLines]);
 
   return (
-    <div className="publicacion-contenido">
-      {pub?.contenido ? <p>{pub.contenido}</p> : null}
+    <div className={`publicacion-contenido${collapsible ? ' publicacion-contenido--collapsible' : ''}`}>
+      {pub?.contenido ? (
+        <>
+          <p
+            ref={textoRef}
+            className={collapsible && !expanded ? 'publicacion-contenido-clamp' : undefined}
+            style={
+              collapsible && !expanded
+                ? { WebkitLineClamp: clampLines }
+                : undefined
+            }
+          >
+            {pub.contenido}
+          </p>
+          {collapsible && needsToggle ? (
+            <button
+              type="button"
+              className="btn-ver-mas-publicacion"
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded ? 'Ver menos' : '+ Ver más'}
+            </button>
+          ) : null}
+        </>
+      ) : null}
 
       {video ? (
         <div className="publicacion-video-embed">
