@@ -1,15 +1,135 @@
 /* Catálogo académico admin — usar junto a AdminDocumentosGestion.css para clases .dg-* */
 
 .admin-academico-wrap {
-  padding: clamp(1rem, 3vw, 2rem);
+  padding: 0 0 2rem;
   max-width: 1400px;
   margin: 0 auto;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.admin-aca-loading {
+  margin: 2rem 0;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.admin-aca-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.15rem;
+  margin-bottom: 1rem;
+  padding: 1.5rem 1.65rem;
+  border-radius: 18px;
+  color: #fff;
+  background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 55%, #14b8a6 100%);
+  box-shadow: 0 12px 32px rgba(14, 165, 233, 0.28);
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-aca-hero::after {
+  content: '';
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.admin-aca-hero--with-action {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.admin-aca-hero-icon {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.45rem;
+  background: rgba(255, 255, 255, 0.18);
+  position: relative;
+  z-index: 1;
+}
+
+.admin-aca-hero-text {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  flex: 1 1 200px;
+}
+
+.admin-aca-hero h1 {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.35rem, 4vw, 1.85rem);
+  font-weight: 800;
+  color: #fff !important;
+  letter-spacing: -0.02em;
+}
+
+.admin-aca-hero p {
+  margin: 0;
+  color: #fff !important;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
+}
+
+.admin-aca-hero .admin-academico-asignaturas-header-btn {
+  position: relative;
+  z-index: 1;
+  margin-left: auto;
+}
+
+.admin-aca-help {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #bae6fd;
+  border-left: 4px solid #0ea5e9;
+  background: #f0f9ff;
+}
+
+.admin-aca-help-icon {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.admin-aca-help h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.02rem;
+  color: #0c4a6e;
+  font-weight: 750;
+}
+
+.admin-aca-help p {
+  margin: 0;
+  font-size: 0.86rem;
+  color: #075985;
+  line-height: 1.45;
 }
 
 .admin-academico-table-wrap {
   overflow-x: auto;
   border-radius: 12px;
-  border: 1px solid rgba(74, 131, 193, 0.15);
+  border: 1px solid #cbd5e1;
   background: #fff;
 }
 
@@ -27,8 +147,8 @@
 }
 
 .admin-academico-table th {
-  background: linear-gradient(135deg, #f0f7ff 0%, #e8f0fe 100%);
-  color: #1e3a5f;
+  background: #1d4ed8;
+  color: #fff;
   font-weight: 700;
   white-space: nowrap;
 }

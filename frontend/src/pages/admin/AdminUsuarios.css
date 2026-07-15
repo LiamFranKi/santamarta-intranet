@@ -2,23 +2,88 @@
   max-width: 1400px;
   margin: 0 auto;
   padding: 0 0 2rem;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 .admin-usu-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.15rem;
   margin-bottom: 1rem;
+  padding: 1.5rem 1.65rem;
+  border-radius: 18px;
+  color: #fff;
+  background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 55%, #14b8a6 100%);
+  box-shadow: 0 12px 32px rgba(14, 165, 233, 0.28);
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-usu-header::after {
+  content: '';
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.admin-usu-header-icon {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.45rem;
+  background: rgba(255, 255, 255, 0.18);
+  position: relative;
+  z-index: 1;
+}
+
+.admin-usu-header-text {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
 }
 
 .admin-usu-header h1 {
-  font-size: 2rem;
+  font-size: clamp(1.35rem, 4vw, 1.85rem);
   font-weight: 800;
-  color: #4a83c1;
+  color: #fff !important;
   margin: 0 0 0.35rem;
+  letter-spacing: -0.02em;
 }
 
 .admin-usu-header p {
   margin: 0;
-  color: #6b7280;
+  color: #fff !important;
   font-size: 0.95rem;
+  line-height: 1.45;
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
+}
+
+.admin-usu-header p + p {
+  margin-top: 0.45rem;
+}
+
+.admin-usu-header .admin-usu-view-hint {
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-size: 0.82rem;
+  opacity: 0.95;
+}
+
+.admin-usu-header .admin-usu-view-hint code {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  padding: 0.1rem 0.35rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
 }
 
 .admin-usu-toolbar {
@@ -133,19 +198,19 @@
 }
 
 .admin-usu-table thead tr {
-  background: #3f74ad;
+  background: #1d4ed8;
 }
 
 .admin-usu-table thead th {
   text-align: center;
   padding: 0.75rem 1rem;
-  background: transparent;
+  background: #1d4ed8;
   color: #fff;
   font-weight: 700;
   text-transform: none;
   font-size: 0.8rem;
   letter-spacing: 0.05em;
-  border-bottom: 1px solid rgba(45, 90, 143, 0.4);
+  border-bottom: none;
   white-space: nowrap;
 }
 
@@ -1804,6 +1869,7 @@
 @media (max-width: 639px) {
   .admin-usu-header h1 {
     font-size: 1.35rem;
+    color: #fff !important;
   }
 
   .admin-usu-toolbar {

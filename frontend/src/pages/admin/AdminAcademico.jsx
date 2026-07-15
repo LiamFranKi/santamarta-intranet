@@ -108,18 +108,38 @@ export default function AdminAcademico() {
   }, []);
 
   const titles = {
-    niveles: { title: 'Niveles', desc: 'Niveles de enseñanza (Inicial, Primaria, Secundaria, etc.)' },
-    grados: { title: 'Grados', desc: `Aulas por año: grado, sección, turno, sede, ${ETIQUETA_TUTOR} y ${ETIQUETA_CO_TUTOR} (equivalente a grupos del año activo).` },
-    cursos: { title: 'Cursos', desc: 'Cursos o espacios curriculares (Matemática, Comunicación, etc.).' },
-    asignaturas: { title: 'Asignaturas', desc: 'Asignación docente por grupo y curso.' },
-    areas: { title: 'Áreas', desc: 'Áreas curriculares y su vínculo con cursos (para libretas y reportes).' }
+    niveles: {
+      title: 'Niveles',
+      desc: 'Niveles de enseñanza (Inicial, Primaria, Secundaria, etc.)',
+      icon: '🎓',
+    },
+    grados: {
+      title: 'Grados',
+      desc: `Aulas por año: grado, sección, turno, sede, ${ETIQUETA_TUTOR} y ${ETIQUETA_CO_TUTOR} (equivalente a grupos del año activo).`,
+      icon: '🏫',
+    },
+    cursos: {
+      title: 'Cursos',
+      desc: 'Cursos o espacios curriculares (Matemática, Comunicación, etc.).',
+      icon: '📚',
+    },
+    asignaturas: {
+      title: 'Asignaturas',
+      desc: 'Asignación docente por grupo y curso.',
+      icon: '📋',
+    },
+    areas: {
+      title: 'Áreas',
+      desc: 'Áreas curriculares y su vínculo con cursos (para libretas y reportes).',
+      icon: '🗂️',
+    },
   };
   const info = titles[section] || titles.niveles;
 
   if (loadingMeta && !meta) {
     return (
-      <div className="dg-page">
-        <p className="dg-page-header">Cargando catálogo académico…</p>
+      <div className="admin-academico-wrap">
+        <p className="admin-aca-loading">Cargando catálogo académico…</p>
       </div>
     );
   }
@@ -127,9 +147,12 @@ export default function AdminAcademico() {
   return (
     <div className="admin-academico-wrap dg-page">
       <header
-        className={`dg-page-header${section === 'asignaturas' ? ' admin-academico-asignaturas-page-header' : ''}`}
+        className={`admin-aca-hero${section === 'asignaturas' ? ' admin-aca-hero--with-action' : ''}`}
       >
-        <div className="admin-academico-page-header-text">
+        <div className="admin-aca-hero-icon" aria-hidden="true">
+          {info.icon}
+        </div>
+        <div className="admin-aca-hero-text">
           <h1>{info.title}</h1>
           <p>{info.desc}</p>
         </div>
@@ -143,6 +166,16 @@ export default function AdminAcademico() {
           </button>
         )}
       </header>
+
+      <div className="admin-aca-help">
+        <div className="admin-aca-help-icon" aria-hidden="true">
+          💡
+        </div>
+        <div>
+          <h2>{info.title}</h2>
+          <p>Gestioná el catálogo académico. Los cambios impactan aulas, libretas y reportes.</p>
+        </div>
+      </div>
 
       {section === 'niveles' && <NivelesPanel onRefreshMeta={loadMeta} />}
       {section === 'grados' && <GruposPanel meta={meta} />}

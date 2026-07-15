@@ -643,11 +643,17 @@ export default function AdminUsuariosAlumnos() {
   return (
     <div className="admin-usu-wrap" onClick={cerrarMenus}>
       <div className="admin-usu-header">
-        <h1>Alumnos</h1>
-        <p>Listado del colegio con acceso al aula. Usuario y contraseña por defecto: DNI.</p>
-        <p className="admin-usu-view-hint">
-          Vista en tarjetas. Para la grilla clásica, use la misma ruta con <code>?vista=tabla</code> en el navegador.
-        </p>
+        <div className="admin-usu-header-icon" aria-hidden="true">
+          🎓
+        </div>
+        <div className="admin-usu-header-text">
+          <h1>Alumnos</h1>
+          <p>Listado del colegio con acceso al aula. Usuario y contraseña por defecto: DNI.</p>
+          <p className="admin-usu-view-hint">
+            Vista en tarjetas. Para la grilla clásica, use la misma ruta con <code>?vista=tabla</code> en el
+            navegador.
+          </p>
+        </div>
       </div>
 
       <div className="admin-usu-toolbar" onClick={(e) => e.stopPropagation()}>

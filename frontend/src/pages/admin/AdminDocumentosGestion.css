@@ -63,17 +63,35 @@
   min-width: 0;
 }
 
-.dg-page-header h1 {
+.dg-page-header.dg-hero h1 {
   font-size: clamp(1.35rem, 4vw, 1.85rem);
   font-weight: 800;
-  color: #fff;
+  color: #fff !important;
   margin: 0 0 0.35rem 0;
   line-height: 1.2;
   letter-spacing: -0.02em;
 }
 
-.dg-page-header p {
-  color: rgba(255, 255, 255, 0.92);
+.dg-page-header.dg-hero p {
+  color: rgba(255, 255, 255, 0.95) !important;
+  margin: 0;
+  font-size: 0.95rem;
+  max-width: 52rem;
+  line-height: 1.45;
+  font-weight: 500;
+}
+
+/* Cabecera simple (sin banner): texto oscuro legible */
+.dg-page-header:not(.dg-hero) h1 {
+  font-size: clamp(1.35rem, 4vw, 1.85rem);
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.35rem 0;
+  line-height: 1.2;
+}
+
+.dg-page-header:not(.dg-hero) p {
+  color: #64748b;
   margin: 0;
   font-size: 0.95rem;
   max-width: 52rem;

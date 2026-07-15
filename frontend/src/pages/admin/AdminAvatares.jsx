@@ -252,9 +252,27 @@ function AdminAvatares() {
   return (
     <DashboardLayout>
       <div className="admin-avatares">
-        <div className="admin-avatares-header">
-          <h1>🎮 Avatares por bimestre</h1>
-          <p>Gestiona los avatares base por bimestre y género, y sus accesorios. Cada accesorio usa una imagen ya combinada (personaje + accesorio).</p>
+        <header className="admin-avatares-hero">
+          <div className="admin-avatares-hero-icon" aria-hidden="true">
+            🎮
+          </div>
+          <div className="admin-avatares-hero-text">
+            <h1>Gamificación · Avatares</h1>
+            <p>
+              Gestiona los avatares base por bimestre y género, y sus accesorios. Cada accesorio usa una imagen ya
+              combinada (personaje + accesorio).
+            </p>
+          </div>
+        </header>
+
+        <div className="admin-avatares-help">
+          <div className="admin-avatares-help-icon" aria-hidden="true">
+            💡
+          </div>
+          <div>
+            <h2>Catálogo de avatares</h2>
+            <p>Creá bases por bimestre/género y luego agregá accesorios con puntuación requerida.</p>
+          </div>
         </div>
 
         <div className="admin-avatares-actions">

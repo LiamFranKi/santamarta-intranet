@@ -691,15 +691,20 @@ export default function AdminUsuariosEquipo() {
   return (
     <div className="admin-usu-wrap" onClick={cerrarMenus}>
       <div className="admin-usu-header">
-        <h1>Personal</h1>
-        <p>
-          Docentes, administración y demás perfiles del colegio. El acceso se diferencia por el tipo de usuario;
-          usuario y contraseña inicial son el DNI.
-        </p>
-        <p className="admin-usu-view-hint">
-          Vista en tarjetas. Para recuperar la grilla clásica, use la misma ruta con{' '}
-          <code>?vista=tabla</code> en el navegador.
-        </p>
+        <div className="admin-usu-header-icon" aria-hidden="true">
+          👥
+        </div>
+        <div className="admin-usu-header-text">
+          <h1>Personal</h1>
+          <p>
+            Docentes, administración y demás perfiles del colegio. El acceso se diferencia por el tipo de usuario;
+            usuario y contraseña inicial son el DNI.
+          </p>
+          <p className="admin-usu-view-hint">
+            Vista en tarjetas. Para recuperar la grilla clásica, use la misma ruta con <code>?vista=tabla</code> en
+            el navegador.
+          </p>
+        </div>
       </div>
 
       <div className="admin-usu-toolbar" onClick={(e) => e.stopPropagation()}>
