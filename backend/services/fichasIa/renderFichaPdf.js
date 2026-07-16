@@ -85,12 +85,13 @@ async function htmlStringToPdf(html, pdfPath, opts = {}) {
   const marginZero = Boolean(opts.marginZero);
   const margin = marginZero
     ? { top: '0', right: '0', bottom: '0', left: '0' }
-    : opts.margin || { top: '8mm', right: '8mm', bottom: '10mm', left: '8mm' };
+    : opts.margin || { top: '6mm', right: '6mm', bottom: '8mm', left: '6mm' };
+  // Escala 2 = tipografía nítida en PDF (evita texto “pixelado”)
+  const deviceScaleFactor = Number(opts.deviceScaleFactor) > 0 ? Number(opts.deviceScaleFactor) : 2;
 
   try {
     const page = await browser.newPage();
-    // Viewport alto para páginas A4 con imágenes embebidas
-    await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: marginZero ? 2 : 1 });
+    await page.setViewport({ width: 794, height: 1123, deviceScaleFactor });
     await page.setContent(html, { waitUntil: 'load', timeout: 90000 });
     await page.emulateMediaType('print');
     await page.pdf({

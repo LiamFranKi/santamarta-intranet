@@ -231,6 +231,27 @@ function renderFichaHtml(ctx, archivoPlantilla) {
   // Plantilla tipada GUÍA + PRÁCTICA
   if (esPlantillaGuiaPractica(plantilla) && !ctx.esMatematica) {
     const { guia, practica } = asegurarGuiaPractica(ctx);
+    // Campos extra del diseño híbrido (no pasan por el normalizador tipado)
+    const guiaSrc = ctx.guia || ctx.contenido?.guia || {};
+    const practicaSrc = ctx.practica || ctx.contenido?.practica || {};
+    if (guiaSrc.ilustracion_definicion_url) {
+      guia.ilustracion_definicion_url = guiaSrc.ilustracion_definicion_url;
+    }
+    if (guiaSrc.ilustracion_ejemplos_url) {
+      guia.ilustracion_ejemplos_url = guiaSrc.ilustracion_ejemplos_url;
+    }
+    practica.operaciones = Array.isArray(practicaSrc.operaciones)
+      ? practicaSrc.operaciones.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 12)
+      : Array.isArray(practica.operaciones)
+        ? practica.operaciones
+        : [];
+    practica.problemas = Array.isArray(practicaSrc.problemas)
+      ? practicaSrc.problemas.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 4)
+      : Array.isArray(practica.problemas)
+        ? practica.problemas
+        : [];
+    practica.es_matematica = Boolean(practicaSrc.es_matematica || practica.operaciones.length);
+
     practica.completar = {
       ...practica.completar,
       oraciones: (practica.completar?.oraciones || []).map(oracionAHtmlConHuecos),
@@ -250,10 +271,10 @@ function renderFichaHtml(ctx, archivoPlantilla) {
       guia,
       practica,
       logoUrl,
-      mascotaIzqUrl: urlMascota(mascotas.tomar()),
-      mascotaDerUrl: urlMascota(mascotas.tomar()),
-      mascotaImpUrl: urlMascota(mascotas.tomar()),
-      mascotaRecuerdaUrl: urlMascota(mascotas.tomar()),
+      mascotaIzqUrl: ctx.mascotaIzqUrl || urlMascota(mascotas.tomar()),
+      mascotaDerUrl: ctx.mascotaDerUrl || urlMascota(mascotas.tomar()),
+      mascotaImpUrl: ctx.mascotaImpUrl || urlMascota(mascotas.tomar()),
+      mascotaRecuerdaUrl: ctx.mascotaRecuerdaUrl || urlMascota(mascotas.tomar()),
       tieneLogo: Boolean(logoUrl),
       subtituloLinea: subtituloExtra,
       pie_motivacional: pieMotivacional,

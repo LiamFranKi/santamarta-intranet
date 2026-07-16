@@ -1090,16 +1090,16 @@ export default function DisenadorFichas() {
                     disabled={!config.vanguarcito_disponible && form.modo_diseno === 'libre'}
                   >
                     <option value="libre" disabled={!config.vanguarcito_disponible}>
-                      Diseño libre por imagen IA (recomendado · todos los cursos)
+                      Diseño libre híbrido (recomendado · todos los cursos)
                     </option>
                     <option value="plantilla">Plantilla tipada (más estable, menos bonita)</option>
                   </select>
                   <span className="voc-file-hint" style={{ display: 'block', marginTop: 4 }}>
                     {form.modo_diseno === 'libre' ? (
                       <>
-                        Por defecto para <strong>cualquier curso</strong> (Matemática, Ciencia, etc.):
-                        guía + práctica como infografía. Guion ortográfico + imagen A4. Consume más
-                        cuota; si falla, cae a plantilla tipada.
+                        Texto nítido en A4 (ortografía correcta) + ilustraciones IA sin letras. En
+                        Matemática incluye operaciones grandes y legibles. Si falla, cae a plantilla
+                        tipada.
                       </>
                     ) : (
                       <>

@@ -133,9 +133,69 @@
       min-height: 78px;
       text-align: center;
       padding: 6px;
+      overflow: hidden;
+    }
+    .ilust-box img {
+      width: 100%;
+      height: 72px;
+      object-fit: contain;
+      border-radius: 6px;
     }
     .ilust-emoji { font-size: 34px; line-height: 1; }
     .ilust-cap { font-size: 8px; color: #64748b; margin-top: 3px; font-weight: 600; }
+    .ejemplos-banner {
+      margin-bottom: 6px;
+      border-radius: 9px;
+      overflow: hidden;
+      border: 1.5px solid #fdba74;
+      background: #fff7ed;
+      max-height: 88px;
+    }
+    .ejemplos-banner img {
+      width: 100%;
+      height: 84px;
+      object-fit: cover;
+      object-position: center;
+      display: block;
+    }
+
+    /* Operaciones matemáticas (texto HTML nítido) */
+    .ops-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .op-card {
+      border: 1.5px solid #93c5fd;
+      border-radius: 8px;
+      background: #f8fbff;
+      padding: 10px 12px;
+      font-family: 'Cambria Math', 'Segoe UI', Georgia, serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: #1e3a8a;
+      letter-spacing: .02em;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 42px;
+    }
+    .op-line {
+      flex: 1;
+      border-bottom: 2px solid #64748b;
+      min-width: 48px;
+      height: 1.1em;
+      margin-left: 6px;
+    }
+    .prob-item {
+      margin: 6px 0 0;
+      font-size: 10px;
+      color: #334155;
+      line-height: 1.4;
+    }
+    .prob-item .lineas { margin-top: 4px; }
 
     .partes-list { display: flex; flex-direction: column; gap: 5px; }
     .parte-item {
@@ -452,7 +512,11 @@
         <div class="def-row">
           <p>{{guia.definicion.texto}}</p>
           <div class="ilust-box">
-            <div class="ilust-emoji">{{guia.definicion.emoji}}</div>
+            {{#if guia.ilustracion_definicion_url}}
+              <img src="{{guia.ilustracion_definicion_url}}" alt="" />
+            {{else}}
+              <div class="ilust-emoji">{{guia.definicion.emoji}}</div>
+            {{/if}}
             <div class="ilust-cap">Observa</div>
           </div>
         </div>
@@ -528,6 +592,11 @@
 
     <div class="card mb-6">
       <h3><span class="num">6</span> {{guia.ejemplos.titulo}}</h3>
+      {{#if guia.ilustracion_ejemplos_url}}
+        <div class="ejemplos-banner">
+          <img src="{{guia.ilustracion_ejemplos_url}}" alt="" />
+        </div>
+      {{/if}}
       <div class="grid-3">
         {{#each guia.ejemplos.items}}
           <div class="ej-card">
@@ -596,6 +665,34 @@
       <span>Fecha: __________</span>
     </div>
 
+    {{#if practica.operaciones.length}}
+    <div class="act act-azul">
+      <h3>OPERACIONES</h3>
+      <p class="q" style="margin-bottom:2px">Resuelve en el espacio. Escribe con claridad.</p>
+      <div class="ops-grid">
+        {{#each practica.operaciones}}
+          <div class="op-card"><span>{{this}}</span><span class="op-line"></span></div>
+        {{/each}}
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if practica.problemas.length}}
+    <div class="act act-naranja">
+      <h3>PROBLEMAS</h3>
+      {{#each practica.problemas}}
+        <div class="prob-item">
+          <strong>{{add @index 1}}.</strong> {{this}}
+          <div class="lineas">
+            <div class="linea"></div>
+            <div class="linea"></div>
+            <div class="linea"></div>
+          </div>
+        </div>
+      {{/each}}
+    </div>
+    {{/if}}
+
     <div class="act act-azul">
       <h3>I. RESPONDER</h3>
       {{#each practica.responder.preguntas}}
@@ -616,7 +713,11 @@
           {{/each}}
         </div>
         <div class="ilust-box" style="min-height:70px;background:#ecfdf5;border-color:#6ee7b7">
-          <div class="ilust-emoji">{{guia.definicion.emoji}}</div>
+          {{#if guia.ilustracion_definicion_url}}
+            <img src="{{guia.ilustracion_definicion_url}}" alt="" />
+          {{else}}
+            <div class="ilust-emoji">{{guia.definicion.emoji}}</div>
+          {{/if}}
           <div class="ilust-cap">Apoyo visual</div>
         </div>
       </div>

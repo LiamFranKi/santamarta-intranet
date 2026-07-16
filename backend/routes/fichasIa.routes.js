@@ -629,6 +629,8 @@ router.post('/trabajos/:id/generar', async (req, res) => {
         await execute(`UPDATE fichas_ia_trabajos SET estado = 'MAQUETANDO' WHERE id = ?`, [trabajoId]);
         const saved = await guardarHtmlYPdf(libre.html, trabajoId, {
           marginZero: Boolean(libre.pdf_opts?.marginZero),
+          deviceScaleFactor: libre.pdf_opts?.deviceScaleFactor || 2,
+          margin: libre.pdf_opts?.margin,
         });
         pdfFilename = saved.pdfFilename;
         htmlLibreFilename = saved.htmlFilename;
@@ -804,7 +806,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
       mensaje: aviso_ia
         ? `Ficha generada con aviso: ${aviso_ia.slice(0, 120)}`
         : modoDiseno === 'libre' || htmlLibreFilename
-          ? 'Ficha generada en diseño libre (Vanguarcito)'
+          ? 'Ficha generada en diseño libre híbrido (texto A4 + ilustraciones IA)'
           : 'Ficha generada correctamente',
       uso_vanguarcito: ia_proveedor === 'google',
       modo_diseno: htmlLibreFilename ? 'libre' : 'plantilla',
