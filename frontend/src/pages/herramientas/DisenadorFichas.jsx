@@ -22,7 +22,7 @@ import {
 } from '../../utils/fichasIaGruposAgregados';
 
 /** Gemini + PDF en servidor pueden tardar más de 30 s (timeout global de api.js). */
-const GENERAR_FICHA_TIMEOUT_MS = 240000;
+const GENERAR_FICHA_TIMEOUT_MS = 360000;
 
 function originServidor() {
   const base = api.defaults?.baseURL || '';
@@ -1075,15 +1075,16 @@ export default function DisenadorFichas() {
                   >
                     <option value="plantilla">Plantilla tipada (recomendado, estable)</option>
                     <option value="libre" disabled={!config.vanguarcito_disponible}>
-                      Diseño libre por IA (experimental · más tokens)
+                      Diseño libre por imagen IA (experimental · más caro)
                     </option>
                   </select>
                   <span className="voc-file-hint" style={{ display: 'block', marginTop: 4 }}>
                     {form.modo_diseno === 'libre' ? (
                       <>
-                        Vanguarcito inventa el HTML completo (guía + práctica). Solo se le pasan logo y
-                        mascota como referencia, adaptada al grado/edad. Puede consumir más cuota de
-                        Gemini y el resultado varía. Si falla, se usa la plantilla tipada.
+                        Genera la guía y la práctica como <strong>imágenes</strong> con Gemini Image
+                        (estilo tipo infografía), usando tu guía de referencia + logo + mascota según
+                        el grado. Consume más cuota; el texto en imagen a veces tiene errores. Si
+                        falla, se usa la plantilla tipada.
                       </>
                     ) : (
                       <>
