@@ -1081,10 +1081,10 @@ export default function DisenadorFichas() {
                   <span className="voc-file-hint" style={{ display: 'block', marginTop: 4 }}>
                     {form.modo_diseno === 'libre' ? (
                       <>
-                        Genera la guía y la práctica como <strong>imágenes</strong> con Gemini Image
-                        (estilo tipo infografía), usando tu guía de referencia + logo + mascota según
-                        el grado. Consume más cuota; el texto en imagen a veces tiene errores. Si
-                        falla, se usa la plantilla tipada.
+                        Genera guía + práctica como <strong>imágenes</strong> (estilo infografía).
+                        Primero arma un guion con ortografía correcta y luego lo pinta en la imagen
+                        (A4 sin estirar). Consume más cuota; aún puede haber alguna falla tipográfica.
+                        Si falla, se usa la plantilla tipada.
                       </>
                     ) : (
                       <>

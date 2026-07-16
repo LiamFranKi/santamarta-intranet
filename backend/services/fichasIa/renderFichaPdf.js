@@ -68,7 +68,7 @@ async function lanzarNavegador(puppeteer) {
 /**
  * Convierte el mismo HTML de vista previa a PDF (misma maquetación, colores y mascotas).
  */
-async function htmlStringToPdf(html, pdfPath) {
+async function htmlStringToPdf(html, pdfPath, opts = {}) {
   let puppeteer;
   try {
     puppeteer = require('puppeteer');
@@ -82,16 +82,23 @@ async function htmlStringToPdf(html, pdfPath) {
 
   const browser = await lanzarNavegador(puppeteer);
 
+  const marginZero = Boolean(opts.marginZero);
+  const margin = marginZero
+    ? { top: '0', right: '0', bottom: '0', left: '0' }
+    : opts.margin || { top: '8mm', right: '8mm', bottom: '10mm', left: '8mm' };
+
   try {
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'load', timeout: 60000 });
+    // Viewport alto para páginas A4 con imágenes embebidas
+    await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: marginZero ? 2 : 1 });
+    await page.setContent(html, { waitUntil: 'load', timeout: 90000 });
     await page.emulateMediaType('print');
     await page.pdf({
       path: pdfPath,
       format: 'A4',
       printBackground: true,
       preferCSSPageSize: true,
-      margin: { top: '8mm', right: '8mm', bottom: '10mm', left: '8mm' },
+      margin,
     });
   } finally {
     await browser.close();
@@ -109,13 +116,13 @@ async function renderFichaPdfYHtml(ctx, archivoPlantilla, trabajoId) {
 /**
  * Guarda HTML ya generado (diseño libre) y lo convierte a PDF A4.
  */
-async function guardarHtmlYPdf(html, trabajoId) {
+async function guardarHtmlYPdf(html, trabajoId, opts = {}) {
   const baseName = `ficha-${trabajoId}-${Date.now()}`;
   const htmlPath = path.join(dirs.trabajo, `${baseName}.html`);
   const pdfPath = path.join(dirs.generados, `${baseName}.pdf`);
   fs.writeFileSync(htmlPath, html, 'utf8');
 
-  await htmlStringToPdf(html, pdfPath);
+  await htmlStringToPdf(html, pdfPath, opts);
 
   return {
     htmlPath,

@@ -4,8 +4,8 @@ const axios = require('axios');
 const { assetsDir } = require('../../utils/fichasIaPaths');
 
 /**
- * Modo LIBRE = generación por IMAGEN (Gemini Image / Nano Banana).
- * El HTML libre fallaba porque no puede hacer infografías con diagramas reales.
+ * Modo LIBRE = imágenes Gemini + guion ortográfico previo (texto correcto).
+ * A4 sin estirar: ratio 2:3 + PDF sin márgenes + object-fit contain.
  */
 
 const MODELOS_IMAGEN = [
@@ -16,12 +16,25 @@ const MODELOS_IMAGEN = [
   'gemini-2.0-flash-preview-image-generation',
 ].filter(Boolean);
 
-function modelosUnicos() {
+const MODELOS_TEXTO = [
+  process.env.FICHAS_IA_GEMINI_MODEL,
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+].filter(Boolean);
+
+function unicos(lista) {
   const seen = new Set();
   const out = [];
-  for (const m of MODELOS_IMAGEN) {
+  for (const m of lista) {
     const s = String(m || '').trim();
     if (!s || seen.has(s)) continue;
+    if (s === 'gemini-2.0-flash') {
+      if (!seen.has('gemini-2.5-flash')) {
+        seen.add('gemini-2.5-flash');
+        out.push('gemini-2.5-flash');
+      }
+      continue;
+    }
     seen.add(s);
     out.push(s);
   }
@@ -78,11 +91,11 @@ function elegirMascota(banda, trabajoId) {
 
 function tonoPorBanda(banda) {
   const map = {
-    infantil: 'very cute preschool style, large icons, short text, pastel colors',
-    temprano: 'friendly grade 1-2 worksheet, clear big illustrations, short sentences',
-    intermedio: 'colorful grade 3-4 educational infographic, balanced text and images',
-    mayor: 'polished grade 5-6 textbook-quality infographic, clear diagrams, not babyish',
-    secundaria: 'modern clean secondary school infographic, professional but colorful',
+    infantil: 'preschool cute, large type, short phrases',
+    temprano: 'grade 1-2 friendly, clear large illustrations',
+    intermedio: 'grade 3-4 colorful textbook infographic',
+    mayor: 'grade 5-6 polished educational infographic',
+    secundaria: 'modern secondary school infographic',
   };
   return map[banda] || map.intermedio;
 }
@@ -120,6 +133,7 @@ function extraerImagenesDeRespuesta(data) {
 }
 
 function htmlDesdePaginasImagen(paginas) {
+  // A4 exacto, sin estirar: contain + centrado (evita distorsión 3:4→A4)
   const imgs = paginas
     .map(
       (p, i) =>
@@ -132,12 +146,33 @@ function htmlDesdePaginasImagen(paginas) {
 <meta charset="utf-8"/>
 <title>Ficha Vanguarcito</title>
 <style>
-  @page { size: A4; margin: 0; }
-  html, body { margin: 0; padding: 0; background: #fff; }
-  .page { width: 210mm; min-height: 297mm; margin: 0 auto; page-break-after: always; break-after: page; }
+  @page { size: A4 portrait; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; width: 210mm; }
+  .page {
+    width: 210mm;
+    height: 297mm;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    page-break-after: always;
+    break-after: page;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+  }
   .page.break { page-break-after: always; }
   .page:last-child { page-break-after: auto; }
-  img { width: 100%; height: auto; display: block; }
+  img {
+    max-width: 210mm;
+    max-height: 297mm;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    display: block;
+    image-rendering: -webkit-optimize-contrast;
+  }
 </style>
 </head>
 <body>
@@ -154,9 +189,11 @@ function partImagen(asset, label) {
   ];
 }
 
-async function generarUnaPaginaImagen({
+/**
+ * Paso 1: guion en español correcto (JSON) — reduce faltas ortográficas en la imagen.
+ */
+async function generarGuionOrtografico({
   apiKey,
-  tipoPagina,
   titulo,
   grado,
   grupoEtiqueta,
@@ -166,135 +203,242 @@ async function generarUnaPaginaImagen({
   textoOrigen,
   instruccionesDocente,
   banda,
-  logo,
-  mascota,
-  referencia,
 }) {
-  const tono = tonoPorBanda(banda);
-  const esGuia = tipoPagina === 'guia';
+  const prompt = `Eres corrector y didacta en español de Perú. Genera SOLO JSON válido (sin markdown).
 
-  const prompt = esGuia
-    ? `Create ONE full-page educational WORKSHEET IMAGE (print A4 portrait, dense infographic layout).
+Tema: ${titulo || 'Tema'}
+Grado: ${grado || grupoEtiqueta || '—'}
+Área: ${area || '—'}
+Unidad: ${unidad || '—'}
+Banda edad: ${banda}
+Puntos clave: ${(puntosClave || '—').slice(0, 2000)}
+Indicaciones docente: ${(instruccionesDocente || '—').slice(0, 1500)}
+Texto apoyo: ${(textoOrigen || '').slice(0, 6000)}
 
-STYLE REFERENCE: Match the attached "referencia de estilo" image as closely as possible:
-- Title "GUÍA" + topic title
-- Two cartoon school mascots framing the header (use the attached mascot character style/clothing cues)
-- School logo in a discreet place (attached logo)
-- 7 numbered rounded section cards in a clean grid
-- Real-looking educational diagrams/illustrations inside sections (not empty boxes)
-- Footer green banner "¡Recuerda!" with a strong summary sentence
-- Bright blues/greens/oranges, professional kids textbook quality
-- Spanish (Peru), age band: ${banda} (${tono})
+Reglas ORTOGRAFÍA:
+- Español correcto (tildes, ñ, mayúsculas). Cero faltas.
+- Frases cortas y claras para el grado.
+- Contenido factual correcto; no inventes datos científicos falsos.
 
-TOPIC DATA (must be accurate for the grade):
-- Title: ${titulo}
-- Grade: ${grado || grupoEtiqueta || '—'}
-- Subject: ${area || '—'}
-- Unit: ${unidad || '—'}
-- Key points: ${(puntosClave || '').slice(0, 1500)}
-- Teacher notes: ${(instruccionesDocente || '').slice(0, 1200)}
-- Extra text: ${(textoOrigen || '').slice(0, 4000)}
-
-SECTION STRUCTURE (fill with THIS topic, not cells unless the topic is cells):
-1) ¿Qué es…? + illustration
-2) ¿Por qué es importante…? + bullets + mascots
-3) Partes / ideas principales with labeled callouts
-4) Tipos / comparación two columns
-5) Proceso / niveles with arrows
-6) Ejemplos (3 cards)
-7) ¿Sabías que?
-Footer: ¡Recuerda!
-
-CRITICAL:
-- Output a single finished page image (not a mockup on a desk).
-- Readable Spanish text, high contrast.
-- No English UI chrome, no watermarks saying AI.
-- Use the attached logo and mascot likeness.`
-    : `Create ONE full-page educational PRACTICE WORKSHEET IMAGE (print A4 portrait).
-
-STYLE: Same brand as the attached style reference (colors, rounded cards, mascots, logo), but this page is "FICHA DE APLICACIÓN".
-- Header with title FICHA DE APLICACIÓN: ${titulo}
-- Fields: Nombre / Grado / Fecha
-- Subject line: ${area || '—'} – ${grado || grupoEtiqueta || '—'}
-- Age band: ${banda} (${tono})
-- Include attached logo + mascot 1-2 times
-
-Activities (all on THIS page, Spanish):
-I. RESPONDER (2 open questions with answer lines)
-II. COMPLETAR (3 fill-in-the-blank sentences + small illustration)
-III. VERDADERO O FALSO (4 statements with V/F boxes)
-IV. MARCAR (2 multiple-choice a-b-c-d)
-V. RELACIONAR (match columns)
-VI. ORDENAR (scrambled items + empty sequence boxes)
-VII. IDENTIFICA (2 illustrated cases to label)
-Footer motivational line.
-
-Topic: ${titulo}
-Key points: ${(puntosClave || '').slice(0, 1200)}
-Teacher notes: ${(instruccionesDocente || '').slice(0, 800)}
-
-CRITICAL: finished printable page, readable Spanish, no notebook mentions, no AI watermark.`;
-
-  const parts = [
-    { text: prompt },
-    ...partImagen(referencia, 'REFERENCIA DE ESTILO (imitar layout y calidad visual)'),
-    ...partImagen(logo, 'LOGO institucional Vanguard'),
-    ...partImagen(mascota, 'MASCOTA / personaje escolar (usar en la ficha)'),
-  ];
+Formato:
+{
+  "guia": {
+    "titulo": "TÍTULO EN MAYÚSCULAS",
+    "subtitulo": "Área – Grado",
+    "definicion_titulo": "¿Qué es …?",
+    "definicion_texto": "2-3 oraciones correctas",
+    "importancia_titulo": "¿Por qué es importante …?",
+    "importancia_items": ["frase 1", "frase 2", "frase 3", "frase 4", "frase 5"],
+    "partes_titulo": "Partes / ideas principales",
+    "partes": [{"nombre": "…", "descripcion": "…"}],
+    "tipos_titulo": "Tipos / comparación",
+    "tipo_a": {"titulo": "…", "items": ["…", "…", "…"]},
+    "tipo_b": {"titulo": "…", "items": ["…", "…", "…"]},
+    "tipos_nota": "frase de cierre",
+    "proceso_titulo": "Proceso / niveles",
+    "proceso_pasos": [{"nombre": "…", "descripcion": "…"}],
+    "ejemplos_titulo": "Ejemplos",
+    "ejemplos": [{"titulo": "…", "descripcion": "…"}],
+    "sabias_que": "2 oraciones",
+    "recuerda": "1 frase fuerte de síntesis"
+  },
+  "practica": {
+    "titulo": "FICHA DE APLICACIÓN: …",
+    "responder": ["pregunta 1", "pregunta 2"],
+    "completar": ["oración con ________", "…", "…"],
+    "verdadero_falso": ["afirmación 1", "2", "3", "4"],
+    "marcar": [
+      {"pregunta": "…", "opciones": ["A) …", "B) …", "C) …", "D) …"]}
+    ],
+    "relacionar_a": ["término 1", "2", "3", "4"],
+    "relacionar_b": ["definición 1", "2", "3", "4"],
+    "ordenar_instruccion": "…",
+    "ordenar_elementos": ["…", "…", "…", "…"],
+    "identifica_instruccion": "…",
+    "identifica_casos": ["caso A", "caso B"],
+    "pie": "frase motivadora"
+  }
+}`;
 
   const body = {
-    contents: [{ role: 'user', parts }],
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      temperature: 0.6,
-      imageConfig: {
-        aspectRatio: '3:4',
-      },
+      temperature: 0.25,
+      maxOutputTokens: 8192,
+      responseMimeType: 'application/json',
     },
   };
 
-  const errores = [];
-  for (const modelo of modelosUnicos()) {
+  let lastErr;
+  for (const modelo of unicos(MODELOS_TEXTO)) {
     try {
-      // Algunos modelos usan imageConfig; si 400, reintentar sin imageConfig
-      let r;
-      try {
-        r = await llamarGemini(apiKey, modelo, body);
-      } catch (err) {
-        if (err.response?.status === 400) {
-          const body2 = {
-            contents: body.contents,
-            generationConfig: { responseModalities: ['TEXT', 'IMAGE'], temperature: 0.6 },
-          };
-          r = await llamarGemini(apiKey, modelo, body2);
-        } else {
-          throw err;
-        }
-      }
-      const imgs = extraerImagenesDeRespuesta(r.data);
-      if (!imgs.length) {
-        errores.push(`${modelo}: respondió sin imagen`);
-        continue;
-      }
+      const r = await llamarGemini(apiKey, modelo, body, 120000);
+      const text = r.data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
+      const cleaned = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+      const guion = JSON.parse(cleaned);
+      if (!guion?.guia || !guion?.practica) throw new Error('Guion incompleto');
       const usage = r.data?.usageMetadata || {};
       return {
-        imagen: imgs[0],
+        guion,
         modelo: r.modelo,
         tokens_entrada: usage.promptTokenCount || 0,
         tokens_salida: usage.candidatesTokenCount || 0,
       };
     } catch (err) {
-      const msg = err.response?.data?.error?.message || err.message;
-      errores.push(`${modelo}: ${msg}`);
-      if (err.response?.status === 429 || err.response?.status === 403) {
-        const e = new Error(msg);
-        e.code = err.response.status === 429 ? 'GEMINI_RATE_LIMIT' : 'GEMINI_FORBIDDEN';
-        throw e;
+      lastErr = err;
+      if (err.response?.status === 429 || err.response?.status === 403) throw err;
+    }
+  }
+  throw lastErr || new Error('No se pudo generar guion ortográfico');
+}
+
+function textoGuionParaPrompt(guion, tipoPagina) {
+  const g = guion.guia || {};
+  const p = guion.practica || {};
+  if (tipoPagina === 'guia') {
+    return `TEXTO EXACTO A PINTAR (español correcto — NO cambies letras, tildes ni palabras):
+Título página: GUÍA
+Título tema: ${g.titulo || ''}
+Subtítulo: ${g.subtitulo || ''}
+1) ${g.definicion_titulo || ''}: ${g.definicion_texto || ''}
+2) ${g.importancia_titulo || ''}:
+${(g.importancia_items || []).map((x, i) => `  - ${x}`).join('\n')}
+3) ${g.partes_titulo || ''}:
+${(g.partes || []).map((x) => `  - ${x.nombre}: ${x.descripcion}`).join('\n')}
+4) ${g.tipos_titulo || ''}:
+  A) ${g.tipo_a?.titulo || ''}: ${(g.tipo_a?.items || []).join(' · ')}
+  B) ${g.tipo_b?.titulo || ''}: ${(g.tipo_b?.items || []).join(' · ')}
+  Nota: ${g.tipos_nota || ''}
+5) ${g.proceso_titulo || ''}:
+${(g.proceso_pasos || []).map((x, i) => `  ${i + 1}. ${x.nombre}: ${x.descripcion}`).join('\n')}
+6) ${g.ejemplos_titulo || ''}:
+${(g.ejemplos || []).map((x) => `  - ${x.titulo}: ${x.descripcion}`).join('\n')}
+7) ¿Sabías que?: ${g.sabias_que || ''}
+¡Recuerda!: ${g.recuerda || ''}`;
+  }
+  return `TEXTO EXACTO A PINTAR (español correcto — NO cambies letras, tildes ni palabras):
+Título: ${p.titulo || 'FICHA DE APLICACIÓN'}
+Campos: Nombre ________  Grado ________  Fecha ________
+I. RESPONDER:
+${(p.responder || []).map((x, i) => `  ${i + 1}. ${x}`).join('\n')}
+II. COMPLETAR:
+${(p.completar || []).map((x, i) => `  ${i + 1}. ${x}`).join('\n')}
+III. VERDADERO O FALSO:
+${(p.verdadero_falso || []).map((x, i) => `  ${i + 1}. ${x}`).join('\n')}
+IV. MARCAR:
+${(p.marcar || [])
+  .map(
+    (m, i) =>
+      `  ${i + 1}. ${m.pregunta}\n${(m.opciones || []).map((o) => `     ${o}`).join('\n')}`
+  )
+  .join('\n')}
+V. RELACIONAR:
+  Columna A: ${(p.relacionar_a || []).join(' | ')}
+  Columna B: ${(p.relacionar_b || []).join(' | ')}
+VI. ORDENAR: ${p.ordenar_instruccion || ''}
+  Elementos: ${(p.ordenar_elementos || []).join(' · ')}
+VII. IDENTIFICA: ${p.identifica_instruccion || ''}
+  ${(p.identifica_casos || []).map((c, i) => `Caso ${i + 1}: ${c}`).join(' | ')}
+Pie: ${p.pie || ''}`;
+}
+
+async function generarUnaPaginaImagen({
+  apiKey,
+  tipoPagina,
+  banda,
+  logo,
+  mascota,
+  referencia,
+  guion,
+}) {
+  const tono = tonoPorBanda(banda);
+  const esGuia = tipoPagina === 'guia';
+  const bloqueTexto = textoGuionParaPrompt(guion, tipoPagina);
+
+  const prompt = `${esGuia ? 'Create ONE full-page educational GUÍA infographic IMAGE' : 'Create ONE full-page FICHA DE APLICACIÓN worksheet IMAGE'} for print.
+
+PAGE FORMAT (critical for print):
+- Portrait page matching A4 proportions (aspect ~2:3, NOT square, NOT wide).
+- Fill the page edge-to-edge with the worksheet design (no photo of a paper on a desk, no 3D mockup).
+- Leave a small safe inner margin (~4%) so nothing is clipped.
+- Sharp, high-resolution, crisp text (2K quality if available).
+
+STYLE: Match the attached style-reference image (numbered cards, blues/greens/oranges, mascots, dense textbook quality). Age band: ${banda} (${tono}).
+Use attached logo + mascot likeness.
+
+${bloqueTexto}
+
+ORTHOGRAPHY RULES (critical):
+- Paint the Spanish text EXACTLY as given above. Do not invent alternate spellings.
+- Correct accents (áéíóúñü). No random letters, no English typos.
+- If space is tight, omit a bullet rather than misspelling.
+
+CRITICAL: single finished page image, high contrast readable text, no AI watermark.`;
+
+  const parts = [
+    { text: prompt },
+    ...partImagen(referencia, 'REFERENCIA DE ESTILO'),
+    ...partImagen(logo, 'LOGO Vanguard'),
+    ...partImagen(mascota, 'MASCOTA escolar'),
+  ];
+
+  const configs = [
+    {
+      responseModalities: ['TEXT', 'IMAGE'],
+      temperature: 0.35,
+      imageConfig: { aspectRatio: '2:3', imageSize: '2K' },
+    },
+    {
+      responseModalities: ['TEXT', 'IMAGE'],
+      temperature: 0.35,
+      imageConfig: { aspectRatio: '2:3' },
+    },
+    {
+      responseModalities: ['TEXT', 'IMAGE'],
+      temperature: 0.35,
+      imageConfig: { aspectRatio: '3:4', imageSize: '2K' },
+    },
+    {
+      responseModalities: ['TEXT', 'IMAGE'],
+      temperature: 0.35,
+    },
+  ];
+
+  const errores = [];
+  for (const modelo of unicos(MODELOS_IMAGEN)) {
+    for (const generationConfig of configs) {
+      try {
+        const r = await llamarGemini(apiKey, modelo, {
+          contents: [{ role: 'user', parts }],
+          generationConfig,
+        });
+        const imgs = extraerImagenesDeRespuesta(r.data);
+        if (!imgs.length) {
+          errores.push(`${modelo}: sin imagen`);
+          continue;
+        }
+        const usage = r.data?.usageMetadata || {};
+        return {
+          imagen: imgs[0],
+          modelo: r.modelo,
+          tokens_entrada: usage.promptTokenCount || 0,
+          tokens_salida: usage.candidatesTokenCount || 0,
+        };
+      } catch (err) {
+        const msg = err.response?.data?.error?.message || err.message;
+        errores.push(`${modelo}: ${msg}`);
+        if (err.response?.status === 429 || err.response?.status === 403) {
+          const e = new Error(msg);
+          e.code = err.response.status === 429 ? 'GEMINI_RATE_LIMIT' : 'GEMINI_FORBIDDEN';
+          throw e;
+        }
+        // 400 por imageConfig → probar siguiente config
+        if (err.response?.status !== 400) break;
       }
     }
   }
   const e = new Error(
-    errores.join(' | ') ||
+    errores.slice(0, 6).join(' | ') ||
       'Ningún modelo de imagen Gemini respondió. Active Gemini Image en AI Studio o use plantilla tipada.'
   );
   e.code = 'GEMINI_IMAGE_FAILED';
@@ -302,7 +446,7 @@ CRITICAL: finished printable page, readable Spanish, no notebook mentions, no AI
 }
 
 /**
- * Genera ficha libre como 2 imágenes A4 (guía + práctica) → HTML para Puppeteer.
+ * Genera ficha libre: guion ortográfico → 2 imágenes → HTML A4 sin distorsión.
  */
 async function generarHtmlDisenoLibre({
   titulo,
@@ -327,7 +471,7 @@ async function generarHtmlDisenoLibre({
   const mascota = elegirMascota(banda, trabajoId);
   const referencia = leerAsset('referencia-estilo-guia.png');
 
-  const comunes = {
+  const guionRes = await generarGuionOrtografico({
     apiKey,
     titulo,
     grado,
@@ -338,9 +482,20 @@ async function generarHtmlDisenoLibre({
     textoOrigen,
     instruccionesDocente,
     banda,
+  });
+
+  // Completar subtítulo si falta
+  if (guionRes.guion.guia && !guionRes.guion.guia.subtitulo) {
+    guionRes.guion.guia.subtitulo = [area, grado || grupoEtiqueta].filter(Boolean).join(' – ');
+  }
+
+  const comunes = {
+    apiKey,
+    banda,
     logo,
     mascota,
     referencia,
+    guion: guionRes.guion,
   };
 
   const pagina1 = await generarUnaPaginaImagen({ ...comunes, tipoPagina: 'guia' });
@@ -350,14 +505,21 @@ async function generarHtmlDisenoLibre({
 
   return {
     html,
-    modelo: `${pagina1.modelo}+${pagina2.modelo}`,
+    modelo: `guion:${guionRes.modelo}|img:${pagina1.modelo}+${pagina2.modelo}`,
     proveedor: 'google',
-    tokens_entrada: (pagina1.tokens_entrada || 0) + (pagina2.tokens_entrada || 0) || null,
-    tokens_salida: (pagina1.tokens_salida || 0) + (pagina2.tokens_salida || 0) || null,
+    tokens_entrada:
+      (guionRes.tokens_entrada || 0) +
+        (pagina1.tokens_entrada || 0) +
+        (pagina2.tokens_entrada || 0) || null,
+    tokens_salida:
+      (guionRes.tokens_salida || 0) +
+        (pagina1.tokens_salida || 0) +
+        (pagina2.tokens_salida || 0) || null,
     banda_edad: banda,
     mascota_archivo: mascota?.filename || null,
     modo_diseno: 'libre',
-    motor: 'imagen',
+    motor: 'imagen+guion',
+    pdf_opts: { marginZero: true },
   };
 }
 

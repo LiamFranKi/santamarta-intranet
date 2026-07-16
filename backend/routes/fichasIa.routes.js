@@ -627,7 +627,9 @@ router.post('/trabajos/:id/generar', async (req, res) => {
         await guardarSeccionesDesdeContenido(trabajoId, contenido);
 
         await execute(`UPDATE fichas_ia_trabajos SET estado = 'MAQUETANDO' WHERE id = ?`, [trabajoId]);
-        const saved = await guardarHtmlYPdf(libre.html, trabajoId);
+        const saved = await guardarHtmlYPdf(libre.html, trabajoId, {
+          marginZero: Boolean(libre.pdf_opts?.marginZero),
+        });
         pdfFilename = saved.pdfFilename;
         htmlLibreFilename = saved.htmlFilename;
         await upsertSeccionCustom(trabajoId, 'HTML diseño libre', {
