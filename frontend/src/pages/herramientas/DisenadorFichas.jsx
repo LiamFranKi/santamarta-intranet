@@ -210,7 +210,8 @@ export default function DisenadorFichas() {
     puntos_clave: '',
     usar_ia: true,
     estilo_ficha: 'auto',
-    modo_diseno: 'plantilla',
+    // Por defecto infografía libre (todos los cursos); si no hay Vanguarcito, plantilla
+    modo_diseno: 'libre',
   });
   const [archivoPdf, setArchivoPdf] = useState(null);
 
@@ -279,7 +280,9 @@ export default function DisenadorFichas() {
         cfgData.mascota_vanguarcito_url || urlMascotaVanguarcitoPorDefecto(),
     });
     if (!vanguarcitoOk) {
-      setForm((f) => ({ ...f, usar_ia: false }));
+      setForm((f) => ({ ...f, usar_ia: false, modo_diseno: 'plantilla' }));
+    } else {
+      setForm((f) => ({ ...f, modo_diseno: f.modo_diseno || 'libre' }));
     }
   }, []);
 
@@ -322,6 +325,7 @@ export default function DisenadorFichas() {
     setArchivoPdf(null);
     let puntos = '';
     let instrucciones = '';
+    let modoGuardado = null;
     if (row?.id) {
       try {
         const det = await api.get(`/fichas-ia/trabajos/${row.id}`);
@@ -331,6 +335,7 @@ export default function DisenadorFichas() {
             const j = JSON.parse(sec.contenido_json);
             if (sec.titulo === 'Puntos clave') puntos = j.puntos_clave || '';
             if (sec.titulo === 'Instrucciones docente') instrucciones = j.instrucciones_ia || '';
+            if (sec.titulo === 'Modo diseño' && j.modo_diseno) modoGuardado = j.modo_diseno;
           } catch {
             /* ignore */
           }
@@ -342,6 +347,7 @@ export default function DisenadorFichas() {
     const claveGrado = row?.grupo_id
       ? claveGradoDesdeGrupoId(opcionesGrupo, row.grupo_id)
       : gruposAgregados[0]?.clave || '';
+    const modoDefault = config.vanguarcito_disponible ? 'libre' : 'plantilla';
     setForm({
       grado_clave: claveGrado,
       asignatura_id: row?.asignatura_id ? String(row.asignatura_id) : '',
@@ -351,7 +357,8 @@ export default function DisenadorFichas() {
       puntos_clave: puntos,
       usar_ia: config.vanguarcito_disponible,
       estilo_ficha: row?.estilo_ficha || 'auto',
-      modo_diseno: row?.modo_diseno === 'libre' ? 'libre' : 'plantilla',
+      modo_diseno:
+        modoGuardado === 'libre' || modoGuardado === 'plantilla' ? modoGuardado : modoDefault,
     });
     setModalOpen(true);
   };
@@ -396,7 +403,7 @@ export default function DisenadorFichas() {
           puntos_clave: form.puntos_clave.trim(),
           instrucciones_ia: form.instrucciones_ia.trim(),
           estilo_ficha: form.estilo_ficha,
-          modo_diseno: form.modo_diseno || 'plantilla',
+          modo_diseno: form.modo_diseno || (config.vanguarcito_disponible ? 'libre' : 'plantilla'),
         });
         if (soloGuardar) {
           Swal.fire({ icon: 'success', title: 'Guardado', timer: 1400, showConfirmButton: false });
@@ -413,7 +420,10 @@ export default function DisenadorFichas() {
         fd.append('puntos_clave', form.puntos_clave.trim());
         fd.append('instrucciones_ia', form.instrucciones_ia.trim());
         fd.append('estilo_ficha', form.estilo_ficha || 'auto');
-        fd.append('modo_diseno', form.modo_diseno || 'plantilla');
+        fd.append(
+          'modo_diseno',
+          form.modo_diseno || (config.vanguarcito_disponible ? 'libre' : 'plantilla')
+        );
         fd.append(
           'usar_ia',
           form.modo_diseno === 'libre' || (form.usar_ia && config.vanguarcito_disponible)
@@ -436,7 +446,7 @@ export default function DisenadorFichas() {
         `/fichas-ia/trabajos/${trabajoId}/generar`,
         {
           usar_ia: usaIa,
-          modo_diseno: form.modo_diseno || 'plantilla',
+          modo_diseno: form.modo_diseno || (config.vanguarcito_disponible ? 'libre' : 'plantilla'),
         },
         { timeout: GENERAR_FICHA_TIMEOUT_MS }
       );
@@ -1079,23 +1089,22 @@ export default function DisenadorFichas() {
                     }}
                     disabled={!config.vanguarcito_disponible && form.modo_diseno === 'libre'}
                   >
-                    <option value="plantilla">Plantilla tipada (recomendado, estable)</option>
                     <option value="libre" disabled={!config.vanguarcito_disponible}>
-                      Diseño libre por imagen IA (experimental · más caro)
+                      Diseño libre por imagen IA (recomendado · todos los cursos)
                     </option>
+                    <option value="plantilla">Plantilla tipada (más estable, menos bonita)</option>
                   </select>
                   <span className="voc-file-hint" style={{ display: 'block', marginTop: 4 }}>
                     {form.modo_diseno === 'libre' ? (
                       <>
-                        Genera guía + práctica como <strong>imágenes</strong> (estilo infografía).
-                        Primero arma un guion con ortografía correcta y luego lo pinta en la imagen
-                        (A4 sin estirar). Consume más cuota; aún puede haber alguna falla tipográfica.
-                        Si falla, se usa la plantilla tipada.
+                        Por defecto para <strong>cualquier curso</strong> (Matemática, Ciencia, etc.):
+                        guía + práctica como infografía. Guion ortográfico + imagen A4. Consume más
+                        cuota; si falla, cae a plantilla tipada.
                       </>
                     ) : (
                       <>
-                        Layout fijo institucional (7 bloques + actividades I–VII). La IA solo rellena
-                        el contenido.
+                        Layout fijo (Guía+Práctica o ejercicios de Matemática según el tipo). Más
+                        estable y barato, pero menos visual.
                       </>
                     )}
                   </span>
