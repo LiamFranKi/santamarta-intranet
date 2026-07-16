@@ -2,6 +2,11 @@ const axios = require('axios');
 const { normalizarActividades, sanitizarTextoFicha } = require('./normalizarActividades');
 const { normalizarEjerciciosMatematica } = require('./normalizarEjerciciosMatematica');
 const { esEstiloMatematica } = require('./estilosFicha');
+const {
+  normalizarGuiaPractica,
+  completarGuiaPracticaMinima,
+  guiaPracticaALegacy,
+} = require('./normalizarGuiaPractica');
 
 /** Modelos retirados en API nuevas (404). Se sustituyen al probar. */
 const MODELO_SUSTITUTO = {
@@ -99,119 +104,144 @@ function errorGeminiAmigable(err, modelo) {
 }
 
 /**
- * Pide a Vanguarcito (Gemini) estructurar teoría + ficha de aplicación en JSON.
+ * Pide a Vanguarcito (Gemini) GUÍA tipada (7 bloques) + FICHA DE APLICACIÓN tipada (7 actividades).
+ * La maquetación visual la hace la plantilla; aquí solo contenido.
  */
 function buildPromptGeneral({ titulo, grado, area, unidad, puntosClave, textoOrigen, instruccionesDocente }) {
   const bloqueInstrucciones = instruccionesDocente
-    ? `\nInstrucciones del docente (prioridad alta — intégralas sin contradecir el currículo):\n${instruccionesDocente.slice(0, 4000)}\n`
+    ? `\nInstrucciones del docente (prioridad alta):\n${instruccionesDocente.slice(0, 4000)}\n`
     : '';
 
-  return `Eres un especialista en didáctica para colegios en Perú (Vanguarcito). Genera SOLO JSON válido (sin markdown).
+  return `Eres Vanguarcito, didáctica para colegios en Perú. Genera SOLO JSON válido (sin markdown).
 
-Objetivo: ficha PROFUNDA y pedagógica (como mini capítulo de estudio), no texto genérico ni plantilla vacía.
+Debes armar DOS hojas escolares tipadas (como ficha institucional de alta calidad):
+1) GUÍA (infografía de estudio, 7 bloques fijos)
+2) FICHA DE APLICACIÓN (práctica, 7 actividades fijas)
 
 Formato exacto:
 {
-  "teoria": {
-    "titulo_seccion": "Aprendemos: [tema]",
-    "parrafos": [
-      "Mínimo 4 párrafos distintos; cada uno con 4-6 oraciones claras para el grado.",
-      "Incluye definiciones, causas, consecuencias y ejemplos del Perú/entorno escolar.",
-      "Desarrolla conceptos del título y puntos clave con profundidad (no repitas solo el título)."
-    ],
-    "glosario": [
-      {"termino": "Palabra clave", "definicion": "Definición breve y comprensible para el grado"}
-    ],
-    "recuerda": ["5 a 7 ideas clave formuladas como frases completas, no solo palabras sueltas"],
-    "ilustraciones": [
-      {
-        "titulo": "Nombre del concepto visual",
-        "descripcion": "Qué debe observar el niño en esta ilustración (2-3 oraciones, lenguaje visual)",
-        "emoji": "🌱"
-      }
-    ]
+  "guia": {
+    "titulo": "TÍTULO DEL TEMA EN MAYÚSCULAS",
+    "definicion": {
+      "titulo": "¿Qué es …?",
+      "texto": "Definición clara 2-4 oraciones para el grado.",
+      "emoji": "🔬"
+    },
+    "importancia": {
+      "titulo": "¿Por qué son importantes …?",
+      "items": ["Frase completa 1", "Frase 2", "Frase 3", "Frase 4", "Frase 5"]
+    },
+    "partes": {
+      "titulo": "Partes principales / ideas clave",
+      "items": [
+        {"nombre": "Parte 1", "descripcion": "Función o explicación breve", "emoji": "🔹"},
+        {"nombre": "Parte 2", "descripcion": "…", "emoji": "🔹"},
+        {"nombre": "Parte 3", "descripcion": "…", "emoji": "🔹"}
+      ]
+    },
+    "tipos": {
+      "titulo": "Tipos / comparación",
+      "columna_a": {"titulo": "Tipo A", "emoji": "🅰️", "items": ["característica 1", "2", "3"]},
+      "columna_b": {"titulo": "Tipo B", "emoji": "🅱️", "items": ["característica 1", "2", "3"]},
+      "nota": "Frase que une ambos tipos."
+    },
+    "proceso": {
+      "titulo": "Proceso / niveles / secuencia",
+      "pasos": [
+        {"nombre": "Paso 1", "descripcion": "breve", "emoji": "1️⃣"},
+        {"nombre": "Paso 2", "descripcion": "breve", "emoji": "2️⃣"},
+        {"nombre": "Paso 3", "descripcion": "breve", "emoji": "3️⃣"},
+        {"nombre": "Paso 4", "descripcion": "breve", "emoji": "4️⃣"}
+      ]
+    },
+    "ejemplos": {
+      "titulo": "Ejemplos",
+      "items": [
+        {"titulo": "Ejemplo 1", "descripcion": "1-2 oraciones", "emoji": "✨"},
+        {"titulo": "Ejemplo 2", "descripcion": "…", "emoji": "✨"},
+        {"titulo": "Ejemplo 3", "descripcion": "…", "emoji": "✨"}
+      ]
+    },
+    "sabias_que": {
+      "titulo": "¿Sabías que?",
+      "texto": "Dato curioso verdadero y útil (2-3 oraciones).",
+      "emoji": "💡"
+    },
+    "recuerda": "Una frase fuerte de cierre / síntesis del tema."
   },
-  "aplicacion": {
-    "titulo_seccion": "FICHA DE APLICACIÓN",
-    "instruccion_general": "Lee la teoría de la hoja anterior y responde aquí. Todo se hace en esta misma ficha.",
-    "actividades": [
-      {
-        "tipo": "tabla_partes",
-        "titulo": "1. Observa y relaciona",
-        "instruccion": "Completa en la tabla.",
-        "columnas": ["Concepto", "Ejemplo"],
-        "filas": [{"parte": "Ejemplo", "funcion": ""}]
-      },
-      {
-        "tipo": "preguntas",
-        "titulo": "2. Piensa y responde",
-        "preguntas": [
-          "Escribe una oración completa explicando el concepto principal del tema.",
-          "Menciona un ejemplo del entorno escolar relacionado con lo aprendido."
-        ]
-      },
-      {
-        "tipo": "dibujo",
-        "titulo": "3. Dibuja en la ficha",
-        "instruccion_dibujo": "En el recuadro, dibuja con colores un ejemplo del tema.",
-        "altura_dibujo": 150
-      },
-      {
-        "tipo": "verdadero_falso",
-        "titulo": "4. Verdadero o falso",
-        "instruccion": "Lee cada afirmación y marca V o F en los casilleros.",
-        "items": [
-          {"enunciado": "Afirmación completa y clara sobre el tema."},
-          {"enunciado": "Otra afirmación completa para evaluar."}
-        ]
-      },
-      {
-        "tipo": "opciones",
-        "titulo": "5. Elige la respuesta correcta",
-        "instruccion": "Cada inciso tiene letras a, b, c. Marca la letra correcta en la línea.",
-        "items": [
-          {
-            "letra": "a",
-            "enunciado": "Pregunta completa con contexto del tema estudiado.",
-            "subopciones": [
-              {"letra": "a", "texto": "Primera opción"},
-              {"letra": "b", "texto": "Segunda opción"},
-              {"letra": "c", "texto": "Tercera opción"}
-            ]
-          }
-        ]
-      }
-    ]
+  "practica": {
+    "titulo": "FICHA DE APLICACIÓN: [TEMA]",
+    "responder": {
+      "preguntas": [
+        "Pregunta abierta completa (mín. 12 palabras).",
+        "Segunda pregunta abierta completa."
+      ]
+    },
+    "completar": {
+      "oraciones": [
+        "Oración con un hueco ______________ sobre el tema.",
+        "Otra oración con ______________.",
+        "Tercera con ______________."
+      ]
+    },
+    "verdadero_falso": {
+      "items": [
+        "Afirmación completa 1.",
+        "Afirmación 2.",
+        "Afirmación 3.",
+        "Afirmación 4."
+      ]
+    },
+    "marcar": {
+      "items": [
+        {
+          "pregunta": "Pregunta de opción múltiple completa.",
+          "opciones": ["Opción A", "Opción B", "Opción C", "Opción D"]
+        },
+        {
+          "pregunta": "Segunda pregunta de opción múltiple.",
+          "opciones": ["Opción A", "Opción B", "Opción C", "Opción D"]
+        }
+      ]
+    },
+    "relacionar": {
+      "columna_a": ["Término 1", "Término 2", "Término 3", "Término 4"],
+      "columna_b": ["Definición o función 1", "2", "3", "4"]
+    },
+    "ordenar": {
+      "instruccion": "Ordena correctamente la secuencia del tema.",
+      "elementos": ["elemento desordenado 1", "2", "3", "4", "5"]
+    },
+    "identifica": {
+      "instruccion": "Identifica cada caso según lo aprendido.",
+      "casos": [
+        {"etiqueta_esperada": "A", "pista": "Descripción del caso A", "emoji": "🔵"},
+        {"etiqueta_esperada": "B", "pista": "Descripción del caso B", "emoji": "🟢"}
+      ]
+    }
   },
-  "pie_motivacional": "frase motivacional sobre el tema"
+  "pie_motivacional": "Frase motivadora corta sobre el tema."
 }
 
-Reglas obligatorias:
-- Español de Perú; vocabulario acorde al grado ${grado || 'indicado'}.
-- TEORÍA: mínimo 4 párrafos sustantivos; glosario con 4-6 términos; 2-3 ilustraciones con emoji representativo del concepto (no mascotas del colegio).
-- RECUERDA: frases completas con contenido, no listas de una palabra.
-- APLICACIÓN (mínimo 5 actividades, máximo 6): todo el trabajo es EN ESTA FICHA impresa. PROHIBIDO decir cuaderno, libreta, agenda, "en casa" o "en otra hoja".
-- instruccion_general: indicar que responde en esta hoja usando la teoría de la página anterior.
-- Tipos de actividad (usa el campo "tipo" exacto):
-  * "preguntas": array de strings u objetos {texto} — cada uno debe ser una PREGUNTA u ORDEN COMPLETA (mínimo 12 palabras), nunca frases cortadas.
-  * "dibujo": incluir instruccion_dibujo clara; el niño dibuja en el recuadro de la ficha (altura_dibujo: 120-180).
-  * "verdadero_falso": items con {enunciado} oraciones completas; el niño marca V o F en casilleros (no numerar con 1.2.3 los enunciados).
-  * "opciones": items con letra "a","b","c" en campo letra y enunciado completo; subopciones con letras a,b,c — NO agregues número 1.2.3 además de las letras en subopciones.
-  * "tabla_partes" y "completar" (oraciones con espacio ______).
-- Cada actividad lleva titulo numerado solo una vez (ej. "3. Dibuja..."). Dentro de la actividad usa letras a,b,c) para subítems, no vuelvas a numerar.
-- No copies instrucciones de diseño gráfico (colores de marca, tipografía).
-- Si faltan datos, investiga el tema desde el título y el área curricular con rigor escolar.
+Reglas:
+- Español de Perú; grado ${grado || 'indicado'}; área ${area || '—'}.
+- Contenido CORRECTO y escolar (no inventes datos científicos falsos).
+- Todo el trabajo de la práctica se hace EN ESTA HOJA. Prohibido decir cuaderno/libreta/agenda.
+- Rellena TODOS los bloques; no dejes arrays vacíos.
+- Usa emojis representativos del concepto (no mascotas del colegio).
+- Si el tema no tiene "tipos" naturales, usa contraste útil (ej. ventajas/desventajas, antes/después, natural/artificial).
+- Si no hay "proceso" natural, usa niveles, pasos de aprendizaje o ciclo del tema.
 ${bloqueInstrucciones}
-Datos del formulario:
+Datos:
 - Título: ${titulo || 'Sin título'}
 - Grado: ${grado || '—'}
 - Área: ${area || '—'}
 - Unidad: ${unidad || '—'}
 - Puntos clave: ${puntosClave || '—'}
 
-Texto extraído del PDF de apoyo (puede estar vacío):
+Texto de apoyo (puede estar vacío):
 ---
-${(textoOrigen || '').slice(0, 14000)}
+${(textoOrigen || '').slice(0, 12000)}
 ---`;
 }
 
@@ -379,6 +409,20 @@ async function estructurarContenidoConGemini({
 }
 
 function normalizarContenido(raw, { estiloFicha = 'general', titulo, grado } = {}) {
+  // Formato nuevo: GUÍA + PRÁCTICA tipadas (estilo general)
+  if (raw?.guia && raw?.practica && !esEstiloMatematica(estiloFicha)) {
+    let { guia, practica } = normalizarGuiaPractica(raw, { titulo });
+    ({ guia, practica } = completarGuiaPracticaMinima({ guia, practica }, titulo));
+    const legacy = guiaPracticaALegacy(
+      { guia, practica },
+      String(raw?.pie_motivacional || '').trim()
+    );
+    return {
+      ...legacy,
+      estilo_ficha: 'general',
+    };
+  }
+
   let teoria;
   let aplicacion;
 
@@ -487,7 +531,7 @@ function normalizarContenido(raw, { estiloFicha = 'general', titulo, grado } = {
   const pie_motivacional = String(raw?.pie_motivacional || '').trim();
   const estilo_ficha = aplicacion.ejercicios?.length ? 'matematica' : estiloFicha;
 
-  return {
+  const base = {
     teoria,
     aplicacion,
     intro,
@@ -499,6 +543,14 @@ function normalizarContenido(raw, { estiloFicha = 'general', titulo, grado } = {
     estilo_ficha,
     pie_motivacional,
   };
+
+  // Estilo general: siempre materializar guía+práctica tipadas para la plantilla nueva
+  if (estilo_ficha === 'general' && !base.guia) {
+    const { legacyAGuiaPractica } = require('./normalizarGuiaPractica');
+    return { ...legacyAGuiaPractica(base, titulo), estilo_ficha: 'general' };
+  }
+
+  return base;
 }
 
 function pareceInstruccionesDiseno(lineas) {
@@ -570,7 +622,7 @@ function contenidoDesdeFormularioMatematica({ titulo, puntosClave, textoOrigen, 
   };
 }
 
-/** Contenido sin Vanguarcito: teoría breve + aplicación simple. */
+/** Contenido sin Vanguarcito: GUÍA + PRÁCTICA tipadas mínimas. */
 function contenidoDesdeFormulario({ titulo, puntosClave, textoOrigen, area, estiloFicha }) {
   if (esEstiloMatematica(estiloFicha)) {
     return contenidoDesdeFormularioMatematica({ titulo, puntosClave, textoOrigen, area });
@@ -581,85 +633,146 @@ function contenidoDesdeFormulario({ titulo, puntosClave, textoOrigen, area, esti
     .filter(Boolean);
   const esDiseno = pareceInstruccionesDiseno(bullets);
   const tema = titulo || area || 'el tema de la unidad';
-
   const textoPdf = String(textoOrigen || '')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 900);
+    .slice(0, 700);
 
-  const parrafos = textoPdf
-    ? [textoPdf]
-    : [
-        `En esta unidad conoceremos ${tema}. Es un tema importante en ${area || 'tu curso'}.`,
-        `Observa, escucha a tu docente y participa en las actividades del aula para comprender mejor.`,
-      ];
-
-  const recuerdaCurricular = esDiseno
+  const itemsImportancia = esDiseno
     ? [
-        `Ideas principales sobre ${tema}`,
-        'Participa en clase con respeto y atención',
-        'Relaciona lo aprendido con tu entorno',
+        `Permite comprender mejor ${tema}.`,
+        'Ayuda a participar con más seguridad en clase.',
+        'Sirve para relacionar lo aprendido con el entorno.',
+        'Prepara para temas más avanzados.',
       ]
     : bullets.length
       ? bullets.slice(0, 5)
-      : ['Lee con atención', 'Responde con tus palabras', 'Consulta a tu docente'];
-
-  const preguntas = esDiseno
-    ? [
-        `¿Qué aprendiste sobre ${tema}?`,
-        `¿Cómo se relaciona ${tema} con tu vida diaria?`,
-        'Menciona un ejemplo que viste en clase.',
-      ]
-    : bullets.length
-      ? [
-          `Explica con tus palabras qué es ${bullets[0] || tema} y por qué es importante.`,
-          bullets[1]
-            ? `Da un ejemplo de ${bullets[1]} relacionado con ${tema}.`
-            : `¿Qué más te gustaría saber sobre ${tema}?`,
-          `¿Cómo cuidarías o protegerías algo relacionado con ${tema}?`,
-        ]
       : [
-          `¿Qué aprendiste sobre ${tema}?`,
-          '¿Por qué es importante este tema?',
-          'Da un ejemplo del aula o de tu casa.',
+          `Permite comprender mejor ${tema}.`,
+          'Ayuda a explicar situaciones de la vida diaria.',
+          'Sirve de base para nuevos aprendizajes.',
+          'Fomenta la curiosidad y el pensamiento.',
         ];
 
-  const teoria = {
-    titulo_seccion: `Aprendemos: ${tema}`,
-    parrafos,
-    recuerda: recuerdaCurricular,
-  };
-
-  const aplicacion = {
-    titulo_seccion: 'FICHA DE APLICACIÓN',
-    instruccion_general:
-      'Lee la teoría de la hoja anterior y completa todas las actividades en esta misma ficha.',
-    actividades: normalizarActividades([
-      { tipo: 'preguntas', titulo: '1. Piensa y responde', preguntas: preguntas.slice(0, 3) },
-      {
-        tipo: 'dibujo',
-        titulo: '2. Dibuja en la ficha',
-        instruccion_dibujo: `En el recuadro, dibuja un ejemplo relacionado con ${tema}.`,
-        altura_dibujo: 140,
+  let { guia, practica } = normalizarGuiaPractica(
+    {
+      guia: {
+        titulo: String(tema).toUpperCase(),
+        definicion: {
+          titulo: `¿Qué es ${tema}?`,
+          texto:
+            textoPdf ||
+            `${tema} es un tema importante de ${area || 'tu curso'}. Léelo con atención y observa los ejemplos.`,
+          emoji: '📘',
+        },
+        importancia: { titulo: `¿Por qué es importante ${tema}?`, items: itemsImportancia },
+        partes: {
+          titulo: 'Ideas principales',
+          items: (esDiseno ? itemsImportancia : bullets).slice(0, 4).map((b, i) => ({
+            nombre: `Idea ${i + 1}`,
+            descripcion: b,
+            emoji: '🔹',
+          })),
+        },
+        tipos: {
+          titulo: 'Comparación útil',
+          columna_a: { titulo: 'Debo recordar', emoji: '✅', items: itemsImportancia.slice(0, 3) },
+          columna_b: {
+            titulo: 'Debo evitar',
+            emoji: '⚠️',
+            items: ['Memorizar sin entender', 'Copiar sin leer', 'Dejar dudas sin preguntar'],
+          },
+          nota: `Estudiar ${tema} con comprensión da mejores resultados.`,
+        },
+        proceso: {
+          titulo: 'Pasos para aprender',
+          pasos: [
+            { nombre: 'Leer', descripcion: 'Lee la guía', emoji: '📖' },
+            { nombre: 'Observar', descripcion: 'Mira ejemplos', emoji: '👀' },
+            { nombre: 'Practicar', descripcion: 'Haz la ficha', emoji: '✏️' },
+            { nombre: 'Repasar', descripcion: 'Revisa el recuerda', emoji: '✅' },
+          ],
+        },
+        ejemplos: {
+          titulo: 'Ejemplos',
+          items: [
+            { titulo: 'En el aula', descripcion: `Un ejemplo escolar de ${tema}.`, emoji: '🏫' },
+            { titulo: 'En casa', descripcion: `Un ejemplo cotidiano de ${tema}.`, emoji: '🏠' },
+            { titulo: 'En la comunidad', descripcion: `Un ejemplo del entorno sobre ${tema}.`, emoji: '🌍' },
+          ],
+        },
+        sabias_que: {
+          titulo: '¿Sabías que?',
+          texto: `Cuanto más practicas ${tema}, más fácil te resulta explicarlo con tus palabras.`,
+          emoji: '💡',
+        },
+        recuerda: `${tema} se comprende mejor con ejemplos y práctica. ¡Tú puedes!`,
       },
-      {
-        tipo: 'verdadero_falso',
-        titulo: '3. Verdadero o falso',
-        instruccion: 'Marca V o F en cada casillero.',
-        items: recuerdaCurricular.slice(0, 4).map((t) => ({ enunciado: `${t}.` })),
+      practica: {
+        titulo: `FICHA DE APLICACIÓN: ${tema}`,
+        responder: {
+          preguntas: [
+            `¿Qué es ${tema}? Explícalo con tus palabras.`,
+            `¿Por qué es importante aprender sobre ${tema}?`,
+          ],
+        },
+        completar: {
+          oraciones: [
+            `La idea principal de ${tema} es ______________.`,
+            `Un ejemplo de ${tema} es ______________.`,
+            `${tema} nos ayuda a ______________.`,
+          ],
+        },
+        verdadero_falso: {
+          items: [
+            `${tema} no tiene relación con la vida diaria.`,
+            `Es importante estudiar ${tema} con atención.`,
+            `Los ejemplos ayudan a comprender ${tema}.`,
+            `No hace falta practicar para aprender ${tema}.`,
+          ],
+        },
+        marcar: {
+          items: [
+            {
+              pregunta: `¿Qué afirmación sobre ${tema} es correcta?`,
+              opciones: [
+                'Es un tema importante del curso',
+                'No sirve para nada',
+                'Solo existe en libros antiguos',
+                'No se puede explicar',
+              ],
+            },
+          ],
+        },
+        relacionar: {
+          columna_a: ['Concepto', 'Ejemplo', 'Importancia', 'Práctica'],
+          columna_b: [
+            `Idea central de ${tema}`,
+            'Caso de la vida diaria',
+            'Por qué lo estudiamos',
+            'Actividades de esta ficha',
+          ],
+        },
+        ordenar: {
+          instruccion: 'Ordena los pasos para estudiar el tema.',
+          elementos: ['Leer la guía', 'Observar ejemplos', 'Responder la práctica', 'Repasar el recuerda'],
+        },
+        identifica: {
+          instruccion: 'Identifica cada caso.',
+          casos: [
+            { etiqueta_esperada: 'A', pista: `Caso correcto sobre ${tema}`, emoji: '🔵' },
+            { etiqueta_esperada: 'B', pista: `Caso distinto o incorrecto sobre ${tema}`, emoji: '🟢' },
+          ],
+        },
       },
-    ]),
-  };
-
+      pie_motivacional: '¡Muy bien! Seguir practicando te ayuda a comprender mejor.',
+    },
+    { titulo: tema }
+  );
+  ({ guia, practica } = completarGuiaPracticaMinima({ guia, practica }, tema));
   return {
-    teoria,
-    aplicacion,
-    intro: parrafos.join('\n\n'),
-    recuerda: recuerdaCurricular,
-    actividades: aplicacion.actividades,
-    ejercicios_matematicos: [],
+    ...guiaPracticaALegacy({ guia, practica }, '¡Muy bien! Seguir practicando te ayuda a comprender mejor.'),
     estilo_ficha: 'general',
-    pie_motivacional: '¡Sigue aprendiendo con esfuerzo y curiosidad!',
   };
 }
 

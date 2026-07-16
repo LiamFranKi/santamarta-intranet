@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>{{titulo}}</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', 'Nunito', Arial, sans-serif;
+      color: #1e293b;
+      background: #fff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    @page { size: A4; margin: 7mm; }
+
+    .sheet {
+      width: 100%;
+      min-height: 275mm;
+      display: flex;
+      flex-direction: column;
+      page-break-after: always;
+      break-after: page;
+      border: 2.5px solid #2563eb;
+      border-radius: 10px;
+      overflow: hidden;
+      background: linear-gradient(180deg, #f8fbff 0%, #ffffff 28%);
+    }
+    .sheet-practica { border-color: #0d9488; background: linear-gradient(180deg, #f0fdfa 0%, #ffffff 28%); }
+    .sheet:last-child { page-break-after: auto; }
+
+    .inner { padding: 10px 12px 8px; flex: 1; display: flex; flex-direction: column; }
+
+    /* ===== HEADER GUÍA ===== */
+    .hdr {
+      display: grid;
+      grid-template-columns: 58px 1fr 58px;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .hdr-mascota {
+      width: 56px; height: 56px; object-fit: contain;
+      filter: drop-shadow(0 2px 4px rgba(37,99,235,.2));
+    }
+    .hdr-center { text-align: center; }
+    .hdr-kicker {
+      display: inline-block;
+      background: #2563eb;
+      color: #fff;
+      font-weight: 800;
+      font-size: 13px;
+      letter-spacing: .08em;
+      padding: 3px 14px;
+      border-radius: 999px;
+      margin-bottom: 4px;
+    }
+    .hdr-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 800;
+      color: #1e3a8a;
+      line-height: 1.2;
+      text-transform: uppercase;
+    }
+    .hdr-sub {
+      display: inline-block;
+      margin-top: 4px;
+      background: #1d4ed8;
+      color: #fff;
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 6px;
+    }
+    .page-pill {
+      justify-self: end;
+      align-self: start;
+      background: #22c55e;
+      color: #fff;
+      font-size: 9px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; }
+
+    .card {
+      border: 1.5px solid #93c5fd;
+      border-radius: 10px;
+      background: #fff;
+      padding: 8px 9px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+      box-shadow: 0 1px 3px rgba(37,99,235,.06);
+    }
+    .card h3 {
+      margin: 0 0 5px;
+      font-size: 11px;
+      font-weight: 800;
+      color: #1d4ed8;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .num {
+      display: inline-flex;
+      width: 18px; height: 18px;
+      align-items: center; justify-content: center;
+      border-radius: 50%;
+      background: #2563eb;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .card p, .card li { font-size: 9.5px; line-height: 1.35; margin: 0; color: #334155; }
+    .card ul { margin: 0; padding-left: 14px; }
+    .card ul li { margin: 2px 0; }
+
+    .def-row { display: grid; grid-template-columns: 1.35fr .65fr; gap: 8px; align-items: stretch; }
+    .ilust-box {
+      border-radius: 10px;
+      background: linear-gradient(145deg, #dbeafe, #eff6ff);
+      border: 1.5px dashed #60a5fa;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 78px;
+      text-align: center;
+      padding: 6px;
+    }
+    .ilust-emoji { font-size: 34px; line-height: 1; }
+    .ilust-cap { font-size: 8px; color: #64748b; margin-top: 3px; font-weight: 600; }
+
+    .partes-list { display: flex; flex-direction: column; gap: 5px; }
+    .parte-item {
+      display: grid;
+      grid-template-columns: 22px 1fr;
+      gap: 6px;
+      align-items: start;
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 5px 6px;
+      border: 1px solid #e2e8f0;
+    }
+    .parte-item strong { font-size: 9.5px; color: #1e40af; display: block; }
+    .parte-item span { font-size: 8.5px; color: #475569; }
+
+    .tipo-col {
+      border-radius: 9px;
+      padding: 7px;
+      border: 1.5px solid #c4b5fd;
+      background: #faf5ff;
+    }
+    .tipo-col.b { border-color: #6ee7b7; background: #ecfdf5; }
+    .tipo-col h4 { margin: 0 0 4px; font-size: 10px; color: #5b21b6; text-align: center; }
+    .tipo-col.b h4 { color: #047857; }
+    .tipo-col ul { padding-left: 12px; margin: 0; }
+    .tipo-nota {
+      margin-top: 5px;
+      font-size: 8.5px;
+      text-align: center;
+      color: #475569;
+      font-style: italic;
+    }
+
+    .proceso {
+      display: flex;
+      align-items: stretch;
+      justify-content: space-between;
+      gap: 4px;
+      flex-wrap: nowrap;
+    }
+    .paso {
+      flex: 1;
+      text-align: center;
+      background: #eff6ff;
+      border: 1.5px solid #93c5fd;
+      border-radius: 8px;
+      padding: 5px 3px;
+      min-width: 0;
+    }
+    .paso .pe { font-size: 16px; }
+    .paso strong { display: block; font-size: 8.5px; color: #1d4ed8; margin: 2px 0; }
+    .paso span { font-size: 7.5px; color: #64748b; display: block; line-height: 1.25; }
+    .flecha { color: #7c3aed; font-weight: 800; font-size: 14px; align-self: center; }
+
+    .ej-card {
+      text-align: center;
+      background: #fff7ed;
+      border: 1.5px solid #fdba74;
+      border-radius: 9px;
+      padding: 6px;
+    }
+    .ej-card .pe { font-size: 20px; }
+    .ej-card strong { display: block; font-size: 9px; color: #c2410c; margin: 2px 0; }
+    .ej-card span { font-size: 8px; color: #78716c; }
+
+    .sabias {
+      display: grid;
+      grid-template-columns: 1fr 70px;
+      gap: 8px;
+      align-items: center;
+      background: #fefce8;
+      border: 1.5px solid #fde047;
+      border-radius: 10px;
+      padding: 7px 9px;
+    }
+    .sabias h3 { color: #a16207; }
+    .recuerda-bar {
+      margin-top: 8px;
+      display: grid;
+      grid-template-columns: 1fr 50px 50px;
+      gap: 6px;
+      align-items: center;
+      background: linear-gradient(90deg, #dcfce7, #bbf7d0);
+      border: 2px solid #22c55e;
+      border-radius: 10px;
+      padding: 8px 10px;
+    }
+    .recuerda-bar .label {
+      font-size: 11px;
+      font-weight: 800;
+      color: #166534;
+      margin-bottom: 2px;
+    }
+    .recuerda-bar p { font-size: 10px; color: #14532d; margin: 0; font-weight: 600; }
+    .recuerda-bar img { width: 46px; height: 46px; object-fit: contain; }
+
+    /* ===== PRÁCTICA ===== */
+    .hdr-practica .hdr-kicker { background: #0d9488; }
+    .hdr-practica .hdr-title { color: #115e59; font-size: 14px; }
+    .hdr-practica .hdr-sub { background: #0f766e; }
+
+    .meta-alumno {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 8px;
+      margin: 0 0 8px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #334155;
+    }
+    .meta-alumno span {
+      border-bottom: 1.5px solid #94a3b8;
+      padding-bottom: 2px;
+    }
+
+    .act {
+      border-radius: 9px;
+      border: 1.5px solid #99f6e4;
+      background: #fff;
+      padding: 7px 8px;
+      margin-bottom: 7px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .act h3 {
+      margin: 0 0 5px;
+      font-size: 10.5px;
+      font-weight: 800;
+      color: #fff;
+      background: #0d9488;
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 6px;
+    }
+    .act.act-azul h3 { background: #2563eb; }
+    .act.act-verde h3 { background: #16a34a; }
+    .act.act-morado h3 { background: #7c3aed; }
+    .act.act-naranja h3 { background: #ea580c; }
+    .act.act-teal h3 { background: #0f766e; }
+    .act.act-rosa h3 { background: #db2777; }
+
+    .q { margin: 5px 0 0; font-size: 9.5px; color: #334155; }
+    .lineas { margin-top: 3px; }
+    .linea {
+      border-bottom: 1.5px solid #94a3b8;
+      height: 16px;
+      margin: 2px 0 4px;
+    }
+    .oracion { font-size: 9.5px; line-height: 1.7; margin: 4px 0; color: #334155; }
+    .hueco {
+      display: inline-block;
+      min-width: 70px;
+      border-bottom: 1.5px solid #64748b;
+      margin: 0 2px;
+    }
+
+    .vf-row {
+      display: grid;
+      grid-template-columns: 1fr 28px 28px;
+      gap: 4px;
+      align-items: center;
+      font-size: 9px;
+      margin: 3px 0;
+      padding: 3px 4px;
+      background: #f8fafc;
+      border-radius: 5px;
+    }
+    .vf-box {
+      width: 22px; height: 18px;
+      border: 1.5px solid #94a3b8;
+      border-radius: 4px;
+      text-align: center;
+      font-size: 9px;
+      font-weight: 800;
+      color: #cbd5e1;
+      line-height: 16px;
+    }
+    .vf-head { font-size: 8px; font-weight: 800; text-align: center; color: #64748b; }
+
+    .opt { margin: 5px 0 0; font-size: 9.5px; }
+    .opt-list { margin: 3px 0 0 8px; padding: 0; list-style: none; }
+    .opt-list li {
+      margin: 2px 0;
+      font-size: 9px;
+      display: flex;
+      gap: 5px;
+      align-items: flex-start;
+    }
+    .chk {
+      width: 12px; height: 12px;
+      border: 1.5px solid #64748b;
+      border-radius: 3px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .rel-grid {
+      display: grid;
+      grid-template-columns: 1fr 24px 1fr;
+      gap: 6px;
+      align-items: start;
+    }
+    .rel-col .chip {
+      background: #ecfeff;
+      border: 1.5px solid #67e8f9;
+      border-radius: 7px;
+      padding: 5px 6px;
+      font-size: 9px;
+      margin-bottom: 4px;
+      font-weight: 600;
+      color: #155e75;
+    }
+    .rel-col.b .chip {
+      background: #fdf4ff;
+      border-color: #e9d5ff;
+      color: #6b21a8;
+    }
+    .rel-mid { text-align: center; color: #94a3b8; font-size: 11px; padding-top: 20px; }
+
+    .ord-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 5px;
+    }
+    .ord-chip {
+      background: #eff6ff;
+      border: 1.5px dashed #60a5fa;
+      border-radius: 7px;
+      padding: 5px 7px;
+      font-size: 9px;
+      font-weight: 600;
+      color: #1e40af;
+    }
+    .ord-slots {
+      display: flex;
+      gap: 5px;
+      margin-top: 6px;
+      align-items: center;
+    }
+    .ord-slot {
+      flex: 1;
+      min-height: 28px;
+      border: 1.5px solid #94a3b8;
+      border-radius: 6px;
+      background: #fff;
+    }
+    .ord-arrow { color: #7c3aed; font-weight: 800; }
+
+    .id-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 5px; }
+    .id-card {
+      border: 1.5px solid #f9a8d4;
+      border-radius: 9px;
+      background: #fdf2f8;
+      padding: 8px;
+      text-align: center;
+    }
+    .id-emoji { font-size: 28px; }
+    .id-pista { font-size: 8.5px; color: #9d174d; margin: 4px 0; }
+    .id-blank {
+      margin: 6px auto 0;
+      width: 40px; height: 28px;
+      border: 2px solid #db2777;
+      border-radius: 6px;
+      background: #fff;
+    }
+
+    .pie-final {
+      margin-top: auto;
+      text-align: center;
+      background: linear-gradient(90deg, #fef3c7, #fde68a);
+      border: 1.5px solid #fbbf24;
+      border-radius: 9px;
+      padding: 7px 10px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #92400e;
+    }
+    .footer-mini {
+      margin-top: 6px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 7.5px;
+      color: #94a3b8;
+    }
+
+    .mt-6 { margin-top: 6px; }
+    .mt-8 { margin-top: 8px; }
+    .mb-6 { margin-bottom: 6px; }
+  </style>
+</head>
+<body>
+
+{{!-- ===================== HOJA 1: GUÍA ===================== --}}
+<section class="sheet">
+  <div class="inner">
+    <header class="hdr">
+      {{#if mascotaIzqUrl}}
+        <img class="hdr-mascota" src="{{mascotaIzqUrl}}" alt="" />
+      {{else}}
+        <div></div>
+      {{/if}}
+      <div class="hdr-center">
+        <div class="hdr-kicker">GUÍA</div>
+        <h1 class="hdr-title">{{guia.titulo}}</h1>
+        <div class="hdr-sub">{{subtituloLinea}}</div>
+      </div>
+      <div class="page-pill">Página 1</div>
+    </header>
+
+    <div class="grid-2 mb-6">
+      <div class="card">
+        <h3><span class="num">1</span> {{guia.definicion.titulo}}</h3>
+        <div class="def-row">
+          <p>{{guia.definicion.texto}}</p>
+          <div class="ilust-box">
+            <div class="ilust-emoji">{{guia.definicion.emoji}}</div>
+            <div class="ilust-cap">Observa</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3><span class="num">2</span> {{guia.importancia.titulo}}</h3>
+        <ul>
+          {{#each guia.importancia.items}}
+            <li>{{this}}</li>
+          {{/each}}
+        </ul>
+        {{#if mascotaImpUrl}}
+          <div style="text-align:right;margin-top:4px">
+            <img src="{{mascotaImpUrl}}" alt="" style="width:42px;height:42px;object-fit:contain" />
+          </div>
+        {{/if}}
+      </div>
+    </div>
+
+    <div class="card mb-6">
+      <h3><span class="num">3</span> {{guia.partes.titulo}}</h3>
+      <div class="partes-list">
+        {{#each guia.partes.items}}
+          <div class="parte-item">
+            <div>{{emoji}}</div>
+            <div>
+              <strong>{{nombre}}</strong>
+              <span>{{descripcion}}</span>
+            </div>
+          </div>
+        {{/each}}
+      </div>
+    </div>
+
+    <div class="card mb-6">
+      <h3><span class="num">4</span> {{guia.tipos.titulo}}</h3>
+      <div class="grid-2">
+        <div class="tipo-col">
+          <h4>{{guia.tipos.columna_a.emoji}} {{guia.tipos.columna_a.titulo}}</h4>
+          <ul>
+            {{#each guia.tipos.columna_a.items}}
+              <li>{{this}}</li>
+            {{/each}}
+          </ul>
+        </div>
+        <div class="tipo-col b">
+          <h4>{{guia.tipos.columna_b.emoji}} {{guia.tipos.columna_b.titulo}}</h4>
+          <ul>
+            {{#each guia.tipos.columna_b.items}}
+              <li>{{this}}</li>
+            {{/each}}
+          </ul>
+        </div>
+      </div>
+      {{#if guia.tipos.nota}}
+        <p class="tipo-nota">{{guia.tipos.nota}}</p>
+      {{/if}}
+    </div>
+
+    <div class="card mb-6">
+      <h3><span class="num">5</span> {{guia.proceso.titulo}}</h3>
+      <div class="proceso">
+        {{#each guia.proceso.pasos}}
+          {{#unless @first}}<div class="flecha">→</div>{{/unless}}
+          <div class="paso">
+            <div class="pe">{{emoji}}</div>
+            <strong>{{nombre}}</strong>
+            <span>{{descripcion}}</span>
+          </div>
+        {{/each}}
+      </div>
+    </div>
+
+    <div class="card mb-6">
+      <h3><span class="num">6</span> {{guia.ejemplos.titulo}}</h3>
+      <div class="grid-3">
+        {{#each guia.ejemplos.items}}
+          <div class="ej-card">
+            <div class="pe">{{emoji}}</div>
+            <strong>{{titulo}}</strong>
+            <span>{{descripcion}}</span>
+          </div>
+        {{/each}}
+      </div>
+    </div>
+
+    <div class="sabias mb-6">
+      <div>
+        <h3><span class="num">7</span> {{guia.sabias_que.titulo}}</h3>
+        <p>{{guia.sabias_que.texto}}</p>
+      </div>
+      <div class="ilust-box" style="min-height:56px;background:#fef9c3;border-color:#facc15">
+        <div class="ilust-emoji">{{guia.sabias_que.emoji}}</div>
+      </div>
+    </div>
+
+    <div class="recuerda-bar">
+      <div>
+        <div class="label">✓ ¡Recuerda!</div>
+        <p>{{guia.recuerda}}</p>
+      </div>
+      {{#if mascotaRecuerdaUrl}}
+        <img src="{{mascotaRecuerdaUrl}}" alt="" />
+      {{else}}
+        <div></div>
+      {{/if}}
+      {{#if mascotaDerUrl}}
+        <img src="{{mascotaDerUrl}}" alt="" />
+      {{else}}
+        <div></div>
+      {{/if}}
+    </div>
+
+    <div class="footer-mini">
+      <span>Vanguard Schools · Vanguarcito</span>
+      <span>Guía · Hoja 1</span>
+    </div>
+  </div>
+</section>
+
+{{!-- ===================== HOJA 2: PRÁCTICA ===================== --}}
+<section class="sheet sheet-practica">
+  <div class="inner">
+    <header class="hdr hdr-practica">
+      {{#if mascotaIzqUrl}}
+        <img class="hdr-mascota" src="{{mascotaIzqUrl}}" alt="" />
+      {{else}}
+        <div></div>
+      {{/if}}
+      <div class="hdr-center">
+        <div class="hdr-kicker">PRÁCTICA</div>
+        <h1 class="hdr-title">{{practica.titulo}}</h1>
+        <div class="hdr-sub">{{subtituloLinea}}</div>
+      </div>
+      <div class="page-pill" style="background:#0d9488">Página 2</div>
+    </header>
+
+    <div class="meta-alumno">
+      <span>Nombre: _______________________________</span>
+      <span>Grado: __________</span>
+      <span>Fecha: __________</span>
+    </div>
+
+    <div class="act act-azul">
+      <h3>I. RESPONDER</h3>
+      {{#each practica.responder.preguntas}}
+        <div class="q"><strong>{{add @index 1}}.</strong> {{this}}</div>
+        <div class="lineas">
+          <div class="linea"></div>
+          <div class="linea"></div>
+        </div>
+      {{/each}}
+    </div>
+
+    <div class="act act-verde">
+      <h3>II. COMPLETAR</h3>
+      <div class="grid-2">
+        <div>
+          {{#each practica.completar.oraciones}}
+            <div class="oracion">{{add @index 1}}. {{{this}}}</div>
+          {{/each}}
+        </div>
+        <div class="ilust-box" style="min-height:70px;background:#ecfdf5;border-color:#6ee7b7">
+          <div class="ilust-emoji">{{guia.definicion.emoji}}</div>
+          <div class="ilust-cap">Apoyo visual</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="act act-morado">
+      <h3>III. VERDADERO O FALSO</h3>
+      <div class="vf-row" style="background:transparent">
+        <div></div>
+        <div class="vf-head">V</div>
+        <div class="vf-head">F</div>
+      </div>
+      {{#each practica.verdadero_falso.items}}
+        <div class="vf-row">
+          <div>{{add @index 1}}. {{this}}</div>
+          <div class="vf-box">□</div>
+          <div class="vf-box">□</div>
+        </div>
+      {{/each}}
+    </div>
+
+    <div class="act act-naranja">
+      <h3>IV. MARCAR</h3>
+      {{#each practica.marcar.items}}
+        <div class="opt">
+          <strong>{{add @index 1}}.</strong> {{pregunta}}
+          <ul class="opt-list">
+            {{#each opciones}}
+              <li><span class="chk"></span> <strong>{{letra}})</strong> {{texto}}</li>
+            {{/each}}
+          </ul>
+        </div>
+      {{/each}}
+    </div>
+
+    <div class="act act-teal">
+      <h3>V. RELACIONAR</h3>
+      <p class="q" style="margin-bottom:5px">Une con una línea cada concepto con su significado.</p>
+      <div class="rel-grid">
+        <div class="rel-col">
+          {{#each practica.relacionar.columna_a}}
+            <div class="chip">{{this}}</div>
+          {{/each}}
+        </div>
+        <div class="rel-mid">⟷</div>
+        <div class="rel-col b">
+          {{#each practica.relacionar.columna_b}}
+            <div class="chip">{{this}}</div>
+          {{/each}}
+        </div>
+      </div>
+    </div>
+
+    <div class="act act-azul">
+      <h3>VI. ORDENAR</h3>
+      <p class="q">{{practica.ordenar.instruccion}}</p>
+      <div class="ord-row">
+        {{#each practica.ordenar.elementos}}
+          <div class="ord-chip">{{this}}</div>
+        {{/each}}
+      </div>
+      <div class="ord-slots">
+        <div class="ord-slot"></div>
+        <div class="ord-arrow">→</div>
+        <div class="ord-slot"></div>
+        <div class="ord-arrow">→</div>
+        <div class="ord-slot"></div>
+        <div class="ord-arrow">→</div>
+        <div class="ord-slot"></div>
+      </div>
+    </div>
+
+    <div class="act act-rosa">
+      <h3>VII. IDENTIFICA</h3>
+      <p class="q">{{practica.identifica.instruccion}}</p>
+      <div class="id-grid">
+        {{#each practica.identifica.casos}}
+          <div class="id-card">
+            <div class="id-emoji">{{emoji}}</div>
+            <div class="id-pista">{{pista}}</div>
+            <div class="id-blank"></div>
+            <div style="font-size:8px;color:#9d174d;margin-top:3px">Escribe {{etiqueta_esperada}}</div>
+          </div>
+        {{/each}}
+      </div>
+    </div>
+
+    <div class="pie-final">
+      {{pie_motivacional}}
+    </div>
+    <div class="footer-mini">
+      <span>Vanguard Schools · Vanguarcito</span>
+      <span>Práctica · Hoja 2</span>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

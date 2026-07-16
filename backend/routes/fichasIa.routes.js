@@ -613,7 +613,10 @@ router.post('/trabajos/:id/generar', async (req, res) => {
 
     await execute(`UPDATE fichas_ia_trabajos SET estado = 'MAQUETANDO' WHERE id = ?`, [trabajoId]);
 
-    const archivoPlantilla = plantillaMeta[0]?.archivo_plantilla;
+    const archivoPlantilla =
+      estiloFicha === 'matematica'
+        ? plantillaMeta[0]?.archivo_plantilla || metaEstilo('matematica').archivo
+        : metaEstilo('general').archivo;
 
     const ctx = {
       trabajoId,
@@ -624,6 +627,8 @@ router.post('/trabajos/:id/generar', async (req, res) => {
       unidad: trabajo.unidad || '1',
       teoria: contenido.teoria,
       aplicacion: contenido.aplicacion,
+      guia: contenido.guia,
+      practica: contenido.practica,
       intro: contenido.intro,
       recuerda: contenido.recuerda,
       actividades: contenido.actividades,
@@ -721,6 +726,7 @@ router.get('/trabajos/:id/preview-html', async (req, res) => {
       `SELECT archivo_plantilla, codigo FROM fichas_ia_plantillas WHERE id = ? LIMIT 1`,
       [trabajo.plantilla_id]
     );
+    const esMat = esPlantillaMatematica(plantillaRows[0]?.codigo);
     const html = renderFichaHtml(
       {
         trabajoId: trabajo.id,
@@ -731,18 +737,23 @@ router.get('/trabajos/:id/preview-html', async (req, res) => {
         unidad: trabajo.unidad || '1',
         teoria: contenido.teoria,
         aplicacion: contenido.aplicacion,
+        guia: contenido.guia,
+        practica: contenido.practica,
         intro: contenido.intro,
         recuerda: contenido.recuerda,
         actividades: contenido.actividades,
         ejercicios_matematicos: contenido.ejercicios_matematicos,
-        esMatematica: esPlantillaMatematica(plantillaRows[0]?.codigo),
+        esMatematica: esMat,
         pie_motivacional: contenido.pie_motivacional,
         glosario: contenido.glosario || contenido.teoria?.glosario,
         ilustraciones: contenido.ilustraciones || contenido.teoria?.ilustraciones,
+        contenido,
         usoVanguarcito: trabajo.ia_proveedor === 'google',
         inlineAssets: true,
       },
-      plantillaRows[0]?.archivo_plantilla
+      esMat
+        ? plantillaRows[0]?.archivo_plantilla || metaEstilo('matematica').archivo
+        : metaEstilo('general').archivo
     );
     res.type('html').send(html);
   } catch (e) {
@@ -825,6 +836,9 @@ async function contenidoDesdeTrabajo(trabajoId) {
     if (row.tipo === 'INTRO') {
       contenido.intro = j.texto || j.intro || '';
       if (j.teoria) contenido.teoria = j.teoria;
+      if (j.guia) contenido.guia = j.guia;
+      if (j.practica) contenido.practica = j.practica;
+      if (j.formato_ficha) contenido.formato_ficha = j.formato_ficha;
       if (j.glosario) contenido.glosario = j.glosario;
       if (j.ilustraciones) contenido.ilustraciones = j.ilustraciones;
       if (j.ejercicios_matematicos?.length) contenido.ejercicios_matematicos = j.ejercicios_matematicos;
@@ -926,6 +940,9 @@ async function guardarSeccionesDesdeContenido(trabajoId, contenido) {
       jsonParaMysql({
         texto: contenido.intro,
         teoria: contenido.teoria,
+        guia: contenido.guia || null,
+        practica: contenido.practica || null,
+        formato_ficha: contenido.formato_ficha || null,
         glosario: contenido.glosario,
         ilustraciones: contenido.ilustraciones,
         aplicacion_meta: contenido.aplicacion

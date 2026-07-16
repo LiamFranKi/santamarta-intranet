@@ -4,10 +4,10 @@
 const ESTILOS = {
   general: {
     codigo: 'general',
-    plantillaCodigo: 'vanguard_default',
-    archivo: 'plantilla-vanguard-default.hbs',
-    nombre: 'General (ciencias, comunicación, personal social…)',
-    descripcion: 'Preguntas, tablas, dibujo y V/F en la misma ficha.',
+    plantillaCodigo: 'vanguard_guia_practica',
+    archivo: 'plantilla-vanguard-guia-practica.hbs',
+    nombre: 'Guía + Práctica (infografía tipada)',
+    descripcion: 'Hoja 1: guía de 7 bloques. Hoja 2: ficha de aplicación tipada (I–VII).',
   },
   matematica: {
     codigo: 'matematica',

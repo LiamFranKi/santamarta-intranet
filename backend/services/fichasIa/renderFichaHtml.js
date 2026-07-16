@@ -6,8 +6,13 @@ const { normalizarActividades } = require('./normalizarActividades');
 const { normalizarEjerciciosMatematica } = require('./normalizarEjerciciosMatematica');
 const { esPlantillaMatematica } = require('./estilosFicha');
 
-const DEFAULT_TEMPLATE = 'plantilla-vanguard-default.hbs';
+const DEFAULT_TEMPLATE = 'plantilla-vanguard-guia-practica.hbs';
 const MAX_MASCOTAS_POOL = 12;
+const {
+  normalizarGuiaPractica,
+  completarGuiaPracticaMinima,
+  legacyAGuiaPractica,
+} = require('./normalizarGuiaPractica');
 
 if (!Handlebars.helpers.eq) {
   Handlebars.registerHelper('eq', (a, b) => a === b);
@@ -123,6 +128,52 @@ function oracionAFragmentos(oracion) {
   return partes;
 }
 
+function oracionAHtmlConHuecos(oracion) {
+  return oracionAFragmentos(oracion)
+    .map((p) => {
+      if (p.tipo === 'hueco') return '<span class="hueco">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>';
+      return String(p.valor || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    })
+    .join('');
+}
+
+function esPlantillaGuiaPractica(archivoPlantilla) {
+  return /guia-practica|guia_practica/i.test(String(archivoPlantilla || ''));
+}
+
+function asegurarGuiaPractica(ctx) {
+  if (ctx.guia && ctx.practica) {
+    let { guia, practica } = normalizarGuiaPractica(
+      { guia: ctx.guia, practica: ctx.practica },
+      { titulo: ctx.titulo }
+    );
+    ({ guia, practica } = completarGuiaPracticaMinima({ guia, practica }, ctx.titulo));
+    return { guia, practica };
+  }
+  const fromContenido = ctx.contenido || {};
+  if (fromContenido.guia && fromContenido.practica) {
+    let { guia, practica } = normalizarGuiaPractica(fromContenido, { titulo: ctx.titulo });
+    ({ guia, practica } = completarGuiaPracticaMinima({ guia, practica }, ctx.titulo));
+    return { guia, practica };
+  }
+  const legacy = legacyAGuiaPractica(
+    {
+      teoria: ctx.teoria,
+      aplicacion: ctx.aplicacion,
+      recuerda: ctx.recuerda,
+      glosario: ctx.glosario,
+      ilustraciones: ctx.ilustraciones,
+      actividades: ctx.actividades,
+      pie_motivacional: ctx.pie_motivacional,
+    },
+    ctx.titulo
+  );
+  return { guia: legacy.guia, practica: legacy.practica };
+}
+
 function enriquecerTeoriaMatematica(teoria, ctx) {
   const t = { ...teoria };
   const tema = ctx.titulo || ctx.area || 'números';
@@ -167,12 +218,48 @@ function enriquecerTeoriaMatematica(teoria, ctx) {
  * @param {object} ctx — titulo, actividades, trabajoId, usoVanguarcito, inlineAssets, grupoEtiqueta
  */
 function renderFichaHtml(ctx, archivoPlantilla) {
-  const compile = loadTemplate(archivoPlantilla);
+  const plantilla =
+    archivoPlantilla ||
+    (ctx.esMatematica ? 'plantilla-vanguard-matematica.hbs' : DEFAULT_TEMPLATE);
+  const compile = loadTemplate(plantilla);
   const inline = ctx.inlineAssets !== false;
   const logoUrl = assetSrc('logo-vanguard.png', inline);
   const mascotas = crearAsignadorMascotas(ctx.trabajoId);
 
   const urlMascota = (m) => (m?.archivo ? assetSrc(m.archivo, inline) : null);
+
+  // Plantilla tipada GUÍA + PRÁCTICA
+  if (esPlantillaGuiaPractica(plantilla) && !ctx.esMatematica) {
+    const { guia, practica } = asegurarGuiaPractica(ctx);
+    practica.completar = {
+      ...practica.completar,
+      oraciones: (practica.completar?.oraciones || []).map(oracionAHtmlConHuecos),
+    };
+    const subtituloExtra = [
+      subtituloGrado(ctx.grado, ctx.grupoEtiqueta),
+      ctx.area,
+      String(ctx.anio || new Date().getFullYear()),
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    const pieMotivacional =
+      String(ctx.pie_motivacional || '').trim() || '¡Muy bien! Seguir aprendiendo te hace crecer.';
+
+    return compile({
+      ...ctx,
+      guia,
+      practica,
+      logoUrl,
+      mascotaIzqUrl: urlMascota(mascotas.tomar()),
+      mascotaDerUrl: urlMascota(mascotas.tomar()),
+      mascotaImpUrl: urlMascota(mascotas.tomar()),
+      mascotaRecuerdaUrl: urlMascota(mascotas.tomar()),
+      tieneLogo: Boolean(logoUrl),
+      subtituloLinea: subtituloExtra,
+      pie_motivacional: pieMotivacional,
+      anio: ctx.anio || new Date().getFullYear(),
+    });
+  }
 
   const teoria = ctx.teoria || {
     titulo_seccion: 'Aprendemos el tema',
