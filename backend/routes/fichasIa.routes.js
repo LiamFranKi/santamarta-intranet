@@ -555,7 +555,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
       `SELECT archivo_plantilla, codigo FROM fichas_ia_plantillas WHERE id = ? LIMIT 1`,
       [trabajo.plantilla_id]
     );
-    const estiloFicha = esPlantillaMatematica(plantillaMeta[0]?.codigo) ? 'matematica' : 'general';
+    let estiloFicha = esPlantillaMatematica(plantillaMeta[0]?.codigo) ? 'matematica' : 'general';
 
     // Modo diseño: body > sección CUSTOM > plantilla
     let modoDiseno = 'plantilla';
@@ -639,8 +639,10 @@ router.post('/trabajos/:id/generar', async (req, res) => {
         });
       } catch (libreErr) {
         console.warn('[fichas-ia] Diseño libre falló, fallback plantilla:', libreErr.message);
-        aviso_ia = `Diseño libre falló (${libreErr.message}). Se usó plantilla tipada.`.slice(0, 2000);
+        aviso_ia = `Diseño libre falló (${libreErr.message}). Se usó plantilla tipada Guía+Práctica.`.slice(0, 2000);
         modoDiseno = 'plantilla';
+        // Tras fallar libre, preferir Guía+Práctica (no la plantilla matemática antigua)
+        estiloFicha = 'general';
         await upsertSeccionCustom(trabajoId, 'Modo diseño', {
           modo_diseno: 'plantilla',
           fallback_desde_libre: true,
@@ -649,6 +651,9 @@ router.post('/trabajos/:id/generar', async (req, res) => {
     }
 
     // ===== PLANTILLA TIPADA (flujo normal) =====
+    // Si pidieron diseño libre y ya hay PDF, no entrar aquí.
+    // Nota: estiloFicha puede reasignarse arriba (fallback libre → general).
+    let estiloPlantilla = estiloFicha;
     if (!pdfFilename) {
     if (usar_ia && !forzar_sin_ia && geminiDisponible()) {
       try {
@@ -660,7 +665,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
           textoOrigen,
           puntosClave,
           instruccionesDocente,
-          estiloFicha,
+          estiloFicha: estiloPlantilla,
         });
         contenido = gem.contenido;
         tokens_entrada = gem.tokens_entrada;
@@ -681,7 +686,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
           puntosClave,
           textoOrigen,
           area: trabajo.area,
-          estiloFicha,
+          estiloFicha: estiloPlantilla,
         });
         await execute(
           `UPDATE fichas_ia_trabajos SET error_mensaje = ? WHERE id = ?`,
@@ -703,7 +708,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
         puntosClave,
         textoOrigen,
         area: trabajo.area,
-        estiloFicha,
+        estiloFicha: estiloPlantilla,
       });
     }
 
@@ -712,7 +717,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
     await execute(`UPDATE fichas_ia_trabajos SET estado = 'MAQUETANDO' WHERE id = ?`, [trabajoId]);
 
     const archivoPlantilla =
-      estiloFicha === 'matematica'
+      estiloPlantilla === 'matematica'
         ? plantillaMeta[0]?.archivo_plantilla || metaEstilo('matematica').archivo
         : metaEstilo('general').archivo;
 
@@ -731,7 +736,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
       recuerda: contenido.recuerda,
       actividades: contenido.actividades,
       ejercicios_matematicos: contenido.ejercicios_matematicos,
-      esMatematica: estiloFicha === 'matematica',
+      esMatematica: estiloPlantilla === 'matematica',
       pie_motivacional: contenido.pie_motivacional,
       glosario: contenido.glosario,
       ilustraciones: contenido.ilustraciones,

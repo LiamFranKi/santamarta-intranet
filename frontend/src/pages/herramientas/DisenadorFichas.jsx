@@ -964,13 +964,19 @@ export default function DisenadorFichas() {
                         ))}
                       </select>
                       <span className="voc-file-hint" style={{ display: 'block', marginTop: 4 }}>
-                        {form.estilo_ficha === 'auto' ? (
+                        {form.modo_diseno === 'libre' ? (
+                          <>
+                            Con <strong>diseño libre</strong> este tipo casi no importa: la IA arma la
+                            infografía del tema (también sirve para Matemática). El tipo solo afecta si
+                            el libre falla y cae a plantilla.
+                          </>
+                        ) : form.estilo_ficha === 'auto' ? (
                           form.asignatura_id ? (
                             <>
                               Se detectará: <strong>{etiquetaEstilo(estiloResuelto)}</strong>
                               {estiloResuelto === 'matematica'
-                                ? ' — hoja de aplicación con mínimo 10 ejercicios numéricos.'
-                                : ' — preguntas, dibujo y actividades variadas.'}
+                                ? ' — plantilla tipada de ejercicios (si quieres el look bonito, elige Modo: Diseño libre).'
+                                : ' — Guía + Práctica tipada.'}
                             </>
                           ) : (
                             'Elija un curso para detectar Matemática o General, o seleccione el tipo manualmente.'
