@@ -22,7 +22,7 @@ import {
 } from '../../utils/fichasIaGruposAgregados';
 
 /** Gemini + PDF en servidor pueden tardar más de 30 s (timeout global de api.js). */
-const GENERAR_FICHA_TIMEOUT_MS = 180000;
+const GENERAR_FICHA_TIMEOUT_MS = 240000;
 
 function originServidor() {
   const base = api.defaults?.baseURL || '';
@@ -210,6 +210,7 @@ export default function DisenadorFichas() {
     puntos_clave: '',
     usar_ia: true,
     estilo_ficha: 'auto',
+    modo_diseno: 'plantilla',
   });
   const [archivoPdf, setArchivoPdf] = useState(null);
 
@@ -350,6 +351,7 @@ export default function DisenadorFichas() {
       puntos_clave: puntos,
       usar_ia: config.vanguarcito_disponible,
       estilo_ficha: row?.estilo_ficha || 'auto',
+      modo_diseno: row?.modo_diseno === 'libre' ? 'libre' : 'plantilla',
     });
     setModalOpen(true);
   };
@@ -394,6 +396,7 @@ export default function DisenadorFichas() {
           puntos_clave: form.puntos_clave.trim(),
           instrucciones_ia: form.instrucciones_ia.trim(),
           estilo_ficha: form.estilo_ficha,
+          modo_diseno: form.modo_diseno || 'plantilla',
         });
         if (soloGuardar) {
           Swal.fire({ icon: 'success', title: 'Guardado', timer: 1400, showConfirmButton: false });
@@ -410,7 +413,13 @@ export default function DisenadorFichas() {
         fd.append('puntos_clave', form.puntos_clave.trim());
         fd.append('instrucciones_ia', form.instrucciones_ia.trim());
         fd.append('estilo_ficha', form.estilo_ficha || 'auto');
-        fd.append('usar_ia', form.usar_ia && config.vanguarcito_disponible ? '1' : '0');
+        fd.append('modo_diseno', form.modo_diseno || 'plantilla');
+        fd.append(
+          'usar_ia',
+          form.modo_diseno === 'libre' || (form.usar_ia && config.vanguarcito_disponible)
+            ? '1'
+            : '0'
+        );
         if (archivoPdf) fd.append('archivo_pdf', archivoPdf);
 
         const { data: creado } = await api.post('/fichas-ia/trabajos', fd, {
@@ -419,14 +428,16 @@ export default function DisenadorFichas() {
         trabajoId = creado.trabajo_id;
       }
 
-      abrirSwalGenerandoFicha(
-        urlMascotaVanguarcito(config),
-        form.usar_ia && config.vanguarcito_disponible
-      );
+      const usaIa =
+        form.modo_diseno === 'libre' || (form.usar_ia && config.vanguarcito_disponible);
+      abrirSwalGenerandoFicha(urlMascotaVanguarcito(config), usaIa);
 
       const { data: gen } = await api.post(
         `/fichas-ia/trabajos/${trabajoId}/generar`,
-        { usar_ia: form.usar_ia && config.vanguarcito_disponible },
+        {
+          usar_ia: usaIa,
+          modo_diseno: form.modo_diseno || 'plantilla',
+        },
         { timeout: GENERAR_FICHA_TIMEOUT_MS }
       );
 
@@ -1047,15 +1058,52 @@ export default function DisenadorFichas() {
                   </div>
                 )}
 
+                <label className="voc-label-block">
+                  <span className="voc-label-text">Modo de diseño</span>
+                  <select
+                    className="voc-input voc-select"
+                    value={form.modo_diseno}
+                    onChange={(e) => {
+                      const modo = e.target.value;
+                      setForm((f) => ({
+                        ...f,
+                        modo_diseno: modo,
+                        usar_ia: modo === 'libre' ? true : f.usar_ia,
+                      }));
+                    }}
+                    disabled={!config.vanguarcito_disponible && form.modo_diseno === 'libre'}
+                  >
+                    <option value="plantilla">Plantilla tipada (recomendado, estable)</option>
+                    <option value="libre" disabled={!config.vanguarcito_disponible}>
+                      Diseño libre por IA (experimental · más tokens)
+                    </option>
+                  </select>
+                  <span className="voc-file-hint" style={{ display: 'block', marginTop: 4 }}>
+                    {form.modo_diseno === 'libre' ? (
+                      <>
+                        Vanguarcito inventa el HTML completo (guía + práctica). Solo se le pasan logo y
+                        mascota como referencia, adaptada al grado/edad. Puede consumir más cuota de
+                        Gemini y el resultado varía. Si falla, se usa la plantilla tipada.
+                      </>
+                    ) : (
+                      <>
+                        Layout fijo institucional (7 bloques + actividades I–VII). La IA solo rellena
+                        el contenido.
+                      </>
+                    )}
+                  </span>
+                </label>
+
                 <label className="voc-label-block" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <input
                     type="checkbox"
-                    checked={form.usar_ia}
-                    disabled={!config.vanguarcito_disponible}
+                    checked={form.modo_diseno === 'libre' ? true : form.usar_ia}
+                    disabled={!config.vanguarcito_disponible || form.modo_diseno === 'libre'}
                     onChange={(e) => setForm((f) => ({ ...f, usar_ia: e.target.checked }))}
                   />
                   <span className="voc-label-text" style={{ margin: 0 }}>
                     Usar Vanguarcito para estructurar actividades
+                    {form.modo_diseno === 'libre' ? ' (obligatorio en diseño libre)' : ''}
                   </span>
                 </label>
               </div>

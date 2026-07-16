@@ -18,7 +18,8 @@ const {
   modelosAProbar,
 } = require('../services/fichasIa/geminiFichaService');
 const { renderFichaHtml } = require('../services/fichasIa/renderFichaHtml');
-const { renderFichaPdfYHtml } = require('../services/fichasIa/renderFichaPdf');
+const { renderFichaPdfYHtml, guardarHtmlYPdf } = require('../services/fichasIa/renderFichaPdf');
+const { generarHtmlDisenoLibre } = require('../services/fichasIa/geminiDisenoLibreService');
 const { ensurePlantillasColegio, ensurePlantillaPorEstilo } = require('../services/fichasIa/ensurePlantillas');
 const { resolverEstiloFicha, listarEstilosFicha, metaEstilo, esPlantillaMatematica } = require('../services/fichasIa/estilosFicha');
 const {
@@ -318,6 +319,10 @@ router.put('/trabajos/:id', async (req, res) => {
       const plantilla_id = await ensurePlantillaPorEstilo(colegio_id, estilo);
       await execute(`UPDATE fichas_ia_trabajos SET plantilla_id = ? WHERE id = ?`, [plantilla_id, trabajoId]);
     }
+    if (req.body.modo_diseno != null && req.body.modo_diseno !== '') {
+      const modo = String(req.body.modo_diseno).toLowerCase() === 'libre' ? 'libre' : 'plantilla';
+      await upsertSeccionCustom(trabajoId, 'Modo diseño', { modo_diseno: modo });
+    }
 
     const actualizado = await cargarTrabajo(req, trabajoId, { requierePropiedad: false });
     res.json({ mensaje: 'Ficha actualizada', trabajo: enrichTrabajo(actualizado, req.user.usuario_id) });
@@ -420,7 +425,14 @@ router.post('/trabajos', uploadOrigen.single('archivo_pdf'), async (req, res) =>
     const unidad = String(req.body.unidad || '').trim() || '1';
     const puntos_clave = String(req.body.puntos_clave || '').trim();
     const instrucciones_ia = String(req.body.instrucciones_ia || '').trim();
-    const usar_ia = req.body.usar_ia === '1' || req.body.usar_ia === 'true';
+    const modo_diseno = String(req.body.modo_diseno || 'plantilla').toLowerCase() === 'libre'
+      ? 'libre'
+      : 'plantilla';
+    // Diseño libre exige Vanguarcito
+    const usar_ia =
+      modo_diseno === 'libre'
+        ? true
+        : req.body.usar_ia === '1' || req.body.usar_ia === 'true';
 
     let origen_tipo = 'FORMULARIO';
     let archivo_origen = null;
@@ -460,6 +472,7 @@ router.post('/trabajos', uploadOrigen.single('archivo_pdf'), async (req, res) =>
     if (instrucciones_ia) {
       await upsertSeccionCustom(trabajoId, 'Instrucciones docente', { instrucciones_ia });
     }
+    await upsertSeccionCustom(trabajoId, 'Modo diseño', { modo_diseno });
 
     if (usar_ia && !geminiDisponible()) {
       return res.status(400).json({
@@ -472,6 +485,7 @@ router.post('/trabajos', uploadOrigen.single('archivo_pdf'), async (req, res) =>
       trabajo_id: trabajoId,
       mensaje: 'Borrador creado. Use Generar para producir la ficha.',
       usar_ia,
+      modo_diseno,
     });
   } catch (e) {
     console.error('[fichas-ia/trabajos POST]', e);
@@ -543,15 +557,97 @@ router.post('/trabajos/:id/generar', async (req, res) => {
     );
     const estiloFicha = esPlantillaMatematica(plantillaMeta[0]?.codigo) ? 'matematica' : 'general';
 
+    // Modo diseño: body > sección CUSTOM > plantilla
+    let modoDiseno = 'plantilla';
+    if (String(req.body.modo_diseno || '').toLowerCase() === 'libre') modoDiseno = 'libre';
+    else {
+      const modoRow = await query(
+        `SELECT contenido_json FROM fichas_ia_trabajo_secciones
+         WHERE trabajo_id = ? AND tipo = 'CUSTOM' AND titulo = 'Modo diseño' LIMIT 1`,
+        [trabajoId]
+      );
+      if (modoRow.length) {
+        try {
+          const j = JSON.parse(modoRow[0].contenido_json);
+          if (j.modo_diseno === 'libre') modoDiseno = 'libre';
+        } catch (_e) {
+          /* */
+        }
+      }
+    }
+    if (modoDiseno === 'libre') {
+      await upsertSeccionCustom(trabajoId, 'Modo diseño', { modo_diseno: 'libre' });
+    }
+
     let contenido;
     let tokens_entrada = null;
     let tokens_salida = null;
     let ia_proveedor = null;
     let ia_modelo = null;
     let aviso_ia = null;
+    let pdfFilename;
+    let htmlLibreFilename = null;
 
     await execute(`UPDATE fichas_ia_trabajos SET estado = 'IA_PROCESANDO' WHERE id = ?`, [trabajoId]);
 
+    // ===== DISEÑO LIBRE (HTML completo por Gemini) =====
+    if (modoDiseno === 'libre') {
+      if (!geminiDisponible()) {
+        return res.status(400).json({
+          error: 'Diseño libre requiere Vanguarcito (GOOGLE_AI_API_KEY en el servidor).',
+        });
+      }
+      try {
+        const libre = await generarHtmlDisenoLibre({
+          titulo: trabajo.titulo,
+          grado: trabajo.grado,
+          grupoEtiqueta: trabajo.grupo_etiqueta,
+          area: trabajo.area,
+          unidad: trabajo.unidad,
+          puntosClave,
+          textoOrigen,
+          instruccionesDocente,
+          trabajoId,
+        });
+        tokens_entrada = libre.tokens_entrada;
+        tokens_salida = libre.tokens_salida;
+        ia_proveedor = libre.proveedor;
+        ia_modelo = libre.modelo;
+
+        contenido = contenidoDesdeFormulario({
+          titulo: trabajo.titulo,
+          puntosClave,
+          textoOrigen,
+          area: trabajo.area,
+          estiloFicha: estiloFicha === 'matematica' ? 'general' : estiloFicha,
+        });
+        contenido.modo_diseno = 'libre';
+        contenido.formato_ficha = 'diseno_libre';
+        contenido.banda_edad = libre.banda_edad;
+        await guardarSeccionesDesdeContenido(trabajoId, contenido);
+
+        await execute(`UPDATE fichas_ia_trabajos SET estado = 'MAQUETANDO' WHERE id = ?`, [trabajoId]);
+        const saved = await guardarHtmlYPdf(libre.html, trabajoId);
+        pdfFilename = saved.pdfFilename;
+        htmlLibreFilename = saved.htmlFilename;
+        await upsertSeccionCustom(trabajoId, 'HTML diseño libre', {
+          html_filename: htmlLibreFilename,
+          banda_edad: libre.banda_edad,
+          mascota_archivo: libre.mascota_archivo,
+        });
+      } catch (libreErr) {
+        console.warn('[fichas-ia] Diseño libre falló, fallback plantilla:', libreErr.message);
+        aviso_ia = `Diseño libre falló (${libreErr.message}). Se usó plantilla tipada.`.slice(0, 2000);
+        modoDiseno = 'plantilla';
+        await upsertSeccionCustom(trabajoId, 'Modo diseño', {
+          modo_diseno: 'plantilla',
+          fallback_desde_libre: true,
+        });
+      }
+    }
+
+    // ===== PLANTILLA TIPADA (flujo normal) =====
+    if (!pdfFilename) {
     if (usar_ia && !forzar_sin_ia && geminiDisponible()) {
       try {
         const gem = await estructurarContenidoConGemini({
@@ -642,7 +738,6 @@ router.post('/trabajos/:id/generar', async (req, res) => {
       inlineAssets: true,
     };
 
-    let pdfFilename;
     try {
       ({ pdfFilename } = await renderFichaPdfYHtml(ctx, archivoPlantilla, trabajoId));
     } catch (pdfErr) {
@@ -666,6 +761,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
           : undefined,
       });
     }
+    } // fin if (!pdfFilename) plantilla tipada
 
     const costo =
       tokens_entrada != null && tokens_salida != null
@@ -675,7 +771,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
     await execute(
       `UPDATE fichas_ia_trabajos SET
         estado = 'LISTO',
-        error_mensaje = NULL,
+        error_mensaje = ?,
         archivo_generado_nombre = ?,
         ia_proveedor = ?,
         ia_modelo = ?,
@@ -684,13 +780,27 @@ router.post('/trabajos/:id/generar', async (req, res) => {
         costo_estimado_usd = ?,
         completado_en = NOW()
        WHERE id = ?`,
-      [pdfFilename, ia_proveedor, ia_modelo, tokens_entrada, tokens_salida, costo, trabajoId]
+      [
+        aviso_ia ? String(aviso_ia).slice(0, 2000) : null,
+        pdfFilename,
+        ia_proveedor,
+        ia_modelo,
+        tokens_entrada,
+        tokens_salida,
+        costo,
+        trabajoId,
+      ]
     );
 
     const actualizado = await cargarTrabajo(req, trabajoId);
     res.json({
-      mensaje: aviso_ia ? 'Ficha generada en modo formulario (Vanguarcito falló)' : 'Ficha generada correctamente',
+      mensaje: aviso_ia
+        ? `Ficha generada con aviso: ${aviso_ia.slice(0, 120)}`
+        : modoDiseno === 'libre' || htmlLibreFilename
+          ? 'Ficha generada en diseño libre (Vanguarcito)'
+          : 'Ficha generada correctamente',
       uso_vanguarcito: ia_proveedor === 'google',
+      modo_diseno: htmlLibreFilename ? 'libre' : 'plantilla',
       aviso_ia,
       trabajo: enrichTrabajo(actualizado, req.user.usuario_id),
       preview_url: `/api/fichas-ia/trabajos/${trabajoId}/preview-html`,
@@ -721,6 +831,27 @@ router.get('/trabajos/:id/preview-html', async (req, res) => {
   try {
     const trabajo = await cargarTrabajo(req, parseInt(req.params.id, 10), { requierePropiedad: false });
     if (!trabajo) return res.status(404).send('No encontrado');
+
+    // Si hay HTML de diseño libre guardado, servirlo tal cual
+    const htmlLibreRow = await query(
+      `SELECT contenido_json FROM fichas_ia_trabajo_secciones
+       WHERE trabajo_id = ? AND tipo = 'CUSTOM' AND titulo = 'HTML diseño libre' LIMIT 1`,
+      [trabajo.id]
+    );
+    if (htmlLibreRow.length) {
+      try {
+        const j = JSON.parse(htmlLibreRow[0].contenido_json);
+        if (j.html_filename) {
+          const htmlPath = path.join(dirs.trabajo, j.html_filename);
+          if (fs.existsSync(htmlPath)) {
+            return res.type('html').send(fs.readFileSync(htmlPath, 'utf8'));
+          }
+        }
+      } catch (_e) {
+        /* fallback plantilla */
+      }
+    }
+
     const contenido = await contenidoDesdeTrabajo(trabajo.id);
     const plantillaRows = await query(
       `SELECT archivo_plantilla, codigo FROM fichas_ia_plantillas WHERE id = ? LIMIT 1`,

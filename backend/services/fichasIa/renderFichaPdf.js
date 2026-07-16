@@ -103,6 +103,13 @@ async function htmlStringToPdf(html, pdfPath) {
  */
 async function renderFichaPdfYHtml(ctx, archivoPlantilla, trabajoId) {
   const html = renderFichaHtml({ ...ctx, inlineAssets: true }, archivoPlantilla);
+  return guardarHtmlYPdf(html, trabajoId);
+}
+
+/**
+ * Guarda HTML ya generado (diseño libre) y lo convierte a PDF A4.
+ */
+async function guardarHtmlYPdf(html, trabajoId) {
   const baseName = `ficha-${trabajoId}-${Date.now()}`;
   const htmlPath = path.join(dirs.trabajo, `${baseName}.html`);
   const pdfPath = path.join(dirs.generados, `${baseName}.pdf`);
@@ -118,4 +125,9 @@ async function renderFichaPdfYHtml(ctx, archivoPlantilla, trabajoId) {
   };
 }
 
-module.exports = { renderFichaPdfYHtml, htmlStringToPdf, APT_DEPS_HINT };
+module.exports = {
+  renderFichaPdfYHtml,
+  guardarHtmlYPdf,
+  htmlStringToPdf,
+  APT_DEPS_HINT,
+};
