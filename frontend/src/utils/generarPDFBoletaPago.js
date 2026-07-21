@@ -162,194 +162,268 @@ export async function generarPDFBoletaDesdeDatos(datosBoleta) {
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 18;
+  const margin = 16;
   const contentW = pageWidth - margin * 2;
 
-  // Paleta sobria (casi monocromo)
-  const ink = [33, 33, 33];
-  const mute = [90, 90, 90];
-  const line = [160, 160, 160];
-  const soft = [245, 245, 245];
+  // Paleta sobria pero con acentos elegantes (slate / teal suave)
+  const ink = [30, 41, 59]; // slate-800
+  const mute = [100, 116, 139]; // slate-500
+  const accent = [51, 65, 85]; // slate-700
+  const accentSoft = [241, 245, 249]; // slate-100
+  const accentMid = [203, 213, 225]; // slate-300
+  const teal = [15, 118, 110]; // teal-700
+  const tealSoft = [240, 253, 250]; // teal-50
+  const tealBorder = [153, 246, 228]; // teal-200
   const white = [255, 255, 255];
+  const headerBand = [248, 250, 252]; // slate-50
 
-  // Marco exterior discreto
-  doc.setDrawColor(...line);
-  doc.setLineWidth(0.4);
-  doc.rect(margin - 4, 10, contentW + 8, pageHeight - 22);
+  // Marco doble elegante
+  doc.setDrawColor(...accent);
+  doc.setLineWidth(0.9);
+  doc.roundedRect(8, 8, pageWidth - 16, pageHeight - 16, 3, 3, 'S');
+  doc.setDrawColor(...accentMid);
+  doc.setLineWidth(0.35);
+  doc.roundedRect(10.5, 10.5, pageWidth - 21, pageHeight - 21, 2.2, 2.2, 'S');
+
+  // Banda superior suave
+  doc.setFillColor(...headerBand);
+  doc.roundedRect(11, 11, pageWidth - 22, 34, 2, 2, 'F');
 
   // —— Encabezado ——
-  let y = 16;
-  await cargarLogoBoleta(doc, margin, y, 18, 18);
+  let y = 15;
+  await cargarLogoBoleta(doc, margin, y, 20, 20);
 
   const razon = String(facturacion.razon_social || 'EMPRESA').toUpperCase();
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.setTextColor(...ink);
-  doc.text(razon, margin + 22, y + 7);
+  doc.setFontSize(13);
+  doc.setTextColor(...accent);
+  doc.text(razon, margin + 24, y + 8);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(...mute);
-  doc.text(`R.U.C. ${facturacion.ruc || 'N/A'}`, margin + 22, y + 13);
+  doc.text(`R.U.C. ${facturacion.ruc || 'N/A'}`, margin + 24, y + 15);
 
-  // Caja tipográfica BOLETA (sin colores vivos)
-  const boxW = 52;
-  const boxH = 20;
+  // Caja BOLETA redondeada
+  const boxW = 54;
+  const boxH = 22;
   const boxX = pageWidth - margin - boxW;
-  const boxY = y;
-  doc.setDrawColor(...ink);
-  doc.setLineWidth(0.6);
+  const boxY = y - 1;
   doc.setFillColor(...white);
-  doc.rect(boxX, boxY, boxW, boxH, 'FD');
+  doc.setDrawColor(...accent);
+  doc.setLineWidth(0.7);
+  doc.roundedRect(boxX, boxY, boxW, boxH, 2.5, 2.5, 'FD');
+  // detalle superior de la caja
+  doc.setFillColor(...accent);
+  doc.roundedRect(boxX, boxY, boxW, 3.2, 2.5, 2.5, 'F');
+  doc.setFillColor(...accent);
+  doc.rect(boxX, boxY + 1.5, boxW, 1.8, 'F');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(...ink);
-  doc.text('BOLETA DE VENTA', boxX + boxW / 2, boxY + 8, { align: 'center' });
+  doc.setFontSize(8.5);
+  doc.setTextColor(...accent);
+  doc.text('BOLETA DE VENTA', boxX + boxW / 2, boxY + 10, { align: 'center' });
 
   const numeroBoleta = `${String(pagoData.boleta_serie || '001').padStart(3, '0')}-${String(
     pagoData.boleta_numero || '0000000'
   ).padStart(7, '0')}`;
-  doc.setFontSize(10);
-  doc.text(`N°. ${numeroBoleta}`, boxX + boxW / 2, boxY + 15, { align: 'center' });
+  doc.setFontSize(11);
+  doc.setTextColor(...teal);
+  doc.text(`N°. ${numeroBoleta}`, boxX + boxW / 2, boxY + 17.5, { align: 'center' });
 
-  y = 42;
-  doc.setDrawColor(...line);
-  doc.setLineWidth(0.3);
-  doc.line(margin, y, pageWidth - margin, y);
-
-  // —— Cliente / fecha (estilo Boleta 2) ——
-  y += 8;
+  // —— Cliente (card redondeada) ——
+  y = 50;
   const nombreCliente = String(alumno.nombre_completo || 'N/A')
     .replace(/\s+/g, ' ')
     .trim();
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  const nombreLines = doc.splitTextToSize(nombreCliente, contentW - 70);
+  const clienteH = Math.max(22, 12 + nombreLines.length * 4.5);
+
+  const clienteW = contentW - 58;
+  doc.setFillColor(...accentSoft);
+  doc.setDrawColor(...accentMid);
+  doc.setLineWidth(0.45);
+  doc.roundedRect(margin, y, clienteW, clienteH, 2.5, 2.5, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
+  doc.setFontSize(7.5);
+  doc.setTextColor(...teal);
+  doc.text('SEÑOR (A)', margin + 4, y + 5.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
   doc.setTextColor(...ink);
-  doc.text('SEÑOR (A):', margin, y);
-  doc.setFont('helvetica', 'normal');
-  const nombreLines = doc.splitTextToSize(nombreCliente, contentW - 28);
-  doc.text(nombreLines, margin + 26, y);
+  doc.text(nombreLines, margin + 4, y + 11);
 
-  y += Math.max(6, nombreLines.length * 4.5) + 2;
   doc.setFont('helvetica', 'bold');
-  doc.text('DNI:', margin, y);
+  doc.setFontSize(8);
+  doc.setTextColor(...mute);
+  doc.text('DNI', margin + 4, y + clienteH - 4);
   doc.setFont('helvetica', 'normal');
-  doc.text(String(alumno.dni || 'N/A'), margin + 12, y);
+  doc.setTextColor(...ink);
+  doc.text(String(alumno.dni || 'N/A'), margin + 14, y + clienteH - 4);
 
-  // Fecha en columnas DÍA / MES / AÑO
+  // Fecha card
   const fechaPago = pagoData.fecha_cancelado ? new Date(pagoData.fecha_cancelado) : new Date();
   const dia = String(fechaPago.getDate()).padStart(2, '0');
   const mes = String(fechaPago.getMonth() + 1).padStart(2, '0');
   const anio = String(fechaPago.getFullYear());
 
-  const fechaBoxW = 48;
+  const fechaBoxW = 52;
   const fechaBoxX = pageWidth - margin - fechaBoxW;
-  const colW = fechaBoxW / 3;
+  doc.setFillColor(...white);
+  doc.setDrawColor(...accent);
+  doc.setLineWidth(0.55);
+  doc.roundedRect(fechaBoxX, y, fechaBoxW, clienteH, 2.5, 2.5, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
+  doc.setTextColor(...teal);
+  doc.text('FECHA DE PAGO', fechaBoxX + fechaBoxW / 2, y + 5, { align: 'center' });
+
+  const colW = (fechaBoxW - 6) / 3;
+  const fechaInnerY = y + 8;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
   doc.setTextColor(...mute);
-  doc.text('DÍA', fechaBoxX + colW * 0.5, y - 5, { align: 'center' });
-  doc.text('MES', fechaBoxX + colW * 1.5, y - 5, { align: 'center' });
-  doc.text('AÑO', fechaBoxX + colW * 2.5, y - 5, { align: 'center' });
+  doc.text('DÍA', fechaBoxX + 3 + colW * 0.5, fechaInnerY, { align: 'center' });
+  doc.text('MES', fechaBoxX + 3 + colW * 1.5, fechaInnerY, { align: 'center' });
+  doc.text('AÑO', fechaBoxX + 3 + colW * 2.5, fechaInnerY, { align: 'center' });
 
-  doc.setDrawColor(...line);
-  doc.setLineWidth(0.35);
-  doc.rect(fechaBoxX, y - 2, fechaBoxW, 8);
-  doc.line(fechaBoxX + colW, y - 2, fechaBoxX + colW, y + 6);
-  doc.line(fechaBoxX + colW * 2, y - 2, fechaBoxX + colW * 2, y + 6);
+  doc.setFillColor(...accentSoft);
+  doc.setDrawColor(...accentMid);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(fechaBoxX + 3, fechaInnerY + 1.5, fechaBoxW - 6, 9, 1.5, 1.5, 'FD');
+  doc.line(fechaBoxX + 3 + colW, fechaInnerY + 1.5, fechaBoxX + 3 + colW, fechaInnerY + 10.5);
+  doc.line(fechaBoxX + 3 + colW * 2, fechaInnerY + 1.5, fechaBoxX + 3 + colW * 2, fechaInnerY + 10.5);
 
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(...ink);
-  doc.text(dia, fechaBoxX + colW * 0.5, y + 3.5, { align: 'center' });
-  doc.text(mes, fechaBoxX + colW * 1.5, y + 3.5, { align: 'center' });
-  doc.text(anio, fechaBoxX + colW * 2.5, y + 3.5, { align: 'center' });
+  doc.text(dia, fechaBoxX + 3 + colW * 0.5, fechaInnerY + 7.5, { align: 'center' });
+  doc.text(mes, fechaBoxX + 3 + colW * 1.5, fechaInnerY + 7.5, { align: 'center' });
+  doc.text(anio, fechaBoxX + 3 + colW * 2.5, fechaInnerY + 7.5, { align: 'center' });
 
   // —— Tabla ——
-  y += 14;
+  y += clienteH + 8;
   const tableX = margin;
-  const colN = 12;
-  const colImp = 32;
+  const colN = 14;
+  const colImp = 34;
   const colDesc = contentW - colN - colImp;
-  const rowH = 8;
+  const rowH = 9;
 
-  doc.setFillColor(...soft);
-  doc.setDrawColor(...ink);
-  doc.setLineWidth(0.4);
-  doc.rect(tableX, y, contentW, rowH, 'FD');
-  doc.line(tableX + colN, y, tableX + colN, y + rowH);
-  doc.line(tableX + colN + colDesc, y, tableX + colN + colDesc, y + rowH);
+  doc.setFillColor(...accent);
+  doc.setDrawColor(...accent);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(tableX, y, contentW, rowH, 2, 2, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
-  doc.setTextColor(...ink);
-  doc.text('N°.', tableX + colN / 2, y + 5.2, { align: 'center' });
-  doc.text('DESCRIPCIÓN', tableX + colN + 3, y + 5.2);
-  doc.text('IMPORTE S/', tableX + contentW - 2, y + 5.2, { align: 'right' });
+  doc.setTextColor(...white);
+  doc.text('N°.', tableX + colN / 2, y + 5.8, { align: 'center' });
+  doc.text('DESCRIPCIÓN', tableX + colN + 3, y + 5.8);
+  doc.text('IMPORTE S/', tableX + contentW - 3, y + 5.8, { align: 'right' });
 
   y += rowH;
   const desc = String(pagoData.tipo_descripcion || 'PAGO');
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
   const descLines = doc.splitTextToSize(desc, colDesc - 6);
-  const itemH = Math.max(rowH, 4 + descLines.length * 4);
+  const itemH = Math.max(11, 5 + descLines.length * 4.2);
 
   doc.setFillColor(...white);
-  doc.rect(tableX, y, contentW, itemH, 'FD');
-  doc.line(tableX + colN, y, tableX + colN, y + itemH);
-  doc.line(tableX + colN + colDesc, y, tableX + colN + colDesc, y + itemH);
+  doc.setDrawColor(...accentMid);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(tableX, y - 0.5, contentW, itemH + 0.5, 0, 0, 'S');
+  // cierre inferior redondeado
+  doc.setDrawColor(...accentMid);
+  doc.roundedRect(tableX, y - 0.5, contentW, itemH + 0.5, 2, 2, 'S');
+  doc.line(tableX + colN, y - 0.5, tableX + colN, y + itemH);
+  doc.line(tableX + colN + colDesc, y - 0.5, tableX + colN + colDesc, y + itemH);
 
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(...mute);
+  doc.text('1', tableX + colN / 2, y + 6.5, { align: 'center' });
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.text('1', tableX + colN / 2, y + 5.5, { align: 'center' });
-  doc.text(descLines, tableX + colN + 3, y + 5.5);
+  doc.setTextColor(...ink);
+  doc.text(descLines, tableX + colN + 3, y + 6.5);
   const importe = pagoData.total.toFixed(2);
   doc.setFont('helvetica', 'bold');
-  doc.text(importe, tableX + contentW - 2, y + 5.5, { align: 'right' });
+  doc.setTextColor(...teal);
+  doc.text(importe, tableX + contentW - 3, y + 6.5, { align: 'right' });
 
   // —— Total en letras + TOTAL ——
-  y += itemH + 8;
+  y += itemH + 7;
   const totalEntero = Math.floor(pagoData.total);
   const totalDecimal = Math.round((pagoData.total - totalEntero) * 100);
   const totalLetras =
     numeroALetras(totalEntero).toUpperCase() + ` CON ${String(totalDecimal).padStart(2, '0')}/100 SOLES`;
 
+  const letrasW = contentW - 58;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.setTextColor(...mute);
-  const letrasLines = doc.splitTextToSize(totalLetras, contentW - 50);
-  doc.text(letrasLines, margin, y);
+  const letrasLines = doc.splitTextToSize(totalLetras, letrasW - 8);
+  const letrasH = Math.max(14, 6 + letrasLines.length * 3.8);
 
+  doc.setFillColor(...accentSoft);
+  doc.setDrawColor(...accentMid);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(margin, y, letrasW, letrasH, 2.5, 2.5, 'FD');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(...ink);
-  doc.text(`TOTAL S/. ${importe}`, pageWidth - margin, y, { align: 'right' });
-
-  // —— Forma de pago / Estado (sin badges de color) ——
-  y += Math.max(10, letrasLines.length * 4 + 6);
-  doc.setDrawColor(...line);
-  doc.setLineWidth(0.3);
-  doc.line(margin, y, pageWidth - margin, y);
-  y += 7;
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(...ink);
-  doc.text('EFECTIVO', margin, y);
-
+  doc.setFontSize(6.5);
+  doc.setTextColor(...teal);
+  doc.text('SON', margin + 4, y + 4.5);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(...mute);
-  doc.text('ESTADO:', pageWidth - margin - 40, y);
-  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
   doc.setTextColor(...ink);
-  doc.text('CANCELADO', pageWidth - margin, y, { align: 'right' });
+  doc.text(letrasLines, margin + 4, y + 9);
+
+  const totalBoxW = 52;
+  const totalBoxX = pageWidth - margin - totalBoxW;
+  doc.setFillColor(...accent);
+  doc.setDrawColor(...accent);
+  doc.roundedRect(totalBoxX, y, totalBoxW, letrasH, 2.5, 2.5, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(226, 232, 240);
+  doc.text('TOTAL', totalBoxX + totalBoxW / 2, y + letrasH / 2 - 2.5, { align: 'center' });
+  doc.setFontSize(12);
+  doc.setTextColor(...white);
+  doc.text(`S/. ${importe}`, totalBoxX + totalBoxW / 2, y + letrasH / 2 + 4, { align: 'center' });
+
+  // —— Forma de pago / Estado ——
+  y += letrasH + 7;
+  const half = (contentW - 6) / 2;
+
+  doc.setFillColor(...white);
+  doc.setDrawColor(...accentMid);
+  doc.setLineWidth(0.45);
+  doc.roundedRect(margin, y, half, 14, 2.5, 2.5, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(...mute);
+  doc.text('FORMA DE PAGO', margin + 4, y + 4.5);
+  doc.setFontSize(10);
+  doc.setTextColor(...accent);
+  doc.text('EFECTIVO', margin + 4, y + 10.5);
+
+  doc.setFillColor(...tealSoft);
+  doc.setDrawColor(...tealBorder);
+  doc.roundedRect(margin + half + 6, y, half, 14, 2.5, 2.5, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(...teal);
+  doc.text('ESTADO', margin + half + 10, y + 4.5);
+  doc.setFontSize(10);
+  doc.text('CANCELADO', margin + half + 10, y + 10.5);
 
   // —— Pie ——
-  y = pageHeight - 28;
-  doc.setDrawColor(...line);
-  doc.setLineWidth(0.3);
+  y = pageHeight - 30;
+  doc.setDrawColor(...accentMid);
+  doc.setLineWidth(0.4);
   doc.line(margin, y, pageWidth - margin, y);
 
   y += 5;
@@ -362,10 +436,12 @@ export async function generarPDFBoletaDesdeDatos(datosBoleta) {
   doc.text(footerLines, pageWidth / 2, y, { align: 'center' });
 
   y += footerLines.length * 3.5 + 3;
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
-  doc.setTextColor(...ink);
+  doc.setTextColor(...accent);
   doc.text(`${razon}`, pageWidth / 2, y, { align: 'center' });
   y += 4;
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(...mute);
   doc.text(`© ${new Date().getFullYear()} / ${razon}`, pageWidth / 2, y, { align: 'center' });
