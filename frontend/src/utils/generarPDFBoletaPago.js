@@ -1,6 +1,7 @@
 /**
- * PDF de boleta de pago (mismo diseño que Apoderado → Imprimir Boleta).
- * Recibe el JSON de GET …/pagos/:id/boleta (apoderado o admin).
+ * PDF de boleta de pago — diseño sobrio tipo comprobante clásico
+ * (apoderado, docente/apoderado, admin).
+ * Recibe el JSON de GET …/pagos/:id/boleta.
  */
 import { jsPDF } from 'jspdf';
 
@@ -104,6 +105,30 @@ function numeroALetras(num) {
   return resultado.trim();
 }
 
+async function cargarLogoBoleta(doc, x, y, w, h) {
+  try {
+    const logoResponse = await fetch('/icons/logoboleta.png');
+    if (!logoResponse.ok) return false;
+    const logoBlob = await logoResponse.blob();
+    const logoReader = new FileReader();
+    await new Promise((resolve) => {
+      logoReader.onloadend = () => {
+        try {
+          doc.addImage(logoReader.result, 'PNG', x, y, w, h);
+        } catch {
+          /* sin logo */
+        }
+        resolve();
+      };
+      logoReader.onerror = () => resolve();
+      logoReader.readAsDataURL(logoBlob);
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * @param {object} datosBoleta — cuerpo de `response.data` del endpoint boleta
  */
@@ -137,281 +162,213 @@ export async function generarPDFBoletaDesdeDatos(datosBoleta) {
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  let yPos = 8;
+  const margin = 18;
+  const contentW = pageWidth - margin * 2;
 
-  const colorPrimario = [33, 150, 243];
-  const colorSecundario = [76, 175, 80];
-  const colorAcento = [255, 152, 0];
-  const colorRojo = [244, 67, 54];
-  const colorGrisOscuro = [66, 66, 66];
-  const colorGrisClaro = [245, 245, 245];
-  const colorBlanco = [255, 255, 255];
+  // Paleta sobria (casi monocromo)
+  const ink = [33, 33, 33];
+  const mute = [90, 90, 90];
+  const line = [160, 160, 160];
+  const soft = [245, 245, 245];
+  const white = [255, 255, 255];
 
-  doc.setFillColor(...colorPrimario);
-  doc.rect(0, 0, pageWidth, 36, 'F');
+  // Marco exterior discreto
+  doc.setDrawColor(...line);
+  doc.setLineWidth(0.4);
+  doc.rect(margin - 4, 10, contentW + 8, pageHeight - 22);
 
-  try {
-    const logoResponse = await fetch('/icons/logoboleta.png');
-    if (logoResponse.ok) {
-      const logoBlob = await logoResponse.blob();
-      const logoReader = new FileReader();
-      await new Promise((resolve) => {
-        logoReader.onloadend = () => {
-          try {
-            doc.addImage(logoReader.result, 'PNG', 12, 5, 26, 26);
-          } catch {
-            /* sin logo */
-          }
-          resolve();
-        };
-        logoReader.onerror = () => resolve();
-        logoReader.readAsDataURL(logoBlob);
-      });
-    }
-  } catch {
-    /* sin logo */
-  }
+  // —— Encabezado ——
+  let y = 16;
+  await cargarLogoBoleta(doc, margin, y, 18, 18);
 
-  doc.setFontSize(17);
+  const razon = String(facturacion.razon_social || 'EMPRESA').toUpperCase();
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...colorBlanco);
-  doc.text(facturacion.razon_social || 'EMPRESA', 45, 15);
+  doc.setFontSize(12);
+  doc.setTextColor(...ink);
+  doc.text(razon, margin + 22, y + 7);
 
-  doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(240, 240, 240);
-  doc.text(`R.U.C. ${facturacion.ruc || 'N/A'}`, 45, 22);
-
-  const boletaCajaX = pageWidth - 68;
-  const boletaCajaY = 3;
-  const boletaCajaW = 53;
-  const boletaCajaH = 28;
-
-  doc.setFillColor(...colorBlanco);
-  doc.setDrawColor(220, 220, 220);
-  doc.setLineWidth(0.5);
-  doc.roundedRect(boletaCajaX, boletaCajaY, boletaCajaW, boletaCajaH, 4, 4, 'FD');
-
-  const centroVertical = boletaCajaY + boletaCajaH / 2;
-
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...colorPrimario);
-  const boletaText = 'BOLETA DE VENTA';
-  const boletaWidth = doc.getTextWidth(boletaText);
-  doc.text(boletaText, boletaCajaX + (boletaCajaW - boletaWidth) / 2, centroVertical - 4);
-
-  const numeroBoleta = `${String(pagoData.boleta_serie || '001').padStart(3, '0')}-${String(pagoData.boleta_numero || '0000000').padStart(7, '0')}`;
-  doc.setFontSize(13);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...colorRojo);
-  const numWidth = doc.getTextWidth(`N°. ${numeroBoleta}`);
-  doc.text(`N°. ${numeroBoleta}`, boletaCajaX + (boletaCajaW - numWidth) / 2, centroVertical + 4);
-
-  yPos = 42;
-
-  const fechaCardX = 15;
-  const fechaCardY = yPos;
-  const fechaCardW = 58;
-  const fechaCardH = 18;
-
-  doc.setFillColor(255, 243, 224);
-  doc.setDrawColor(...colorAcento);
-  doc.setLineWidth(1.2);
-  doc.roundedRect(fechaCardX, fechaCardY, fechaCardW, fechaCardH, 3, 3, 'FD');
-
-  const fechaPago = pagoData.fecha_cancelado ? new Date(pagoData.fecha_cancelado) : new Date();
-  const dia = fechaPago.getDate();
-  const mes = fechaPago.getMonth() + 1;
-  const año = fechaPago.getFullYear();
-
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...colorAcento);
-  doc.text('FECHA DE PAGO', fechaCardX + fechaCardW / 2, fechaCardY + 6, { align: 'center' });
-
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...colorGrisOscuro);
-  doc.text(`${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${año}`, fechaCardX + fechaCardW / 2, fechaCardY + 14, {
-    align: 'center',
-  });
-
-  const clienteCardX = 78;
-  const clienteCardY = yPos;
-  const clienteCardW = pageWidth - 93;
-  const clienteCardH = 18;
-
-  doc.setFillColor(227, 242, 253);
-  doc.setDrawColor(...colorPrimario);
-  doc.setLineWidth(1.2);
-  doc.roundedRect(clienteCardX, clienteCardY, clienteCardW, clienteCardH, 3, 3, 'FD');
-
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...colorPrimario);
-  doc.text('CLIENTE', clienteCardX + 3, clienteCardY + 6);
-
-  doc.setFontSize(9.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...colorGrisOscuro);
-  const nombreCliente = (alumno.nombre_completo || '').toUpperCase();
-  const nombreMaxWidth = clienteCardW - 6;
-  let nombreDisplay = nombreCliente;
-  if (doc.getTextWidth(nombreDisplay) > nombreMaxWidth) {
-    while (doc.getTextWidth(nombreDisplay + '...') > nombreMaxWidth && nombreDisplay.length > 0) {
-      nombreDisplay = nombreDisplay.slice(0, -1);
-    }
-    nombreDisplay += '...';
-  }
-  doc.text(nombreDisplay, clienteCardX + 3, clienteCardY + 12);
-
   doc.setFontSize(9);
+  doc.setTextColor(...mute);
+  doc.text(`R.U.C. ${facturacion.ruc || 'N/A'}`, margin + 22, y + 13);
+
+  // Caja tipográfica BOLETA (sin colores vivos)
+  const boxW = 52;
+  const boxH = 20;
+  const boxX = pageWidth - margin - boxW;
+  const boxY = y;
+  doc.setDrawColor(...ink);
+  doc.setLineWidth(0.6);
+  doc.setFillColor(...white);
+  doc.rect(boxX, boxY, boxW, boxH, 'FD');
+
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...colorGrisOscuro);
-  doc.text(`DNI: ${alumno.dni || 'N/A'}`, clienteCardX + 3, clienteCardY + 15);
+  doc.setFontSize(9);
+  doc.setTextColor(...ink);
+  doc.text('BOLETA DE VENTA', boxX + boxW / 2, boxY + 8, { align: 'center' });
 
-  yPos += 32;
-
-  doc.setFillColor(...colorPrimario);
-  doc.setDrawColor(...colorPrimario);
-  doc.setLineWidth(0.5);
-  doc.roundedRect(15, yPos - 6, pageWidth - 30, 8, 2, 2, 'FD');
-
+  const numeroBoleta = `${String(pagoData.boleta_serie || '001').padStart(3, '0')}-${String(
+    pagoData.boleta_numero || '0000000'
+  ).padStart(7, '0')}`;
   doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...colorBlanco);
-  doc.text('N°.', 18, yPos);
-  doc.text('DESCRIPCIÓN', 35, yPos);
-  doc.text('IMPORTE', pageWidth - 22, yPos, { align: 'right' });
+  doc.text(`N°. ${numeroBoleta}`, boxX + boxW / 2, boxY + 15, { align: 'center' });
 
-  yPos += 8;
-  doc.setFillColor(...colorBlanco);
-  doc.setDrawColor(220, 220, 220);
+  y = 42;
+  doc.setDrawColor(...line);
   doc.setLineWidth(0.3);
-  doc.roundedRect(15, yPos - 5, pageWidth - 30, 7, 1, 1, 'FD');
+  doc.line(margin, y, pageWidth - margin, y);
 
-  doc.setFontSize(10);
+  // —— Cliente / fecha (estilo Boleta 2) ——
+  y += 8;
+  const nombreCliente = String(alumno.nombre_completo || 'N/A')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...ink);
+  doc.text('SEÑOR (A):', margin, y);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...colorGrisOscuro);
-  doc.text('1', 18, yPos);
-  doc.text(pagoData.tipo_descripcion || 'PAGO', 35, yPos);
+  const nombreLines = doc.splitTextToSize(nombreCliente, contentW - 28);
+  doc.text(nombreLines, margin + 26, y);
+
+  y += Math.max(6, nombreLines.length * 4.5) + 2;
+  doc.setFont('helvetica', 'bold');
+  doc.text('DNI:', margin, y);
+  doc.setFont('helvetica', 'normal');
+  doc.text(String(alumno.dni || 'N/A'), margin + 12, y);
+
+  // Fecha en columnas DÍA / MES / AÑO
+  const fechaPago = pagoData.fecha_cancelado ? new Date(pagoData.fecha_cancelado) : new Date();
+  const dia = String(fechaPago.getDate()).padStart(2, '0');
+  const mes = String(fechaPago.getMonth() + 1).padStart(2, '0');
+  const anio = String(fechaPago.getFullYear());
+
+  const fechaBoxW = 48;
+  const fechaBoxX = pageWidth - margin - fechaBoxW;
+  const colW = fechaBoxW / 3;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(...mute);
+  doc.text('DÍA', fechaBoxX + colW * 0.5, y - 5, { align: 'center' });
+  doc.text('MES', fechaBoxX + colW * 1.5, y - 5, { align: 'center' });
+  doc.text('AÑO', fechaBoxX + colW * 2.5, y - 5, { align: 'center' });
+
+  doc.setDrawColor(...line);
+  doc.setLineWidth(0.35);
+  doc.rect(fechaBoxX, y - 2, fechaBoxW, 8);
+  doc.line(fechaBoxX + colW, y - 2, fechaBoxX + colW, y + 6);
+  doc.line(fechaBoxX + colW * 2, y - 2, fechaBoxX + colW * 2, y + 6);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(...ink);
+  doc.text(dia, fechaBoxX + colW * 0.5, y + 3.5, { align: 'center' });
+  doc.text(mes, fechaBoxX + colW * 1.5, y + 3.5, { align: 'center' });
+  doc.text(anio, fechaBoxX + colW * 2.5, y + 3.5, { align: 'center' });
+
+  // —— Tabla ——
+  y += 14;
+  const tableX = margin;
+  const colN = 12;
+  const colImp = 32;
+  const colDesc = contentW - colN - colImp;
+  const rowH = 8;
+
+  doc.setFillColor(...soft);
+  doc.setDrawColor(...ink);
+  doc.setLineWidth(0.4);
+  doc.rect(tableX, y, contentW, rowH, 'FD');
+  doc.line(tableX + colN, y, tableX + colN, y + rowH);
+  doc.line(tableX + colN + colDesc, y, tableX + colN + colDesc, y + rowH);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...ink);
+  doc.text('N°.', tableX + colN / 2, y + 5.2, { align: 'center' });
+  doc.text('DESCRIPCIÓN', tableX + colN + 3, y + 5.2);
+  doc.text('IMPORTE S/', tableX + contentW - 2, y + 5.2, { align: 'right' });
+
+  y += rowH;
+  const desc = String(pagoData.tipo_descripcion || 'PAGO');
+  const descLines = doc.splitTextToSize(desc, colDesc - 6);
+  const itemH = Math.max(rowH, 4 + descLines.length * 4);
+
+  doc.setFillColor(...white);
+  doc.rect(tableX, y, contentW, itemH, 'FD');
+  doc.line(tableX + colN, y, tableX + colN, y + itemH);
+  doc.line(tableX + colN + colDesc, y, tableX + colN + colDesc, y + itemH);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text('1', tableX + colN / 2, y + 5.5, { align: 'center' });
+  doc.text(descLines, tableX + colN + 3, y + 5.5);
   const importe = pagoData.total.toFixed(2);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...colorPrimario);
-  doc.text(`S/ ${importe}`, pageWidth - 22, yPos, { align: 'right' });
+  doc.text(importe, tableX + contentW - 2, y + 5.5, { align: 'right' });
 
-  yPos += 12;
-
-  const letrasCardX = 15;
-  const letrasCardY = yPos;
-  const letrasCardW = pageWidth - 98;
-  const letrasCardH = 10;
-
-  doc.setFillColor(232, 245, 233);
-  doc.setDrawColor(...colorSecundario);
-  doc.setLineWidth(1);
-  doc.roundedRect(letrasCardX, letrasCardY, letrasCardW, letrasCardH, 2, 2, 'FD');
-
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
+  // —— Total en letras + TOTAL ——
+  y += itemH + 8;
   const totalEntero = Math.floor(pagoData.total);
   const totalDecimal = Math.round((pagoData.total - totalEntero) * 100);
   const totalLetras =
     numeroALetras(totalEntero).toUpperCase() + ` CON ${String(totalDecimal).padStart(2, '0')}/100 SOLES`;
-  doc.setTextColor(...colorGrisOscuro);
-  const letrasMaxWidth = letrasCardW - 6;
-  let letrasDisplay = totalLetras;
-  if (doc.getTextWidth(letrasDisplay) > letrasMaxWidth) {
-    doc.setFontSize(8);
-    if (doc.getTextWidth(letrasDisplay) > letrasMaxWidth) {
-      while (doc.getTextWidth(letrasDisplay) > letrasMaxWidth && letrasDisplay.length > 0) {
-        letrasDisplay = letrasDisplay.slice(0, -1);
-      }
-    }
-  }
-  doc.text(letrasDisplay, letrasCardX + 3, letrasCardY + 6.5);
 
-  const totalCardX = pageWidth - 78;
-  const totalCardY = yPos;
-  const totalCardW = 63;
-  const totalCardH = 10;
-
-  doc.setFillColor(...colorPrimario);
-  doc.setDrawColor(...colorPrimario);
-  doc.setLineWidth(1);
-  doc.roundedRect(totalCardX, totalCardY, totalCardW, totalCardH, 3, 3, 'FD');
-
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...colorBlanco);
-  doc.text('TOTAL', totalCardX + totalCardW / 2, totalCardY + 4.5, { align: 'center' });
-
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`S/ ${importe}`, totalCardX + totalCardW / 2, totalCardY + 8.5, { align: 'center' });
-
-  yPos += 16;
-
-  const pagoCardX = 15;
-  const pagoCardY = yPos;
-  const pagoCardW = 52;
-  const pagoCardH = 10;
-
-  doc.setFillColor(...colorGrisClaro);
-  doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(1);
-  doc.roundedRect(pagoCardX, pagoCardY, pagoCardW, pagoCardH, 2, 2, 'FD');
-
-  doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...colorGrisOscuro);
-  doc.text('FORMA DE PAGO', pagoCardX + pagoCardW / 2, pagoCardY + 4.5, { align: 'center' });
-
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...colorGrisOscuro);
-  doc.text('EFECTIVO', pagoCardX + pagoCardW / 2, pagoCardY + 8.5, { align: 'center' });
-
-  const estadoCardX = pageWidth - 78;
-  const estadoCardY = yPos;
-  const estadoCardW = 63;
-  const estadoCardH = 10;
-
-  doc.setFillColor(...colorSecundario);
-  doc.setDrawColor(...colorSecundario);
-  doc.setLineWidth(1);
-  doc.roundedRect(estadoCardX, estadoCardY, estadoCardW, estadoCardH, 3, 3, 'FD');
-
-  doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...colorBlanco);
-  doc.text('ESTADO', estadoCardX + estadoCardW / 2, estadoCardY + 4.5, { align: 'center' });
-
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text('CANCELADO', estadoCardX + estadoCardW / 2, estadoCardY + 8.5, { align: 'center' });
-
-  yPos = pageHeight - 16;
-  doc.setFillColor(250, 250, 250);
-  doc.rect(0, yPos - 4, pageWidth, 16, 'F');
-
-  doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(0.3);
-  doc.line(15, yPos - 4, pageWidth - 15, yPos - 4);
-
-  doc.setTextColor(120, 120, 120);
-  doc.setFontSize(6.5);
   doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...mute);
+  const letrasLines = doc.splitTextToSize(totalLetras, contentW - 50);
+  doc.text(letrasLines, margin, y);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(...ink);
+  doc.text(`TOTAL S/. ${importe}`, pageWidth - margin, y, { align: 'right' });
+
+  // —— Forma de pago / Estado (sin badges de color) ——
+  y += Math.max(10, letrasLines.length * 4 + 6);
+  doc.setDrawColor(...line);
+  doc.setLineWidth(0.3);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 7;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...ink);
+  doc.text('EFECTIVO', margin, y);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(...mute);
+  doc.text('ESTADO:', pageWidth - margin - 40, y);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...ink);
+  doc.text('CANCELADO', pageWidth - margin, y, { align: 'right' });
+
+  // —— Pie ——
+  y = pageHeight - 28;
+  doc.setDrawColor(...line);
+  doc.setLineWidth(0.3);
+  doc.line(margin, y, pageWidth - margin, y);
+
+  y += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(...mute);
   const footerText =
     'NO ES VÁLIDO PARA CRÉDITO FISCAL. PUEDE SER CANJEADO POR BOLETA DE VENTA SI ES REQUERIDO.';
-  doc.text(footerText, pageWidth / 2, yPos + 2, { align: 'center', maxWidth: pageWidth - 30 });
+  const footerLines = doc.splitTextToSize(footerText, contentW);
+  doc.text(footerLines, pageWidth / 2, y, { align: 'center' });
 
-  yPos += 6;
+  y += footerLines.length * 3.5 + 3;
+  doc.setFontSize(8);
+  doc.setTextColor(...ink);
+  doc.text(`${razon}`, pageWidth / 2, y, { align: 'center' });
+  y += 4;
   doc.setFontSize(7);
-  doc.text(`${facturacion.razon_social || 'EMPRESA'} ©${new Date().getFullYear()}`, pageWidth / 2, yPos, {
-    align: 'center',
-  });
+  doc.setTextColor(...mute);
+  doc.text(`© ${new Date().getFullYear()} / ${razon}`, pageWidth / 2, y, { align: 'center' });
 
   const nombreArchivo = `Boleta_${numeroBoleta.replace(/-/g, '_')}_${alumno.dni || 'N/A'}.pdf`;
   doc.save(nombreArchivo);
