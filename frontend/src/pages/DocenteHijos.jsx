@@ -2857,8 +2857,8 @@ function DocenteHijos() {
 
       // Hijos a Cargo → Ver Libreta: por ahora solo la Boleta de Información Académica.
       // Código conservado; poner en true para volver a incluir estas hojas.
-      const INCLUIR_HOJA_DETALLE_NOTAS_LIBRETA = false;
-      const INCLUIR_HOJA_ORDEN_MERITO_LIBRETA = false;
+      const INCLUIR_HOJA_DETALLE_NOTAS_LIBRETA = true;
+      const INCLUIR_HOJA_ORDEN_MERITO_LIBRETA = true;
 
       // Sección Detalle de Notas (explicaciones del docente por curso) — antes del Reporte de Orden de Mérito
       let detalleNotasDoc = datosLibreta.detalle_notas || [];
