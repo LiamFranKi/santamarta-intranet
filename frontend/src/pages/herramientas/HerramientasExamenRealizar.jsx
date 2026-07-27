@@ -275,32 +275,38 @@ export default function HerramientasExamenRealizar() {
               const r = respuestas[p.id] || {};
               const pts = puntosMostrarHex(examen, p);
               const soloInf = !!p.solo_informativo;
+              if (soloInf) {
+                return (
+                  <Box key={p.id} className="hex-q-section">
+                    <div
+                      className="hex-q-section-title"
+                      dangerouslySetInnerHTML={{ __html: p.texto || '' }}
+                    />
+                    <div className="hex-q-section-line" aria-hidden />
+                  </Box>
+                );
+              }
+
               return (
-                <Card key={p.id} className={`hex-q-card ${soloInf ? 'hex-q-card--info' : ''}`} elevation={0}>
+                <Card key={p.id} className="hex-q-card" elevation={0}>
                   <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
                     <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 1.25 }}>
                       <span className="hex-q-badge-num">{idx + 1}</span>
-                      {soloInf ? (
-                        <Chip size="small" label="Informativo" className="hex-q-chip-info" />
-                      ) : (
-                        <>
-                          <Chip
-                            size="small"
-                            label={
-                              tipo === 'ALTERNATIVAS'
-                                ? 'Alternativas'
-                                : tipo === 'VERDADERO_FALSO'
-                                  ? 'V / F'
-                                  : 'Respuesta corta'
-                            }
-                            className="hex-q-chip-tipo"
-                          />
-                          {p.calificar_manualmente ? (
-                            <Chip size="small" label="Calificación manual" className="hex-q-chip-manual" />
-                          ) : null}
-                          <Chip size="small" label={`${fmtPts(pts)} pt`} className="hex-q-chip-pts" />
-                        </>
-                      )}
+                      <Chip
+                        size="small"
+                        label={
+                          tipo === 'ALTERNATIVAS'
+                            ? 'Alternativas'
+                            : tipo === 'VERDADERO_FALSO'
+                              ? 'V / F'
+                              : 'Respuesta corta'
+                        }
+                        className="hex-q-chip-tipo"
+                      />
+                      {p.calificar_manualmente ? (
+                        <Chip size="small" label="Calificación manual" className="hex-q-chip-manual" />
+                      ) : null}
+                      <Chip size="small" label={`${fmtPts(pts)} pt`} className="hex-q-chip-pts" />
                     </Stack>
 
                     <div className="hex-q-enunciado">
@@ -310,11 +316,7 @@ export default function HerramientasExamenRealizar() {
                       />
                     </div>
 
-                    {soloInf ? (
-                      <Box className="hex-q-info-note">Solo lectura — no requiere respuesta</Box>
-                    ) : null}
-
-                    {!soloInf && tipo === 'ALTERNATIVAS' ? (
+                    {tipo === 'ALTERNATIVAS' ? (
                       <FormControl component="fieldset" sx={{ mt: 1.5 }} fullWidth>
                         <RadioGroup
                           value={r.indice != null ? String(r.indice) : ''}
@@ -334,7 +336,7 @@ export default function HerramientasExamenRealizar() {
                       </FormControl>
                     ) : null}
 
-                    {!soloInf && tipo === 'VERDADERO_FALSO' ? (
+                    {tipo === 'VERDADERO_FALSO' ? (
                       <FormControl component="fieldset" sx={{ mt: 1.5 }} fullWidth>
                         <RadioGroup
                           value={r.valor === true ? 'v' : r.valor === false ? 'f' : ''}
@@ -357,7 +359,7 @@ export default function HerramientasExamenRealizar() {
                       </FormControl>
                     ) : null}
 
-                    {!soloInf && tipo === 'RESPUESTA_CORTA' ? (
+                    {tipo === 'RESPUESTA_CORTA' ? (
                       <TextField
                         fullWidth
                         multiline

@@ -78,9 +78,7 @@ export default function HexExamenesRevisionLineas({
 
         let respuestaContenido = null;
         if (inf) {
-          respuestaContenido = (
-            <Box className="hex-rev-info-banner">Bloque informativo — sin respuesta del participante</Box>
-          );
+          respuestaContenido = null;
         } else if (tipo === 'RESPUESTA_CORTA') {
           respuestaContenido = (
             <Box className="hex-rev-texto-box">
@@ -168,6 +166,18 @@ export default function HexExamenesRevisionLineas({
           respuestaContenido = <Typography variant="body2">—</Typography>;
         }
 
+        if (inf) {
+          return (
+            <Box key={L.id} className="hex-q-section">
+              <div
+                className="hex-q-section-title"
+                dangerouslySetInnerHTML={{ __html: L.pregunta_texto || '' }}
+              />
+              <div className="hex-q-section-line" aria-hidden />
+            </Box>
+          );
+        }
+
         return (
           <Box key={L.id} className="hex-rev-card">
             <div className="hex-rev-card-top">
@@ -183,11 +193,8 @@ export default function HexExamenesRevisionLineas({
                     fontWeight: 700
                   }}
                 />
-                {manual && !inf ? (
+                {manual ? (
                   <Chip size="small" label="Revisión manual" sx={{ bgcolor: '#fef3c7', color: '#92400e', fontWeight: 700 }} />
-                ) : null}
-                {inf ? (
-                  <Chip size="small" label="Informativo" sx={{ bgcolor: '#ccfbf1', color: '#0f766e', fontWeight: 700 }} />
                 ) : null}
               </Stack>
             </div>
@@ -205,14 +212,12 @@ export default function HexExamenesRevisionLineas({
               dangerouslySetInnerHTML={{ __html: L.pregunta_texto || '' }}
             />
 
-            {!inf ? (
-              <Typography
-                variant="caption"
-                sx={{ display: 'block', mt: 1.25, mb: 0.75, color: '#64748b', fontWeight: 700, letterSpacing: '0.02em' }}
-              >
-                {adminMode ? 'RESPUESTA DEL PARTICIPANTE' : 'TU RESPUESTA'}
-              </Typography>
-            ) : null}
+            <Typography
+              variant="caption"
+              sx={{ display: 'block', mt: 1.25, mb: 0.75, color: '#64748b', fontWeight: 700, letterSpacing: '0.02em' }}
+            >
+              {adminMode ? 'RESPUESTA DEL PARTICIPANTE' : 'TU RESPUESTA'}
+            </Typography>
 
             <Box sx={{ mb: 1.5 }}>{respuestaContenido}</Box>
 
