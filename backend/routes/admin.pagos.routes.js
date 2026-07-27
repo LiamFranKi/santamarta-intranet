@@ -235,7 +235,7 @@ router.post('/bcp/historial/:id/boletear', async (req, res) => {
   }
 });
 
-/** POST /api/admin/pagos/boletear/general — todos los grupos (do_boletear_json2) */
+/** POST /api/admin/pagos/boletear/general — todos los grupos (sin ZIP) */
 router.post('/boletear/general', async (req, res) => {
   try {
     const result = await boletearGeneral(colegioId(req), {
@@ -245,22 +245,20 @@ router.post('/boletear/general', async (req, res) => {
     if (!result.ok) {
       return res.status(result.status || 400).json({ error: result.error });
     }
-    if (result.boletas === 0) {
-      return res.status(400).json({
-        error: 'No hay boletas pendientes de impresión para la mensualidad seleccionada.',
-      });
-    }
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename=${result.filename}`);
-    res.setHeader('X-Boletas-Count', String(result.boletas));
-    res.send(result.buffer);
+    res.json({
+      ok: true,
+      boletas: result.boletas,
+      ya_impresos: result.ya_impresos || 0,
+      pagos_creados: result.pagos_creados || 0,
+      mensaje: result.mensaje || `Se boletearon ${result.boletas} pago(s).`,
+    });
   } catch (e) {
     console.error('[admin/pagos/boletear/general]', e);
     res.status(500).json({ error: e.message || 'Error al boletear pagos' });
   }
 });
 
-/** POST /api/admin/pagos/boletear/moras — rango fechas (do_boletear_moras_json) */
+/** POST /api/admin/pagos/boletear/moras — rango fechas (sin ZIP) */
 router.post('/boletear/moras', async (req, res) => {
   try {
     const result = await boletearMoras(colegioId(req), {
@@ -271,15 +269,11 @@ router.post('/boletear/moras', async (req, res) => {
     if (!result.ok) {
       return res.status(result.status || 400).json({ error: result.error });
     }
-    if (result.boletas === 0) {
-      return res.status(400).json({
-        error: 'No hay notas de débito pendientes de impresión en el rango indicado.',
-      });
-    }
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename=${result.filename}`);
-    res.setHeader('X-Boletas-Count', String(result.boletas));
-    res.send(result.buffer);
+    res.json({
+      ok: true,
+      boletas: result.boletas,
+      mensaje: result.mensaje || `Se boletearon ${result.boletas} mora(s).`,
+    });
   } catch (e) {
     console.error('[admin/pagos/boletear/moras]', e);
     res.status(500).json({ error: e.message || 'Error al boletear moras' });

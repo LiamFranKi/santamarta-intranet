@@ -324,6 +324,7 @@ function preguntaPublicaSinClaves(row) {
     opciones: opcionesPublica || {},
     puntos: Number(row.puntos),
     solo_informativo: row.solo_informativo === 1 || row.solo_informativo === true,
+    calificar_manualmente: row.calificar_manualmente === 1 || row.calificar_manualmente === true,
     obligatoria: row.obligatoria !== 0 && row.obligatoria !== false
   };
 }
@@ -337,9 +338,31 @@ function preguntaEditor(row) {
     opciones: o,
     puntos: Number(row.puntos),
     solo_informativo: row.solo_informativo === 1 || row.solo_informativo === true,
+    calificar_manualmente: row.calificar_manualmente === 1 || row.calificar_manualmente === true,
     obligatoria: row.obligatoria !== 0 && row.obligatoria !== false,
     orden: row.orden
   };
+}
+
+function hexEsInformativo(row) {
+  return row?.solo_informativo === 1 || row?.solo_informativo === true;
+}
+
+function hexEsCalificarManual(row) {
+  if (hexEsInformativo(row)) return false;
+  if (row?.calificar_manualmente === 1 || row?.calificar_manualmente === true) return true;
+  const tipo = String(row?.tipo || '').toUpperCase();
+  if (tipo === 'RESPUESTA_CORTA') return true;
+  if (tipo === 'ALTERNATIVAS') {
+    const o = typeof row?.opciones_json === 'string' ? parseJsonSafe(row.opciones_json) : row?.opciones_json;
+    return !(o && typeof o.correcta === 'number');
+  }
+  if (tipo === 'VERDADERO_FALSO') {
+    const o = typeof row?.opciones_json === 'string' ? parseJsonSafe(row.opciones_json) : row?.opciones_json;
+    // Si viene flag explícito en JSON (sin clave correcta) — raro; preferimos columna
+    return o && Object.prototype.hasOwnProperty.call(o, 'correcta') === false;
+  }
+  return false;
 }
 
 /** GENERAL → puntos_correcta del examen; INDIVIDUAL → puntos de la pregunta (fila). */
@@ -410,9 +433,12 @@ function hexShuffleAlternativasRow(row) {
     [perm[i], perm[j]] = [perm[j], perm[i]];
   }
   const newOpciones = perm.map((idx) => o.opciones[idx]);
-  const oldCor = typeof o.correcta === 'number' ? o.correcta : 0;
-  const newCorrecta = perm.indexOf(oldCor);
-  const newO = { ...o, opciones: newOpciones, correcta: newCorrecta };
+  const newO = { ...o, opciones: newOpciones };
+  if (typeof o.correcta === 'number') {
+    newO.correcta = perm.indexOf(o.correcta);
+  } else {
+    delete newO.correcta;
+  }
   return { ...row, opciones_json: JSON.stringify(newO) };
 }
 
@@ -884,27 +910,42 @@ async function guardarExamenCompleto(req, res, opts) {
     const tipo = String(p.tipo || 'ALTERNATIVAS').toUpperCase();
     if (!textoPreguntaNoVacio(texto)) continue;
     if (!['ALTERNATIVAS', 'VERDADERO_FALSO', 'RESPUESTA_CORTA'].includes(tipo)) continue;
-    const puntos = Math.max(0, Number(p.puntos) || 0);
+    const puntos = hexEsInformativo(p) ? 0 : Math.max(0, Number(p.puntos) || 0);
     const soloInf = p.solo_informativo ? 1 : 0;
-    const oblig = p.obligatoria !== false ? 1 : 0;
+    const calManual =
+      soloInf || String(tipo).toUpperCase() === 'RESPUESTA_CORTA'
+        ? 0
+        : p.calificar_manualmente
+          ? 1
+          : 0;
+    const oblig = soloInf ? 0 : p.obligatoria !== false ? 1 : 0;
     let opciones_json = JSON.stringify(p.opciones || {});
     if (tipo === 'ALTERNATIVAS') {
       const op = p.opciones || {};
       const opts = Array.isArray(op.opciones) ? op.opciones : ['A', 'B', 'C', 'D'];
-      const correcta = typeof op.correcta === 'number' ? op.correcta : 0;
-      opciones_json = JSON.stringify({ opciones: opts, correcta });
+      const payload = { opciones: opts };
+      if (typeof op.correcta === 'number' && !Number.isNaN(op.correcta)) {
+        payload.correcta = op.correcta;
+      }
+      opciones_json = JSON.stringify(payload);
     }
     if (tipo === 'VERDADERO_FALSO') {
       const op = p.opciones || {};
-      opciones_json = JSON.stringify({ correcta: op.correcta === false ? false : true });
+      if (calManual && op.correcta !== true && op.correcta !== false) {
+        opciones_json = JSON.stringify({});
+      } else if (calManual) {
+        opciones_json = JSON.stringify({ correcta: op.correcta === false ? false : true });
+      } else {
+        opciones_json = JSON.stringify({ correcta: op.correcta === false ? false : true });
+      }
     }
     if (tipo === 'RESPUESTA_CORTA') {
       opciones_json = JSON.stringify({});
     }
     await execute(
-      `INSERT INTO herramientas_examenes_preguntas (examen_id, orden, texto, tipo, opciones_json, puntos, solo_informativo, obligatoria)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [examenId, ord, texto, tipo, opciones_json, puntos, soloInf, oblig]
+      `INSERT INTO herramientas_examenes_preguntas (examen_id, orden, texto, tipo, opciones_json, puntos, solo_informativo, calificar_manualmente, obligatoria)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [examenId, ord, texto, tipo, opciones_json, puntos, soloInf, calManual, oblig]
     );
     ord += 1;
   }
@@ -999,8 +1040,10 @@ function hexTextoPlanoPreview(html, maxLen = 100) {
   return t.length > maxLen ? `${t.slice(0, maxLen)}…` : t;
 }
 
-/** @returns {true|false|null} null = respuesta corta u otro caso no autoevaluable aquí */
-function hexEvaluarCorrectitud(tipo, opciones_json, respuesta_json) {
+/** @returns {true|false|null} null = no autoevaluable (texto, manual, informativo, sin clave) */
+function hexEvaluarCorrectitud(tipo, opciones_json, respuesta_json, rowMeta = null) {
+  if (rowMeta && hexEsInformativo(rowMeta)) return null;
+  if (rowMeta && hexEsCalificarManual(rowMeta)) return null;
   const tipoU = String(tipo || '').toUpperCase();
   const o = parseJsonSafe(opciones_json) || {};
   let r = respuesta_json;
@@ -1010,6 +1053,7 @@ function hexEvaluarCorrectitud(tipo, opciones_json, respuesta_json) {
     return Number(r.indice) === Number(o.correcta);
   }
   if (tipoU === 'VERDADERO_FALSO') {
+    if (!Object.prototype.hasOwnProperty.call(o, 'correcta')) return null;
     const correcta = o.correcta === false ? false : true;
     if (r == null || (r.valor !== true && r.valor !== false)) return null;
     return r.valor === correcta;
@@ -1042,10 +1086,18 @@ function hexConstruirEstadisticasAgregadas(preguntasRows, lineasRows, intentosRo
     st.n += 1;
     const tipo = String(L.pregunta_tipo || L.tipo || '').toUpperCase();
     const opc = L.pregunta_opciones != null ? L.pregunta_opciones : L.opciones_json;
-    const ok = hexEvaluarCorrectitud(tipo, opc, L.respuesta_json);
+    const meta = pregMap.get(pid) || {
+      tipo,
+      opciones_json: opc,
+      solo_informativo: L.pregunta_solo_informativo,
+      calificar_manualmente: L.pregunta_calificar_manualmente,
+      puntos: L.pregunta_puntos
+    };
+    if (hexEsInformativo(meta)) continue;
+    const ok = hexEvaluarCorrectitud(tipo, opc, L.respuesta_json, meta);
     if (ok === true) st.correctas += 1;
     else if (ok === false) st.incorrectas += 1;
-    else if (tipo === 'RESPUESTA_CORTA') {
+    else {
       const req = L.requiere_revision === 1 || L.requiere_revision === true;
       if (req) st.pendientes_revision += 1;
       else {
@@ -1226,7 +1278,7 @@ router.get('/gestion/:id/intento/:intentoId', authenticateToken, async (req, res
     if (!ir || !ir[0]) return res.status(404).json({ error: 'Intento no encontrado' });
     const lineas = await query(
       `SELECT d.*, p.texto AS pregunta_texto, p.tipo AS pregunta_tipo, p.opciones_json AS pregunta_opciones,
-              p.solo_informativo AS pregunta_solo_informativo, p.puntos AS pregunta_puntos
+              p.solo_informativo AS pregunta_solo_informativo, p.calificar_manualmente AS pregunta_calificar_manualmente, p.puntos AS pregunta_puntos
        FROM herramientas_examenes_respuestas_linea d
        INNER JOIN herramientas_examenes_preguntas p ON p.id = d.pregunta_id
        WHERE d.intento_id = ?
@@ -1494,7 +1546,7 @@ router.get('/mi-resultado/:examenId', authenticateToken, async (req, res) => {
     const intentoId = ir[0].id;
     const lineas = await query(
       `SELECT d.*, p.texto AS pregunta_texto, p.tipo AS pregunta_tipo, p.opciones_json AS pregunta_opciones,
-              p.solo_informativo AS pregunta_solo_informativo, p.puntos AS pregunta_puntos
+              p.solo_informativo AS pregunta_solo_informativo, p.calificar_manualmente AS pregunta_calificar_manualmente, p.puntos AS pregunta_puntos
        FROM herramientas_examenes_respuestas_linea d
        INNER JOIN herramientas_examenes_preguntas p ON p.id = d.pregunta_id
        WHERE d.intento_id = ?
@@ -1684,6 +1736,7 @@ router.post('/intento/:intentoId/enviar', authenticateToken, async (req, res) =>
     }
 
     for (const p of preguntas || []) {
+      if (hexEsInformativo(p)) continue;
       const oblig = p.obligatoria !== 0 && p.obligatoria !== false;
       if (!oblig) continue;
       const rr = mapR[p.id];
@@ -1717,24 +1770,31 @@ router.post('/intento/:intentoId/enviar', authenticateToken, async (req, res) =>
       let reqRev = false;
       let rj = {};
 
-      if (tipo === 'ALTERNATIVAS') {
+      if (hexEsInformativo(p)) {
+        continue;
+      }
+
+      if (hexEsCalificarManual(p) || tipo === 'RESPUESTA_CORTA') {
+        if (tipo === 'ALTERNATIVAS') rj = { indice: rr?.indice };
+        else if (tipo === 'VERDADERO_FALSO') rj = { valor: rr?.valor };
+        else rj = { texto: rr?.texto ?? '' };
+        reqRev = maxLocal > 0;
+        pts = 0;
+        if (reqRev) necesitaRevision = true;
+      } else if (tipo === 'ALTERNATIVAS') {
         rj = { indice: rr?.indice };
         const ok = typeof o.correcta === 'number' && rr && Number(rr.indice) === Number(o.correcta);
         pts = ok ? maxLocal : 0;
         puntajeParcial += pts;
       } else if (tipo === 'VERDADERO_FALSO') {
         rj = { valor: rr?.valor };
-        const ok = rr && (rr.valor === true || rr.valor === false) && rr.valor === !!o.correcta;
+        const ok =
+          Object.prototype.hasOwnProperty.call(o, 'correcta') &&
+          rr &&
+          (rr.valor === true || rr.valor === false) &&
+          rr.valor === !!o.correcta;
         pts = ok ? maxLocal : 0;
         puntajeParcial += pts;
-      } else if (tipo === 'RESPUESTA_CORTA') {
-        rj = { texto: rr?.texto ?? '' };
-        reqRev = maxLocal > 0;
-        if (!reqRev) pts = 0;
-        else {
-          necesitaRevision = true;
-          pts = 0;
-        }
       }
 
       await execute(

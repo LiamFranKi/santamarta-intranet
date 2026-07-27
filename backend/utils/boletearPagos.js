@@ -1,10 +1,7 @@
 /**
  * Boletear pagos — legacy do_boletear_json2 y do_boletear_moras_json.
- * No incluye boletear por grupo (do_boletear_json).
+ * Solo crea/marca impresiones (sin ZIP ni JSON SUNAT).
  */
-const crypto = require('crypto');
-const { PassThrough } = require('stream');
-const archiverMod = require('archiver');
 const { query, execute } = require('./mysql');
 const { cargarBcpColegioConfig } = require('./bcpColegioConfig');
 const { parseHistorialPagoIds } = require('./bcpCdpgImport');
@@ -15,57 +12,8 @@ const {
   marcarImpresionComoImpresa,
   impresoPendiente,
 } = require('./pagoImpresionEnsure');
-const {
-  getAdminImpresionPayload,
-  getActivePagoBoletaImpresion,
-  buildLegacyJsonBoletaFromImpresion,
-  buildLegacyJsonNotaDebitoFromImpresion,
-  buildLegacyJsonBoletaMoraFromImpresion,
-} = require('./pagoImpresionJson');
 
 const SQL_MATRICULA_VISIBLE = `(m.ocultar IS NULL OR m.ocultar = '' OR UPPER(TRIM(m.ocultar)) = 'NO')`;
-
-/** Compatible con archiver v5 (función) y v8 (clase ZipArchive). */
-function createZipArchive(options = {}) {
-  if (typeof archiverMod === 'function') {
-    return archiverMod('zip', options);
-  }
-  if (archiverMod && typeof archiverMod.ZipArchive === 'function') {
-    return new archiverMod.ZipArchive(options);
-  }
-  const err = new Error('Módulo archiver inválido (se requiere v5 función o v8 ZipArchive)');
-  err.code = 'ARCHIVER_INVALID';
-  throw err;
-}
-
-async function buildZipBuffer(files) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    const passthrough = new PassThrough();
-    passthrough.on('data', (chunk) => chunks.push(chunk));
-    passthrough.on('end', () => resolve(Buffer.concat(chunks)));
-    passthrough.on('error', reject);
-
-    let archive;
-    try {
-      archive = createZipArchive({ zlib: { level: 9 } });
-    } catch (e) {
-      reject(e);
-      return;
-    }
-    archive.on('error', reject);
-    archive.pipe(passthrough);
-
-    files.forEach((f) => {
-      archive.append(JSON.stringify(f.contenido, null, 2), { name: f.nombre });
-    });
-    archive.finalize();
-  });
-}
-
-function zipFilename() {
-  return `${crypto.randomBytes(16).toString('hex')}.zip`;
-}
 
 async function obtenerPagoMensualidad(colegioId, matriculaId, nroPago) {
   const rows = await query(
@@ -94,33 +42,9 @@ async function actualizarPagoTemporal(pagoId) {
   await execute(`UPDATE pagos SET observaciones = 'PAGO TEMPORAL' WHERE id = ?`, [pagoId]);
 }
 
-async function jsonDesdeImpresion(colegioId, impresionRow) {
-  const imp = await getAdminImpresionPayload({
-    colegio_id: colegioId,
-    pagoId: impresionRow.pago_id,
-    impresionId: impresionRow.id,
-  });
-  if (!imp) return null;
-
-  const tipoDoc = String(impresionRow.tipo_documento || imp.tipo_documento || '').toUpperCase();
-  const tipo = String(impresionRow.tipo || imp.tipo || '').toUpperCase();
-
-  if (tipo === 'PAGO' && tipoDoc === 'BOLETA') {
-    return buildLegacyJsonBoletaFromImpresion(imp);
-  }
-  if (tipo === 'MORA' && tipoDoc === 'NOTA') {
-    const boletaActiva = await getActivePagoBoletaImpresion(imp.pago_id);
-    return buildLegacyJsonNotaDebitoFromImpresion(imp, boletaActiva);
-  }
-  if (tipo === 'MORA' && tipoDoc === 'BOLETA') {
-    const boletaActiva = await getActivePagoBoletaImpresion(imp.pago_id);
-    return buildLegacyJsonBoletaMoraFromImpresion(imp, boletaActiva);
-  }
-  return null;
-}
-
 /**
  * Boletear todos los grupos del año activo (do_boletear_json2).
+ * Solo registra pagos temporales + impresiones; no genera ZIP.
  */
 async function boletearGeneral(colegioId, { nro_pago: nroPago, personal_id: personalId }) {
   const nro = parseInt(nroPago, 10);
@@ -138,7 +62,9 @@ async function boletearGeneral(colegioId, { nro_pago: nroPago, personal_id: pers
     [colegioId, anio]
   );
 
-  const impresionesPendientes = [];
+  let boletas = 0;
+  let yaImpresos = 0;
+  let creados = 0;
 
   for (const grupo of grupos || []) {
     const matriculas = await query(
@@ -156,6 +82,7 @@ async function boletearGeneral(colegioId, { nro_pago: nroPago, personal_id: pers
       const existente = await obtenerPagoMensualidad(colegioId, mat.id, nro);
       if (!existente) {
         pagoId = await crearPagoTemporal(colegioId, mat.id, nro, parseFloat(mat.pension), personalId);
+        if (pagoId) creados += 1;
       } else {
         pagoId = existente.id;
         await actualizarPagoTemporal(pagoId);
@@ -172,24 +99,32 @@ async function boletearGeneral(colegioId, { nro_pago: nroPago, personal_id: pers
 
       const imp = ens.impresion;
       if (impresoPendiente(imp)) {
-        impresionesPendientes.push(imp);
         await marcarImpresionComoImpresa(imp.id);
+        boletas += 1;
+      } else {
+        yaImpresos += 1;
       }
     }
   }
 
-  const files = [];
-  for (const imp of impresionesPendientes) {
-    const json = await jsonDesdeImpresion(colegioId, imp);
-    if (json) files.push(json);
+  if (!boletas && !yaImpresos) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'No se encontraron matrículas/pagos para boletear en la mensualidad seleccionada.',
+    };
   }
 
-  const buffer = await buildZipBuffer(files);
   return {
     ok: true,
-    buffer,
-    filename: zipFilename(),
-    boletas: files.length,
+    sin_zip: true,
+    boletas,
+    ya_impresos: yaImpresos,
+    pagos_creados: creados,
+    mensaje:
+      boletas > 0
+        ? `Se boletearon ${boletas} pago(s)${yaImpresos ? ` (${yaImpresos} ya estaban impresos)` : ''}.`
+        : `No había boletas pendientes; ${yaImpresos} ya estaban impresas.`,
   };
 }
 
@@ -203,6 +138,7 @@ function parseFechaRango(from, to) {
 
 /**
  * Boletear moras por rango de fechas (do_boletear_moras_json).
+ * Solo marca impresiones; no genera ZIP.
  */
 async function boletearMoras(colegioId, { from, to, cantidad }) {
   const rango = parseFechaRango(from, to);
@@ -227,7 +163,7 @@ async function boletearMoras(colegioId, { from, to, cantidad }) {
     [colegioId, rango.from, rango.to]
   );
 
-  const impresionesPendientes = [];
+  let boletas = 0;
   let count = 0;
 
   for (const pago of pagos || []) {
@@ -264,24 +200,25 @@ async function boletearMoras(colegioId, { from, to, cantidad }) {
     if (!impresionMora) continue;
 
     if (impresoPendiente(impresionMora)) {
-      impresionesPendientes.push(impresionMora);
       await marcarImpresionComoImpresa(impresionMora.id);
+      boletas += 1;
       count += 1;
     }
   }
 
-  const files = [];
-  for (const imp of impresionesPendientes) {
-    const json = await jsonDesdeImpresion(colegioId, imp);
-    if (json) files.push(json);
+  if (!boletas) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'No hay notas de débito pendientes de impresión en el rango indicado.',
+    };
   }
 
-  const buffer = await buildZipBuffer(files);
   return {
     ok: true,
-    buffer,
-    filename: zipFilename(),
-    boletas: files.length,
+    sin_zip: true,
+    boletas,
+    mensaje: `Se boletearon ${boletas} mora(s).`,
   };
 }
 

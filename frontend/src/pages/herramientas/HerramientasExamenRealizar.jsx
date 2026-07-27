@@ -114,21 +114,23 @@ export default function HerramientasExamenRealizar() {
   const enviar = async () => {
     if (preview || !payload?.preguntas || !intentoId) return;
     const lista = [];
-    for (const p of payload.preguntas) {
+    for (let qi = 0; qi < payload.preguntas.length; qi += 1) {
+      const p = payload.preguntas[qi];
+      if (p.solo_informativo) continue;
       const oblig = p.obligatoria !== false;
       const r = respuestas[p.id] || {};
       const tipo = String(p.tipo || '').toUpperCase();
       if (oblig) {
         if (tipo === 'ALTERNATIVAS' && r.indice == null) {
-          Swal.fire('Atención', `Selecciona una opción: ${p.texto}`, 'warning');
+          Swal.fire('Atención', `Selecciona una opción en la pregunta ${qi + 1}`, 'warning');
           return;
         }
         if (tipo === 'VERDADERO_FALSO' && r.valor !== true && r.valor !== false) {
-          Swal.fire('Atención', `Marca verdadero o falso: ${p.texto}`, 'warning');
+          Swal.fire('Atención', `Marca verdadero o falso en la pregunta ${qi + 1}`, 'warning');
           return;
         }
         if (tipo === 'RESPUESTA_CORTA' && !String(r.texto || '').trim()) {
-          Swal.fire('Atención', `Completa: ${p.texto}`, 'warning');
+          Swal.fire('Atención', `Completa la pregunta ${qi + 1}`, 'warning');
           return;
         }
       }
@@ -144,7 +146,7 @@ export default function HerramientasExamenRealizar() {
       const lines = [];
       if (data.requiere_revision_docente) {
         lines.push(
-          '<p>Quedan preguntas de texto <strong>pendientes de revisión</strong>. Te avisaremos cuando tengas la nota final.</p>'
+          '<p>Quedan preguntas <strong>pendientes de revisión</strong> (texto o calificación manual). Te avisaremos cuando tengas la nota final.</p>'
         );
       }
       if (mn !== 'NO' && data.puntaje_max != null && data.estado === 'CALIFICADO') {
@@ -194,33 +196,51 @@ export default function HerramientasExamenRealizar() {
 
   return (
     <DashboardLayout>
-      <Box sx={{ maxWidth: 760, mx: 'auto', px: 1, pb: 6 }}>
+      <Box className="hex-realizar-page" sx={{ maxWidth: 820, mx: 'auto', px: 1.5, pb: 6 }}>
         {preview ? (
-          <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+          <Alert
+            severity="info"
+            sx={{
+              mb: 2,
+              borderRadius: 3,
+              border: '1px solid #bfdbfe',
+              bgcolor: '#eff6ff',
+              fontWeight: 600
+            }}
+          >
             <strong>Vista previa.</strong> No se guardan respuestas.
           </Alert>
         ) : null}
+
         <div className="hex-exam-realizar-hero">
-          <Typography variant="h6" fontWeight={800}>
+          <Typography variant="overline" sx={{ opacity: 0.9, letterSpacing: '0.12em', fontWeight: 800 }}>
+            Evaluación
+          </Typography>
+          <Typography variant="h5" fontWeight={900} sx={{ letterSpacing: '-0.02em', lineHeight: 1.25 }}>
             {examen.titulo}
           </Typography>
           {examen.descripcion ? (
-            <Typography variant="body2" sx={{ mt: 1, opacity: 0.95 }}>
+            <Typography variant="body2" sx={{ mt: 1.25, opacity: 0.95, lineHeight: 1.55, maxWidth: 640 }}>
               {examen.descripcion}
             </Typography>
           ) : null}
-          <Stack direction="row" gap={1} flexWrap="wrap" sx={{ mt: 1.5 }}>
-            <Chip size="small" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: '#fff' }} label={examen.modo} />
-            {preview ? null : (
-              <Chip size="small" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: '#fff' }} label={`Intento ${intentoId}`} />
-            )}
+          <Stack direction="row" gap={1} flexWrap="wrap" sx={{ mt: 1.75 }}>
+            <Chip size="small" className="hex-hero-chip" label={examen.modo} />
+            <Chip
+              size="small"
+              className="hex-hero-chip"
+              label={`${preguntas?.length || 0} ítems`}
+            />
+            {examen.tiempo_minutos ? (
+              <Chip size="small" className="hex-hero-chip" label={`${examen.tiempo_minutos} min`} />
+            ) : null}
           </Stack>
         </div>
 
         {examen.bloque_contenido || examen.bloque_imagen_url ? (
-          <Card sx={{ borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
+          <Card className="hex-realizar-contexto" elevation={0}>
             <CardContent>
-              <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1, color: 'primary.main' }}>
+              <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1, color: '#4338ca' }}>
                 Contexto del examen
               </Typography>
               {examen.bloque_imagen_url ? (
@@ -228,7 +248,13 @@ export default function HerramientasExamenRealizar() {
                   component="img"
                   src={examen.bloque_imagen_url}
                   alt=""
-                  sx={{ maxWidth: '100%', maxHeight: 280, borderRadius: 2, mb: examen.bloque_contenido ? 2 : 0, objectFit: 'contain' }}
+                  sx={{
+                    maxWidth: '100%',
+                    maxHeight: 280,
+                    borderRadius: 2,
+                    mb: examen.bloque_contenido ? 2 : 0,
+                    objectFit: 'contain'
+                  }}
                 />
               ) : null}
               {examen.bloque_contenido ? (
@@ -242,83 +268,125 @@ export default function HerramientasExamenRealizar() {
           </Card>
         ) : null}
 
-        <Card sx={{ borderRadius: 3, mb: 2 }}>
-          <CardContent>
-            <fieldset disabled={preview} style={{ border: 'none', padding: 0, margin: 0 }}>
-              <Stack spacing={3}>
-                {preguntas.map((p, idx) => {
-                  const tipo = String(p.tipo || '').toUpperCase();
-                  const r = respuestas[p.id] || {};
-                  const pts = puntosMostrarHex(examen, p);
-                  return (
-                    <Box key={p.id}>
-                      <div className="hex-q-enunciado">
-                        <span className="hex-q-enunciado-num">{idx + 1}.</span>
-                        <div
-                          className="hex-q-enunciado-body"
-                          dangerouslySetInnerHTML={{ __html: p.texto || '' }}
-                        />
-                      </div>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                        {p.solo_informativo ? 'Informativo · ' : ''}
-                        {`${fmtPts(pts)} pt.`}
-                      </Typography>
+        <fieldset disabled={preview} style={{ border: 'none', padding: 0, margin: 0 }}>
+          <Stack spacing={2.25}>
+            {preguntas.map((p, idx) => {
+              const tipo = String(p.tipo || '').toUpperCase();
+              const r = respuestas[p.id] || {};
+              const pts = puntosMostrarHex(examen, p);
+              const soloInf = !!p.solo_informativo;
+              return (
+                <Card key={p.id} className={`hex-q-card ${soloInf ? 'hex-q-card--info' : ''}`} elevation={0}>
+                  <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
+                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 1.25 }}>
+                      <span className="hex-q-badge-num">{idx + 1}</span>
+                      {soloInf ? (
+                        <Chip size="small" label="Informativo" className="hex-q-chip-info" />
+                      ) : (
+                        <>
+                          <Chip
+                            size="small"
+                            label={
+                              tipo === 'ALTERNATIVAS'
+                                ? 'Alternativas'
+                                : tipo === 'VERDADERO_FALSO'
+                                  ? 'V / F'
+                                  : 'Respuesta corta'
+                            }
+                            className="hex-q-chip-tipo"
+                          />
+                          {p.calificar_manualmente ? (
+                            <Chip size="small" label="Calificación manual" className="hex-q-chip-manual" />
+                          ) : null}
+                          <Chip size="small" label={`${fmtPts(pts)} pt`} className="hex-q-chip-pts" />
+                        </>
+                      )}
+                    </Stack>
 
-                      {tipo === 'ALTERNATIVAS' ? (
-                        <FormControl component="fieldset" sx={{ mt: 1 }} fullWidth>
-                          <RadioGroup
-                            value={r.indice != null ? String(r.indice) : ''}
-                            onChange={(e) => setVal(p.id, { indice: parseInt(e.target.value, 10) })}
-                          >
-                            {(p.opciones?.opciones || []).map((op, j) => (
-                              <FormControlLabel
-                                key={j}
-                                value={String(j)}
-                                control={<Radio />}
-                                label={<span dangerouslySetInnerHTML={{ __html: String(op || '') }} />}
-                              />
-                            ))}
-                          </RadioGroup>
-                        </FormControl>
-                      ) : null}
+                    <div className="hex-q-enunciado">
+                      <div
+                        className="hex-q-enunciado-body"
+                        dangerouslySetInnerHTML={{ __html: p.texto || '' }}
+                      />
+                    </div>
 
-                      {tipo === 'VERDADERO_FALSO' ? (
-                        <FormControl component="fieldset" sx={{ mt: 1 }}>
-                          <RadioGroup
-                            value={r.valor === true ? 'v' : r.valor === false ? 'f' : ''}
-                            onChange={(e) => setVal(p.id, { valor: e.target.value === 'v' })}
-                          >
-                            <FormControlLabel value="v" control={<Radio />} label="Verdadero" />
-                            <FormControlLabel value="f" control={<Radio />} label="Falso" />
-                          </RadioGroup>
-                        </FormControl>
-                      ) : null}
+                    {soloInf ? (
+                      <Box className="hex-q-info-note">Solo lectura — no requiere respuesta</Box>
+                    ) : null}
 
-                      {tipo === 'RESPUESTA_CORTA' ? (
-                        <TextField
-                          fullWidth
-                          multiline
-                          minRows={2}
-                          sx={{ mt: 1 }}
-                          value={r.texto || ''}
-                          onChange={(e) => setVal(p.id, { texto: e.target.value })}
-                          placeholder="Escribe tu respuesta"
-                        />
-                      ) : null}
-                    </Box>
-                  );
-                })}
-              </Stack>
-            </fieldset>
-          </CardContent>
-        </Card>
+                    {!soloInf && tipo === 'ALTERNATIVAS' ? (
+                      <FormControl component="fieldset" sx={{ mt: 1.5 }} fullWidth>
+                        <RadioGroup
+                          value={r.indice != null ? String(r.indice) : ''}
+                          onChange={(e) => setVal(p.id, { indice: parseInt(e.target.value, 10) })}
+                          className="hex-q-options"
+                        >
+                          {(p.opciones?.opciones || []).map((op, j) => (
+                            <FormControlLabel
+                              key={j}
+                              value={String(j)}
+                              className={`hex-q-option ${r.indice === j ? 'hex-q-option--on' : ''}`}
+                              control={<Radio size="small" />}
+                              label={<span dangerouslySetInnerHTML={{ __html: String(op || '') }} />}
+                            />
+                          ))}
+                        </RadioGroup>
+                      </FormControl>
+                    ) : null}
 
-        <Stack direction="row" spacing={2} justifyContent="flex-end" flexWrap="wrap" useFlexGap>
-          <Button variant="outlined" onClick={() => navigate(volverPath)}>
+                    {!soloInf && tipo === 'VERDADERO_FALSO' ? (
+                      <FormControl component="fieldset" sx={{ mt: 1.5 }} fullWidth>
+                        <RadioGroup
+                          value={r.valor === true ? 'v' : r.valor === false ? 'f' : ''}
+                          onChange={(e) => setVal(p.id, { valor: e.target.value === 'v' })}
+                          className="hex-q-options hex-q-options--row"
+                        >
+                          <FormControlLabel
+                            value="v"
+                            className={`hex-q-option ${r.valor === true ? 'hex-q-option--on' : ''}`}
+                            control={<Radio size="small" />}
+                            label="Verdadero"
+                          />
+                          <FormControlLabel
+                            value="f"
+                            className={`hex-q-option ${r.valor === false ? 'hex-q-option--on' : ''}`}
+                            control={<Radio size="small" />}
+                            label="Falso"
+                          />
+                        </RadioGroup>
+                      </FormControl>
+                    ) : null}
+
+                    {!soloInf && tipo === 'RESPUESTA_CORTA' ? (
+                      <TextField
+                        fullWidth
+                        multiline
+                        minRows={3}
+                        sx={{
+                          mt: 1.5,
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2.5,
+                            bgcolor: '#f8fafc'
+                          }
+                        }}
+                        value={r.texto || ''}
+                        onChange={(e) => setVal(p.id, { texto: e.target.value })}
+                        placeholder="Escribe tu respuesta"
+                      />
+                    ) : null}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </Stack>
+        </fieldset>
+
+        <Stack direction="row" spacing={1.5} justifyContent="flex-end" flexWrap="wrap" useFlexGap sx={{ mt: 3 }}>
+          <Button variant="outlined" onClick={() => navigate(volverPath)} sx={{ borderRadius: 2, fontWeight: 700 }}>
             Volver
           </Button>
           {!preview && intentoId ? (
-            <Button variant="outlined" onClick={guardarBorrador}>
+            <Button variant="outlined" onClick={guardarBorrador} sx={{ borderRadius: 2, fontWeight: 700 }}>
               Guardar borrador
             </Button>
           ) : null}
@@ -329,9 +397,11 @@ export default function HerramientasExamenRealizar() {
               onClick={enviar}
               sx={{
                 fontWeight: 800,
-                borderRadius: 2,
-                px: 3,
-                background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)'
+                borderRadius: 2.5,
+                px: 3.5,
+                py: 1.1,
+                background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                boxShadow: '0 8px 24px rgba(79,70,229,0.35)'
               }}
             >
               {enviando ? 'Enviando…' : 'Enviar respuestas'}

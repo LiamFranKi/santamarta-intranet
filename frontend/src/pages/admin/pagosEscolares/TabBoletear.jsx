@@ -9,27 +9,8 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function descargarBlob(blob, filename) {
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  window.URL.revokeObjectURL(url);
-}
-
-async function parseErrorBlob(e, fallback) {
-  if (e.response?.data instanceof Blob) {
-    try {
-      const txt = await e.response.data.text();
-      const j = JSON.parse(txt);
-      return j.error || fallback;
-    } catch {
-      return fallback;
-    }
-  }
-  return e.response?.data?.error || fallback;
-}
+/** Timeout largo: boletear todos los grupos puede tardar varios minutos. */
+const BOLETEAR_TIMEOUT_MS = 10 * 60 * 1000;
 
 export default function TabBoletear() {
   const [loadingInit, setLoadingInit] = useState(true);
@@ -79,7 +60,7 @@ export default function TabBoletear() {
     const confirm = await Swal.fire({
       icon: 'question',
       title: '¿Continuar?',
-      text: 'Se registrarán "pagos temporales" correspondientes a los datos seleccionados. ¿Desea continuar?',
+      text: 'Se registrarán "pagos temporales" y se marcarán las boletas de la mensualidad seleccionada (todos los grupos). ¿Desea continuar?',
       showCancelButton: true,
       confirmButtonText: 'Sí, boletear',
       cancelButtonText: 'Cancelar',
@@ -87,24 +68,30 @@ export default function TabBoletear() {
     if (!confirm.isConfirmed) return;
 
     setBoleteandoGeneral(true);
+    Swal.fire({
+      title: 'Boleteando…',
+      text: 'Puede tardar varios minutos. No cierre esta ventana.',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => Swal.showLoading(),
+    });
     try {
-      const { data, headers } = await api.post(
+      const { data } = await api.post(
         '/admin/pagos/boletear/general',
         { nro_pago: parseInt(nroPagoVal, 10) },
-        { responseType: 'blob' }
+        { timeout: BOLETEAR_TIMEOUT_MS }
       );
-      const count = headers['x-boletas-count'] || '?';
-      const filename = `boletas_${todayIso()}.zip`;
-      descargarBlob(data, filename);
       Swal.fire({
         icon: 'success',
-        title: 'ZIP generado',
-        text: `Se incluyeron ${count} comprobante(s) JSON.`,
-        timer: 3000,
-        showConfirmButton: false,
+        title: 'Boleteo completado',
+        html: `<p>${data.mensaje || `Se boletearon ${data.boletas} pago(s).`}</p>
+               ${data.pagos_creados ? `<p>Pagos temporales creados: <strong>${data.pagos_creados}</strong></p>` : ''}`,
       });
     } catch (e) {
-      const msg = await parseErrorBlob(e, 'No se pudo boletear pagos');
+      const msg =
+        e.code === 'ECONNABORTED'
+          ? 'La operación tardó demasiado. Espere e intente de nuevo; puede que parte ya se haya boleteado.'
+          : e.response?.data?.error || 'No se pudo boletear pagos';
       Swal.fire({ icon: 'error', title: 'Boletear fallido', text: msg });
     } finally {
       setBoleteandoGeneral(false);
@@ -113,28 +100,32 @@ export default function TabBoletear() {
 
   const boletearMoras = async () => {
     setBoleteandoMoras(true);
+    Swal.fire({
+      title: 'Boleteando moras…',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => Swal.showLoading(),
+    });
     try {
-      const { data, headers } = await api.post(
+      const { data } = await api.post(
         '/admin/pagos/boletear/moras',
         {
           from,
           to,
           cantidad: parseInt(cantidad, 10) || 1,
         },
-        { responseType: 'blob' }
+        { timeout: BOLETEAR_TIMEOUT_MS }
       );
-      const count = headers['x-boletas-count'] || '?';
-      const filename = `moras_${todayIso()}.zip`;
-      descargarBlob(data, filename);
       Swal.fire({
         icon: 'success',
-        title: 'ZIP generado',
-        text: `Se incluyeron ${count} nota(s) de débito JSON.`,
-        timer: 3000,
-        showConfirmButton: false,
+        title: 'Moras boleteadas',
+        text: data.mensaje || `Se boletearon ${data.boletas} mora(s).`,
       });
     } catch (e) {
-      const msg = await parseErrorBlob(e, 'No se pudo boletear moras');
+      const msg =
+        e.code === 'ECONNABORTED'
+          ? 'La operación tardó demasiado. Intente de nuevo.'
+          : e.response?.data?.error || 'No se pudo boletear moras';
       Swal.fire({ icon: 'error', title: 'Boletear moras fallido', text: msg });
     } finally {
       setBoleteandoMoras(false);
@@ -163,8 +154,8 @@ export default function TabBoletear() {
       <div className="pe-card pe-card--pastel-amber">
         <h2 className="pe-card-title">Boletear pagos — todos los grupos</h2>
         <p className="pe-bcp-section-hint">
-          Genera pagos temporales y descarga un ZIP con los JSON de boleta para todas las matrículas del año activo
-          (mensualidad seleccionada).
+          Genera pagos temporales y marca las boletas de impresión para todas las matrículas del año activo
+          (mensualidad seleccionada). No descarga ZIP: solo boletea.
         </p>
         <div className="pe-form-row pe-form-row--actions-end">
           <TextField
@@ -189,15 +180,15 @@ export default function TabBoletear() {
             onClick={boletearGeneral}
           >
             <ReceiptLongOutlinedIcon fontSize="small" />
-            {boleteandoGeneral ? 'Generando…' : 'Boletear pagos'}
+            {boleteandoGeneral ? 'Boleteando…' : 'Boletear pagos'}
           </button>
         </div>
       </div>
 
       <div className="pe-card pe-card--pastel-sky">
-        <h2 className="pe-card-title">Boletear moras — JSON</h2>
+        <h2 className="pe-card-title">Boletear moras</h2>
         <p className="pe-bcp-section-hint">
-          Se imprimirán las moras de los pagos cancelados en el rango de fechas indicado.
+          Se marcarán las moras de los pagos cancelados en el rango de fechas indicado (sin ZIP).
         </p>
         <div className="pe-form-row pe-form-row--wrap">
           <TextField
@@ -234,7 +225,7 @@ export default function TabBoletear() {
             onClick={boletearMoras}
           >
             <WarningAmberOutlinedIcon fontSize="small" />
-            {boleteandoMoras ? 'Generando…' : 'Boletear moras'}
+            {boleteandoMoras ? 'Boleteando…' : 'Boletear moras'}
           </button>
         </div>
       </div>

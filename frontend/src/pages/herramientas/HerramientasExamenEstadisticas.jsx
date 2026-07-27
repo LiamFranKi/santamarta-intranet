@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
   Button,
+  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -313,8 +314,39 @@ export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
       </div>
 
       <Dialog open={Boolean(dlg)} onClose={() => setDlg(null)} maxWidth="md" fullWidth>
-        <DialogTitle>Revisión de intento</DialogTitle>
-        <DialogContent dividers>
+        <DialogTitle className="hex-rev-dlg-title">Revisión de intento</DialogTitle>
+        <DialogContent dividers className="hex-rev-dlg-content">
+          {dlg?.intento ? (
+            <Box
+              sx={{
+                mb: 2,
+                p: 1.5,
+                borderRadius: 2,
+                bgcolor: '#fff',
+                border: '1px solid #e0e7ff',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 1.5,
+                alignItems: 'center'
+              }}
+            >
+              <Typography variant="body2" fontWeight={700} color="text.secondary">
+                Intento #{dlg.intento.id}
+              </Typography>
+              {dlg.intento.puntaje_obtenido != null ? (
+                <Chip
+                  size="small"
+                  label={`Puntaje actual: ${fmtPts(dlg.intento.puntaje_obtenido)} / ${fmtPts(
+                    dlg.intento.puntaje_max_snapshot ?? data?.puntaje_max_examen
+                  )}`}
+                  sx={{ bgcolor: '#e0e7ff', color: '#3730a3', fontWeight: 800 }}
+                />
+              ) : null}
+              <Typography variant="caption" color="text.secondary">
+                Asigna o ajusta los puntos por pregunta y guarda la calificación.
+              </Typography>
+            </Box>
+          ) : null}
           <HexExamenesRevisionLineas
             lineas={dlg?.lineas || []}
             examen={dlg?.examen || {}}
@@ -323,9 +355,20 @@ export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
             setLineEdits={setLineEdits}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDlg(null)}>Cerrar</Button>
-          <Button variant="contained" onClick={guardarRevision}>
+        <DialogActions sx={{ px: 2.5, py: 1.75, bgcolor: '#f8fafc' }}>
+          <Button onClick={() => setDlg(null)} sx={{ fontWeight: 700 }}>
+            Cerrar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={guardarRevision}
+            sx={{
+              fontWeight: 800,
+              borderRadius: 2,
+              px: 2.5,
+              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)'
+            }}
+          >
             Guardar calificación
           </Button>
         </DialogActions>

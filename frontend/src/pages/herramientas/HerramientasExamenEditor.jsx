@@ -394,7 +394,7 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
       Swal.fire({ icon: 'error', title: 'La descripción es obligatoria', toast: true, position: 'top-end', timer: 2500 });
       return;
     }
-    if (form.tipo === 'ALTERNATIVAS') {
+    if (!form.solo_informativo && form.tipo === 'ALTERNATIVAS') {
       const opts = form.opciones?.opciones || [];
       if (opts.length < 2) {
         Swal.fire('Atención', 'Agrega al menos 2 alternativas', 'warning');
@@ -405,17 +405,29 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
         Swal.fire('Atención', 'Completa al menos 2 alternativas con texto', 'warning');
         return;
       }
-      const cor = Number(form.opciones?.correcta);
-      if (Number.isNaN(cor) || cor < 0 || cor >= opts.length) {
-        Swal.fire('Atención', 'Marca cuál es la alternativa correcta', 'warning');
-        return;
-      }
-      if (!textoPlano(opts[cor])) {
+      const cor = form.opciones?.correcta;
+      const requiereCorrecta = !form.calificar_manualmente;
+      if (requiereCorrecta) {
+        if (typeof cor !== 'number' || Number.isNaN(cor) || cor < 0 || cor >= opts.length) {
+          Swal.fire('Atención', 'Marca cuál es la alternativa correcta (o activa «Calificar manualmente»)', 'warning');
+          return;
+        }
+        if (!textoPlano(opts[cor])) {
+          Swal.fire('Atención', 'La alternativa marcada como correcta debe tener texto', 'warning');
+          return;
+        }
+      } else if (typeof cor === 'number' && !Number.isNaN(cor) && !textoPlano(opts[cor])) {
         Swal.fire('Atención', 'La alternativa marcada como correcta debe tener texto', 'warning');
         return;
       }
     }
-    onGuardar(form);
+    const toSave = {
+      ...form,
+      puntos: form.solo_informativo ? 0 : form.puntos,
+      obligatoria: form.solo_informativo ? false : form.obligatoria !== false,
+      calificar_manualmente: form.solo_informativo ? false : !!form.calificar_manualmente
+    };
+    onGuardar(toSave);
     onClose();
   };
 
@@ -492,7 +504,7 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
                   ]}
                 />
               </div>
-              {examenMeta.tipo_puntaje === 'INDIVIDUAL' && (
+              {examenMeta.tipo_puntaje === 'INDIVIDUAL' && !form.solo_informativo && (
                 <div className="form-group">
                   <label>Puntos *</label>
                   <input
@@ -510,23 +522,68 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
                   <input
                     type="checkbox"
                     checked={!!form.solo_informativo}
-                    onChange={(e) => setForm({ ...form, solo_informativo: e.target.checked })}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setForm({
+                        ...form,
+                        solo_informativo: checked,
+                        puntos: checked ? 0 : form.puntos || 1,
+                        obligatoria: checked ? false : form.obligatoria !== false,
+                        calificar_manualmente: checked ? false : form.calificar_manualmente
+                      });
+                    }}
                   />
-                  Solo informativo (no suma en modo mixto)
+                  Solo informativo (solo texto; no pide respuesta ni suma puntos)
                 </label>
               </div>
-              <div className="form-group">
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={form.obligatoria !== false}
-                    onChange={(e) => setForm({ ...form, obligatoria: e.target.checked })}
-                  />
-                  Obligatoria
-                </label>
-              </div>
+              {!form.solo_informativo && form.tipo !== 'RESPUESTA_CORTA' && (
+                <div className="form-group">
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={!!form.calificar_manualmente}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        let opciones = form.opciones;
+                        if (form.tipo === 'ALTERNATIVAS') {
+                          opciones = {
+                            ...form.opciones,
+                            correcta: checked
+                              ? typeof form.opciones?.correcta === 'number'
+                                ? form.opciones.correcta
+                                : null
+                              : typeof form.opciones?.correcta === 'number'
+                                ? form.opciones.correcta
+                                : 0
+                          };
+                        }
+                        setForm({ ...form, calificar_manualmente: checked, opciones });
+                      }}
+                    />
+                    Calificar manualmente (no autoevalúa; tú asignas la nota al revisar)
+                  </label>
+                </div>
+              )}
+              {!form.solo_informativo && (
+                <div className="form-group">
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={form.obligatoria !== false}
+                      onChange={(e) => setForm({ ...form, obligatoria: e.target.checked })}
+                    />
+                    Obligatoria
+                  </label>
+                </div>
+              )}
 
-              {form.tipo === 'ALTERNATIVAS' && (
+              {form.solo_informativo && (
+                <p style={{ color: '#0f766e', fontSize: '0.9rem', background: '#f0fdfa', padding: '10px 12px', borderRadius: 8 }}>
+                  Bloque informativo: en el examen solo se mostrará este texto, sin campo de respuesta.
+                </p>
+              )}
+
+              {!form.solo_informativo && form.tipo === 'ALTERNATIVAS' && (
                 <div className="form-group" style={{ marginTop: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                     <label style={{ margin: 0, fontWeight: 700, color: '#1e3a8a' }}>Alternativas</label>
@@ -544,14 +601,33 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
                     </button>
                   </div>
                   <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: 10 }}>
-                    Marca la alternativa correcta (como en el examen del aula del docente). Puedes insertar imágenes desde la barra de cada opción.
+                    {form.calificar_manualmente
+                      ? 'Puedes dejar sin marcar «Correcta»: verás la opción elegida y asignarás puntos al revisar.'
+                      : 'Marca la alternativa correcta (autoevaluación). O activa «Calificar manualmente» si no quieres clave.'}
                   </p>
+                  {form.calificar_manualmente && (
+                    <button
+                      type="button"
+                      className="btn-cancelar"
+                      style={{ marginBottom: 10, padding: '0.35rem 0.75rem', fontSize: '0.85rem' }}
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          opciones: { ...form.opciones, correcta: null }
+                        })
+                      }
+                    >
+                      Quitar marca de correcta
+                    </button>
+                  )}
                   <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
                     <table className="tabla-aula-virtual" style={{ margin: 0 }}>
                       <thead>
                         <tr>
                           <th style={{ minWidth: 280 }}>Descripción</th>
-                          <th style={{ width: 130, textAlign: 'center' }}>Correcta</th>
+                          <th style={{ width: 130, textAlign: 'center' }}>
+                            {form.calificar_manualmente ? 'Correcta (opc.)' : 'Correcta'}
+                          </th>
                           <th style={{ width: 72, textAlign: 'center' }}> </th>
                         </tr>
                       </thead>
@@ -589,7 +665,7 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
                                 <input
                                   type="radio"
                                   name={`hex-alt-correcta-${form._localKey || form.id || 'x'}`}
-                                  checked={Number(form.opciones?.correcta) === j}
+                                  checked={form.opciones?.correcta === j}
                                   onChange={() =>
                                     setForm({
                                       ...form,
@@ -602,10 +678,10 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
                                   style={{
                                     marginLeft: 6,
                                     fontWeight: 600,
-                                    color: Number(form.opciones?.correcta) === j ? '#10b981' : '#6b7280'
+                                    color: form.opciones?.correcta === j ? '#10b981' : '#6b7280'
                                   }}
                                 >
-                                  {Number(form.opciones?.correcta) === j ? '✓ Correcta' : 'Marcar'}
+                                  {form.opciones?.correcta === j ? '✓ Correcta' : 'Marcar'}
                                 </span>
                               </label>
                             </td>
@@ -619,9 +695,11 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
                                   const arr = [...(form.opciones?.opciones || [])];
                                   if (arr.length <= 2) return;
                                   arr.splice(j, 1);
-                                  let cor = Number(form.opciones?.correcta) || 0;
-                                  if (cor === j) cor = 0;
-                                  else if (cor > j) cor -= 1;
+                                  let cor = form.opciones?.correcta;
+                                  if (typeof cor === 'number') {
+                                    if (cor === j) cor = form.calificar_manualmente ? null : 0;
+                                    else if (cor > j) cor -= 1;
+                                  }
                                   quillRefsAlternativas.current = {};
                                   setForm({
                                     ...form,
@@ -647,25 +725,39 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
                   </div>
                 </div>
               )}
-              {form.tipo === 'VERDADERO_FALSO' && (
+              {!form.solo_informativo && form.tipo === 'VERDADERO_FALSO' && (
                 <div className="form-group">
-                  <label>Respuesta correcta</label>
+                  <label>Respuesta correcta {form.calificar_manualmente ? '(opcional)' : ''}</label>
                   <select
                     className="form-input"
-                    value={form.opciones?.correcta === false ? 'false' : 'true'}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        opciones: { ...form.opciones, correcta: e.target.value === 'true' }
-                      })
+                    value={
+                      form.opciones?.correcta === false
+                        ? 'false'
+                        : form.opciones?.correcta === true
+                          ? 'true'
+                          : form.calificar_manualmente
+                            ? ''
+                            : 'true'
                     }
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === '') {
+                        setForm({ ...form, opciones: {} });
+                      } else {
+                        setForm({
+                          ...form,
+                          opciones: { ...form.opciones, correcta: v === 'true' }
+                        });
+                      }
+                    }}
                   >
+                    {form.calificar_manualmente ? <option value="">Sin clave (revisión manual)</option> : null}
                     <option value="true">Verdadero</option>
                     <option value="false">Falso</option>
                   </select>
                 </div>
               )}
-              {form.tipo === 'RESPUESTA_CORTA' && (
+              {!form.solo_informativo && form.tipo === 'RESPUESTA_CORTA' && (
                 <p style={{ color: '#92400e', fontSize: '0.9rem' }}>Se califica manualmente en estadísticas.</p>
               )}
 
@@ -1070,9 +1162,10 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
           texto: p.texto,
           tipo: p.tipo,
           opciones: p.opciones,
-          puntos: Math.max(0, Number(p.puntos) || 0),
+          puntos: p.solo_informativo ? 0 : Math.max(0, Number(p.puntos) || 0),
           solo_informativo: !!p.solo_informativo,
-          obligatoria: p.obligatoria !== false
+          calificar_manualmente: !p.solo_informativo && !!p.calificar_manualmente,
+          obligatoria: p.solo_informativo ? false : p.obligatoria !== false
         }))
     };
   };

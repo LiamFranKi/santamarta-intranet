@@ -85,12 +85,260 @@
 }
 
 .hex-exam-realizar-hero {
-  background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 50%, #8b5cf6 100%);
-  border-radius: 16px;
-  padding: 22px 24px;
+  background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 48%, #8b5cf6 100%);
+  border-radius: 20px;
+  padding: 26px 28px;
   color: #fff;
-  margin-bottom: 20px;
-  box-shadow: 0 10px 36px rgba(14, 165, 233, 0.3);
+  margin-bottom: 22px;
+  box-shadow: 0 14px 40px rgba(79, 70, 229, 0.32);
+}
+
+.hex-hero-chip {
+  background: rgba(255, 255, 255, 0.22) !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+}
+
+.hex-realizar-contexto {
+  border-radius: 18px !important;
+  margin-bottom: 18px !important;
+  border: 1px solid #e0e7ff !important;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05) !important;
+}
+
+.hex-q-card {
+  border-radius: 18px !important;
+  border: 1px solid #e2e8f0 !important;
+  background: #fff !important;
+  box-shadow: 0 6px 22px rgba(15, 23, 42, 0.06) !important;
+  overflow: hidden;
+}
+
+.hex-q-card--info {
+  border-color: #99f6e4 !important;
+  background: linear-gradient(180deg, #f0fdfa 0%, #ffffff 55%) !important;
+}
+
+.hex-q-badge-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.85rem;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+}
+
+.hex-q-chip-tipo {
+  background: #eef2ff !important;
+  color: #4338ca !important;
+  font-weight: 700 !important;
+  border: 1px solid #c7d2fe !important;
+}
+
+.hex-q-chip-pts {
+  background: #ecfeff !important;
+  color: #0e7490 !important;
+  font-weight: 800 !important;
+  border: 1px solid #a5f3fc !important;
+}
+
+.hex-q-chip-manual {
+  background: #fef3c7 !important;
+  color: #92400e !important;
+  font-weight: 700 !important;
+  border: 1px solid #fde68a !important;
+}
+
+.hex-q-chip-info {
+  background: #ccfbf1 !important;
+  color: #0f766e !important;
+  font-weight: 700 !important;
+  border: 1px solid #99f6e4 !important;
+}
+
+.hex-q-info-note {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #ecfdf5;
+  border: 1px dashed #5eead4;
+  color: #0f766e;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.hex-q-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hex-q-options--row {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.hex-q-option {
+  margin: 0 !important;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1.5px solid #e2e8f0;
+  background: #f8fafc;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  align-items: flex-start;
+}
+
+.hex-q-option:hover {
+  border-color: #a5b4fc;
+  background: #eef2ff;
+}
+
+.hex-q-option--on {
+  border-color: #6366f1 !important;
+  background: #eef2ff !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.hex-q-option .MuiFormControlLabel-label {
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: #1e293b;
+}
+
+/* Revisión de intento */
+.hex-rev-dlg-title {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: #fff !important;
+  font-weight: 800 !important;
+  padding: 18px 24px !important;
+}
+
+.hex-rev-dlg-content {
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 40%, #f8fafc 100%);
+  padding-top: 20px !important;
+}
+
+.hex-rev-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 16px 18px 18px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  border-left: 4px solid #6366f1;
+}
+
+.hex-rev-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.hex-rev-opt {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1.5px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.hex-rev-opt--ok {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.hex-rev-opt--ok-sel {
+  border-color: #22c55e;
+  background: #dcfce7;
+}
+
+.hex-rev-opt--bad {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.hex-rev-opt--sel {
+  border-color: #818cf8;
+  background: #eef2ff;
+}
+
+.hex-rev-opt-num {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.hex-rev-chip-ok {
+  background: #dcfce7 !important;
+  color: #166534 !important;
+  font-weight: 700 !important;
+  border: 1px solid #86efac !important;
+}
+
+.hex-rev-chip-sel {
+  background: #4f46e5 !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+}
+
+.hex-rev-chip-bad {
+  background: #ef4444 !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+}
+
+.hex-rev-texto-box {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
+.hex-rev-info-banner {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #ecfdf5;
+  border: 1px dashed #5eead4;
+  color: #0f766e;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.hex-rev-score-panel {
+  margin-top: 8px;
+  padding: 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
+  border: 1px solid #c7d2fe;
+}
+
+.hex-rev-comment {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
 }
 
 /* Pestañas admin: gestionar vs responder */
@@ -138,14 +386,15 @@
   box-shadow: 0 2px 16px rgba(15, 23, 42, 0.06);
 }
 
-/* Realizar examen: número y enunciado en la misma línea (Quill suele envolver en <p> bloque) */
+/* Realizar examen: enunciado (Quill suele envolver en <p> bloque) */
 .hex-q-enunciado {
   display: flex;
   align-items: flex-start;
   gap: 0.35rem;
   font-weight: 700;
   line-height: 1.5;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
+  color: #0f172a;
 }
 .hex-q-enunciado-num {
   flex-shrink: 0;

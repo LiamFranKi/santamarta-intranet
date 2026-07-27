@@ -103,17 +103,27 @@ export function emptyExamenMeta() {
 export function clonePreguntaForm(p) {
   if (!p) return nuevaPreguntaLocal();
   const tipo = String(p.tipo || 'ALTERNATIVAS').toUpperCase();
+  const calManual = !!p.calificar_manualmente;
   let opciones = {};
   if (tipo === 'ALTERNATIVAS') {
     const o = p.opciones || {};
     const opts = Array.isArray(o.opciones) ? o.opciones.map((x) => String(x ?? '')) : ['', '', '', ''];
     opciones = {
       opciones: [...opts],
-      correcta: typeof o.correcta === 'number' && !Number.isNaN(o.correcta) ? o.correcta : 0
+      correcta:
+        typeof o.correcta === 'number' && !Number.isNaN(o.correcta)
+          ? o.correcta
+          : calManual
+            ? null
+            : 0
     };
   } else if (tipo === 'VERDADERO_FALSO') {
     const o = p.opciones || {};
-    opciones = { correcta: o.correcta === false ? false : true };
+    if (calManual && o.correcta !== true && o.correcta !== false) {
+      opciones = {};
+    } else {
+      opciones = { correcta: o.correcta === false ? false : true };
+    }
   } else {
     opciones = {};
   }
@@ -126,9 +136,10 @@ export function clonePreguntaForm(p) {
     texto: p.texto ?? '',
     tipo,
     opciones,
-    puntos: p.puntos ?? 1,
+    puntos: p.solo_informativo ? 0 : p.puntos ?? 1,
     solo_informativo: !!p.solo_informativo,
-    obligatoria: p.obligatoria !== false
+    calificar_manualmente: calManual,
+    obligatoria: p.solo_informativo ? false : p.obligatoria !== false
   };
 }
 
@@ -143,6 +154,7 @@ export function nuevaPreguntaLocal() {
     },
     puntos: 1,
     solo_informativo: false,
+    calificar_manualmente: false,
     obligatoria: true
   };
 }
@@ -157,6 +169,7 @@ export function mapPreguntasFromApi(list) {
       opciones: p.opciones || {},
       puntos: p.puntos ?? 1,
       solo_informativo: !!p.solo_informativo,
+      calificar_manualmente: !!p.calificar_manualmente,
       obligatoria: p.obligatoria !== false
     })
   );
