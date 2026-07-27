@@ -58,6 +58,58 @@ const uploadHexEditorImagen = multer({
   fileFilter: fileFilterHexImagen
 });
 
+const fileFilterHexPdf = (req, file, cb) => {
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const mime = String(file.mimetype || '').toLowerCase();
+  if (ext === '.pdf' && (mime === 'application/pdf' || mime === 'application/x-pdf' || mime === '')) {
+    return cb(null, true);
+  }
+  if (ext === '.pdf') return cb(null, true);
+  cb(new Error('Solo se permiten archivos PDF'));
+};
+
+const uploadHexEditorPdf = multer({
+  storage: multer.diskStorage({
+    destination: hexEditorImagenStorage.destination,
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const safe = String(file.originalname || 'documento.pdf')
+        .replace(/[^\w.\-áéíóúñÁÉÍÓÚÑ ]+/g, '')
+        .slice(0, 80);
+      const base = path.basename(safe, path.extname(safe)) || 'documento';
+      cb(null, `hex-pdf-${uniqueSuffix}-${base}.pdf`);
+    }
+  }),
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: fileFilterHexPdf
+});
+
+function normalizarBloqueArchivos(raw) {
+  let arr = raw;
+  if (typeof arr === 'string') {
+    try {
+      arr = JSON.parse(arr);
+    } catch {
+      arr = [];
+    }
+  }
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  for (const item of arr) {
+    if (!item || typeof item !== 'object') continue;
+    const url = String(item.url || '').trim().slice(0, 500);
+    const nombre = String(item.nombre || 'Documento.pdf').trim().slice(0, 200) || 'Documento.pdf';
+    if (!url) continue;
+    out.push({
+      nombre,
+      url,
+      size: item.size != null ? Number(item.size) || null : null
+    });
+    if (out.length >= 20) break;
+  }
+  return out;
+}
+
 const ADMIN_TYPES = new Set(['ADMINISTRADOR', 'PROMOTORIA']);
 
 function requireAdminOrPromotoria(req, res, next) {
@@ -311,7 +363,11 @@ function examenParamsExtendidos(body) {
         : null,
     bloque_imagen_url: body.bloque_imagen_url != null && String(body.bloque_imagen_url).trim()
       ? String(body.bloque_imagen_url).trim().slice(0, 500)
-      : null
+      : null,
+    bloque_archivos_json: (() => {
+      const list = normalizarBloqueArchivos(body.bloque_archivos ?? body.bloque_archivos_json);
+      return list.length ? JSON.stringify(list) : null;
+    })()
   };
 }
 
@@ -628,6 +684,39 @@ router.post('/docente/subir-imagen', authenticateToken, requireDocente, (req, re
   });
 });
 
+/**
+ * POST /api/herramientas-examenes/admin/subir-pdf
+ * PDF de referencia para el contexto del examen.
+ */
+router.post(
+  '/admin/subir-pdf',
+  authenticateToken,
+  requireAdminOrPromotoria,
+  (req, res, next) => {
+    uploadHexEditorPdf.single('archivo')(req, res, (err) => {
+      if (err) return res.status(400).json({ error: err.message || 'Archivo no válido' });
+      next();
+    });
+  },
+  (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: 'No se envió el PDF' });
+      const nombre =
+        String(req.body?.nombre || req.file.originalname || 'Documento.pdf')
+          .trim()
+          .slice(0, 200) || 'Documento.pdf';
+      res.json({
+        url: urlArchivoMensajeStatic(req.file.filename),
+        nombre,
+        size: req.file.size || null
+      });
+    } catch (e) {
+      console.error('[hex] admin subir-pdf', e);
+      res.status(500).json({ error: 'Error al subir PDF' });
+    }
+  }
+);
+
 // ---------- Admin ----------
 
 router.get('/admin/lista', authenticateToken, requireAdminOrPromotoria, async (req, res) => {
@@ -712,7 +801,8 @@ router.get('/admin/:id/vista-previa', authenticateToken, requireAdminOrPromotori
         tipo_puntaje: ex.tipo_puntaje,
         puntos_correcta: ex.puntos_correcta,
         bloque_contenido: ex.bloque_contenido,
-        bloque_imagen_url: ex.bloque_imagen_url
+        bloque_imagen_url: ex.bloque_imagen_url,
+        bloque_archivos: normalizarBloqueArchivos(ex.bloque_archivos_json)
       },
       preguntas: (mostradas || []).map(preguntaPublicaSinClaves),
       usuario_contexto: { etiqueta: 'Vista previa' }
@@ -750,7 +840,8 @@ router.get('/preview/:id', authenticateToken, async (req, res) => {
         tipo_puntaje: ex.tipo_puntaje,
         puntos_correcta: ex.puntos_correcta,
         bloque_contenido: ex.bloque_contenido,
-        bloque_imagen_url: ex.bloque_imagen_url
+        bloque_imagen_url: ex.bloque_imagen_url,
+        bloque_archivos: normalizarBloqueArchivos(ex.bloque_archivos_json)
       },
       preguntas: (mostradas || []).map(preguntaPublicaSinClaves),
       usuario_contexto: { etiqueta: 'Vista previa' }
@@ -819,8 +910,8 @@ async function guardarExamenCompleto(req, res, opts) {
     const ins = await execute(
       `INSERT INTO herramientas_examenes
        (colegio_id, creador_usuario_id, titulo, descripcion, estado, modo, fecha_inicio, fecha_fin, mensaje_agradecimiento, intentos_max, mostrar_nota, escala_max,
-        tiempo_minutos, tipo_puntaje, puntos_correcta, penalizar_incorrecta, penalizacion_incorrecta, orden_preguntas, preguntas_max, bloque_contenido, bloque_imagen_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        tiempo_minutos, tipo_puntaje, puntos_correcta, penalizar_incorrecta, penalizacion_incorrecta, orden_preguntas, preguntas_max, bloque_contenido, bloque_imagen_url, bloque_archivos_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         colegio_id,
         usuarioId,
@@ -842,7 +933,8 @@ async function guardarExamenCompleto(req, res, opts) {
         params.orden_preguntas,
         params.preguntas_max,
         params.bloque_contenido,
-        params.bloque_imagen_url
+        params.bloque_imagen_url,
+        params.bloque_archivos_json
       ]
     );
     examenId = ins.insertId;
@@ -855,7 +947,7 @@ async function guardarExamenCompleto(req, res, opts) {
     if (tieneIntentos) {
       await execute(
         `UPDATE herramientas_examenes SET titulo=?, descripcion=?, fecha_inicio=?, fecha_fin=?, mensaje_agradecimiento=?, estado=?, intentos_max=?, mostrar_nota=?, escala_max=?,
-         tiempo_minutos=?, tipo_puntaje=?, puntos_correcta=?, penalizar_incorrecta=?, penalizacion_incorrecta=?, orden_preguntas=?, preguntas_max=?, bloque_contenido=?, bloque_imagen_url=?
+         tiempo_minutos=?, tipo_puntaje=?, puntos_correcta=?, penalizar_incorrecta=?, penalizacion_incorrecta=?, orden_preguntas=?, preguntas_max=?, bloque_contenido=?, bloque_imagen_url=?, bloque_archivos_json=?
          WHERE id=? AND colegio_id=?`,
         [
           params.titulo,
@@ -876,6 +968,7 @@ async function guardarExamenCompleto(req, res, opts) {
           params.preguntas_max,
           params.bloque_contenido,
           params.bloque_imagen_url,
+          params.bloque_archivos_json,
           examenId,
           colegio_id
         ]
@@ -887,7 +980,7 @@ async function guardarExamenCompleto(req, res, opts) {
     }
     await execute(
       `UPDATE herramientas_examenes SET titulo=?, descripcion=?, estado=?, modo=?, fecha_inicio=?, fecha_fin=?, mensaje_agradecimiento=?, intentos_max=?, mostrar_nota=?, escala_max=?,
-       tiempo_minutos=?, tipo_puntaje=?, puntos_correcta=?, penalizar_incorrecta=?, penalizacion_incorrecta=?, orden_preguntas=?, preguntas_max=?, bloque_contenido=?, bloque_imagen_url=?
+       tiempo_minutos=?, tipo_puntaje=?, puntos_correcta=?, penalizar_incorrecta=?, penalizacion_incorrecta=?, orden_preguntas=?, preguntas_max=?, bloque_contenido=?, bloque_imagen_url=?, bloque_archivos_json=?
        WHERE id=? AND colegio_id=?`,
       [
         params.titulo,
@@ -909,6 +1002,7 @@ async function guardarExamenCompleto(req, res, opts) {
         params.preguntas_max,
         params.bloque_contenido,
         params.bloque_imagen_url,
+        params.bloque_archivos_json,
         examenId,
         colegio_id
       ]
@@ -1645,7 +1739,8 @@ router.post('/realizar/:examenId/iniciar', authenticateToken, async (req, res) =
           tipo_puntaje: ex.tipo_puntaje,
           puntos_correcta: ex.puntos_correcta,
           bloque_contenido: ex.bloque_contenido,
-          bloque_imagen_url: ex.bloque_imagen_url
+          bloque_imagen_url: ex.bloque_imagen_url,
+          bloque_archivos: normalizarBloqueArchivos(ex.bloque_archivos_json)
         },
         preguntas: (filas || []).map(preguntaPublicaSinClaves)
       });
@@ -1695,7 +1790,8 @@ router.post('/realizar/:examenId/iniciar', authenticateToken, async (req, res) =
         tipo_puntaje: ex.tipo_puntaje,
         puntos_correcta: ex.puntos_correcta,
         bloque_contenido: ex.bloque_contenido,
-        bloque_imagen_url: ex.bloque_imagen_url
+        bloque_imagen_url: ex.bloque_imagen_url,
+        bloque_archivos: normalizarBloqueArchivos(ex.bloque_archivos_json)
       },
       preguntas: (mostradas || []).map(preguntaPublicaSinClaves)
     });

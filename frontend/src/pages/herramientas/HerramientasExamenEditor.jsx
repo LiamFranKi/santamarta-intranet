@@ -824,10 +824,12 @@ function ModalPreguntas({
   bloqueado,
   onNueva,
   onEditar,
-  uploadImagenUrl
+  uploadImagenUrl,
+  uploadPdfUrl
 }) {
   const quillBloqueRef = useRef(null);
   const [subiendoBloqueImg, setSubiendoBloqueImg] = useState(false);
+  const [subiendoPdf, setSubiendoPdf] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
   useEffect(() => {
@@ -857,6 +859,54 @@ function ModalPreguntas({
     } finally {
       setSubiendoBloqueImg(false);
     }
+  };
+
+  const subirPdfsContexto = async (fileList) => {
+    if (bloqueado || !fileList?.length) return;
+    const files = Array.from(fileList);
+    setSubiendoPdf(true);
+    try {
+      for (const file of files) {
+        if (!file) continue;
+        const isPdf =
+          String(file.type || '').toLowerCase() === 'application/pdf' ||
+          String(file.name || '').toLowerCase().endsWith('.pdf');
+        if (!isPdf) {
+          Swal.fire('Atención', `"${file.name}" no es PDF`, 'warning');
+          continue;
+        }
+        if (file.size > 15 * 1024 * 1024) {
+          Swal.fire('Atención', `"${file.name}" supera 15MB`, 'warning');
+          continue;
+        }
+        const fd = new FormData();
+        fd.append('archivo', file);
+        fd.append('nombre', file.name);
+        const { data } = await api.post(uploadPdfUrl, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        if (data?.url) {
+          setExamenMeta((m) => ({
+            ...m,
+            bloque_archivos: [
+              ...(Array.isArray(m.bloque_archivos) ? m.bloque_archivos : []),
+              { nombre: data.nombre || file.name, url: data.url, size: data.size || file.size || null }
+            ]
+          }));
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      Swal.fire('Error', err.response?.data?.error || 'No se pudo subir el PDF', 'error');
+    } finally {
+      setSubiendoPdf(false);
+    }
+  };
+
+  const quitarPdf = (idx) => {
+    if (bloqueado) return;
+    setExamenMeta((m) => ({
+      ...m,
+      bloque_archivos: (m.bloque_archivos || []).filter((_, i) => i !== idx)
+    }));
   };
 
   const handleDragEnd = (event) => {
@@ -1013,6 +1063,86 @@ function ModalPreguntas({
                 placeholder="https://..."
                 disabled={bloqueado}
               />
+            </div>
+
+            <div className="form-group" style={{ marginTop: 18 }}>
+              <label style={{ fontWeight: 700, color: '#9a3412' }}>Material de referencia (PDF)</label>
+              <p style={{ fontSize: '0.85rem', color: '#78716c', margin: '4px 0 10px' }}>
+                Suba uno o varios PDF (reglamento, manual, etc.). El participante los verá al inicio del examen.
+              </p>
+              <label
+                className="hex-pdf-upload-btn"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '10px 16px',
+                  borderRadius: 12,
+                  background: bloqueado ? '#e7e5e4' : 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                  color: '#fff',
+                  fontWeight: 800,
+                  cursor: bloqueado ? 'not-allowed' : 'pointer',
+                  opacity: subiendoPdf ? 0.7 : 1
+                }}
+              >
+                {subiendoPdf ? 'Subiendo…' : '＋ Subir PDF'}
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  multiple
+                  hidden
+                  disabled={bloqueado || subiendoPdf}
+                  onChange={(e) => {
+                    const list = e.target.files;
+                    if (list?.length) subirPdfsContexto(list);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+
+              {(examenMeta.bloque_archivos || []).length > 0 ? (
+                <div className="hex-pdf-cards" style={{ marginTop: 14 }}>
+                  {(examenMeta.bloque_archivos || []).map((arch, idx) => (
+                    <div key={`${arch.url}-${idx}`} className="hex-pdf-card hex-pdf-card--editor">
+                      <div className="hex-pdf-card-icon" aria-hidden>
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                          <path
+                            d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"
+                            fill="#fee2e2"
+                            stroke="#dc2626"
+                            strokeWidth="1.4"
+                          />
+                          <path d="M14 3v5h5" stroke="#dc2626" strokeWidth="1.4" fill="none" />
+                          <text x="8" y="17" fontSize="6.5" fontWeight="800" fill="#b91c1c">
+                            PDF
+                          </text>
+                        </svg>
+                      </div>
+                      <div className="hex-pdf-card-body">
+                        <div className="hex-pdf-card-name">{arch.nombre || 'Documento.pdf'}</div>
+                        <div className="hex-pdf-card-meta">Documento de referencia</div>
+                      </div>
+                      <div className="hex-pdf-card-actions">
+                        <a
+                          className="hex-pdf-btn hex-pdf-btn--open"
+                          href={arch.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Abrir
+                        </a>
+                        {!bloqueado ? (
+                          <button type="button" className="hex-pdf-btn hex-pdf-btn--remove" onClick={() => quitarPdf(idx)}>
+                            Quitar
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ marginTop: 10, fontSize: '0.85rem', color: '#a8a29e' }}>Aún no hay PDF adjuntos.</p>
+              )}
             </div>
           </div>
 
@@ -1188,6 +1318,7 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
       preguntas_max: examenMeta.preguntas_max,
       bloque_contenido: examenMeta.bloque_contenido || null,
       bloque_imagen_url: examenMeta.bloque_imagen_url || null,
+      bloque_archivos: Array.isArray(examenMeta.bloque_archivos) ? examenMeta.bloque_archivos : [],
       audiencias,
       grupo_ids: grupoIds,
       preguntas: preguntas
@@ -1262,6 +1393,7 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
 
   const bloqueado = tieneIntentos;
   const uploadImagenUrl = '/herramientas-examenes/admin/subir-imagen';
+  const uploadPdfUrl = '/herramientas-examenes/admin/subir-pdf';
 
   return (
     <DashboardLayout>
@@ -1356,6 +1488,7 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
         onNueva={abrirNuevaPregunta}
         onEditar={abrirEditarPregunta}
         uploadImagenUrl={uploadImagenUrl}
+        uploadPdfUrl={uploadPdfUrl}
       />
 
       <ModalFormPregunta

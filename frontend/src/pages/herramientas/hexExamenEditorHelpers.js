@@ -70,7 +70,25 @@ export function mapExamenFromApi(e) {
     preguntas_max: e.preguntas_max != null ? Number(e.preguntas_max) : 1,
     habilitar_fecha_hora: !!(e.fecha_inicio || e.fecha_fin),
     bloque_contenido: e.bloque_contenido || '',
-    bloque_imagen_url: e.bloque_imagen_url || ''
+    bloque_imagen_url: e.bloque_imagen_url || '',
+    bloque_archivos: (() => {
+      let raw = e.bloque_archivos ?? e.bloque_archivos_json;
+      if (typeof raw === 'string') {
+        try {
+          raw = JSON.parse(raw);
+        } catch {
+          raw = [];
+        }
+      }
+      if (!Array.isArray(raw)) return [];
+      return raw
+        .filter((a) => a && a.url)
+        .map((a) => ({
+          nombre: String(a.nombre || 'Documento.pdf'),
+          url: String(a.url),
+          size: a.size != null ? Number(a.size) || null : null
+        }));
+    })()
   };
 }
 
@@ -95,7 +113,8 @@ export function emptyExamenMeta() {
     preguntas_max: 1,
     habilitar_fecha_hora: false,
     bloque_contenido: '',
-    bloque_imagen_url: ''
+    bloque_imagen_url: '',
+    bloque_archivos: []
   };
 }
 

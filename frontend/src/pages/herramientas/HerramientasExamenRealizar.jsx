@@ -265,7 +265,9 @@ export default function HerramientasExamenRealizar() {
           </Stack>
         </div>
 
-        {examen.bloque_contenido || examen.bloque_imagen_url ? (
+        {examen.bloque_contenido ||
+        examen.bloque_imagen_url ||
+        (Array.isArray(examen.bloque_archivos) && examen.bloque_archivos.length > 0) ? (
           <Card className="hex-realizar-contexto" elevation={0}>
             <CardContent>
               <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1, color: '#4338ca' }}>
@@ -280,7 +282,7 @@ export default function HerramientasExamenRealizar() {
                     maxWidth: '100%',
                     maxHeight: 280,
                     borderRadius: 2,
-                    mb: examen.bloque_contenido ? 2 : 0,
+                    mb: examen.bloque_contenido || (examen.bloque_archivos || []).length ? 2 : 0,
                     objectFit: 'contain'
                   }}
                 />
@@ -288,9 +290,56 @@ export default function HerramientasExamenRealizar() {
               {examen.bloque_contenido ? (
                 <Box
                   className="hex-exam-bloque-html"
-                  sx={{ '& p': { marginTop: 0 }, lineHeight: 1.6 }}
+                  sx={{
+                    '& p': { marginTop: 0 },
+                    lineHeight: 1.6,
+                    mb: (examen.bloque_archivos || []).length ? 2 : 0
+                  }}
                   dangerouslySetInnerHTML={{ __html: examen.bloque_contenido }}
                 />
+              ) : null}
+
+              {(examen.bloque_archivos || []).length > 0 ? (
+                <Box className="hex-ref-material">
+                  <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 0.75, color: '#9a3412' }}>
+                    Material de referencia
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 1.5, color: '#78716c', fontWeight: 600 }}>
+                    Revise estos documentos antes de responder.
+                  </Typography>
+                  <div className="hex-pdf-cards">
+                    {(examen.bloque_archivos || []).map((arch, idx) => (
+                      <div key={`${arch.url}-${idx}`} className="hex-pdf-card">
+                        <div className="hex-pdf-card-icon" aria-hidden>
+                          <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                            <path
+                              d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"
+                              fill="#fee2e2"
+                              stroke="#dc2626"
+                              strokeWidth="1.4"
+                            />
+                            <path d="M14 3v5h5" stroke="#dc2626" strokeWidth="1.4" fill="none" />
+                            <text x="7.5" y="17.5" fontSize="7" fontWeight="800" fill="#b91c1c">
+                              PDF
+                            </text>
+                          </svg>
+                        </div>
+                        <div className="hex-pdf-card-body">
+                          <div className="hex-pdf-card-name">{arch.nombre || 'Documento.pdf'}</div>
+                          <div className="hex-pdf-card-meta">Documento adjunto</div>
+                        </div>
+                        <a
+                          className="hex-pdf-btn hex-pdf-btn--open"
+                          href={arch.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Abrir
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </Box>
               ) : null}
             </CardContent>
           </Card>
