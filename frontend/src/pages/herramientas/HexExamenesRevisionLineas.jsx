@@ -182,7 +182,9 @@ export default function HexExamenesRevisionLineas({
           <Box key={L.id} className="hex-rev-card">
             <div className="hex-rev-card-top">
               <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                <span className="hex-rev-num">{idx + 1}</span>
+                <span className="hex-rev-num">
+                  {(lineas || []).slice(0, idx).filter((x) => !(x.pregunta_solo_informativo === true || x.pregunta_solo_informativo === 1)).length + 1}
+                </span>
                 <Chip
                   size="small"
                   label={tipoLabel(tipo)}
@@ -193,7 +195,7 @@ export default function HexExamenesRevisionLineas({
                     fontWeight: 700
                   }}
                 />
-                {manual ? (
+                {adminMode && manual ? (
                   <Chip size="small" label="Revisión manual" sx={{ bgcolor: '#fef3c7', color: '#92400e', fontWeight: 700 }} />
                 ) : null}
               </Stack>

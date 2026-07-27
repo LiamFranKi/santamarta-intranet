@@ -1,23 +1,52 @@
----
-description: Comando estándar de despliegue en el VPS (PuTTY). No perder este contexto.
+﻿---
+description: Comando de despliegue en el VPS (PuTTY). Adaptar segun que cambio; no reiniciar todo PM2.
 globs:
 alwaysApply: true
 ---
 
 # Despliegue en VPS (PuTTY)
 
-El flujo que **siempre** se usa para actualizar el servidor es:
+Ruta del proyecto: `/home/vanguard/intranet2026`
+Repo: https://github.com/LiamFranKi/intranet-2026
+Proceso PM2 de **esta** app: `intranet2026-backend` (NO usar `pm2 restart all` salvo que el usuario lo pida explicitamente; reinicia otras apps ajenas y demora mucho).
 
+## Como armar el comando (segun lo que se subio)
+
+Incluir **solo** los pasos necesarios. Evaluar el commit/diff antes de dar el PuTTY:
+
+| Que cambio | Incluir |
+|---|---|
+| Solo `backend/` (sin `package.json`) | `git pull` + `pm2 restart intranet2026-backend` |
+| Solo `frontend/` (codigo/CSS, sin `package.json`) | `git pull` + `cd frontend && npm run build` + `pm2 restart intranet2026-backend` |
+| `frontend/package.json` / lock | `git pull` + `cd frontend && npm install && npm run build` + restart |
+| `backend/package.json` / lock | `git pull` + `cd backend && npm install` + restart (y build frontend si tambien cambio) |
+| Solo docs/SQL/migrations en repo | a menudo basta `git pull` (sin build ni restart), salvo que el backend lea esos archivos en runtime |
+
+### Plantillas
+
+**Solo backend (sin deps):**
 ```bash
-cd /home/vanguard/intranet2026 && git pull origin main && cd frontend && npm install && npm run build && cd .. && pm2 restart all
+cd /home/vanguard/intranet2026 && git pull origin main && pm2 restart intranet2026-backend
 ```
 
-- Ruta del proyecto en el servidor: `/home/vanguard/intranet2026`
-- Después de `git pull` es obligatorio **`npm install`** en `frontend` (nuevas dependencias, p. ej. `qrcode`) y luego **`npm run build`** para que compile el bundle.
-- Si cambió `backend/package.json`, ejecuta también en el servidor: `cd /home/vanguard/intranet2026/backend && npm install` antes de `pm2 restart all`.
-- Al final se ejecuta `pm2 restart all` desde la raíz del proyecto (`cd ..` después del build).
+**Frontend (sin deps nuevas):**
+```bash
+cd /home/vanguard/intranet2026 && git pull origin main && cd frontend && npm run build && cd .. && pm2 restart intranet2026-backend
+```
 
-Cuando el usuario pida "subir a GitHub y el código putty" o "comando putty", incluir:
-1. Que ya está subido (o hacer push si hay cambios).
-2. El enlace del repo: https://github.com/LiamFranKi/intranet-2026
-3. El comando de despliegue en una línea para copiar en PuTTY (el de arriba).
+**Frontend con deps nuevas:**
+```bash
+cd /home/vanguard/intranet2026 && git pull origin main && cd frontend && npm install && npm run build && cd .. && pm2 restart intranet2026-backend
+```
+
+**Full (frontend + backend deps) — solo si aplica:**
+```bash
+cd /home/vanguard/intranet2026 && git pull origin main && cd frontend && npm install && npm run build && cd ../backend && npm install && cd .. && pm2 restart intranet2026-backend
+```
+
+## Cuando el usuario pida "subir a GitHub y el putty" / "comando putty"
+
+1. Push si hay cambios (o confirmar que ya esta subido).
+2. Enlace del repo: https://github.com/LiamFranKi/intranet-2026
+3. **Un solo comando** PuTTY adaptado a lo que cambio (minimo necesario; sin `npm install`/`npm run build` de mas; solo restart de `intranet2026-backend`).
+4. Si hay migracion SQL aparte, mencionarla aparte (no mezclarla en el one-liner salvo que el usuario la ejecute por CLI).

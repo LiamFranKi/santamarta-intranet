@@ -229,7 +229,7 @@ export default function HerramientasExamenRealizar() {
             <Chip
               size="small"
               className="hex-hero-chip"
-              label={`${preguntas?.length || 0} ítems`}
+              label={`${(preguntas || []).filter((q) => !q.solo_informativo).length} pregunta(s)`}
             />
             {examen.tiempo_minutos ? (
               <Chip size="small" className="hex-hero-chip" label={`${examen.tiempo_minutos} min`} />
@@ -287,11 +287,14 @@ export default function HerramientasExamenRealizar() {
                 );
               }
 
+              const nroPregunta =
+                preguntas.slice(0, idx).filter((q) => !q.solo_informativo).length + 1;
+
               return (
                 <Card key={p.id} className="hex-q-card" elevation={0}>
                   <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
                     <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 1.25 }}>
-                      <span className="hex-q-badge-num">{idx + 1}</span>
+                      <span className="hex-q-badge-num">{nroPregunta}</span>
                       <Chip
                         size="small"
                         label={
@@ -303,9 +306,6 @@ export default function HerramientasExamenRealizar() {
                         }
                         className="hex-q-chip-tipo"
                       />
-                      {p.calificar_manualmente ? (
-                        <Chip size="small" label="Calificación manual" className="hex-q-chip-manual" />
-                      ) : null}
                       <Chip size="small" label={`${fmtPts(pts)} pt`} className="hex-q-chip-pts" />
                     </Stack>
 
