@@ -68,13 +68,41 @@ const fileFilterHexPdf = (req, file, cb) => {
   cb(new Error('Solo se permiten archivos PDF'));
 };
 
+/** PDFs de contexto HEX → sistema nuevo (backend/uploads), NO Static del PHP legacy. */
+const HEX_PDF_UPLOAD_DIR = path.join(__dirname, '../uploads/hex-examenes');
+if (!fs.existsSync(HEX_PDF_UPLOAD_DIR)) {
+  fs.mkdirSync(HEX_PDF_UPLOAD_DIR, { recursive: true });
+}
+
+function urlHexPdfPublic(filename) {
+  const name = String(filename || '').replace(/^\/+/, '');
+  const pathPart = `/uploads/hex-examenes/${name}`;
+  const base = String(
+    process.env.UPLOADS_PUBLIC_URL ||
+      process.env.FRONTEND_URL ||
+      process.env.API_PUBLIC_URL ||
+      ''
+  )
+    .replace(/\/$/, '')
+    .replace(/\/api$/i, '');
+  if (base && !/localhost|127\.0\.0\.1/i.test(base)) {
+    return `${base}${pathPart}`;
+  }
+  return pathPart;
+}
+
 const uploadHexEditorPdf = multer({
   storage: multer.diskStorage({
-    destination: hexEditorImagenStorage.destination,
+    destination: (req, file, cb) => {
+      if (!fs.existsSync(HEX_PDF_UPLOAD_DIR)) {
+        fs.mkdirSync(HEX_PDF_UPLOAD_DIR, { recursive: true });
+      }
+      cb(null, HEX_PDF_UPLOAD_DIR);
+    },
     filename: (req, file, cb) => {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
       const safe = String(file.originalname || 'documento.pdf')
-        .replace(/[^\w.\-áéíóúñÁÉÍÓÚÑ ]+/g, '')
+        .replace(/[^a-zA-Z0-9._-]+/g, '_')
         .slice(0, 80);
       const base = path.basename(safe, path.extname(safe)) || 'documento';
       cb(null, `hex-pdf-${uniqueSuffix}-${base}.pdf`);
@@ -97,9 +125,10 @@ function normalizarBloqueArchivos(raw) {
   const out = [];
   for (const item of arr) {
     if (!item || typeof item !== 'object') continue;
-    const url = String(item.url || '').trim().slice(0, 500);
+    let url = String(item.url || '').trim().slice(0, 500);
     const nombre = String(item.nombre || 'Documento.pdf').trim().slice(0, 200) || 'Documento.pdf';
     if (!url) continue;
+    // Si quedó una URL legacy Static/sistema, no la reescribimos: hay que volver a subir el PDF.
     out.push({
       nombre,
       url,
@@ -706,7 +735,7 @@ router.post(
           .trim()
           .slice(0, 200) || 'Documento.pdf';
       res.json({
-        url: urlArchivoMensajeStatic(req.file.filename),
+        url: urlHexPdfPublic(req.file.filename),
         nombre,
         size: req.file.size || null
       });

@@ -160,6 +160,7 @@ if (!fs.existsSync(uploadsPath)) {
       fs.mkdirSync(path.join(uploadsPath, 'aula-virtual'), { recursive: true }); // Para archivos del aula virtual
       fs.mkdirSync(path.join(uploadsPath, 'gestion-documentos'), { recursive: true }); // PDFs Documento De Gestión
       fs.mkdirSync(path.join(uploadsPath, 'vocabularios'), { recursive: true }); // PDFs vocabularios (herramientas)
+      fs.mkdirSync(path.join(uploadsPath, 'hex-examenes'), { recursive: true }); // PDFs contexto exámenes HEX
       fs.mkdirSync(path.join(uploadsPath, 'elecciones'), { recursive: true }); // Logos y fotos elecciones escolares
       fs.mkdirSync(path.join(uploadsPath, 'fichas-ia', 'origen'), { recursive: true });
       fs.mkdirSync(path.join(uploadsPath, 'fichas-ia', 'generados'), { recursive: true });
