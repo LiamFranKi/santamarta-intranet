@@ -9,6 +9,7 @@ import PublicacionesCardFeed from '../components/PublicacionesCardFeed';
 import BirthdayWidget from '../components/BirthdayWidget';
 import EleccionesCampanaBanner from '../components/EleccionesCampanaBanner';
 import { normalizeStaticFileUrl } from '../config/staticFiles';
+import { mapHexExamenesToEventos } from './herramientas/hexEventosDashboard';
 import './AlumnoDashboard.css';
 import './DocenteGrupos.css';
 
@@ -18,6 +19,7 @@ function ApoderadoDashboard() {
   const isMobile = useIsMobileViewport();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
+  const [hexExamenes, setHexExamenes] = useState([]);
   const [paginaActual, setPaginaActual] = useState(1);
   const [eventoSeleccionado, setEventoSeleccionado] = useState(null);
   const [tipoEventoSeleccionado, setTipoEventoSeleccionado] = useState(null);
@@ -28,13 +30,18 @@ function ApoderadoDashboard() {
   const cargarDashboard = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/apoderado/dashboard');
+      const [response, hexRes] = await Promise.all([
+        api.get('/apoderado/dashboard'),
+        api.get('/herramientas-examenes/mis-disponibles').catch(() => ({ data: { examenes: [] } }))
+      ]);
       console.log('📊 Dashboard data recibida:', response.data);
       setDashboardData(response.data);
+      setHexExamenes(Array.isArray(hexRes?.data?.examenes) ? hexRes.data.examenes : []);
     } catch (error) {
       console.error('❌ Error cargando dashboard:', error);
       console.error('Error details:', error.response?.data || error.message);
       setDashboardData(null);
+      setHexExamenes([]);
     } finally {
       setLoading(false);
     }
@@ -185,6 +192,10 @@ function ApoderadoDashboard() {
       });
     }
 
+    eventos.push(
+      ...mapHexExamenesToEventos(hexExamenes, { crearFechaLima, getHoyLima: obtenerHoyLima })
+    );
+
     // Agregar tareas
     if (proximasTareas && Array.isArray(proximasTareas)) {
       proximasTareas.forEach(tarea => {
@@ -217,7 +228,7 @@ function ApoderadoDashboard() {
     const eventosOrdenados = eventos.sort((a, b) => a.fecha - b.fecha);
     
     return eventosOrdenados;
-  }, [proximosExamenes, proximasTareas, proximasActividades]);
+  }, [proximosExamenes, proximasTareas, proximasActividades, hexExamenes]);
 
   // Resetear página cuando cambian los eventos
   useEffect(() => {
@@ -260,6 +271,7 @@ function ApoderadoDashboard() {
   const getColorCard = (tipo) => {
     switch (tipo) {
       case 'examen':
+      case 'hex_examen':
         return 'evento-card-examen';
       case 'tarea':
         return 'evento-card-tarea';
@@ -274,6 +286,8 @@ function ApoderadoDashboard() {
     switch (tipo) {
       case 'examen':
         return 'Examen';
+      case 'hex_examen':
+        return 'Evaluación';
       case 'tarea':
         return 'Proyecto';
       case 'actividad':
@@ -394,7 +408,7 @@ function ApoderadoDashboard() {
                   const dia = fecha.getDate();
                   const mes = meses[fecha.getMonth()];
                   let titulo = '';
-                  if (evento.tipo === 'examen') {
+                  if (evento.tipo === 'examen' || evento.tipo === 'hex_examen') {
                     titulo = evento.titulo || 'Examen';
                   } else if (evento.tipo === 'tarea') {
                     titulo = evento.titulo || evento.descripcion || 'Proyecto';

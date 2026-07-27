@@ -11,6 +11,7 @@ import BirthdayWidget from '../components/BirthdayWidget';
 import EleccionesCampanaBanner from '../components/EleccionesCampanaBanner';
 import DocenteDocumentosGestionSection from '../components/DocenteDocumentosGestionSection';
 import { normalizeStaticFileUrl } from '../config/staticFiles';
+import { mapHexExamenesToEventos } from './herramientas/hexEventosDashboard';
 import './DocenteDashboard.css';
 import './DocenteGrupos.css';
 
@@ -20,6 +21,7 @@ function DocenteDashboard() {
   const isMobile = useIsMobileViewport();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
+  const [hexExamenes, setHexExamenes] = useState([]);
   const [paginaActual, setPaginaActual] = useState(1);
   const [eventoSeleccionado, setEventoSeleccionado] = useState(null);
   const [tipoEventoSeleccionado, setTipoEventoSeleccionado] = useState(null);
@@ -44,7 +46,10 @@ function DocenteDashboard() {
   const cargarDashboard = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/docente/dashboard');
+      const [response, hexRes] = await Promise.all([
+        api.get('/docente/dashboard'),
+        api.get('/herramientas-examenes/mis-disponibles').catch(() => ({ data: { examenes: [] } }))
+      ]);
       console.log('📊 Dashboard data recibida:', response.data);
       
       // Debug: Log detallado de eventos recibidos
@@ -75,10 +80,12 @@ function DocenteDashboard() {
         }
       }
       setDashboardData(response.data);
+      setHexExamenes(Array.isArray(hexRes?.data?.examenes) ? hexRes.data.examenes : []);
     } catch (error) {
       console.error('❌ Error cargando dashboard:', error);
       console.error('Error details:', error.response?.data || error.message);
       setDashboardData(null);
+      setHexExamenes([]);
     } finally {
       setLoading(false);
     }
@@ -284,6 +291,10 @@ function DocenteDashboard() {
       });
     }
 
+    // Exámenes de Herramientas (audiencia vigente; sin fechas = hoy / mientras ACTIVO)
+    const hexEventos = mapHexExamenesToEventos(hexExamenes, { crearFechaLima, getHoyLima });
+    eventos.push(...hexEventos);
+
     // Agregar tareas (vienen ya filtradas del backend por año activo y fecha >= hoy)
     if (proximasTareas && Array.isArray(proximasTareas)) {
       proximasTareas.forEach(tarea => {
@@ -332,12 +343,13 @@ function DocenteDashboard() {
     console.log('📊 Total eventos combinados:', eventosOrdenados.length);
     console.log('📊 Eventos por tipo:', {
       examenes: eventosOrdenados.filter(e => e.tipo === 'examen').length,
+      hex: eventosOrdenados.filter(e => e.tipo === 'hex_examen').length,
       tareas: eventosOrdenados.filter(e => e.tipo === 'tarea').length,
       actividades: eventosOrdenados.filter(e => e.tipo === 'actividad').length
     });
     
     return eventosOrdenados;
-  }, [proximosExamenes, proximasTareas, actividades]);
+  }, [proximosExamenes, proximasTareas, actividades, hexExamenes]);
 
   // Resetear página cuando cambian los eventos
   useEffect(() => {
@@ -386,6 +398,7 @@ function DocenteDashboard() {
   const getColorCard = (tipo) => {
     switch (tipo) {
       case 'examen':
+      case 'hex_examen':
         return 'evento-card-examen';
       case 'tarea':
         return 'evento-card-tarea';
@@ -400,6 +413,8 @@ function DocenteDashboard() {
     switch (tipo) {
       case 'examen':
         return 'Examen';
+      case 'hex_examen':
+        return 'Evaluación';
       case 'tarea':
         return 'Tarea';
       case 'actividad':
@@ -564,7 +579,7 @@ function DocenteDashboard() {
                   const mes = meses[fecha.getMonth()];
                   // Obtener título según el tipo de evento
                   let titulo = '';
-                  if (evento.tipo === 'examen') {
+                  if (evento.tipo === 'examen' || evento.tipo === 'hex_examen') {
                     titulo = evento.titulo || 'Examen';
                   } else if (evento.tipo === 'tarea') {
                     // Las tareas tienen 'titulo' en la tabla asignaturas_tareas

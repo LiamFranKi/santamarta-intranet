@@ -103,7 +103,8 @@ export function emptyExamenMeta() {
 export function clonePreguntaForm(p) {
   if (!p) return nuevaPreguntaLocal();
   const tipo = String(p.tipo || 'ALTERNATIVAS').toUpperCase();
-  const calManual = !!p.calificar_manualmente;
+  const esCompromiso = tipo === 'COMPROMISO';
+  const calManual = esCompromiso ? false : !!p.calificar_manualmente;
   let opciones = {};
   if (tipo === 'ALTERNATIVAS') {
     const o = p.opciones || {};
@@ -136,10 +137,10 @@ export function clonePreguntaForm(p) {
     texto: p.texto ?? '',
     tipo,
     opciones,
-    puntos: p.solo_informativo ? 0 : p.puntos ?? 1,
-    solo_informativo: !!p.solo_informativo,
+    puntos: p.solo_informativo || esCompromiso ? 0 : p.puntos ?? 1,
+    solo_informativo: esCompromiso ? false : !!p.solo_informativo,
     calificar_manualmente: calManual,
-    obligatoria: p.solo_informativo ? false : p.obligatoria !== false
+    obligatoria: p.solo_informativo ? false : esCompromiso ? true : p.obligatoria !== false
   };
 }
 

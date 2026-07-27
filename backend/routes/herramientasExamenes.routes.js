@@ -115,6 +115,19 @@ function examenVigente(ex) {
   return true;
 }
 
+/** Para Próximos Eventos: ACTIVO y no vencido (sí incluye los que aún no inician). */
+function examenVisibleProximos(ex) {
+  if (!ex || String(ex.estado).toUpperCase() !== 'ACTIVO') return false;
+  const today = new Date();
+  const d0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  if (ex.fecha_fin) {
+    const ff = new Date(ex.fecha_fin);
+    const b = new Date(ff.getFullYear(), ff.getMonth(), ff.getDate());
+    if (d0 > b) return false;
+  }
+  return true;
+}
+
 async function cargarAudiencias(examenId) {
   return query(
     `SELECT id, examen_id, tipo FROM herramientas_examenes_audiencias WHERE examen_id = ? ORDER BY tipo`,
@@ -312,7 +325,7 @@ function preguntaPublicaSinClaves(row) {
   if (tipo === 'VERDADERO_FALSO') {
     opcionesPublica = { vf: true };
   }
-  if (tipo === 'RESPUESTA_CORTA') {
+  if (tipo === 'RESPUESTA_CORTA' || tipo === 'COMPROMISO') {
     opcionesPublica = {};
   }
   return {
@@ -348,8 +361,21 @@ function hexEsInformativo(row) {
   return row?.solo_informativo === 1 || row?.solo_informativo === true;
 }
 
+function hexEsCompromiso(row) {
+  return String(row?.tipo || '').toUpperCase() === 'COMPROMISO';
+}
+
+/** Firma PNG data URL razonable (pad ~400x150). */
+function hexFirmaDataUrlValida(s) {
+  if (typeof s !== 'string') return false;
+  if (!s.startsWith('data:image/png')) return false;
+  if (s.length < 80 || s.length > 350000) return false;
+  return true;
+}
+
 function hexEsCalificarManual(row) {
   if (hexEsInformativo(row)) return false;
+  if (hexEsCompromiso(row)) return false;
   if (row?.calificar_manualmente === 1 || row?.calificar_manualmente === true) return true;
   const tipo = String(row?.tipo || '').toUpperCase();
   if (tipo === 'RESPUESTA_CORTA') return true;
@@ -375,6 +401,7 @@ function puntosBasePorPregunta(ex, row) {
 }
 
 function puntajeMaximoPregunta(ex, row) {
+  if (hexEsCompromiso(row)) return 0;
   const exModo = String(ex.modo || 'MIXTO').toUpperCase();
   const base = puntosBasePorPregunta(ex, row);
   const inf = row.solo_informativo === 1 || row.solo_informativo === true;
@@ -909,16 +936,17 @@ async function guardarExamenCompleto(req, res, opts) {
     const texto = String(p.texto || '');
     const tipo = String(p.tipo || 'ALTERNATIVAS').toUpperCase();
     if (!textoPreguntaNoVacio(texto)) continue;
-    if (!['ALTERNATIVAS', 'VERDADERO_FALSO', 'RESPUESTA_CORTA'].includes(tipo)) continue;
-    const puntos = hexEsInformativo(p) ? 0 : Math.max(0, Number(p.puntos) || 0);
-    const soloInf = p.solo_informativo ? 1 : 0;
+    if (!['ALTERNATIVAS', 'VERDADERO_FALSO', 'RESPUESTA_CORTA', 'COMPROMISO'].includes(tipo)) continue;
+    const esCompromiso = tipo === 'COMPROMISO';
+    const puntos = hexEsInformativo(p) || esCompromiso ? 0 : Math.max(0, Number(p.puntos) || 0);
+    const soloInf = esCompromiso ? 0 : p.solo_informativo ? 1 : 0;
     const calManual =
-      soloInf || String(tipo).toUpperCase() === 'RESPUESTA_CORTA'
+      soloInf || esCompromiso || String(tipo).toUpperCase() === 'RESPUESTA_CORTA'
         ? 0
         : p.calificar_manualmente
           ? 1
           : 0;
-    const oblig = soloInf ? 0 : p.obligatoria !== false ? 1 : 0;
+    const oblig = soloInf ? 0 : esCompromiso ? 1 : p.obligatoria !== false ? 1 : 0;
     let opciones_json = JSON.stringify(p.opciones || {});
     if (tipo === 'ALTERNATIVAS') {
       const op = p.opciones || {};
@@ -939,7 +967,7 @@ async function guardarExamenCompleto(req, res, opts) {
         opciones_json = JSON.stringify({ correcta: op.correcta === false ? false : true });
       }
     }
-    if (tipo === 'RESPUESTA_CORTA') {
+    if (tipo === 'RESPUESTA_CORTA' || tipo === 'COMPROMISO') {
       opciones_json = JSON.stringify({});
     }
     await execute(
@@ -1043,8 +1071,10 @@ function hexTextoPlanoPreview(html, maxLen = 100) {
 /** @returns {true|false|null} null = no autoevaluable (texto, manual, informativo, sin clave) */
 function hexEvaluarCorrectitud(tipo, opciones_json, respuesta_json, rowMeta = null) {
   if (rowMeta && hexEsInformativo(rowMeta)) return null;
+  if (rowMeta && hexEsCompromiso(rowMeta)) return null;
   if (rowMeta && hexEsCalificarManual(rowMeta)) return null;
   const tipoU = String(tipo || '').toUpperCase();
+  if (tipoU === 'COMPROMISO') return null;
   const o = parseJsonSafe(opciones_json) || {};
   let r = respuesta_json;
   if (typeof r === 'string') r = parseJsonSafe(r) || {};
@@ -1477,15 +1507,16 @@ router.get('/mis-disponibles', authenticateToken, async (req, res) => {
     );
     const out = [];
     for (const e of rows || []) {
-      if (!examenVigente(e)) continue;
+      if (!examenVisibleProximos(e)) continue;
       if (!(await puedeVerExamen(user, colegio_id, e))) continue;
       const aud = await cargarAudiencias(e.id);
+      const vigenteAhora = examenVigente(e);
       const intentosHechos = await query(
         `SELECT COUNT(*) AS c FROM herramientas_examenes_intentos WHERE examen_id = ? AND usuario_id = ? AND estado IN ('ENVIADO','CALIFICADO')`,
         [e.id, uid(req)]
       );
       const maxI = e.intentos_max || 1;
-      const puedeOtro = (intentosHechos[0]?.c || 0) < maxI;
+      const puedeOtro = vigenteAhora && (intentosHechos[0]?.c || 0) < maxI;
       const ult = await query(
         `SELECT id, estado, puntaje_obtenido, puntaje_max_snapshot, fecha_envio
          FROM herramientas_examenes_intentos
@@ -1500,6 +1531,9 @@ router.get('/mis-disponibles', authenticateToken, async (req, res) => {
         titulo: e.titulo,
         descripcion: e.descripcion,
         modo: e.modo,
+        fecha_inicio: e.fecha_inicio || null,
+        fecha_fin: e.fecha_fin || null,
+        vigente_ahora: vigenteAhora,
         intentos_max: maxI,
         intentos_usados: intentosHechos[0]?.c || 0,
         puede_intentar: puedeOtro,
@@ -1748,6 +1782,13 @@ router.post('/intento/:intentoId/enviar', authenticateToken, async (req, res) =>
         if (rr.valor !== true && rr.valor !== false) return res.status(400).json({ error: 'Marca verdadero o falso' });
       } else if (tipo === 'RESPUESTA_CORTA') {
         if (!String(rr.texto || '').trim()) return res.status(400).json({ error: 'Completa la respuesta corta' });
+      } else if (tipo === 'COMPROMISO') {
+        if (rr.aceptado !== true) {
+          return res.status(400).json({ error: 'Debe aceptar la declaración de compromiso' });
+        }
+        if (!hexFirmaDataUrlValida(rr.firma_data_url)) {
+          return res.status(400).json({ error: 'Debe firmar en el recuadro de firma' });
+        }
       }
     }
 
@@ -1774,7 +1815,14 @@ router.post('/intento/:intentoId/enviar', authenticateToken, async (req, res) =>
         continue;
       }
 
-      if (hexEsCalificarManual(p) || tipo === 'RESPUESTA_CORTA') {
+      if (tipo === 'COMPROMISO') {
+        rj = {
+          aceptado: rr?.aceptado === true,
+          firma_data_url: hexFirmaDataUrlValida(rr?.firma_data_url) ? rr.firma_data_url : null
+        };
+        pts = 0;
+        reqRev = false;
+      } else if (hexEsCalificarManual(p) || tipo === 'RESPUESTA_CORTA') {
         if (tipo === 'ALTERNATIVAS') rj = { indice: rr?.indice };
         else if (tipo === 'VERDADERO_FALSO') rj = { valor: rr?.valor };
         else rj = { texto: rr?.texto ?? '' };

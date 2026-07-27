@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
   CircularProgress,
   FormControl,
@@ -22,6 +23,14 @@ import Swal from 'sweetalert2';
 import './HerramientasExamenes.css';
 import { fmtPts } from './hexExamenesFormat';
 import { getHexContext, HEX_ADMIN_BASE, HEX_DOCENTE_BASE, HEX_ROOT } from './hexExamenesPaths';
+import HexFirmaPad from './HexFirmaPad';
+
+function esPreguntaContable(p) {
+  if (!p) return false;
+  if (p.solo_informativo) return false;
+  if (String(p.tipo || '').toUpperCase() === 'COMPROMISO') return false;
+  return true;
+}
 
 /** Mismo criterio que el listado del editor: GENERAL → puntos_correcta del examen; INDIVIDUAL → puntos de la pregunta. */
 function puntosMostrarHex(examen, pregunta) {
@@ -120,23 +129,42 @@ export default function HerramientasExamenRealizar() {
       const oblig = p.obligatoria !== false;
       const r = respuestas[p.id] || {};
       const tipo = String(p.tipo || '').toUpperCase();
+      const nroVisible =
+        payload.preguntas.slice(0, qi).filter(esPreguntaContable).length + (esPreguntaContable(p) ? 1 : 0);
       if (oblig) {
         if (tipo === 'ALTERNATIVAS' && r.indice == null) {
-          Swal.fire('Atención', `Selecciona una opción en la pregunta ${qi + 1}`, 'warning');
+          Swal.fire('Atención', `Selecciona una opción en la pregunta ${nroVisible}`, 'warning');
           return;
         }
         if (tipo === 'VERDADERO_FALSO' && r.valor !== true && r.valor !== false) {
-          Swal.fire('Atención', `Marca verdadero o falso en la pregunta ${qi + 1}`, 'warning');
+          Swal.fire('Atención', `Marca verdadero o falso en la pregunta ${nroVisible}`, 'warning');
           return;
         }
         if (tipo === 'RESPUESTA_CORTA' && !String(r.texto || '').trim()) {
-          Swal.fire('Atención', `Completa la pregunta ${qi + 1}`, 'warning');
+          Swal.fire('Atención', `Completa la pregunta ${nroVisible}`, 'warning');
           return;
+        }
+        if (tipo === 'COMPROMISO') {
+          if (r.aceptado !== true) {
+            Swal.fire('Atención', 'Debe marcar la casilla de aceptación del compromiso', 'warning');
+            return;
+          }
+          if (!r.firma_data_url || !String(r.firma_data_url).startsWith('data:image/png')) {
+            Swal.fire('Atención', 'Debe firmar en el recuadro de firma', 'warning');
+            return;
+          }
         }
       }
       if (tipo === 'ALTERNATIVAS') lista.push({ pregunta_id: p.id, indice: r.indice });
       else if (tipo === 'VERDADERO_FALSO') lista.push({ pregunta_id: p.id, valor: r.valor });
       else if (tipo === 'RESPUESTA_CORTA') lista.push({ pregunta_id: p.id, texto: r.texto ?? '' });
+      else if (tipo === 'COMPROMISO') {
+        lista.push({
+          pregunta_id: p.id,
+          aceptado: r.aceptado === true,
+          firma_data_url: r.firma_data_url || null
+        });
+      }
     }
 
     setEnviando(true);
@@ -229,7 +257,7 @@ export default function HerramientasExamenRealizar() {
             <Chip
               size="small"
               className="hex-hero-chip"
-              label={`${(preguntas || []).filter((q) => !q.solo_informativo).length} pregunta(s)`}
+              label={`${(preguntas || []).filter(esPreguntaContable).length} pregunta(s)`}
             />
             {examen.tiempo_minutos ? (
               <Chip size="small" className="hex-hero-chip" label={`${examen.tiempo_minutos} min`} />
@@ -275,6 +303,8 @@ export default function HerramientasExamenRealizar() {
               const r = respuestas[p.id] || {};
               const pts = puntosMostrarHex(examen, p);
               const soloInf = !!p.solo_informativo;
+              const esCompromiso = tipo === 'COMPROMISO';
+
               if (soloInf) {
                 return (
                   <Box key={p.id} className="hex-q-section">
@@ -287,8 +317,38 @@ export default function HerramientasExamenRealizar() {
                 );
               }
 
-              const nroPregunta =
-                preguntas.slice(0, idx).filter((q) => !q.solo_informativo).length + 1;
+              if (esCompromiso) {
+                return (
+                  <Box key={p.id} className="hex-q-compromiso">
+                    <div
+                      className="hex-q-section-title"
+                      dangerouslySetInnerHTML={{ __html: p.texto || '' }}
+                    />
+                    <FormControlLabel
+                      className="hex-compromiso-check"
+                      control={
+                        <Checkbox
+                          checked={r.aceptado === true}
+                          onChange={(e) => setVal(p.id, { aceptado: e.target.checked })}
+                          disabled={preview}
+                        />
+                      }
+                      label="Declaro haber leído y acepto el compromiso anterior"
+                    />
+                    <Typography variant="subtitle2" fontWeight={800} sx={{ mt: 1.5, mb: 0.75, color: '#334155' }}>
+                      Firma
+                    </Typography>
+                    <HexFirmaPad
+                      value={r.firma_data_url || null}
+                      disabled={preview}
+                      onChange={(dataUrl) => setVal(p.id, { firma_data_url: dataUrl })}
+                    />
+                    <div className="hex-q-section-line" aria-hidden />
+                  </Box>
+                );
+              }
+
+              const nroPregunta = preguntas.slice(0, idx).filter(esPreguntaContable).length + 1;
 
               return (
                 <Card key={p.id} className="hex-q-card" elevation={0}>

@@ -47,11 +47,16 @@ function SortablePreguntaHex({ pregunta, examenMeta, bloqueado, onEditar, onElim
     opacity: isDragging ? 0.5 : 1
   };
   const puntosMostrar =
-    examenMeta.tipo_puntaje === 'GENERAL' ? examenMeta.puntos_correcta || 0 : pregunta.puntos || 0;
+    pregunta.tipo === 'COMPROMISO' || pregunta.solo_informativo
+      ? 0
+      : examenMeta.tipo_puntaje === 'GENERAL'
+        ? examenMeta.puntos_correcta || 0
+        : pregunta.puntos || 0;
   const tipoColor = {
     ALTERNATIVAS: { bg: '#dbeafe', color: '#1e40af' },
     VERDADERO_FALSO: { bg: '#d1fae5', color: '#065f46' },
-    RESPUESTA_CORTA: { bg: '#e0e7ff', color: '#3730a3' }
+    RESPUESTA_CORTA: { bg: '#e0e7ff', color: '#3730a3' },
+    COMPROMISO: { bg: '#fef3c7', color: '#92400e' }
   }[pregunta.tipo] || { bg: '#f3f4f6', color: '#374151' };
 
   return (
@@ -423,9 +428,13 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
     }
     const toSave = {
       ...form,
-      puntos: form.solo_informativo ? 0 : form.puntos,
-      obligatoria: form.solo_informativo ? false : form.obligatoria !== false,
-      calificar_manualmente: form.solo_informativo ? false : !!form.calificar_manualmente
+      puntos: form.solo_informativo || form.tipo === 'COMPROMISO' ? 0 : form.puntos,
+      obligatoria:
+        form.solo_informativo ? false : form.tipo === 'COMPROMISO' ? true : form.obligatoria !== false,
+      calificar_manualmente:
+        form.solo_informativo || form.tipo === 'COMPROMISO' ? false : !!form.calificar_manualmente,
+      solo_informativo: form.tipo === 'COMPROMISO' ? false : !!form.solo_informativo,
+      opciones: form.tipo === 'COMPROMISO' ? {} : form.opciones
     };
     onGuardar(toSave);
     onClose();
@@ -459,13 +468,26 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
                       };
                     }
                     if (t === 'VERDADERO_FALSO') opciones = { correcta: true };
-                    if (t === 'RESPUESTA_CORTA') opciones = {};
-                    setForm({ ...form, tipo: t, opciones });
+                    if (t === 'RESPUESTA_CORTA' || t === 'COMPROMISO') opciones = {};
+                    setForm({
+                      ...form,
+                      tipo: t,
+                      opciones,
+                      ...(t === 'COMPROMISO'
+                        ? {
+                            puntos: 0,
+                            solo_informativo: false,
+                            calificar_manualmente: false,
+                            obligatoria: true
+                          }
+                        : {})
+                    });
                   }}
                 >
                   <option value="ALTERNATIVAS">ALTERNATIVAS</option>
                   <option value="VERDADERO_FALSO">VERDADERO / FALSO</option>
                   <option value="RESPUESTA_CORTA">RESPUESTA CORTA</option>
+                  <option value="COMPROMISO">COMPROMISO (check + firma)</option>
                 </select>
               </div>
               <div className="form-group">
@@ -504,7 +526,9 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
                   ]}
                 />
               </div>
-              {examenMeta.tipo_puntaje === 'INDIVIDUAL' && !form.solo_informativo && (
+              {examenMeta.tipo_puntaje === 'INDIVIDUAL' &&
+                !form.solo_informativo &&
+                form.tipo !== 'COMPROMISO' && (
                 <div className="form-group">
                   <label>Puntos *</label>
                   <input
@@ -517,6 +541,7 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
                   />
                 </div>
               )}
+              {form.tipo !== 'COMPROMISO' && (
               <div className="form-group">
                 <label className="checkbox-label">
                   <input
@@ -536,7 +561,10 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
                   Solo informativo (solo texto; no pide respuesta ni suma puntos)
                 </label>
               </div>
-              {!form.solo_informativo && form.tipo !== 'RESPUESTA_CORTA' && (
+              )}
+              {!form.solo_informativo &&
+                form.tipo !== 'RESPUESTA_CORTA' &&
+                form.tipo !== 'COMPROMISO' && (
                 <div className="form-group">
                   <label className="checkbox-label">
                     <input
@@ -564,7 +592,7 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
                   </label>
                 </div>
               )}
-              {!form.solo_informativo && (
+              {!form.solo_informativo && form.tipo !== 'COMPROMISO' && (
                 <div className="form-group">
                   <label className="checkbox-label">
                     <input
@@ -580,6 +608,12 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
               {form.solo_informativo && (
                 <p style={{ color: '#0f766e', fontSize: '0.9rem', background: '#f0fdfa', padding: '10px 12px', borderRadius: 8 }}>
                   Bloque informativo: en el examen solo se mostrará este texto, sin campo de respuesta.
+                </p>
+              )}
+              {form.tipo === 'COMPROMISO' && (
+                <p style={{ color: '#92400e', fontSize: '0.9rem', background: '#fffbeb', padding: '10px 12px', borderRadius: 8 }}>
+                  Compromiso: el participante verá este texto, un check de aceptación y un pad para firmar con el dedo
+                  o mouse. Es obligatorio para enviar; no suma puntos.
                 </p>
               )}
 
@@ -1162,10 +1196,12 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
           texto: p.texto,
           tipo: p.tipo,
           opciones: p.opciones,
-          puntos: p.solo_informativo ? 0 : Math.max(0, Number(p.puntos) || 0),
-          solo_informativo: !!p.solo_informativo,
-          calificar_manualmente: !p.solo_informativo && !!p.calificar_manualmente,
-          obligatoria: p.solo_informativo ? false : p.obligatoria !== false
+          puntos: p.solo_informativo || p.tipo === 'COMPROMISO' ? 0 : Math.max(0, Number(p.puntos) || 0),
+          solo_informativo: p.tipo === 'COMPROMISO' ? false : !!p.solo_informativo,
+          calificar_manualmente:
+            !p.solo_informativo && p.tipo !== 'COMPROMISO' && !!p.calificar_manualmente,
+          obligatoria:
+            p.solo_informativo ? false : p.tipo === 'COMPROMISO' ? true : p.obligatoria !== false
         }))
     };
   };

@@ -14,6 +14,8 @@ function parsePreguntaOpciones(raw) {
 
 /** Coherente con backend: GENERAL → puntos_correcta; INDIVIDUAL → pregunta_puntos */
 export function puntosMaxLineaRevision(examen, L) {
+  const tipo = String(L.pregunta_tipo || '').toUpperCase();
+  if (tipo === 'COMPROMISO') return 0;
   const tp = String(examen?.tipo_puntaje || 'GENERAL').toUpperCase();
   const base = tp === 'GENERAL' ? Number(examen?.puntos_correcta) || 0 : Number(L.pregunta_puntos) || 0;
   const inf = L.pregunta_solo_informativo === true || L.pregunta_solo_informativo === 1;
@@ -39,6 +41,7 @@ function tipoLabel(tipo) {
   if (t === 'ALTERNATIVAS') return 'Alternativas';
   if (t === 'VERDADERO_FALSO') return 'Verdadero / Falso';
   if (t === 'RESPUESTA_CORTA') return 'Respuesta corta';
+  if (t === 'COMPROMISO') return 'Compromiso';
   return t.replace(/_/g, ' ');
 }
 
@@ -47,7 +50,14 @@ function tipoAccent(tipo) {
   if (t === 'ALTERNATIVAS') return { bg: '#eef2ff', color: '#4338ca', border: '#c7d2fe' };
   if (t === 'VERDADERO_FALSO') return { bg: '#f5f3ff', color: '#6d28d9', border: '#ddd6fe' };
   if (t === 'RESPUESTA_CORTA') return { bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' };
+  if (t === 'COMPROMISO') return { bg: '#fef3c7', color: '#92400e', border: '#fde68a' };
   return { bg: '#f1f5f9', color: '#475569', border: '#e2e8f0' };
+}
+
+function esLineaSinNumero(L) {
+  const inf = L.pregunta_solo_informativo === true || L.pregunta_solo_informativo === 1;
+  const tipo = String(L.pregunta_tipo || '').toUpperCase();
+  return inf || tipo === 'COMPROMISO';
 }
 
 /**
@@ -79,6 +89,27 @@ export default function HexExamenesRevisionLineas({
         let respuestaContenido = null;
         if (inf) {
           respuestaContenido = null;
+        } else if (tipo === 'COMPROMISO') {
+          const ok = rj.aceptado === true;
+          respuestaContenido = (
+            <Stack spacing={1.25}>
+              <Typography variant="body2" fontWeight={700} sx={{ color: ok ? '#047857' : '#b91c1c' }}>
+                Aceptado: {ok ? 'Sí' : 'No'}
+              </Typography>
+              {rj.firma_data_url && String(rj.firma_data_url).startsWith('data:image') ? (
+                <Box
+                  component="img"
+                  src={rj.firma_data_url}
+                  alt="Firma"
+                  className="hex-firma-preview"
+                />
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  Sin firma
+                </Typography>
+              )}
+            </Stack>
+          );
         } else if (tipo === 'RESPUESTA_CORTA') {
           respuestaContenido = (
             <Box className="hex-rev-texto-box">
@@ -178,12 +209,31 @@ export default function HexExamenesRevisionLineas({
           );
         }
 
+        if (tipo === 'COMPROMISO') {
+          return (
+            <Box key={L.id} className="hex-q-compromiso">
+              <div
+                className="hex-q-section-title"
+                dangerouslySetInnerHTML={{ __html: L.pregunta_texto || '' }}
+              />
+              <Typography
+                variant="caption"
+                sx={{ display: 'block', mt: 1.25, mb: 0.75, color: '#64748b', fontWeight: 700, letterSpacing: '0.02em' }}
+              >
+                COMPROMISO FIRMADO
+              </Typography>
+              <Box sx={{ mb: 1 }}>{respuestaContenido}</Box>
+              <div className="hex-q-section-line" aria-hidden />
+            </Box>
+          );
+        }
+
         return (
           <Box key={L.id} className="hex-rev-card">
             <div className="hex-rev-card-top">
               <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                 <span className="hex-rev-num">
-                  {(lineas || []).slice(0, idx).filter((x) => !(x.pregunta_solo_informativo === true || x.pregunta_solo_informativo === 1)).length + 1}
+                  {(lineas || []).slice(0, idx).filter((x) => !esLineaSinNumero(x)).length + 1}
                 </span>
                 <Chip
                   size="small"

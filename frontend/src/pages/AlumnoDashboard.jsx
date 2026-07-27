@@ -13,6 +13,7 @@ import BirthdayWidget from '../components/BirthdayWidget';
 import EleccionesCampanaBanner from '../components/EleccionesCampanaBanner';
 import { useAvatarWidget } from '../context/AvatarWidgetContext';
 import { normalizeStaticFileUrl } from '../config/staticFiles';
+import { mapHexExamenesToEventos } from './herramientas/hexEventosDashboard';
 import './AlumnoDashboard.css';
 import './DocenteGrupos.css';
 import './AlumnoCursos.css';
@@ -24,6 +25,7 @@ function AlumnoDashboard() {
   const { setAvatarWidget } = useAvatarWidget();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
+  const [hexExamenes, setHexExamenes] = useState([]);
   const [paginaActual, setPaginaActual] = useState(1);
   const [eventoSeleccionado, setEventoSeleccionado] = useState(null);
   const [tipoEventoSeleccionado, setTipoEventoSeleccionado] = useState(null);
@@ -51,7 +53,10 @@ function AlumnoDashboard() {
   const cargarDashboard = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/alumno/dashboard');
+      const [response, hexRes] = await Promise.all([
+        api.get('/alumno/dashboard'),
+        api.get('/herramientas-examenes/mis-disponibles').catch(() => ({ data: { examenes: [] } }))
+      ]);
       console.log('📊 Dashboard data recibida:', response.data);
       
       // Debug: Log detallado de eventos recibidos
@@ -82,10 +87,12 @@ function AlumnoDashboard() {
         }
       }
       setDashboardData(response.data);
+      setHexExamenes(Array.isArray(hexRes?.data?.examenes) ? hexRes.data.examenes : []);
     } catch (error) {
       console.error('❌ Error cargando dashboard:', error);
       console.error('Error details:', error.response?.data || error.message);
       setDashboardData(null);
+      setHexExamenes([]);
     } finally {
       setLoading(false);
     }
@@ -263,6 +270,10 @@ function AlumnoDashboard() {
       console.warn('⚠️ proximosExamenes no es un array válido:', proximosExamenes);
     }
 
+    eventos.push(
+      ...mapHexExamenesToEventos(hexExamenes, { crearFechaLima, getHoyLima: obtenerHoyLima })
+    );
+
     // Agregar tareas
     if (proximasTareas && Array.isArray(proximasTareas)) {
       proximasTareas.forEach(tarea => {
@@ -318,7 +329,7 @@ function AlumnoDashboard() {
     });
     
     return eventosOrdenados;
-  }, [proximosExamenes, proximasTareas, proximasActividades]);
+  }, [proximosExamenes, proximasTareas, proximasActividades, hexExamenes]);
 
   // Resetear página cuando cambian los eventos
   useEffect(() => {
@@ -402,6 +413,7 @@ function AlumnoDashboard() {
   const getColorCard = (tipo) => {
     switch (tipo) {
       case 'examen':
+      case 'hex_examen':
         return 'evento-card-examen';
       case 'tarea':
         return 'evento-card-tarea';
@@ -416,6 +428,8 @@ function AlumnoDashboard() {
     switch (tipo) {
       case 'examen':
         return 'Examen';
+      case 'hex_examen':
+        return 'Evaluación';
       case 'tarea':
         return 'Proyecto';
       case 'actividad':
@@ -857,7 +871,7 @@ function AlumnoDashboard() {
                   const mes = meses[fecha.getMonth()];
                   // Obtener título según el tipo de evento
                   let titulo = '';
-                  if (evento.tipo === 'examen') {
+                  if (evento.tipo === 'examen' || evento.tipo === 'hex_examen') {
                     titulo = evento.titulo || 'Examen';
                   } else if (evento.tipo === 'tarea') {
                     titulo = evento.titulo || evento.descripcion || 'Proyecto';
