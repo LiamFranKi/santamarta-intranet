@@ -36,9 +36,14 @@ const emptyExp = () => ({
   descripcion: ''
 });
 
+const labelIdioma = (nivel) =>
+  NIVELES_IDIOMA.find((n) => n.value === nivel)?.label || nivel || '—';
+
+const labelTipoDoc = (tipo) =>
+  TIPOS_DOC.find((t) => t.value === tipo)?.label || tipo || '—';
+
 /**
  * @param {{ apiBase: string, compact?: boolean }} props
- * apiBase ej: `/docente/perfil/cv` o `/admin/usuarios/equipo/12/cv`
  */
 export default function PersonalCvEditor({ apiBase, compact = false }) {
   const [loading, setLoading] = useState(true);
@@ -47,6 +52,9 @@ export default function PersonalCvEditor({ apiBase, compact = false }) {
   const [experiencia, setExperiencia] = useState([]);
   const [documentos, setDocumentos] = useState([]);
   const [saving, setSaving] = useState(null);
+  const [draftEstudio, setDraftEstudio] = useState(emptyEstudio());
+  const [draftIdioma, setDraftIdioma] = useState(emptyIdioma());
+  const [draftExp, setDraftExp] = useState(emptyExp());
   const [docMeta, setDocMeta] = useState({ titulo: '', tipo: 'CERTIFICADO' });
   const [uploadingDoc, setUploadingDoc] = useState(false);
 
@@ -66,9 +74,7 @@ export default function PersonalCvEditor({ apiBase, compact = false }) {
       setExperiencia(
         (data.experiencia || []).map((x) => ({
           ...x,
-          fecha_inicio: x.fecha_inicio
-            ? String(x.fecha_inicio).slice(0, 10)
-            : '',
+          fecha_inicio: x.fecha_inicio ? String(x.fecha_inicio).slice(0, 10) : '',
           fecha_fin: x.fecha_fin ? String(x.fecha_fin).slice(0, 10) : '',
           actual: !!x.actual
         }))
@@ -115,6 +121,33 @@ export default function PersonalCvEditor({ apiBase, compact = false }) {
       showConfirmButton: false,
       timer: 3200
     });
+
+  const agregarEstudio = () => {
+    if (!draftEstudio.institucion?.trim() && !draftEstudio.carrera?.trim() && !draftEstudio.nivel?.trim()) {
+      toastErr('Completá al menos institución, carrera o nivel');
+      return;
+    }
+    setEstudios((p) => [...p, { ...draftEstudio }]);
+    setDraftEstudio(emptyEstudio());
+  };
+
+  const agregarIdioma = () => {
+    if (!draftIdioma.idioma?.trim()) {
+      toastErr('Escribí el idioma');
+      return;
+    }
+    setIdiomas((p) => [...p, { ...draftIdioma }]);
+    setDraftIdioma(emptyIdioma());
+  };
+
+  const agregarExp = () => {
+    if (!draftExp.empresa?.trim() && !draftExp.cargo?.trim()) {
+      toastErr('Completá empresa o cargo');
+      return;
+    }
+    setExperiencia((p) => [...p, { ...draftExp }]);
+    setDraftExp(emptyExp());
+  };
 
   const guardarEstudios = async () => {
     try {
@@ -220,259 +253,463 @@ export default function PersonalCvEditor({ apiBase, compact = false }) {
 
   return (
     <div className={`pcv-editor${compact ? ' pcv-editor--compact' : ''}`}>
+      {/* ——— Estudios ——— */}
       <section className="pcv-block">
         <div className="pcv-block-head">
           <h3>Estudios / formación</h3>
-          <button type="button" className="pcv-btn-ghost" onClick={() => setEstudios((p) => [...p, emptyEstudio()])}>
-            + Añadir
-          </button>
         </div>
-        {estudios.length === 0 && <p className="pcv-empty">Sin registros. Añadí tu formación académica.</p>}
-        {estudios.map((row, i) => (
-          <div className="pcv-row" key={`est-${i}`}>
-            <input
-              placeholder="Nivel (Univ., Técnico…)"
-              value={row.nivel || ''}
-              onChange={(e) => {
-                const v = e.target.value;
-                setEstudios((p) => p.map((x, idx) => (idx === i ? { ...x, nivel: v } : x)));
-              }}
-            />
-            <input
-              placeholder="Institución"
-              value={row.institucion || ''}
-              onChange={(e) => {
-                const v = e.target.value;
-                setEstudios((p) => p.map((x, idx) => (idx === i ? { ...x, institucion: v } : x)));
-              }}
-            />
-            <input
-              placeholder="Carrera / especialidad"
-              value={row.carrera || ''}
-              onChange={(e) => {
-                const v = e.target.value;
-                setEstudios((p) => p.map((x, idx) => (idx === i ? { ...x, carrera: v } : x)));
-              }}
-            />
-            <input
-              type="number"
-              placeholder="Año inicio"
-              value={row.anio_inicio || ''}
-              onChange={(e) => {
-                const v = e.target.value;
-                setEstudios((p) => p.map((x, idx) => (idx === i ? { ...x, anio_inicio: v } : x)));
-              }}
-            />
-            <input
-              type="number"
-              placeholder="Año fin"
-              disabled={!!row.en_curso}
-              value={row.anio_fin || ''}
-              onChange={(e) => {
-                const v = e.target.value;
-                setEstudios((p) => p.map((x, idx) => (idx === i ? { ...x, anio_fin: v } : x)));
-              }}
-            />
-            <label className="pcv-check">
+        <div className="pcv-draft">
+          <div className="pcv-draft-grid">
+            <div className="pcv-field">
+              <label>Nivel</label>
+              <input
+                placeholder="Univ., Técnico…"
+                value={draftEstudio.nivel}
+                onChange={(e) => setDraftEstudio((p) => ({ ...p, nivel: e.target.value }))}
+              />
+            </div>
+            <div className="pcv-field">
+              <label>Institución</label>
+              <input
+                placeholder="Nombre de la institución"
+                value={draftEstudio.institucion}
+                onChange={(e) => setDraftEstudio((p) => ({ ...p, institucion: e.target.value }))}
+              />
+            </div>
+            <div className="pcv-field">
+              <label>Carrera / especialidad</label>
+              <input
+                placeholder="Carrera"
+                value={draftEstudio.carrera}
+                onChange={(e) => setDraftEstudio((p) => ({ ...p, carrera: e.target.value }))}
+              />
+            </div>
+            <div className="pcv-field">
+              <label>Año inicio</label>
+              <input
+                type="number"
+                placeholder="AAAA"
+                value={draftEstudio.anio_inicio}
+                onChange={(e) => setDraftEstudio((p) => ({ ...p, anio_inicio: e.target.value }))}
+              />
+            </div>
+            <div className="pcv-field">
+              <label>Año fin</label>
+              <input
+                type="number"
+                placeholder="AAAA"
+                disabled={!!draftEstudio.en_curso}
+                value={draftEstudio.anio_fin}
+                onChange={(e) => setDraftEstudio((p) => ({ ...p, anio_fin: e.target.value }))}
+              />
+            </div>
+            <label className="pcv-check pcv-check--draft">
               <input
                 type="checkbox"
-                checked={!!row.en_curso}
-                onChange={(e) => {
-                  const v = e.target.checked;
-                  setEstudios((p) =>
-                    p.map((x, idx) => (idx === i ? { ...x, en_curso: v, anio_fin: v ? '' : x.anio_fin } : x))
-                  );
-                }}
+                checked={!!draftEstudio.en_curso}
+                onChange={(e) =>
+                  setDraftEstudio((p) => ({
+                    ...p,
+                    en_curso: e.target.checked,
+                    anio_fin: e.target.checked ? '' : p.anio_fin
+                  }))
+                }
               />
               En curso
             </label>
-            <button
-              type="button"
-              className="pcv-btn-danger"
-              onClick={() => setEstudios((p) => p.filter((_, idx) => idx !== i))}
-            >
-              Quitar
-            </button>
           </div>
-        ))}
-        <button type="button" className="pcv-btn-primary" disabled={saving === 'estudios'} onClick={guardarEstudios}>
+          <button type="button" className="pcv-btn pcv-btn--add" onClick={agregarEstudio}>
+            <span className="pcv-btn-ico" aria-hidden="true">
+              ➕
+            </span>
+            Agregar
+          </button>
+        </div>
+        <div className="pcv-table-wrap">
+          <table className="pcv-table">
+            <thead>
+              <tr>
+                <th>Nivel</th>
+                <th>Institución</th>
+                <th>Carrera</th>
+                <th>Periodo</th>
+                <th className="pcv-th-actions">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {estudios.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="pcv-empty-cell">
+                    Sin estudios. Completá el formulario y pulsá Agregar.
+                  </td>
+                </tr>
+              ) : (
+                estudios.map((row, i) => (
+                  <tr key={`est-${i}`}>
+                    <td>{row.nivel || '—'}</td>
+                    <td>{row.institucion || '—'}</td>
+                    <td>{row.carrera || '—'}</td>
+                    <td>
+                      {row.anio_inicio || '—'}
+                      {' – '}
+                      {row.en_curso ? 'En curso' : row.anio_fin || '—'}
+                    </td>
+                    <td>
+                      <div className="pcv-td-actions">
+                        <button
+                          type="button"
+                          className="pcv-btn pcv-btn--danger pcv-btn--sm"
+                          title="Quitar"
+                          onClick={() => setEstudios((p) => p.filter((_, idx) => idx !== i))}
+                        >
+                          <span className="pcv-btn-ico" aria-hidden="true">
+                            🗑️
+                          </span>
+                          Quitar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <button
+          type="button"
+          className="pcv-btn pcv-btn--primary"
+          disabled={saving === 'estudios'}
+          onClick={guardarEstudios}
+        >
+          <span className="pcv-btn-ico" aria-hidden="true">
+            💾
+          </span>
           {saving === 'estudios' ? 'Guardando…' : 'Guardar estudios'}
         </button>
       </section>
 
+      {/* ——— Idiomas ——— */}
       <section className="pcv-block">
         <div className="pcv-block-head">
           <h3>Idiomas</h3>
-          <button type="button" className="pcv-btn-ghost" onClick={() => setIdiomas((p) => [...p, emptyIdioma()])}>
-            + Añadir
+        </div>
+        <div className="pcv-draft">
+          <div className="pcv-draft-grid pcv-draft-grid--2">
+            <div className="pcv-field">
+              <label>Idioma</label>
+              <input
+                placeholder="Ej. Inglés"
+                value={draftIdioma.idioma}
+                onChange={(e) => setDraftIdioma((p) => ({ ...p, idioma: e.target.value }))}
+              />
+            </div>
+            <div className="pcv-field">
+              <label>Nivel</label>
+              <select
+                value={draftIdioma.nivel}
+                onChange={(e) => setDraftIdioma((p) => ({ ...p, nivel: e.target.value }))}
+              >
+                {NIVELES_IDIOMA.map((n) => (
+                  <option key={n.value} value={n.value}>
+                    {n.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <button type="button" className="pcv-btn pcv-btn--add" onClick={agregarIdioma}>
+            <span className="pcv-btn-ico" aria-hidden="true">
+              ➕
+            </span>
+            Agregar
           </button>
         </div>
-        {idiomas.length === 0 && <p className="pcv-empty">Sin idiomas registrados.</p>}
-        {idiomas.map((row, i) => (
-          <div className="pcv-row pcv-row--2" key={`idi-${i}`}>
-            <input
-              placeholder="Idioma"
-              value={row.idioma || ''}
-              onChange={(e) => {
-                const v = e.target.value;
-                setIdiomas((p) => p.map((x, idx) => (idx === i ? { ...x, idioma: v } : x)));
-              }}
-            />
-            <select
-              value={row.nivel || 'BASICO'}
-              onChange={(e) => {
-                const v = e.target.value;
-                setIdiomas((p) => p.map((x, idx) => (idx === i ? { ...x, nivel: v } : x)));
-              }}
-            >
-              {NIVELES_IDIOMA.map((n) => (
-                <option key={n.value} value={n.value}>
-                  {n.label}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="pcv-btn-danger"
-              onClick={() => setIdiomas((p) => p.filter((_, idx) => idx !== i))}
-            >
-              Quitar
-            </button>
-          </div>
-        ))}
-        <button type="button" className="pcv-btn-primary" disabled={saving === 'idiomas'} onClick={guardarIdiomas}>
+        <div className="pcv-table-wrap">
+          <table className="pcv-table">
+            <thead>
+              <tr>
+                <th>Idioma</th>
+                <th>Nivel</th>
+                <th className="pcv-th-actions">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {idiomas.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="pcv-empty-cell">
+                    Sin idiomas. Agregá uno arriba.
+                  </td>
+                </tr>
+              ) : (
+                idiomas.map((row, i) => (
+                  <tr key={`idi-${i}`}>
+                    <td>{row.idioma || '—'}</td>
+                    <td>{labelIdioma(row.nivel)}</td>
+                    <td>
+                      <div className="pcv-td-actions">
+                        <button
+                          type="button"
+                          className="pcv-btn pcv-btn--danger pcv-btn--sm"
+                          title="Quitar"
+                          onClick={() => setIdiomas((p) => p.filter((_, idx) => idx !== i))}
+                        >
+                          <span className="pcv-btn-ico" aria-hidden="true">
+                            🗑️
+                          </span>
+                          Quitar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <button
+          type="button"
+          className="pcv-btn pcv-btn--primary"
+          disabled={saving === 'idiomas'}
+          onClick={guardarIdiomas}
+        >
+          <span className="pcv-btn-ico" aria-hidden="true">
+            💾
+          </span>
           {saving === 'idiomas' ? 'Guardando…' : 'Guardar idiomas'}
         </button>
       </section>
 
+      {/* ——— Experiencia ——— */}
       <section className="pcv-block">
         <div className="pcv-block-head">
           <h3>Experiencia laboral</h3>
-          <button type="button" className="pcv-btn-ghost" onClick={() => setExperiencia((p) => [...p, emptyExp()])}>
-            + Añadir
-          </button>
         </div>
-        {experiencia.length === 0 && <p className="pcv-empty">Sin experiencia registrada.</p>}
-        {experiencia.map((row, i) => (
-          <div className="pcv-row pcv-row--exp" key={`exp-${i}`}>
-            <input
-              placeholder="Empresa / institución"
-              value={row.empresa || ''}
-              onChange={(e) => {
-                const v = e.target.value;
-                setExperiencia((p) => p.map((x, idx) => (idx === i ? { ...x, empresa: v } : x)));
-              }}
-            />
-            <input
-              placeholder="Cargo"
-              value={row.cargo || ''}
-              onChange={(e) => {
-                const v = e.target.value;
-                setExperiencia((p) => p.map((x, idx) => (idx === i ? { ...x, cargo: v } : x)));
-              }}
-            />
-            <input
-              type="date"
-              value={row.fecha_inicio || ''}
-              onChange={(e) => {
-                const v = e.target.value;
-                setExperiencia((p) => p.map((x, idx) => (idx === i ? { ...x, fecha_inicio: v } : x)));
-              }}
-            />
-            <input
-              type="date"
-              disabled={!!row.actual}
-              value={row.fecha_fin || ''}
-              onChange={(e) => {
-                const v = e.target.value;
-                setExperiencia((p) => p.map((x, idx) => (idx === i ? { ...x, fecha_fin: v } : x)));
-              }}
-            />
-            <label className="pcv-check">
+        <div className="pcv-draft">
+          <div className="pcv-draft-grid">
+            <div className="pcv-field">
+              <label>Empresa / institución</label>
+              <input
+                placeholder="Empresa"
+                value={draftExp.empresa}
+                onChange={(e) => setDraftExp((p) => ({ ...p, empresa: e.target.value }))}
+              />
+            </div>
+            <div className="pcv-field">
+              <label>Cargo</label>
+              <input
+                placeholder="Cargo"
+                value={draftExp.cargo}
+                onChange={(e) => setDraftExp((p) => ({ ...p, cargo: e.target.value }))}
+              />
+            </div>
+            <div className="pcv-field">
+              <label>Fecha inicio</label>
+              <input
+                type="date"
+                value={draftExp.fecha_inicio}
+                onChange={(e) => setDraftExp((p) => ({ ...p, fecha_inicio: e.target.value }))}
+              />
+            </div>
+            <div className="pcv-field">
+              <label>Fecha fin</label>
+              <input
+                type="date"
+                disabled={!!draftExp.actual}
+                value={draftExp.fecha_fin}
+                onChange={(e) => setDraftExp((p) => ({ ...p, fecha_fin: e.target.value }))}
+              />
+            </div>
+            <label className="pcv-check pcv-check--draft">
               <input
                 type="checkbox"
-                checked={!!row.actual}
-                onChange={(e) => {
-                  const v = e.target.checked;
-                  setExperiencia((p) =>
-                    p.map((x, idx) => (idx === i ? { ...x, actual: v, fecha_fin: v ? '' : x.fecha_fin } : x))
-                  );
-                }}
+                checked={!!draftExp.actual}
+                onChange={(e) =>
+                  setDraftExp((p) => ({
+                    ...p,
+                    actual: e.target.checked,
+                    fecha_fin: e.target.checked ? '' : p.fecha_fin
+                  }))
+                }
               />
-              Actual
+              Trabajo actual
             </label>
-            <textarea
-              placeholder="Descripción breve"
-              rows={2}
-              value={row.descripcion || ''}
-              onChange={(e) => {
-                const v = e.target.value;
-                setExperiencia((p) => p.map((x, idx) => (idx === i ? { ...x, descripcion: v } : x)));
-              }}
-            />
-            <button
-              type="button"
-              className="pcv-btn-danger"
-              onClick={() => setExperiencia((p) => p.filter((_, idx) => idx !== i))}
-            >
-              Quitar
-            </button>
+            <div className="pcv-field pcv-field--full">
+              <label>Descripción breve</label>
+              <textarea
+                rows={2}
+                placeholder="Resumen de funciones"
+                value={draftExp.descripcion}
+                onChange={(e) => setDraftExp((p) => ({ ...p, descripcion: e.target.value }))}
+              />
+            </div>
           </div>
-        ))}
+          <button type="button" className="pcv-btn pcv-btn--add" onClick={agregarExp}>
+            <span className="pcv-btn-ico" aria-hidden="true">
+              ➕
+            </span>
+            Agregar
+          </button>
+        </div>
+        <div className="pcv-table-wrap">
+          <table className="pcv-table">
+            <thead>
+              <tr>
+                <th>Empresa</th>
+                <th>Cargo</th>
+                <th>Periodo</th>
+                <th>Descripción</th>
+                <th className="pcv-th-actions">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {experiencia.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="pcv-empty-cell">
+                    Sin experiencia. Completá el formulario y pulsá Agregar.
+                  </td>
+                </tr>
+              ) : (
+                experiencia.map((row, i) => (
+                  <tr key={`exp-${i}`}>
+                    <td>{row.empresa || '—'}</td>
+                    <td>{row.cargo || '—'}</td>
+                    <td>
+                      {row.fecha_inicio || '—'}
+                      {' – '}
+                      {row.actual ? 'Actual' : row.fecha_fin || '—'}
+                    </td>
+                    <td className="pcv-td-desc">{row.descripcion || '—'}</td>
+                    <td>
+                      <div className="pcv-td-actions">
+                        <button
+                          type="button"
+                          className="pcv-btn pcv-btn--danger pcv-btn--sm"
+                          title="Quitar"
+                          onClick={() => setExperiencia((p) => p.filter((_, idx) => idx !== i))}
+                        >
+                          <span className="pcv-btn-ico" aria-hidden="true">
+                            🗑️
+                          </span>
+                          Quitar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
         <button
           type="button"
-          className="pcv-btn-primary"
+          className="pcv-btn pcv-btn--primary"
           disabled={saving === 'experiencia'}
           onClick={guardarExperiencia}
         >
+          <span className="pcv-btn-ico" aria-hidden="true">
+            💾
+          </span>
           {saving === 'experiencia' ? 'Guardando…' : 'Guardar experiencia'}
         </button>
       </section>
 
+      {/* ——— Documentos ——— */}
       <section className="pcv-block">
         <div className="pcv-block-head">
           <h3>Documentos (PDF)</h3>
         </div>
-        <div className="pcv-upload-bar">
-          <input
-            placeholder="Título del documento"
-            value={docMeta.titulo}
-            onChange={(e) => setDocMeta((p) => ({ ...p, titulo: e.target.value }))}
-          />
-          <select
-            value={docMeta.tipo}
-            onChange={(e) => setDocMeta((p) => ({ ...p, tipo: e.target.value }))}
-          >
-            {TIPOS_DOC.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-          <label className={`pcv-btn-primary pcv-file-label${uploadingDoc ? ' is-busy' : ''}`}>
+        <div className="pcv-draft">
+          <div className="pcv-draft-grid pcv-draft-grid--doc">
+            <div className="pcv-field">
+              <label>Título del documento</label>
+              <input
+                placeholder="Ej. Título profesional"
+                value={docMeta.titulo}
+                onChange={(e) => setDocMeta((p) => ({ ...p, titulo: e.target.value }))}
+              />
+            </div>
+            <div className="pcv-field">
+              <label>Tipo</label>
+              <select
+                value={docMeta.tipo}
+                onChange={(e) => setDocMeta((p) => ({ ...p, tipo: e.target.value }))}
+              >
+                {TIPOS_DOC.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <label className={`pcv-btn pcv-btn--add${uploadingDoc ? ' is-busy' : ''}`}>
+            <span className="pcv-btn-ico" aria-hidden="true">
+              📄
+            </span>
             {uploadingDoc ? 'Subiendo…' : 'Subir PDF'}
-            <input type="file" accept="application/pdf,.pdf" hidden disabled={uploadingDoc} onChange={subirDocumento} />
+            <input
+              type="file"
+              accept="application/pdf,.pdf"
+              hidden
+              disabled={uploadingDoc}
+              onChange={subirDocumento}
+            />
           </label>
         </div>
-        {documentos.length === 0 && <p className="pcv-empty">Sin documentos. Subí títulos o certificados en PDF.</p>}
-        <ul className="pcv-docs">
-          {documentos.map((d) => (
-            <li key={d.id}>
-              <div>
-                <strong>{d.titulo || 'Documento'}</strong>
-                <span className="pcv-doc-tipo">{d.tipo}</span>
-              </div>
-              <div className="pcv-doc-actions">
-                <a href={d.url} target="_blank" rel="noopener noreferrer">
-                  Abrir
-                </a>
-                <button type="button" className="pcv-btn-danger" onClick={() => eliminarDocumento(d.id)}>
-                  Eliminar
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <div className="pcv-table-wrap">
+          <table className="pcv-table">
+            <thead>
+              <tr>
+                <th>Título</th>
+                <th>Tipo</th>
+                <th className="pcv-th-actions">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {documentos.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="pcv-empty-cell">
+                    Sin documentos. Subí un PDF arriba.
+                  </td>
+                </tr>
+              ) : (
+                documentos.map((d) => (
+                  <tr key={d.id}>
+                    <td>{d.titulo || 'Documento'}</td>
+                    <td>
+                      <span className="pcv-badge">{labelTipoDoc(d.tipo)}</span>
+                    </td>
+                    <td>
+                      <div className="pcv-td-actions">
+                        <a
+                          className="pcv-btn pcv-btn--ghost pcv-btn--sm"
+                          href={d.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <span className="pcv-btn-ico" aria-hidden="true">
+                            👁️
+                          </span>
+                          Abrir
+                        </a>
+                        <button
+                          type="button"
+                          className="pcv-btn pcv-btn--danger pcv-btn--sm"
+                          onClick={() => eliminarDocumento(d.id)}
+                        >
+                          <span className="pcv-btn-ico" aria-hidden="true">
+                            🗑️
+                          </span>
+                          Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );

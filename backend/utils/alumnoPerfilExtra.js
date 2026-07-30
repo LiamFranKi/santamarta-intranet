@@ -316,11 +316,145 @@ function mountAlumnoPerfilExtraRoutes(router) {
   });
 }
 
+async function applySaludUpdate(alumnoId, colegioId, body, currentRow) {
+  const salud = normalizeSaludBody(body, currentRow || {});
+  await execute(
+    `UPDATE alumnos SET
+      alergias = ?,
+      vacunas = ?,
+      tipo_sangre = ?,
+      enfermedades_sufridas = ?,
+      otros_controles = ?,
+      experiencias_traumaticas = ?
+     WHERE id = ? AND colegio_id = ?`,
+    [
+      salud.alergias,
+      salud.vacunas,
+      salud.tipo_sangre,
+      salud.enfermedades_sufridas,
+      salud.otros_controles,
+      salud.experiencias_traumaticas,
+      alumnoId,
+      colegioId
+    ]
+  );
+  return salud;
+}
+
+/**
+ * Rutas de contactos/docs por alumnoId (admin o apoderado/docente-hijo).
+ * @param {import('express').Router} router
+ * @param {{ pathPrefix: string, paramName?: string, assertAccess: (req, alumnoId) => Promise<boolean|string> }} opts
+ * assertAccess: true ok; false → 403; string → mensaje 403/404
+ */
+function mountAlumnoFichaByIdRoutes(router, opts) {
+  const pathPrefix = opts.pathPrefix;
+  const paramName = opts.paramName || 'id';
+  const assertAccess = opts.assertAccess;
+  const upload = createUploadAlumnoDocs();
+
+  async function resolveTarget(req, res) {
+    const alumnoId = parseInt(req.params[paramName], 10);
+    if (!alumnoId) {
+      res.status(400).json({ error: 'ID inválido' });
+      return null;
+    }
+    const access = await assertAccess(req, alumnoId);
+    if (access === false) {
+      res.status(403).json({ error: 'No autorizado' });
+      return null;
+    }
+    if (typeof access === 'string') {
+      res.status(403).json({ error: access });
+      return null;
+    }
+    return { alumnoId, colegioId: req.user.colegio_id };
+  }
+
+  router.get(`${pathPrefix}/:${paramName}/contactos-emergencia`, async (req, res) => {
+    try {
+      const t = await resolveTarget(req, res);
+      if (!t) return;
+      res.json({ contactos: await listContactos(t.alumnoId, t.colegioId) });
+    } catch (e) {
+      console.error('GET contactos by id', e);
+      res.status(500).json({ error: e.message || 'Error al cargar contactos' });
+    }
+  });
+
+  router.put(`${pathPrefix}/:${paramName}/contactos-emergencia`, async (req, res) => {
+    try {
+      const t = await resolveTarget(req, res);
+      if (!t) return;
+      const contactos = await replaceContactos(
+        t.alumnoId,
+        t.colegioId,
+        req.body?.contactos || req.body
+      );
+      res.json({ ok: true, contactos });
+    } catch (e) {
+      console.error('PUT contactos by id', e);
+      res.status(500).json({ error: e.message || 'Error al guardar contactos' });
+    }
+  });
+
+  router.get(`${pathPrefix}/:${paramName}/documentos`, async (req, res) => {
+    try {
+      const t = await resolveTarget(req, res);
+      if (!t) return;
+      res.json({ documentos: await listDocumentos(t.alumnoId, t.colegioId) });
+    } catch (e) {
+      console.error('GET documentos by id', e);
+      res.status(500).json({ error: e.message || 'Error al cargar documentos' });
+    }
+  });
+
+  router.post(
+    `${pathPrefix}/:${paramName}/documentos`,
+    upload.single('archivo'),
+    async (req, res) => {
+      try {
+        const t = await resolveTarget(req, res);
+        if (!t) return;
+        if (!req.file) return res.status(400).json({ error: 'Archivo PDF requerido' });
+        const doc = await insertDocumento(
+          t.alumnoId,
+          t.colegioId,
+          { tipo: req.body.tipo, titulo: req.body.titulo },
+          req.file,
+          req.user.usuario_id
+        );
+        res.status(201).json(doc);
+      } catch (e) {
+        console.error('POST documentos by id', e);
+        res.status(500).json({ error: e.message || 'Error al subir documento' });
+      }
+    }
+  );
+
+  router.delete(`${pathPrefix}/:${paramName}/documentos/:docId`, async (req, res) => {
+    try {
+      const t = await resolveTarget(req, res);
+      if (!t) return;
+      const docId = parseInt(req.params.docId, 10);
+      if (!docId) return res.status(400).json({ error: 'ID inválido' });
+      const ok = await deleteDocumento(docId, t.alumnoId, t.colegioId);
+      if (!ok) return res.status(404).json({ error: 'Documento no encontrado' });
+      res.json({ ok: true });
+    } catch (e) {
+      console.error('DELETE documentos by id', e);
+      res.status(500).json({ error: e.message || 'Error al eliminar' });
+    }
+  });
+}
+
 module.exports = {
   pickSaludFields,
   normalizeSaludBody,
+  applySaludUpdate,
   TIPO_SANGRE_LABELS,
   mountAlumnoPerfilExtraRoutes,
+  mountAlumnoFichaByIdRoutes,
   listContactos,
   listDocumentos,
   replaceContactos

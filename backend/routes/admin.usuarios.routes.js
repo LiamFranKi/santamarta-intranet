@@ -27,6 +27,11 @@ const {
 } = require('../utils/pagoFechaHora');
 const { etiquetaEstadoMatricula } = require('../utils/matriculaEstados');
 const { mountAdminEquipoCvRoutes, parseSueldo } = require('../utils/personalCv');
+const {
+  pickSaludFields,
+  normalizeSaludBody,
+  mountAlumnoFichaByIdRoutes
+} = require('../utils/alumnoPerfilExtra');
 
 /** Valores del ENUM `usuarios.tipo` en MySQL (orden de negocio). */
 const TIPOS_ENUM_USUARIO = [
@@ -2579,7 +2584,7 @@ router.get('/alumnos/:id', async (req, res) => {
       }
     }
 
-    res.json({ ...alumno, avatar_asignado_url });
+    res.json({ ...alumno, avatar_asignado_url, ...pickSaludFields(alumno) });
   } catch (e) {
     console.error('GET alumno admin', e);
     res.status(500).json({ error: e.message || 'Error' });
@@ -2732,6 +2737,21 @@ router.put('/alumnos/:id', async (req, res) => {
       }
     }
 
+    const currentRows = await query(
+      `SELECT alergias, vacunas, tipo_sangre, enfermedades_sufridas, otros_controles, experiencias_traumaticas
+       FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [id, colegio_id]
+    );
+    const current = currentRows[0] || {};
+    const hasSalud =
+      req.body.alergias !== undefined ||
+      req.body.vacunas !== undefined ||
+      req.body.tipo_sangre !== undefined ||
+      req.body.enfermedades_sufridas !== undefined ||
+      req.body.otros_controles !== undefined ||
+      req.body.experiencias_traumaticas !== undefined;
+    const salud = hasSalud ? normalizeSaludBody(req.body, current) : null;
+
     const sets = [];
     const params = [];
     if (ap != null) {
@@ -2758,6 +2778,20 @@ router.put('/alumnos/:id', async (req, res) => {
       sets.push('email = ?');
       params.push(email);
     }
+    if (salud) {
+      sets.push('alergias = ?');
+      params.push(salud.alergias);
+      sets.push('vacunas = ?');
+      params.push(salud.vacunas);
+      sets.push('tipo_sangre = ?');
+      params.push(salud.tipo_sangre);
+      sets.push('enfermedades_sufridas = ?');
+      params.push(salud.enfermedades_sufridas);
+      sets.push('otros_controles = ?');
+      params.push(salud.otros_controles);
+      sets.push('experiencias_traumaticas = ?');
+      params.push(salud.experiencias_traumaticas);
+    }
     if (sets.length) {
       params.push(id, colegio_id);
       await execute(`UPDATE alumnos SET ${sets.join(', ')} WHERE id = ? AND colegio_id = ?`, params);
@@ -2783,6 +2817,19 @@ router.put('/alumnos/:id', async (req, res) => {
   } catch (e) {
     console.error('PUT alumno admin', e);
     res.status(500).json({ error: e.message || 'Error al actualizar alumno' });
+  }
+});
+
+/** Contactos y documentos de ficha alumno (admin). */
+mountAlumnoFichaByIdRoutes(router, {
+  pathPrefix: '/alumnos',
+  paramName: 'id',
+  assertAccess: async (req, alumnoId) => {
+    const rows = await query(
+      'SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1',
+      [alumnoId, req.user.colegio_id]
+    );
+    return rows.length > 0 ? true : 'Alumno no encontrado';
   }
 });
 

@@ -4,26 +4,22 @@
   gap: 1.25rem;
 }
 
-.pcv-loading,
-.pcv-empty {
+.pcv-loading {
   color: #64748b;
-  font-size: 0.92rem;
-  margin: 0.35rem 0 0.75rem;
+  font-size: 0.95rem;
+  padding: 0.5rem 0;
 }
 
 .pcv-block {
-  background: #f8fafc;
+  background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 14px;
-  padding: 1rem 1.1rem 1.15rem;
+  padding: 1rem 1.15rem 1.2rem;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
 }
 
 .pcv-block-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.65rem;
+  margin-bottom: 0.85rem;
 }
 
 .pcv-block-head h3 {
@@ -33,155 +29,249 @@
   font-weight: 700;
 }
 
-.pcv-row {
+.pcv-draft {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 0.85rem 0.95rem;
+  margin-bottom: 0.9rem;
+}
+
+.pcv-draft-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 0.5rem;
-  margin-bottom: 0.65rem;
-  padding-bottom: 0.65rem;
-  border-bottom: 1px dashed #e2e8f0;
+  gap: 0.65rem 0.75rem;
+  align-items: end;
+  margin-bottom: 0.75rem;
 }
 
-.pcv-row--2 {
-  grid-template-columns: 1.4fr 1fr auto;
+.pcv-draft-grid--2 {
+  grid-template-columns: 1.4fr 1fr;
 }
 
-.pcv-row--exp {
-  grid-template-columns: 1.2fr 1fr 1fr 1fr auto;
+.pcv-draft-grid--doc {
+  grid-template-columns: 1.6fr 1fr;
 }
 
-.pcv-row--exp textarea {
-  grid-column: 1 / -2;
+.pcv-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  min-width: 0;
 }
 
-.pcv-row input,
-.pcv-row select,
-.pcv-row textarea,
-.pcv-upload-bar input,
-.pcv-upload-bar select {
+.pcv-field--full {
+  grid-column: 1 / -1;
+}
+
+.pcv-field label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.pcv-field input,
+.pcv-field select,
+.pcv-field textarea {
   width: 100%;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 0.45rem 0.55rem;
+  padding: 0.48rem 0.6rem;
   font-size: 0.9rem;
   background: #fff;
+  color: #0f172a;
+}
+
+.pcv-field input:disabled,
+.pcv-field textarea:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
 }
 
 .pcv-check {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.85rem;
+  gap: 0.4rem;
+  font-size: 0.88rem;
   color: #334155;
+  font-weight: 500;
+}
+
+.pcv-check--draft {
+  align-self: end;
+  padding-bottom: 0.45rem;
   white-space: nowrap;
 }
 
-.pcv-btn-primary,
-.pcv-btn-ghost,
-.pcv-btn-danger,
-.pcv-file-label {
+.pcv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
   border: none;
-  border-radius: 8px;
+  border-radius: 9px;
   cursor: pointer;
   font-size: 0.88rem;
   font-weight: 600;
-  padding: 0.45rem 0.85rem;
+  padding: 0.5rem 0.9rem;
+  text-decoration: none;
+  line-height: 1.2;
 }
 
-.pcv-btn-primary,
-.pcv-file-label {
-  background: #0ea5e9;
-  color: #fff;
-  margin-top: 0.35rem;
-  display: inline-flex;
-  align-items: center;
+.pcv-btn-ico {
+  font-size: 0.95em;
+  line-height: 1;
 }
 
-.pcv-btn-primary:disabled,
-.pcv-file-label.is-busy {
+.pcv-btn--add {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.pcv-btn--add:hover {
+  background: #bae6fd;
+}
+
+.pcv-btn--add.is-busy {
   opacity: 0.65;
   pointer-events: none;
 }
 
-.pcv-btn-ghost {
-  background: #e0f2fe;
+.pcv-btn--primary {
+  background: #0ea5e9;
+  color: #fff;
+  margin-top: 0.65rem;
+}
+
+.pcv-btn--primary:hover:not(:disabled) {
+  background: #0284c7;
+}
+
+.pcv-btn--primary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.pcv-btn--danger {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.pcv-btn--danger:hover {
+  background: #fecaca;
+}
+
+.pcv-btn--ghost {
+  background: #f1f5f9;
   color: #0369a1;
 }
 
-.pcv-btn-danger {
-  background: #fee2e2;
-  color: #b91c1c;
-  padding: 0.4rem 0.65rem;
+.pcv-btn--ghost:hover {
+  background: #e2e8f0;
 }
 
-.pcv-upload-bar {
-  display: grid;
-  grid-template-columns: 1.5fr 1fr auto;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-  align-items: center;
+.pcv-btn--sm {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.82rem;
 }
 
-.pcv-docs {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.pcv-docs li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-  background: #fff;
+.pcv-table-wrap {
+  overflow-x: auto;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  padding: 0.65rem 0.8rem;
 }
 
-.pcv-doc-tipo {
-  display: inline-block;
-  margin-left: 0.5rem;
+.pcv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  min-width: 480px;
+}
+
+.pcv-table thead {
+  background: #f1f5f9;
+}
+
+.pcv-table th {
+  text-align: left;
+  padding: 0.55rem 0.7rem;
   font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #64748b;
+  font-weight: 700;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.pcv-table td {
+  padding: 0.6rem 0.7rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #0f172a;
+  vertical-align: middle;
+}
+
+.pcv-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.pcv-table tbody tr:hover td {
+  background: #f8fafc;
+}
+
+.pcv-empty-cell {
+  text-align: center !important;
+  color: #94a3b8 !important;
+  padding: 1rem 0.75rem !important;
+  font-size: 0.88rem;
+}
+
+.pcv-th-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.pcv-td-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  white-space: nowrap;
+}
+
+.pcv-td-desc {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pcv-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
   color: #0369a1;
   background: #e0f2fe;
   border-radius: 999px;
-  padding: 0.1rem 0.45rem;
-}
-
-.pcv-doc-actions {
-  display: flex;
-  gap: 0.45rem;
-  align-items: center;
-}
-
-.pcv-doc-actions a {
-  color: #0284c7;
-  font-weight: 600;
-  font-size: 0.88rem;
-  text-decoration: none;
+  padding: 0.15rem 0.55rem;
 }
 
 .pcv-editor--compact .pcv-block {
-  padding: 0.75rem;
+  padding: 0.8rem;
 }
 
 @media (max-width: 720px) {
-  .pcv-row--2,
-  .pcv-row--exp,
-  .pcv-upload-bar {
+  .pcv-draft-grid--2,
+  .pcv-draft-grid--doc {
     grid-template-columns: 1fr;
   }
 
-  .pcv-row--exp textarea {
-    grid-column: auto;
+  .pcv-td-desc {
+    max-width: 140px;
   }
 
-  .pcv-docs li {
+  .pcv-td-actions {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: flex-end;
   }
 }

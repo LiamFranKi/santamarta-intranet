@@ -33,6 +33,11 @@ const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoP
 const { getBoletaPdfJsonForPago } = require('../utils/boletaPdfData');
 const { obtenerRangosLetrasColegio } = require('../utils/rangosLetrasColegio');
 const {
+  pickSaludFields,
+  normalizeSaludBody,
+  mountAlumnoFichaByIdRoutes
+} = require('../utils/alumnoPerfilExtra');
+const {
   fetchRangosCiclosParsed,
   contarInasistenciasBimestre,
   contarTardanzasBimestre,
@@ -5507,7 +5512,8 @@ router.get('/hijos/:hijoId/datos', async (req, res) => {
       sexo: alumnoData.sexo,
       fecha_nacimiento: alumnoData.fecha_nacimiento,
       foto: alumnoData.foto,
-      nro_documento: alumnoData.nro_documento
+      nro_documento: alumnoData.nro_documento,
+      ...pickSaludFields(alumnoData)
     });
   } catch (error) {
     console.error('Error obteniendo datos del hijo:', error);
@@ -5552,7 +5558,8 @@ router.put('/hijos/:hijoId/datos', uploadAlumnoHijo.single('foto'), async (req, 
 
     // Obtener datos actuales del alumno
     const alumno = await query(
-      `SELECT id, nombres, apellido_paterno, apellido_materno, email, sexo, foto, fecha_nacimiento
+      `SELECT id, nombres, apellido_paterno, apellido_materno, email, sexo, foto, fecha_nacimiento,
+              alergias, vacunas, tipo_sangre, enfermedades_sufridas, otros_controles, experiencias_traumaticas
        FROM alumnos
        WHERE id = ? AND colegio_id = ?`,
       [hijoIdNum, colegio_id]
@@ -5590,6 +5597,8 @@ router.put('/hijos/:hijoId/datos', uploadAlumnoHijo.single('foto'), async (req, 
       fechaFinal = alumnoData.fecha_nacimiento;
     }
 
+    const salud = normalizeSaludBody(req.body, alumnoData);
+
     await execute(
       `UPDATE alumnos SET
         nombres = ?,
@@ -5598,7 +5607,13 @@ router.put('/hijos/:hijoId/datos', uploadAlumnoHijo.single('foto'), async (req, 
         email = ?,
         sexo = ?,
         foto = ?,
-        fecha_nacimiento = ?
+        fecha_nacimiento = ?,
+        alergias = ?,
+        vacunas = ?,
+        tipo_sangre = ?,
+        enfermedades_sufridas = ?,
+        otros_controles = ?,
+        experiencias_traumaticas = ?
       WHERE id = ? AND colegio_id = ?`,
       [
         nombres || alumnoData.nombres,
@@ -5608,6 +5623,12 @@ router.put('/hijos/:hijoId/datos', uploadAlumnoHijo.single('foto'), async (req, 
         sexo !== undefined ? sexo : (alumnoData.sexo !== undefined ? alumnoData.sexo : null),
         fotoPath,
         fechaFinal,
+        salud.alergias,
+        salud.vacunas,
+        salud.tipo_sangre,
+        salud.enfermedades_sufridas,
+        salud.otros_controles,
+        salud.experiencias_traumaticas,
         hijoIdNum,
         colegio_id
       ]
@@ -5623,11 +5644,35 @@ router.put('/hijos/:hijoId/datos', uploadAlumnoHijo.single('foto'), async (req, 
 
     res.json({
       message: 'Datos actualizados correctamente',
-      alumno: alumnoActualizado[0]
+      alumno: {
+        ...alumnoActualizado[0],
+        ...pickSaludFields(alumnoActualizado[0])
+      }
     });
   } catch (error) {
     console.error('Error actualizando datos del hijo:', error);
     res.status(500).json({ error: 'Error al actualizar datos del alumno', details: error.message });
+  }
+});
+
+/** Contactos y documentos de ficha del hijo (apoderado). */
+mountAlumnoFichaByIdRoutes(router, {
+  pathPrefix: '/hijos',
+  paramName: 'hijoId',
+  assertAccess: async (req, alumnoId) => {
+    const { colegio_id, apoderado_id } = req.user;
+    if (!apoderado_id) return 'Información de usuario incompleta';
+    const rows = await query(
+      `SELECT COUNT(*) AS count
+       FROM familias f
+       INNER JOIN alumnos a ON a.id = f.alumno_id
+       WHERE f.apoderado_id = ? AND a.id = ? AND a.colegio_id = ?`,
+      [apoderado_id, alumnoId, colegio_id]
+    );
+    if (!rows?.[0]?.count) {
+      return 'No tienes permisos sobre este alumno';
+    }
+    return true;
   }
 });
 

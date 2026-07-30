@@ -10,6 +10,8 @@ import AdminMensajeQuillEditor from '../../components/admin/AdminMensajeQuillEdi
 import NuevaMatriculaAlumnoExistenteModal from '../../components/admin/NuevaMatriculaAlumnoExistenteModal';
 import { mensajeHtmlTieneContenido } from '../../utils/mensajesHtml';
 import { showHistorialPagosSwal, showListaPagosMatriculaSwal } from '../../utils/adminAlumnoPagosSwal';
+import AlumnoSaludFields from '../../components/AlumnoSaludFields';
+import AlumnoPerfilExtra from '../../components/AlumnoPerfilExtra';
 import './AdminUsuarios.css';
 import './AdminUsuariosEquipoCards.css';
 
@@ -201,6 +203,15 @@ export default function AdminUsuariosAlumnos() {
         email: data.email || '',
         foto: data.foto || '',
         usuario_estado: data.usuario_estado || 'ACTIVO',
+        alergias: data.alergias || '',
+        vacunas: data.vacunas || '',
+        tipo_sangre:
+          data.tipo_sangre !== undefined && data.tipo_sangre !== null
+            ? String(data.tipo_sangre)
+            : '0',
+        enfermedades_sufridas: data.enfermedades_sufridas || '',
+        otros_controles: data.otros_controles || '',
+        experiencias_traumaticas: data.experiencias_traumaticas || '',
       });
       setFotoEditFile(null);
       setFotoEditPreview('');
@@ -918,6 +929,20 @@ export default function AdminUsuariosAlumnos() {
                   </div>
                 </div>
                 <div className="admin-usu-profile-section">
+                  <h3>Salud</h3>
+                  <AlumnoSaludFields
+                    classPrefix="admin"
+                    values={form}
+                    onChange={(e) => setForm({ ...form, [e.target.name]: e.target.value })}
+                  />
+                </div>
+                {modalEdit ? (
+                  <div className="admin-usu-profile-section">
+                    <h3>Emergencia y documentos</h3>
+                    <AlumnoPerfilExtra apiBase={`/admin/usuarios/alumnos/${modalEdit}`} />
+                  </div>
+                ) : null}
+                <div className="admin-usu-profile-section">
                   <h3>Información del Sistema</h3>
                   <div className="admin-usu-info-grid">
                     <div className="admin-usu-info-item">
@@ -1013,6 +1038,16 @@ export default function AdminUsuariosAlumnos() {
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">DNI</span><span className="admin-usu-info-value">{modalInfo.nro_documento || '—'}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Nacimiento</span><span className="admin-usu-info-value">{formatFechaNacimiento(modalInfo.fecha_nacimiento)}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Correo</span><span className="admin-usu-info-value">{modalInfo.email || '—'}</span></div>
+                  </div>
+                </div>
+                <div className="admin-usu-profile-section">
+                  <h3>Salud</h3>
+                  <div className="admin-usu-info-grid">
+                    <div className="admin-usu-info-item"><span className="admin-usu-info-label">Tipo de sangre</span><span className="admin-usu-info-value">{modalInfo.tipo_sangre_label || (modalInfo.tipo_sangre != null ? String(modalInfo.tipo_sangre) : '—')}</span></div>
+                    <div className="admin-usu-info-item" style={{ gridColumn: '1 / -1' }}><span className="admin-usu-info-label">Alergias</span><span className="admin-usu-info-value">{modalInfo.alergias || '—'}</span></div>
+                    <div className="admin-usu-info-item" style={{ gridColumn: '1 / -1' }}><span className="admin-usu-info-label">Vacunas</span><span className="admin-usu-info-value">{modalInfo.vacunas || '—'}</span></div>
+                    <div className="admin-usu-info-item" style={{ gridColumn: '1 / -1' }}><span className="admin-usu-info-label">Enfermedades</span><span className="admin-usu-info-value">{modalInfo.enfermedades_sufridas || '—'}</span></div>
+                    <div className="admin-usu-info-item" style={{ gridColumn: '1 / -1' }}><span className="admin-usu-info-label">Otros controles</span><span className="admin-usu-info-value">{modalInfo.otros_controles || '—'}</span></div>
                   </div>
                 </div>
                 {modalInfo.matricula_actual && (

@@ -19,6 +19,8 @@ import {
 import { normalizarRangosLetras } from '../utils/notaLetraConversion';
 import { esNivelInicial, debeMostrarNotasDetalladas } from '../utils/esNivelInicial';
 import { formatearTutoresLibreta } from '../utils/tutoresGrupoTexto';
+import AlumnoSaludFields from '../components/AlumnoSaludFields';
+import AlumnoPerfilExtra from '../components/AlumnoPerfilExtra';
 import './DocenteHijos.css';
 import './AlumnoCursos.css';
 
@@ -48,7 +50,13 @@ function ApoderadoHijos() {
     apellido_materno: '',
     email: '',
     sexo: '',
-    fecha_nacimiento: ''
+    fecha_nacimiento: '',
+    alergias: '',
+    vacunas: '',
+    tipo_sangre: '0',
+    enfermedades_sufridas: '',
+    otros_controles: '',
+    experiencias_traumaticas: ''
   });
   const [fotoPreview, setFotoPreview] = useState(null);
   const [fotoFile, setFotoFile] = useState(null);
@@ -434,7 +442,16 @@ function ApoderadoHijos() {
         apellido_materno: datos.apellido_materno || '',
         email: datos.email || '',
         sexo: datos.sexo !== undefined ? String(datos.sexo) : '',
-        fecha_nacimiento: fechaFormateada
+        fecha_nacimiento: fechaFormateada,
+        alergias: datos.alergias || '',
+        vacunas: datos.vacunas || '',
+        tipo_sangre:
+          datos.tipo_sangre !== undefined && datos.tipo_sangre !== null
+            ? String(datos.tipo_sangre)
+            : '0',
+        enfermedades_sufridas: datos.enfermedades_sufridas || '',
+        otros_controles: datos.otros_controles || '',
+        experiencias_traumaticas: datos.experiencias_traumaticas || ''
       });
       
       // Guardar DNI
@@ -3326,7 +3343,13 @@ function ApoderadoHijos() {
       formDataToSend.append('email', formData.email);
       formDataToSend.append('sexo', formData.sexo || '');
       formDataToSend.append('fecha_nacimiento', formData.fecha_nacimiento);
-      
+      formDataToSend.append('alergias', formData.alergias || '');
+      formDataToSend.append('vacunas', formData.vacunas || '');
+      formDataToSend.append('tipo_sangre', formData.tipo_sangre || '0');
+      formDataToSend.append('enfermedades_sufridas', formData.enfermedades_sufridas || '');
+      formDataToSend.append('otros_controles', formData.otros_controles || '');
+      formDataToSend.append('experiencias_traumaticas', formData.experiencias_traumaticas || '');
+
       if (fotoFile) {
         formDataToSend.append('foto', fotoFile);
       }
@@ -4054,6 +4077,18 @@ function ApoderadoHijos() {
                   </div>
                 </div>
               </div>
+
+              <div className="modal-section">
+                <h3 className="section-title">Salud</h3>
+                <AlumnoSaludFields values={formData} onChange={handleInputChange} />
+              </div>
+
+              {hijoSeleccionado?.id ? (
+                <div className="modal-section">
+                  <h3 className="section-title">Emergencia y documentos</h3>
+                  <AlumnoPerfilExtra apiBase={`/apoderado/hijos/${hijoSeleccionado.id}`} />
+                </div>
+              ) : null}
 
               {/* Información de Solo Lectura */}
               <div className="modal-section">

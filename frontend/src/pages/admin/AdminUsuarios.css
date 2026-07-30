@@ -1044,7 +1044,8 @@
 }
 
 .admin-usu-field input,
-.admin-usu-field select {
+.admin-usu-field select,
+.admin-usu-field textarea {
   width: 100%;
   padding: 0.5rem 0.65rem;
   border: 1px solid #e5e7eb;

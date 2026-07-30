@@ -10,6 +10,8 @@ import AdminMensajeQuillEditor from '../../components/admin/AdminMensajeQuillEdi
 import NuevaMatriculaAlumnoExistenteModal from '../../components/admin/NuevaMatriculaAlumnoExistenteModal';
 import { mensajeHtmlTieneContenido } from '../../utils/mensajesHtml';
 import { showHistorialPagosSwal, showListaPagosMatriculaSwal } from '../../utils/adminAlumnoPagosSwal';
+import AlumnoSaludFields from '../../components/AlumnoSaludFields';
+import AlumnoPerfilExtra from '../../components/AlumnoPerfilExtra';
 import './AdminUsuarios.css';
 
 /**
@@ -202,6 +204,15 @@ export default function AdminUsuariosAlumnosTabla() {
         email: data.email || '',
         foto: data.foto || '',
         usuario_estado: data.usuario_estado || 'ACTIVO',
+        alergias: data.alergias || '',
+        vacunas: data.vacunas || '',
+        tipo_sangre:
+          data.tipo_sangre !== undefined && data.tipo_sangre !== null
+            ? String(data.tipo_sangre)
+            : '0',
+        enfermedades_sufridas: data.enfermedades_sufridas || '',
+        otros_controles: data.otros_controles || '',
+        experiencias_traumaticas: data.experiencias_traumaticas || '',
       });
       setFotoEditFile(null);
       setFotoEditPreview('');
@@ -922,6 +933,20 @@ export default function AdminUsuariosAlumnosTabla() {
                     </div>
                   </div>
                 </div>
+                <div className="admin-usu-profile-section">
+                  <h3>Salud</h3>
+                  <AlumnoSaludFields
+                    classPrefix="admin"
+                    values={form}
+                    onChange={(e) => setForm({ ...form, [e.target.name]: e.target.value })}
+                  />
+                </div>
+                {modalEdit ? (
+                  <div className="admin-usu-profile-section">
+                    <h3>Emergencia y documentos</h3>
+                    <AlumnoPerfilExtra apiBase={`/admin/usuarios/alumnos/${modalEdit}`} />
+                  </div>
+                ) : null}
                 <div className="admin-usu-profile-section">
                   <h3>Información del Sistema</h3>
                   <div className="admin-usu-info-grid">

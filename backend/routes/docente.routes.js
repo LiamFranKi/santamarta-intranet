@@ -41,6 +41,11 @@ const {
 const { fetchUsuariosTutoresGrupos } = require('../utils/grupoTutores');
 const { enriquecerMensajeDocenteParaDestinatario } = require('../utils/mensajesDocenteApoderadoContexto');
 const { mountSelfServiceCvRoutes } = require('../utils/personalCv');
+const {
+  pickSaludFields,
+  normalizeSaludBody,
+  mountAlumnoFichaByIdRoutes
+} = require('../utils/alumnoPerfilExtra');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 const { fetchMatriculaAnioActivoOperativa, sqlExistePagoMatriculaCancelado, personalHijoTieneMatriculaAnioActivoOperativa, MENSAJE_SIN_MATRICULA } = require('../utils/matriculaAnioActivo');
 const { maxCuadrosConNotaEnCriterio } = require('../utils/indicadoresPlantillaService');
@@ -9821,7 +9826,8 @@ router.get('/hijos/:hijoId/datos', async (req, res) => {
       sexo: alumnoData.sexo,
       fecha_nacimiento: alumnoData.fecha_nacimiento,
       foto: alumnoData.foto,
-      nro_documento: alumnoData.nro_documento
+      nro_documento: alumnoData.nro_documento,
+      ...pickSaludFields(alumnoData)
     };
     
     console.log(`✅ [HIJOS-DATOS] Respuesta enviada exitosamente para hijoId: ${hijoIdNum}`);
@@ -10012,6 +10018,8 @@ router.put('/hijos/:hijoId/datos', uploadAlumnoHijo.single('foto'), async (req, 
     
     console.log(`📋 [HIJOS-DATOS-PUT] Email final:`, emailFinal);
     console.log(`📋 [HIJOS-DATOS-PUT] Fecha final:`, fechaFinal);
+
+    const salud = normalizeSaludBody(req.body, alumnoData);
     
     await execute(
       `UPDATE alumnos SET
@@ -10021,7 +10029,13 @@ router.put('/hijos/:hijoId/datos', uploadAlumnoHijo.single('foto'), async (req, 
         email = ?,
         sexo = ?,
         foto = ?,
-        fecha_nacimiento = ?
+        fecha_nacimiento = ?,
+        alergias = ?,
+        vacunas = ?,
+        tipo_sangre = ?,
+        enfermedades_sufridas = ?,
+        otros_controles = ?,
+        experiencias_traumaticas = ?
       WHERE id = ? AND colegio_id = ?`,
       [
         nombres || alumnoData.nombres,
@@ -10031,6 +10045,12 @@ router.put('/hijos/:hijoId/datos', uploadAlumnoHijo.single('foto'), async (req, 
         sexo !== undefined ? sexo : (alumnoData.sexo !== undefined ? alumnoData.sexo : null),
         fotoPath,
         fechaFinal,
+        salud.alergias,
+        salud.vacunas,
+        salud.tipo_sangre,
+        salud.enfermedades_sufridas,
+        salud.otros_controles,
+        salud.experiencias_traumaticas,
         hijoIdNum,
         colegio_id
       ]
@@ -10048,7 +10068,10 @@ router.put('/hijos/:hijoId/datos', uploadAlumnoHijo.single('foto'), async (req, 
 
     const respuesta = {
       message: 'Datos actualizados correctamente',
-      alumno: alumnoActualizado[0]
+      alumno: {
+        ...alumnoActualizado[0],
+        ...pickSaludFields(alumnoActualizado[0])
+      }
     };
     
     console.log(`✅ [HIJOS-DATOS-PUT] Datos actualizados exitosamente para hijoId: ${hijoIdNum}`);
@@ -10060,6 +10083,40 @@ router.put('/hijos/:hijoId/datos', uploadAlumnoHijo.single('foto'), async (req, 
     console.error('❌ [HIJOS-DATOS-PUT] Stack trace:', error.stack);
     console.error(`🔵 ========== [HIJOS-DATOS-PUT] FIN DE PETICIÓN (ERROR) ==========\n`);
     res.status(500).json({ error: 'Error al actualizar datos del alumno', details: error.message });
+  }
+});
+
+/** Contactos y documentos de ficha del hijo (docente-apoderado). */
+mountAlumnoFichaByIdRoutes(router, {
+  pathPrefix: '/hijos',
+  paramName: 'hijoId',
+  assertAccess: async (req, alumnoId) => {
+    const { colegio_id, usuario_id, personal_id } = req.user;
+    if (!personal_id) return 'Información de usuario incompleta';
+    let nroDocumento = null;
+    const personalData = await query(
+      `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [personal_id, colegio_id]
+    );
+    if (personalData?.[0]?.nro_documento) nroDocumento = personalData[0].nro_documento;
+    else {
+      const usuarioData = await query(
+        `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
+        [usuario_id, colegio_id, personal_id]
+      );
+      if (usuarioData?.[0]?.usuario) nroDocumento = usuarioData[0].usuario;
+    }
+    if (!nroDocumento) return 'No se encontró tu número de documento';
+    const esHijo = await query(
+      `SELECT COUNT(*) AS count
+       FROM apoderados ap
+       INNER JOIN familias f ON f.apoderado_id = ap.id
+       INNER JOIN alumnos a ON a.id = f.alumno_id
+       WHERE ap.colegio_id = ? AND ap.nro_documento = ? AND a.id = ? AND a.colegio_id = ?`,
+      [colegio_id, nroDocumento, alumnoId, colegio_id]
+    );
+    if (!esHijo?.[0]?.count) return 'No tienes permisos sobre este alumno';
+    return true;
   }
 });
 
