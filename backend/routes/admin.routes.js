@@ -18,6 +18,7 @@ const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
 const { sqlFiltroAnioPago } = require('../utils/pagoFechaHora');
 const { normalizarUrlsImagenesEnHtml } = require('../utils/mensajesHtml');
 const { listarPensionesVencidasHastaHoy } = require('../utils/deudaPensiones');
+const { mountSelfServiceCvRoutes } = require('../utils/personalCv');
 
 const ANIO_PAGO_SQL = sqlFiltroAnioPago('p');
 const phpSerialize = require('php-serialize');
@@ -3404,6 +3405,9 @@ router.put('/perfil/password', async (req, res) => {
     res.status(500).json({ error: 'Error al cambiar la contraseña' });
   }
 });
+
+/** CV personal (estudios, idiomas, experiencia, PDFs). Sin sueldo. */
+mountSelfServiceCvRoutes(router);
 
 /**
  * GET /api/admin/notificaciones-envios

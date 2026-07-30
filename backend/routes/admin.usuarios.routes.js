@@ -26,6 +26,7 @@ const {
   normalizarFechaHoraPagoCancelado,
 } = require('../utils/pagoFechaHora');
 const { etiquetaEstadoMatricula } = require('../utils/matriculaEstados');
+const { mountAdminEquipoCvRoutes, parseSueldo } = require('../utils/personalCv');
 
 /** Valores del ENUM `usuarios.tipo` en MySQL (orden de negocio). */
 const TIPOS_ENUM_USUARIO = [
@@ -1989,6 +1990,21 @@ router.post('/equipo', uploadUsuarioFoto.single('foto'), async (req, res) => {
     }
 
     const usuarioId = await insertUsuarioPersonal(colegio_id, personalId, d.nro_documento, tipo);
+
+    if (req.body.sueldo !== undefined && req.body.sueldo !== null && req.body.sueldo !== '') {
+      const sueldoParsed = parseSueldo(req.body.sueldo);
+      if (sueldoParsed === undefined) {
+        return res.status(400).json({ error: 'Sueldo inválido' });
+      }
+      if (sueldoParsed != null) {
+        await execute('UPDATE personal SET sueldo = ? WHERE id = ? AND colegio_id = ?', [
+          sueldoParsed,
+          personalId,
+          colegio_id
+        ]);
+      }
+    }
+
     res.status(201).json({ personal_id: personalId, usuario_id: usuarioId });
   } catch (e) {
     console.error('POST /admin/usuarios/equipo', e);
@@ -2095,6 +2111,14 @@ router.put('/equipo/:personalId', async (req, res) => {
       sets.push('nro_documento = ?');
       params.push(nro_documento);
     }
+    if (req.body.sueldo !== undefined) {
+      const sueldoParsed = parseSueldo(req.body.sueldo);
+      if (sueldoParsed === undefined) {
+        return res.status(400).json({ error: 'Sueldo inválido' });
+      }
+      sets.push('sueldo = ?');
+      params.push(sueldoParsed);
+    }
 
     if (sets.length) {
       params.push(personalId, colegio_id);
@@ -2144,6 +2168,9 @@ router.put('/equipo/:personalId', async (req, res) => {
     res.status(500).json({ error: e.message || 'Error al actualizar' });
   }
 });
+
+/** CV de un miembro del equipo (admin). */
+mountAdminEquipoCvRoutes(router);
 
 router.put('/equipo/:personalId/foto', uploadUsuarioFoto.single('foto'), async (req, res) => {
   try {

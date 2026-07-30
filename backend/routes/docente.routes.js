@@ -40,6 +40,7 @@ const {
 } = require('../utils/mensajesGrupoConexionesContexto');
 const { fetchUsuariosTutoresGrupos } = require('../utils/grupoTutores');
 const { enriquecerMensajeDocenteParaDestinatario } = require('../utils/mensajesDocenteApoderadoContexto');
+const { mountSelfServiceCvRoutes } = require('../utils/personalCv');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 const { fetchMatriculaAnioActivoOperativa, sqlExistePagoMatriculaCancelado, personalHijoTieneMatriculaAnioActivoOperativa, MENSAJE_SIN_MATRICULA } = require('../utils/matriculaAnioActivo');
 const { maxCuadrosConNotaEnCriterio } = require('../utils/indicadoresPlantillaService');
@@ -2216,6 +2217,9 @@ router.put('/perfil/password', async (req, res) => {
     res.status(500).json({ error: 'Error al cambiar la contraseña' });
   }
 });
+
+/** CV personal (estudios, idiomas, experiencia, PDFs). Sin sueldo. */
+mountSelfServiceCvRoutes(router);
 
 /**
  * GET /api/docente/tiene-asignaciones

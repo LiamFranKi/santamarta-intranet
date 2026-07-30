@@ -7,9 +7,17 @@ import { jsPDF } from 'jspdf';
 import { fotoUsuarioAdmin } from '../../utils/adminUsuariosFoto';
 import AdminUsuariosFotoLightbox from '../../components/admin/AdminUsuariosFotoLightbox';
 import AdminMensajeQuillEditor from '../../components/admin/AdminMensajeQuillEditor';
+import PersonalCvEditor from '../../components/PersonalCvEditor';
 import { mensajeHtmlTieneContenido } from '../../utils/mensajesHtml';
 import './AdminUsuarios.css';
 import './AdminUsuariosEquipoCards.css';
+
+function formatearSueldo(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  const n = Number(v);
+  if (Number.isNaN(n)) return '—';
+  return `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 function nombreCompletoEquipo(row) {
   const ap = (row.apellidos || '').trim();
@@ -184,6 +192,7 @@ export default function AdminUsuariosEquipo() {
       telefono_celular: '',
       cargo: '',
       profesion: '',
+      sueldo: '',
       fecha_ingreso: new Date().toISOString().slice(0, 10),
       hora_entrada: '08:00',
       hora_salida: '17:00',
@@ -226,6 +235,7 @@ export default function AdminUsuariosEquipo() {
         telefono_celular: data.telefono_celular || '',
         cargo: data.cargo || '',
         profesion: data.profesion || '',
+        sueldo: data.sueldo != null && data.sueldo !== '' ? String(data.sueldo) : '',
         fecha_ingreso: (data.fecha_ingreso || '').toString().slice(0, 10),
         hora_entrada: (data.hora_entrada || '').toString().slice(0, 5),
         hora_salida: (data.hora_salida || '').toString().slice(0, 5),
@@ -901,6 +911,17 @@ export default function AdminUsuariosEquipo() {
                       </div>
                     ))}
                     <div className="admin-usu-field">
+                      <label>Sueldo (S/)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Solo visible para administradores"
+                        value={form.sueldo ?? ''}
+                        onChange={(e) => setForm({ ...form, sueldo: e.target.value })}
+                      />
+                    </div>
+                    <div className="admin-usu-field">
                       <label>Fecha nacimiento</label>
                       <input
                         type="date"
@@ -1018,6 +1039,17 @@ export default function AdminUsuariosEquipo() {
                       </div>
                     ))}
                     <div className="admin-usu-field">
+                      <label>Sueldo (S/)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Solo administradores"
+                        value={form.sueldo ?? ''}
+                        onChange={(e) => setForm({ ...form, sueldo: e.target.value })}
+                      />
+                    </div>
+                    <div className="admin-usu-field">
                       <label>Fecha nacimiento</label>
                       <input
                         type="date"
@@ -1060,6 +1092,12 @@ export default function AdminUsuariosEquipo() {
                       </select>
                     </div>
                   </div>
+                </div>
+                <div className="admin-usu-profile-section">
+                  <h3>Formación y CV</h3>
+                  {modalEdit ? (
+                    <PersonalCvEditor apiBase={`/admin/usuarios/equipo/${modalEdit}/cv`} compact />
+                  ) : null}
                 </div>
                 <div className="admin-usu-profile-section">
                   <h3>Información del Sistema</h3>
@@ -1130,6 +1168,7 @@ export default function AdminUsuariosEquipo() {
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Celular</span><span className="admin-usu-info-value">{modalInfo.telefono_celular || '—'}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Cargo</span><span className="admin-usu-info-value">{modalInfo.cargo || '—'}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Profesión</span><span className="admin-usu-info-value">{modalInfo.profesion || '—'}</span></div>
+                    <div className="admin-usu-info-item"><span className="admin-usu-info-label">Sueldo</span><span className="admin-usu-info-value">{formatearSueldo(modalInfo.sueldo)}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Hora de entrada</span><span className="admin-usu-info-value">{(modalInfo.hora_entrada || '').toString().slice(0, 5) || '—'}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Hora de salida</span><span className="admin-usu-info-value">{(modalInfo.hora_salida || '').toString().slice(0, 5) || '—'}</span></div>
                   </div>

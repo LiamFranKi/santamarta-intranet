@@ -5,6 +5,7 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { suscribirNotificacionesPush, desuscribirNotificacionesPush, verificarEstadoNotificaciones, tieneSuscripcionPushActiva } from '../services/pushNotificationService';
 import Swal from 'sweetalert2';
+import PersonalCvEditor from '../components/PersonalCvEditor';
 import './DocentePerfil.css';
 
 // Función para obtener iniciales del nombre
@@ -548,20 +549,24 @@ function DocentePerfil({ apiPrefix = '/docente', dashboardPath = '/docente/dashb
             <h2>
               {tabActiva === 'datos'
                 ? 'Datos personales'
-                : tabActiva === 'sistema'
-                  ? 'Información del sistema'
-                  : tabActiva === 'notificaciones'
-                    ? 'Notificaciones push'
-                    : 'Seguridad'}
+                : tabActiva === 'cv'
+                  ? 'Formación y CV'
+                  : tabActiva === 'sistema'
+                    ? 'Información del sistema'
+                    : tabActiva === 'notificaciones'
+                      ? 'Notificaciones push'
+                      : 'Seguridad'}
             </h2>
             <p>
               {tabActiva === 'datos'
                 ? 'Editá nombre, correo, teléfono y dirección. Guardá los cambios al final.'
-                : tabActiva === 'sistema'
-                  ? 'Datos de solo lectura asociados a tu ficha laboral (DNI, cargo, horarios).'
-                  : tabActiva === 'notificaciones'
-                    ? 'Activá alertas en el dispositivo aunque la app esté cerrada.'
-                    : 'Cambiá tu contraseña cuando lo necesites. Mínimo 6 caracteres.'}
+                : tabActiva === 'cv'
+                  ? 'Estudios, idiomas, experiencia laboral y documentos PDF (títulos, certificados).'
+                  : tabActiva === 'sistema'
+                    ? 'Datos de solo lectura asociados a tu ficha laboral (DNI, cargo, horarios).'
+                    : tabActiva === 'notificaciones'
+                      ? 'Activá alertas en el dispositivo aunque la app esté cerrada.'
+                      : 'Cambiá tu contraseña cuando lo necesites. Mínimo 6 caracteres.'}
             </p>
           </div>
         </div>
@@ -576,6 +581,15 @@ function DocentePerfil({ apiPrefix = '/docente', dashboardPath = '/docente/dashb
               onClick={() => setTabActiva('datos')}
             >
               Datos
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tabActiva === 'cv'}
+              className={`perfil-tab perfil-tab--teal${tabActiva === 'cv' ? ' is-active' : ''}`}
+              onClick={() => setTabActiva('cv')}
+            >
+              CV
             </button>
             <button
               type="button"
@@ -697,6 +711,18 @@ function DocentePerfil({ apiPrefix = '/docente', dashboardPath = '/docente/dashb
               </button>
             </div>
           </form>
+        )}
+
+        {tabActiva === 'cv' && (
+          <div className="perfil-section mundo-card">
+            <h2 className="section-title">
+              <span className="section-title-ico" aria-hidden="true">
+                📄
+              </span>
+              Formación y CV
+            </h2>
+            <PersonalCvEditor apiBase={`${apiPrefix}/perfil/cv`} />
+          </div>
         )}
 
         {tabActiva === 'sistema' && (

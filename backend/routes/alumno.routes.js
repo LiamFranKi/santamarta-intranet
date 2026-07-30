@@ -29,6 +29,11 @@ const {
   aplicarEstadoFinalizadoPrueba
 } = require('../utils/examenFinalizarPrueba');
 const {
+  pickSaludFields,
+  normalizeSaludBody,
+  mountAlumnoPerfilExtraRoutes
+} = require('../utils/alumnoPerfilExtra');
+const {
   parseLayoutFromPruebaRow,
   buildLayoutPayload,
   guardarLayoutEnPrueba
@@ -2129,6 +2134,7 @@ router.get('/perfil', async (req, res) => {
       sexo: alumnoData.sexo !== undefined ? alumnoData.sexo : null,
       foto: fotoUrl,
       fecha_nacimiento: alumnoData.fecha_nacimiento,
+      ...pickSaludFields(alumnoData),
       apoderados: (apoderados || []).map((ap) => ({
         id: ap.id,
         parentesco: ap.parentesco,
@@ -2234,6 +2240,8 @@ router.put('/perfil', uploadAlumno.single('foto'), async (req, res) => {
       fotoPath = req.file.filename;
     }
 
+    const salud = normalizeSaludBody(req.body, alumnoData);
+
     // Actualizar datos (solo campos que existen en la tabla alumnos)
     await execute(
       `UPDATE alumnos SET
@@ -2243,7 +2251,13 @@ router.put('/perfil', uploadAlumno.single('foto'), async (req, res) => {
         email = ?,
         sexo = ?,
         foto = ?,
-        fecha_nacimiento = ?
+        fecha_nacimiento = ?,
+        alergias = ?,
+        vacunas = ?,
+        tipo_sangre = ?,
+        enfermedades_sufridas = ?,
+        otros_controles = ?,
+        experiencias_traumaticas = ?
       WHERE id = ?`,
       [
         nombres || alumnoData.nombres,
@@ -2253,6 +2267,12 @@ router.put('/perfil', uploadAlumno.single('foto'), async (req, res) => {
         sexo !== undefined ? sexo : (alumnoData.sexo !== undefined ? alumnoData.sexo : null),
         fotoPath,
         fecha_nacimiento || alumnoData.fecha_nacimiento || null,
+        salud.alergias,
+        salud.vacunas,
+        salud.tipo_sangre,
+        salud.enfermedades_sufridas,
+        salud.otros_controles,
+        salud.experiencias_traumaticas,
         alumnoData.id
       ]
     );
@@ -2289,7 +2309,8 @@ router.put('/perfil', uploadAlumno.single('foto'), async (req, res) => {
       email: alumnoDataActualizado.email || null,
       sexo: alumnoDataActualizado.sexo !== undefined ? alumnoDataActualizado.sexo : null,
       foto: fotoUrl,
-      fecha_nacimiento: alumnoDataActualizado.fecha_nacimiento
+      fecha_nacimiento: alumnoDataActualizado.fecha_nacimiento,
+      ...pickSaludFields(alumnoDataActualizado)
     });
   } catch (error) {
     console.error('Error actualizando perfil:', error);
@@ -2344,6 +2365,9 @@ router.put('/perfil/password', async (req, res) => {
     res.status(500).json({ error: 'Error al cambiar contraseña' });
   }
 });
+
+/** Contactos de emergencia y documentos (PDFs) del alumno. */
+mountAlumnoPerfilExtraRoutes(router);
 
 /**
  * GET /api/alumno/qr

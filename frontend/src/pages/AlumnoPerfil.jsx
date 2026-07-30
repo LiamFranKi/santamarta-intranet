@@ -5,6 +5,7 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { suscribirNotificacionesPush, desuscribirNotificacionesPush, verificarEstadoNotificaciones, tieneSuscripcionPushActiva } from '../services/pushNotificationService';
 import Swal from 'sweetalert2';
+import AlumnoPerfilExtra from '../components/AlumnoPerfilExtra';
 import './AlumnoPerfil.css';
 
 // Función para obtener iniciales del nombre
@@ -26,7 +27,13 @@ function AlumnoPerfil() {
     apellido_materno: '',
     email: '',
     sexo: '',
-    fecha_nacimiento: ''
+    fecha_nacimiento: '',
+    alergias: '',
+    vacunas: '',
+    tipo_sangre: '0',
+    enfermedades_sufridas: '',
+    otros_controles: '',
+    experiencias_traumaticas: ''
   });
   const [fotoPreview, setFotoPreview] = useState(null);
   const [fotoFile, setFotoFile] = useState(null);
@@ -102,7 +109,16 @@ function AlumnoPerfil() {
         apellido_materno: data.apellido_materno || '',
         email: data.email || '',
         sexo: data.sexo !== undefined && data.sexo !== null ? String(data.sexo) : '',
-        fecha_nacimiento: formatearFechaParaInput(data.fecha_nacimiento)
+        fecha_nacimiento: formatearFechaParaInput(data.fecha_nacimiento),
+        alergias: data.alergias || '',
+        vacunas: data.vacunas || '',
+        tipo_sangre:
+          data.tipo_sangre !== undefined && data.tipo_sangre !== null
+            ? String(data.tipo_sangre)
+            : '0',
+        enfermedades_sufridas: data.enfermedades_sufridas || '',
+        otros_controles: data.otros_controles || '',
+        experiencias_traumaticas: data.experiencias_traumaticas || ''
       });
       
       // Cargar foto si existe (igual que docente)
@@ -227,6 +243,12 @@ function AlumnoPerfil() {
       formDataToSend.append('email', formData.email);
       formDataToSend.append('sexo', formData.sexo || '');
       formDataToSend.append('fecha_nacimiento', formData.fecha_nacimiento);
+      formDataToSend.append('alergias', formData.alergias || '');
+      formDataToSend.append('vacunas', formData.vacunas || '');
+      formDataToSend.append('tipo_sangre', formData.tipo_sangre || '0');
+      formDataToSend.append('enfermedades_sufridas', formData.enfermedades_sufridas || '');
+      formDataToSend.append('otros_controles', formData.otros_controles || '');
+      formDataToSend.append('experiencias_traumaticas', formData.experiencias_traumaticas || '');
       
       if (fotoFile) {
         formDataToSend.append('foto', fotoFile);
@@ -631,6 +653,82 @@ function AlumnoPerfil() {
             </div>
           </div>
 
+          <div className="perfil-section mundo-card">
+            <h2 className="section-title">Salud</h2>
+            <div className="form-grid">
+              <div className="form-group">
+                <label htmlFor="tipo_sangre">Tipo de sangre</label>
+                <select
+                  id="tipo_sangre"
+                  name="tipo_sangre"
+                  value={formData.tipo_sangre}
+                  onChange={handleInputChange}
+                >
+                  <option value="0">No especificado</option>
+                  <option value="1">A+</option>
+                  <option value="2">A-</option>
+                  <option value="3">B+</option>
+                  <option value="4">B-</option>
+                  <option value="5">AB+</option>
+                  <option value="6">AB-</option>
+                  <option value="7">O+</option>
+                  <option value="8">O-</option>
+                </select>
+              </div>
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <label htmlFor="alergias">Alergias</label>
+                <textarea
+                  id="alergias"
+                  name="alergias"
+                  rows={2}
+                  value={formData.alergias}
+                  onChange={handleInputChange}
+                  placeholder="Medicamentos, alimentos, etc."
+                />
+              </div>
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <label htmlFor="vacunas">Vacunas</label>
+                <textarea
+                  id="vacunas"
+                  name="vacunas"
+                  rows={2}
+                  value={formData.vacunas}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <label htmlFor="enfermedades_sufridas">Enfermedades sufridas</label>
+                <textarea
+                  id="enfermedades_sufridas"
+                  name="enfermedades_sufridas"
+                  rows={2}
+                  value={formData.enfermedades_sufridas}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <label htmlFor="otros_controles">Otros controles</label>
+                <textarea
+                  id="otros_controles"
+                  name="otros_controles"
+                  rows={2}
+                  value={formData.otros_controles}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <label htmlFor="experiencias_traumaticas">Experiencias traumáticas / observaciones</label>
+                <textarea
+                  id="experiencias_traumaticas"
+                  name="experiencias_traumaticas"
+                  rows={2}
+                  value={formData.experiencias_traumaticas}
+                  onChange={handleInputChange}
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Información de Solo Lectura */}
           {perfil && (
             <div className="perfil-section mundo-card">
@@ -727,6 +825,11 @@ function AlumnoPerfil() {
             </button>
           </div>
         </form>
+
+        <div className="perfil-section mundo-card">
+          <h2 className="section-title">Emergencia y documentos</h2>
+          <AlumnoPerfilExtra />
+        </div>
 
         {/* Notificaciones Push */}
         <div className="perfil-section mundo-card">
