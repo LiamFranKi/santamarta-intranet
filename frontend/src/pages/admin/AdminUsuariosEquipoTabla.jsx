@@ -7,6 +7,7 @@ import { jsPDF } from 'jspdf';
 import { fotoUsuarioAdmin } from '../../utils/adminUsuariosFoto';
 import AdminUsuariosFotoLightbox from '../../components/admin/AdminUsuariosFotoLightbox';
 import AdminMensajeQuillEditor from '../../components/admin/AdminMensajeQuillEditor';
+import PersonalCvViewer from '../../components/PersonalCvViewer';
 import { mensajeHtmlTieneContenido } from '../../utils/mensajesHtml';
 import './AdminUsuarios.css';
 
@@ -14,6 +15,13 @@ import './AdminUsuarios.css';
  * Vista tabla (respaldo). Para usarla: en Dashboard.jsx importar este componente y
  * renderizarlo en lugar de AdminUsuariosEquipo, o añadir ?vista=tabla a la ruta equipo.
  */
+
+function formatearSueldo(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  const n = Number(v);
+  if (Number.isNaN(n)) return '—';
+  return `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 function nombreCompletoEquipo(row) {
   const ap = (row.apellidos || '').trim();
@@ -1140,9 +1148,16 @@ export default function AdminUsuariosEquipoTabla() {
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Celular</span><span className="admin-usu-info-value">{modalInfo.telefono_celular || '—'}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Cargo</span><span className="admin-usu-info-value">{modalInfo.cargo || '—'}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Profesión</span><span className="admin-usu-info-value">{modalInfo.profesion || '—'}</span></div>
+                    <div className="admin-usu-info-item"><span className="admin-usu-info-label">Sueldo</span><span className="admin-usu-info-value">{formatearSueldo(modalInfo.sueldo)}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Hora de entrada</span><span className="admin-usu-info-value">{(modalInfo.hora_entrada || '').toString().slice(0, 5) || '—'}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Hora de salida</span><span className="admin-usu-info-value">{(modalInfo.hora_salida || '').toString().slice(0, 5) || '—'}</span></div>
                   </div>
+                </div>
+                <div className="admin-usu-profile-section">
+                  <h3>Formación y CV</h3>
+                  {modalInfo?.id ? (
+                    <PersonalCvViewer apiBase={`/admin/usuarios/equipo/${modalInfo.id}/cv`} />
+                  ) : null}
                 </div>
                 <div className="admin-usu-profile-section">
                   <h3>Asignación académica</h3>

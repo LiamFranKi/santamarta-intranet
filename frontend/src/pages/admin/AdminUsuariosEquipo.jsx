@@ -8,6 +8,7 @@ import { fotoUsuarioAdmin } from '../../utils/adminUsuariosFoto';
 import AdminUsuariosFotoLightbox from '../../components/admin/AdminUsuariosFotoLightbox';
 import AdminMensajeQuillEditor from '../../components/admin/AdminMensajeQuillEditor';
 import PersonalCvEditor from '../../components/PersonalCvEditor';
+import PersonalCvViewer from '../../components/PersonalCvViewer';
 import { mensajeHtmlTieneContenido } from '../../utils/mensajesHtml';
 import './AdminUsuarios.css';
 import './AdminUsuariosEquipoCards.css';
@@ -1172,6 +1173,12 @@ export default function AdminUsuariosEquipo() {
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Hora de entrada</span><span className="admin-usu-info-value">{(modalInfo.hora_entrada || '').toString().slice(0, 5) || '—'}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Hora de salida</span><span className="admin-usu-info-value">{(modalInfo.hora_salida || '').toString().slice(0, 5) || '—'}</span></div>
                   </div>
+                </div>
+                <div className="admin-usu-profile-section">
+                  <h3>Formación y CV</h3>
+                  {modalInfo?.id ? (
+                    <PersonalCvViewer apiBase={`/admin/usuarios/equipo/${modalInfo.id}/cv`} />
+                  ) : null}
                 </div>
                 <div className="admin-usu-profile-section">
                   <h3>Asignación académica</h3>
