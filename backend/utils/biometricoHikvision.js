@@ -73,32 +73,64 @@ function safeJsonParse(raw) {
   }
 }
 
+/** Elige dateTime usable (evita campos numéricos basura de Hikvision). */
+function pickTimeRaw(ace, env) {
+  const candidates = [env?.dateTime, ace?.dateTime, env?.time, ace?.time];
+  for (const c of candidates) {
+    if (c == null || c === '') continue;
+    if (typeof c === 'number') {
+      // unix seconds / ms
+      if (c > 1e12) return new Date(c).toISOString();
+      if (c > 1e9) return new Date(c * 1000).toISOString();
+      continue;
+    }
+    const s = String(c).trim();
+    if (/\d{4}-\d{2}-\d{2}/.test(s) || /\d{2}\/\d{2}\/\d{4}/.test(s)) return s;
+  }
+  return null;
+}
+
 /** Fecha/hora del evento convertida a Lima (America/Lima). */
 function parseEventDateTime(raw) {
   if (!raw) return null;
   const s = String(raw).trim();
   if (!s) return null;
 
-  let d = new Date(s);
-  if (Number.isNaN(d.getTime())) {
-    // 31/07/2026 12:43:00
-    const dmy = s.match(/^(\d{2})\/(\d{2})\/(\d{4})[ T](\d{2}):(\d{2}):(\d{2})/);
-    if (dmy) {
-      d = new Date(
-        `${dmy[3]}-${dmy[2]}-${dmy[1]}T${dmy[4]}:${dmy[5]}:${dmy[6]}-05:00`
-      );
+  // ISO con offset Lima o sin zona → reloj de pared (no reinterpretar)
+  const iso = s.match(
+    /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/
+  );
+  if (iso) {
+    const off = iso[7] || '';
+    const wall = {
+      fecha: `${iso[1]}-${iso[2]}-${iso[3]}`,
+      hora: `${iso[4]}:${iso[5]}:${iso[6]}`,
+    };
+    if (!off || off === '-05:00' || off === '-0500') return wall;
+    if (off === 'Z' || off === '+00:00' || off === '+0000') {
+      // UTC → Lima (−5h)
+      const d = new Date(`${iso[1]}-${iso[2]}-${iso[3]}T${iso[4]}:${iso[5]}:${iso[6]}Z`);
+      return formatDateInLima(d);
     }
+    const d = new Date(s);
+    if (!Number.isNaN(d.getTime())) return formatDateInLima(d);
+    return wall;
   }
-  if (Number.isNaN(d.getTime())) {
-    // Fallback: tomar reloj de pared del string sin convertir
-    const iso = s.match(/^(\d{4}-\d{2}-\d{2})[T\s](\d{2}):(\d{2}):(\d{2})/);
-    if (!iso) return null;
+
+  const dmy = s.match(/^(\d{2})\/(\d{2})\/(\d{4})[ T](\d{2}):(\d{2}):(\d{2})/);
+  if (dmy) {
     return {
-      fecha: iso[1],
-      hora: `${iso[2]}:${iso[3]}:${iso[4]}`,
+      fecha: `${dmy[3]}-${dmy[2]}-${dmy[1]}`,
+      hora: `${dmy[4]}:${dmy[5]}:${dmy[6]}`,
     };
   }
 
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return null;
+  return formatDateInLima(d);
+}
+
+function formatDateInLima(d) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: TZ_LIMA,
     year: 'numeric',
@@ -111,7 +143,7 @@ function parseEventDateTime(raw) {
   }).formatToParts(d);
   const get = (type) => parts.find((p) => p.type === type)?.value;
   let hour = get('hour');
-  if (hour === '24') hour = '00'; // algunos motores
+  if (hour === '24') hour = '00';
   return {
     fecha: `${get('year')}-${get('month')}-${get('day')}`,
     hora: `${hour}:${get('minute')}:${get('second')}`,
@@ -230,12 +262,7 @@ function normalizeEvent(ace, envelope) {
       ''
   ).trim();
 
-  const timeRaw =
-    ace.time ||
-    ace.dateTime ||
-    env.dateTime ||
-    env.time ||
-    null;
+  const timeRaw = pickTimeRaw(ace, env);
   let dt = parseEventDateTime(timeRaw);
   if (!dt && employeeNo) {
     // Marcación sin fecha usable → usar ahora (Lima)
@@ -587,18 +614,49 @@ function buildBodyFromRequest(req) {
   return body;
 }
 
-async function listRecentEvents(colegioId, limit = 50) {
-  const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+/**
+ * Lista eventos del log. Orden: más reciente primero (fecha/hora marcación, luego id).
+ * Filtros: personalId, desde, hasta (YYYY-MM-DD).
+ */
+async function listRecentEvents(colegioId, opts = {}) {
+  const lim = Math.min(Math.max(parseInt(opts.limit, 10) || 100, 1), 300);
+  const where = ['l.colegio_id = ?'];
+  const params = [colegioId];
+
+  const personalId = parseInt(opts.personalId, 10);
+  if (personalId) {
+    where.push('l.personal_id = ?');
+    params.push(personalId);
+  }
+
+  const desde = opts.desde ? String(opts.desde).slice(0, 10) : '';
+  const hasta = opts.hasta ? String(opts.hasta).slice(0, 10) : '';
+  if (desde && /^\d{4}-\d{2}-\d{2}$/.test(desde)) {
+    where.push('COALESCE(l.fecha, DATE(l.created_at)) >= ?');
+    params.push(desde);
+  }
+  if (hasta && /^\d{4}-\d{2}-\d{2}$/.test(hasta)) {
+    where.push('COALESCE(l.fecha, DATE(l.created_at)) <= ?');
+    params.push(hasta);
+  }
+
   return query(
     `SELECT l.*,
             CONCAT(COALESCE(p.apellidos,''), ', ', COALESCE(p.nombres,'')) AS personal_nombre
      FROM biometrico_eventos_log l
      LEFT JOIN personal p ON p.id = l.personal_id
-     WHERE l.colegio_id = ?
-     ORDER BY l.id DESC
+     WHERE ${where.join(' AND ')}
+     ORDER BY
+       COALESCE(l.fecha, DATE(l.created_at)) DESC,
+       COALESCE(l.hora_marcacion, TIME(l.created_at)) DESC,
+       l.id DESC
      LIMIT ${lim}`,
-    [colegioId]
+    params
   );
+}
+
+function hoyLimaISO() {
+  return formatDateInLima(new Date()).fecha;
 }
 
 /** Borra filas de diagnóstico OMITIDO (no toca asistencia_registros). */
@@ -650,4 +708,5 @@ module.exports = {
   webhookPublicUrl,
   loadPersonalForBiometrico,
   parseEventDateTime,
+  hoyLimaISO,
 };

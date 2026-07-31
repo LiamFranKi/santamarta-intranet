@@ -543,6 +543,10 @@
   color: #0f766e;
 }
 
+.admin-tz-bio__filters {
+  margin: 0.75rem 0 1rem;
+}
+
 .admin-tz-bio__muted {
   color: #64748b;
   font-size: 0.9rem;

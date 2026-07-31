@@ -14,8 +14,21 @@ const {
   listRecentEvents,
   deleteEventosOmitidos,
   webhookPublicUrl,
+  hoyLimaISO,
 } = require('../utils/biometricoHikvision');
 const { DEFAULT_COLEGIO_ID } = require('../utils/defaultColegio');
+
+function eventFiltersFromQuery(q = {}) {
+  const hoy = hoyLimaISO();
+  const desde = q.desde != null && String(q.desde).trim() !== '' ? String(q.desde).slice(0, 10) : hoy;
+  const hasta = q.hasta != null && String(q.hasta).trim() !== '' ? String(q.hasta).slice(0, 10) : hoy;
+  return {
+    personalId: q.personal_id || q.personalId || '',
+    desde,
+    hasta,
+    limit: q.limit || 100,
+  };
+}
 
 function clientIp(req) {
   const xf = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
@@ -81,7 +94,8 @@ router.get('/admin/estado', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Solo administrador' });
     }
     const tokenOk = !!webhookTokenConfigured();
-    const events = await listRecentEvents(req.user.colegio_id, 40).catch((e) => {
+    const filters = eventFiltersFromQuery(req.query);
+    const events = await listRecentEvents(req.user.colegio_id, filters).catch((e) => {
       if (String(e.message || '').includes('biometrico_eventos_log')) return null;
       throw e;
     });
@@ -93,6 +107,7 @@ router.get('/admin/estado', authenticateToken, async (req, res) => {
         : 'Defina BIOMETRICO_WEBHOOK_TOKEN y BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe en backend/.env y reinicie PM2.',
       migracion_pendiente: events === null,
       eventos: events || [],
+      filtros: { ...filters, hoy: hoyLimaISO() },
       mapeo:
         'Prioridad: personal.codigo_biometrico = employeeNo del terminal. Si está vacío, se usa DNI. Si no, nombre. Zona horaria: Lima (UTC-5).',
       tz: 'America/Lima',
@@ -108,8 +123,9 @@ router.get('/admin/eventos', authenticateToken, async (req, res) => {
     if (req.user?.tipo !== 'ADMINISTRADOR') {
       return res.status(403).json({ error: 'Solo administrador' });
     }
-    const rows = await listRecentEvents(req.user.colegio_id, req.query.limit || 50);
-    res.json({ eventos: rows });
+    const filters = eventFiltersFromQuery(req.query);
+    const rows = await listRecentEvents(req.user.colegio_id, filters);
+    res.json({ eventos: rows, filtros: { ...filters, hoy: hoyLimaISO() } });
   } catch (e) {
     if (String(e.message || '').includes('biometrico_eventos_log')) {
       return res.status(503).json({

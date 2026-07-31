@@ -43,6 +43,15 @@ function fmtLimaDateTime(raw) {
     .replace(' ', ' ');
 }
 
+function hoyLimaISO() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Lima',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
 function toInputTime(horaFmt) {
   if (!horaFmt) return '';
   const parts = String(horaFmt).split(':');
@@ -80,6 +89,9 @@ export default function AdminTardanzas() {
   const [tabActiva, setTabActiva] = useState('registros');
   const [bioEstado, setBioEstado] = useState(null);
   const [bioLoading, setBioLoading] = useState(false);
+  const [bioPersonalId, setBioPersonalId] = useState('');
+  const [bioDesde, setBioDesde] = useState(() => hoyLimaISO());
+  const [bioHasta, setBioHasta] = useState(() => hoyLimaISO());
 
   const loadMeta = useCallback(async () => {
     try {
@@ -90,10 +102,18 @@ export default function AdminTardanzas() {
     }
   }, []);
 
+  const bioQueryParams = useMemo(() => {
+    const p = {};
+    if (bioPersonalId) p.personal_id = bioPersonalId;
+    if (bioDesde) p.desde = bioDesde;
+    if (bioHasta) p.hasta = bioHasta;
+    return p;
+  }, [bioPersonalId, bioDesde, bioHasta]);
+
   const loadBioEstado = useCallback(async () => {
     setBioLoading(true);
     try {
-      const { data } = await api.get('/biometrico/admin/estado');
+      const { data } = await api.get('/biometrico/admin/estado', { params: bioQueryParams });
       setBioEstado(data);
     } catch (e) {
       setBioEstado({
@@ -102,7 +122,7 @@ export default function AdminTardanzas() {
     } finally {
       setBioLoading(false);
     }
-  }, []);
+  }, [bioQueryParams]);
 
   const queryParams = useMemo(() => {
     const p = {};
@@ -478,19 +498,59 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
 
                 <p className="admin-tz-bio__hint">{bioEstado.mapeo}</p>
 
-                <h3 className="admin-tz-bio__sub">Últimos eventos del log (diagnóstico)</h3>
+                <h3 className="admin-tz-bio__sub">Eventos del log (diagnóstico)</h3>
                 <p className="admin-tz-bio__hint">
-                  La asistencia real es <strong>1 marcación por persona por día</strong> (si marcas varias veces,
-                  se conserva la hora más temprana). Esta tabla solo es un historial técnico del huellero.
+                  Por defecto: <strong>solo hoy</strong>, del más reciente al más antiguo. La asistencia real sigue
+                  siendo 1 marcación por persona/día.
                 </p>
+
+                <div className="admin-tardanzas-toolbar admin-tz-bio__filters">
+                  <label>
+                    Persona
+                    <select value={bioPersonalId} onChange={(e) => setBioPersonalId(e.target.value)}>
+                      <option value="">Todas</option>
+                      {(meta?.personal || []).map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Desde
+                    <input type="date" value={bioDesde} onChange={(e) => setBioDesde(e.target.value)} />
+                  </label>
+                  <label>
+                    Hasta
+                    <input type="date" value={bioHasta} onChange={(e) => setBioHasta(e.target.value)} />
+                  </label>
+                  <div className="admin-tardanzas-toolbar__actions">
+                    <button
+                      type="button"
+                      className="admin-tardanzas-btn"
+                      onClick={() => {
+                        const hoy = hoyLimaISO();
+                        setBioPersonalId('');
+                        setBioDesde(hoy);
+                        setBioHasta(hoy);
+                      }}
+                    >
+                      Solo hoy
+                    </button>
+                    <button type="button" className="admin-tardanzas-btn admin-tardanzas-btn--primary" onClick={loadBioEstado}>
+                      Filtrar
+                    </button>
+                  </div>
+                </div>
+
                 <div className="admin-tardanzas-table-wrap">
                   <table className="admin-tardanzas-table">
                     <thead>
                       <tr>
-                        <th>Cuándo</th>
+                        <th>Recibido</th>
                         <th>EmployeeNo</th>
                         <th>Personal</th>
-                        <th>Fecha / hora</th>
+                        <th>Fecha / hora marcación</th>
                         <th>Estado</th>
                         <th>Detalle</th>
                       </tr>
@@ -498,7 +558,9 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                     <tbody>
                       {(bioEstado.eventos || []).length === 0 && (
                         <tr>
-                          <td colSpan={6}>Aún no hay eventos. Marque una vez en el terminal tras configurar la URL.</td>
+                          <td colSpan={6}>
+                            No hay eventos para el filtro (por defecto día de hoy). Marque en el terminal o amplíe las fechas.
+                          </td>
                         </tr>
                       )}
                       {(bioEstado.eventos || []).map((ev) => (
