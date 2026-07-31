@@ -60,8 +60,12 @@ async function handleEventPost(req, res) {
       ok: result?.ok,
       reason: result?.reason,
       action: result?.action,
+      via: result?.via,
       employeeNo: result?.employeeNo,
+      name: result?.name,
       personal_id: result?.personal_id,
+      fecha: result?.fecha,
+      hora: result?.hora,
     });
 
     return res.status(200).json({ ok: true, ...result });
@@ -118,7 +122,7 @@ router.get('/admin/estado', authenticateToken, async (req, res) => {
       eventos: events || [],
       filtros: { ...filters, hoy: hoyLimaISO() },
       mapeo:
-        'Prioridad: personal.codigo_biometrico = employeeNo del terminal. Si está vacío, se usa DNI. Si no, nombre. Zona horaria: Lima (UTC-5).',
+        'Igual que el Excel: se identifica por nombre (First Name / Last Name). Código biométrico opcional; DNI solo como respaldo. Zona: Lima (UTC-5).',
       tz: 'America/Lima',
     });
   } catch (e) {

@@ -364,7 +364,7 @@ export default function AdminTardanzas() {
               {tabActiva === 'importar'
                 ? 'Subí el Excel, revisá la vista previa y confirmá. Se toma la primera entrada del día por persona.'
                 : tabActiva === 'biometrico'
-                  ? 'El terminal Hikvision envía cada marcación a la intranet. Mapee employeeNo con el código biométrico o el DNI del personal.'
+                  ? 'El terminal envía cada marcación. Se identifica igual que el Excel: por nombre (First/Last Name). El DNI del huellero es solo respaldo.'
                   : 'Filtrá por empleado y fechas. Podés editar, eliminar filas y exportar PDF.'}
             </p>
           </div>

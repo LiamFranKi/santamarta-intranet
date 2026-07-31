@@ -250,28 +250,77 @@ function extractAccessControllerEvent(body) {
   return resolveHikvisionPayload(body).ace;
 }
 
+function cleanId(v) {
+  if (v == null) return '';
+  const s = String(v).trim();
+  if (!s || s === 'undefined' || s === 'null' || s === '-' || s === '--') return '';
+  return s;
+}
+
+function cleanName(v) {
+  if (v == null) return '';
+  const s = String(v).trim();
+  if (!s || s === 'undefined' || s === 'null' || s === '-' || s === '--') return '';
+  return s;
+}
+
+function splitPersonName(full) {
+  const name = cleanName(full);
+  if (!name) return { firstName: '', lastName: '', name: '' };
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return { firstName: parts[0], lastName: '', name };
+  if (parts.length === 2) return { firstName: parts[1], lastName: parts[0], name };
+  // 3+: asumir 2 apellidos + resto nombres (común en Perú)
+  return {
+    lastName: `${parts[0]} ${parts[1]}`,
+    firstName: parts.slice(2).join(' '),
+    name,
+  };
+}
+
 function normalizeEvent(ace, envelope) {
   if (!ace || typeof ace !== 'object') return null;
   const env = envelope && typeof envelope === 'object' ? envelope : {};
 
-  const employeeNo = String(
+  const employeeNo = cleanId(
     ace.employeeNoString ??
       ace.employeeNo ??
+      ace.employeeNoString ??
       env.employeeNoString ??
       env.employeeNo ??
+      ace.cardNo ??
       ''
-  ).trim();
+  );
+
+  const name = cleanName(
+    ace.name ||
+      ace.employeeName ||
+      ace.personName ||
+      ace.userName ||
+      ace.workerName ||
+      env.name ||
+      env.employeeName ||
+      ''
+  );
 
   const timeRaw = pickTimeRaw(ace, env);
   let dt = parseEventDateTime(timeRaw);
-  if (!dt && employeeNo) {
-    // Marcación sin fecha usable → usar ahora (Lima)
-    dt = nowLima();
-  }
+  if (!dt && (employeeNo || name)) dt = nowLima();
   if (!dt) return null;
 
+  // Si la fecha del dispositivo está muy desviada, usar hoy Lima (conserva la hora del evento)
+  const hoy = nowLima();
+  if (dt.fecha && hoy.fecha && dt.fecha !== hoy.fecha) {
+    const tEvent = Date.parse(`${dt.fecha}T12:00:00-05:00`);
+    const tHoy = Date.parse(`${hoy.fecha}T12:00:00-05:00`);
+    if (Number.isFinite(tEvent) && Number.isFinite(tHoy) && Math.abs(tEvent - tHoy) > 36 * 3600 * 1000) {
+      console.warn('[biometrico] fecha dispositivo corregida', dt.fecha, '→', hoy.fecha);
+      dt = { fecha: hoy.fecha, hora: dt.hora || hoy.hora };
+    }
+  }
+
   // Sin persona: evento de puerta / heartbeat
-  if (!employeeNo && !ace.name && !ace.employeeName) {
+  if (!employeeNo && !name) {
     return {
       employeeNo: '',
       fecha: dt.fecha,
@@ -287,18 +336,7 @@ function normalizeEvent(ace, envelope) {
   }
 
   const hora = parseHoraMarcacion(dt.hora) || dt.hora;
-  const name = String(ace.name || ace.employeeName || '').trim();
-  let firstName = '';
-  let lastName = '';
-  if (name) {
-    const parts = name.split(/\s+/);
-    if (parts.length === 1) {
-      firstName = parts[0];
-    } else {
-      lastName = parts[0];
-      firstName = parts.slice(1).join(' ');
-    }
-  }
+  const { firstName, lastName } = splitPersonName(name);
 
   const metodo = String(
     ace.currentVerifyMode ||
@@ -350,40 +388,77 @@ async function loadPersonalForBiometrico(colegioId) {
   }
 }
 
+/**
+ * Misma lógica que el Excel del huellero (First Name / Last Name → matchPersonal).
+ * El DNI del employeeNo es solo respaldo: en el terminal a menudo el ID no es el DNI.
+ */
 function matchPersonalBiometrico(event, personalList) {
-  const code = String(event.employeeNo || '').trim();
+  const code = cleanId(event.employeeNo);
+
+  // 0) Solo si configuraron código biométrico explícito en Equipo
   if (code) {
     const byCode = personalList.find(
       (p) =>
         p.codigo_biometrico != null &&
+        String(p.codigo_biometrico).trim() !== '' &&
         String(p.codigo_biometrico).trim() === code
     );
     if (byCode) return { personal: byCode, via: 'codigo_biometrico' };
+  }
 
+  // 1) Igual que import Excel: matchPersonal(firstName, lastName)
+  //    En Excel: First Name = nombres, Last Name = apellidos
+  const candidates = [];
+
+  if (event.firstName || event.lastName) {
+    candidates.push({
+      firstName: event.firstName || '',
+      lastName: event.lastName || '',
+      via: 'nombre_excel',
+    });
+  }
+
+  const full = cleanName(event.name);
+  if (full) {
+    const parts = full.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      // Last Name = 1er token, First Name = resto (formato típico export Hikvision)
+      candidates.push({
+        firstName: parts.slice(1).join(' '),
+        lastName: parts[0],
+        via: 'nombre_1ape',
+      });
+      // Last Name = 2 apellidos, First Name = resto
+      if (parts.length >= 3) {
+        candidates.push({
+          firstName: parts.slice(2).join(' '),
+          lastName: `${parts[0]} ${parts[1]}`,
+          via: 'nombre_2ape',
+        });
+      }
+      // Por si el terminal guarda NOMBRE APELLIDO
+      candidates.push({
+        firstName: parts[0],
+        lastName: parts.slice(1).join(' '),
+        via: 'nombre_invertido',
+      });
+    }
+  }
+
+  for (const c of candidates) {
+    if (!String(c.firstName || '').trim() && !String(c.lastName || '').trim()) continue;
+    const m = matchPersonal(c.firstName, c.lastName, personalList);
+    if (m) return { personal: m, via: c.via };
+  }
+
+  // 2) DNI solo como último recurso (no confiar primero)
+  if (code) {
     const byDni = personalList.find(
       (p) => p.nro_documento != null && String(p.nro_documento).trim() === code
     );
     if (byDni) return { personal: byDni, via: 'nro_documento' };
-
-    // employeeNo numérico corto vs codigo con ceros a la izquierda
-    const codeNorm = code.replace(/^0+/, '') || '0';
-    const byCodeNorm = personalList.find((p) => {
-      const c = p.codigo_biometrico != null ? String(p.codigo_biometrico).trim() : '';
-      const d = p.nro_documento != null ? String(p.nro_documento).trim() : '';
-      return (c && (c.replace(/^0+/, '') || '0') === codeNorm) ||
-        (d && (d.replace(/^0+/, '') || '0') === codeNorm);
-    });
-    if (byCodeNorm) return { personal: byCodeNorm, via: 'codigo_norm' };
   }
 
-  if (event.firstName || event.lastName) {
-    const byName = matchPersonal(
-      event.firstName || event.name,
-      event.lastName || '',
-      personalList
-    );
-    if (byName) return { personal: byName, via: 'nombre' };
-  }
   return null;
 }
 
@@ -466,26 +541,37 @@ async function ingestHikvisionPayload(body, meta = {}) {
 
   if (event.sinPersona) {
     // Puerta/sistema: no ensuciar el log admin
-    return { ok: false, reason: 'no_employee' };
+    return { ok: false, reason: 'no_employee', major: event.majorEventType, sub: event.subEventType };
   }
 
   const personalList = await loadPersonalForBiometrico(colegioId);
   const matched = matchPersonalBiometrico(event, personalList);
 
   if (!matched) {
+    console.warn('[biometrico] no_match', {
+      employeeNo: event.employeeNo,
+      name: event.name,
+      firstName: event.firstName,
+      lastName: event.lastName,
+    });
     await logEvento({
       colegio_id: colegioId,
       dispositivo_ip: dispositivoIp,
-      employee_no: event.employeeNo,
+      employee_no: event.employeeNo || null,
       fecha: event.fecha,
       hora_marcacion: event.hora_marcacion,
       metodo_verificacion: event.metodo,
-      nombre_evento: event.name,
+      nombre_evento: event.name || null,
       estado: 'OMITIDO',
-      detalle: `Sin coincidencia (employeeNo=${event.employeeNo || '—'}; configure codigo_biometrico o DNI)`,
+      detalle: `Sin coincidencia (id=${event.employeeNo || '—'}; nombre=${event.name || '—'}). Use código biométrico o revise el nombre en el huellero.`,
       payload_resumen: resumen,
     });
-    return { ok: false, reason: 'no_match', employeeNo: event.employeeNo };
+    return {
+      ok: false,
+      reason: 'no_match',
+      employeeNo: event.employeeNo || null,
+      name: event.name || null,
+    };
   }
 
   const { personal, via } = matched;
@@ -533,7 +619,16 @@ async function ingestHikvisionPayload(body, meta = {}) {
         detalle: `Ya existe entrada ${prev}; se conserva la más temprana`,
         payload_resumen: resumen,
       });
-      return { ok: true, action: 'kept_earlier', personal_id: personal.personal_id };
+      return {
+        ok: true,
+        action: 'kept_earlier',
+        personal_id: personal.personal_id,
+        via,
+        employeeNo: event.employeeNo || null,
+        name: event.name || null,
+        fecha: event.fecha,
+        hora: event.hora_marcacion,
+      };
     }
   }
 
@@ -566,6 +661,8 @@ async function ingestHikvisionPayload(body, meta = {}) {
     action,
     personal_id: personal.personal_id,
     via,
+    employeeNo: event.employeeNo || null,
+    name: event.name || null,
     fecha: event.fecha,
     hora: event.hora_marcacion,
   };
