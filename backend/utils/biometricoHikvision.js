@@ -451,6 +451,10 @@ function matchPersonalBiometrico(event, personalList) {
   return null;
 }
 
+function bioDebug() {
+  return String(process.env.BIOMETRICO_DEBUG || '').trim() === '1';
+}
+
 async function logEvento(row) {
   try {
     // created_at en hora Lima (UTC-5) sin tocar el time_zone del pool MySQL
@@ -477,6 +481,21 @@ async function logEvento(row) {
   } catch (e) {
     console.warn('[biometrico] log evento:', e.message);
   }
+}
+
+/** Evita reinsertar el mismo evento del replay del huellero. */
+async function alreadyLoggedExact(colegioId, employeeNo, fecha, hora) {
+  if (!employeeNo || !fecha || !hora) return false;
+  const rows = await query(
+    `SELECT id FROM biometrico_eventos_log
+     WHERE colegio_id = ?
+       AND employee_no = ?
+       AND fecha = ?
+       AND hora_marcacion = ?
+     LIMIT 1`,
+    [colegioId, String(employeeNo), fecha, String(hora).slice(0, 8)]
+  ).catch(() => []);
+  return rows.length > 0;
 }
 
 function buildResumen(body, envelope, event, rawBody) {
@@ -513,53 +532,50 @@ async function ingestHikvisionPayload(body, meta = {}) {
   const resumen = buildResumen(body, envelope, event, rawBody);
 
   if (!event) {
-    console.warn('[biometrico] unparsed', {
-      keys: body && typeof body === 'object' ? Object.keys(body) : [],
-      hasRaw: !!rawBody,
-      rawPreview: rawBody ? String(rawBody).slice(0, 300) : null,
-    });
-    await logEvento({
-      colegio_id: colegioId,
-      dispositivo_ip: dispositivoIp,
-      estado: 'OMITIDO',
-      detalle: 'No se pudo parsear AccessControllerEvent (revise payload_resumen)',
-      payload_resumen: resumen,
-    });
-    return { ok: false, reason: 'unparsed' };
+    if (bioDebug()) {
+      console.warn('[biometrico] unparsed', {
+        keys: body && typeof body === 'object' ? Object.keys(body) : [],
+        hasRaw: !!rawBody,
+      });
+    }
+    // ACK rápido: no saturar BD ni logs con basura del replay
+    return { ok: true, ack: true, reason: 'unparsed' };
   }
 
   if (event.sinPersona) {
-    // Puerta/sistema: no ensuciar el log admin
-    return { ok: false, reason: 'no_employee', major: event.majorEventType, sub: event.subEventType };
+    // Heartbeat / puerta: ACK silencioso (el terminal reenvía miles)
+    return { ok: true, ack: true, reason: 'no_employee', major: event.majorEventType, sub: event.subEventType };
   }
 
-  // El terminal suele reenviar historial al activar HTTP Listening.
-  // Solo aplicamos asistencia del día actual (Lima). Eventos antiguos se omiten.
+  // El terminal reenvía historial al activar HTTP Listening o tras reinicio.
+  // ACK 200 sin escribir BD → libera la cola del huellero y no llena el log admin.
   const hoy = nowLima();
   if (!event.fecha || event.fecha !== hoy.fecha) {
-    console.warn('[biometrico] histórico omitido', {
-      fechaEvento: event.fecha,
-      hoy: hoy.fecha,
-      name: event.name,
-      employeeNo: event.employeeNo,
-    });
-    await logEvento({
-      colegio_id: colegioId,
-      dispositivo_ip: dispositivoIp,
-      employee_no: event.employeeNo || null,
-      fecha: event.fecha,
-      hora_marcacion: event.hora_marcacion,
-      metodo_verificacion: event.metodo,
-      nombre_evento: event.name || null,
-      estado: 'OMITIDO',
-      detalle: `Evento histórico (${event.fecha || 'sin fecha'}); solo se registra asistencia del día ${hoy.fecha}`,
-      payload_resumen: resumen,
-    });
+    if (bioDebug()) {
+      console.warn('[biometrico] histórico ack', {
+        fechaEvento: event.fecha,
+        hoy: hoy.fecha,
+        employeeNo: event.employeeNo,
+      });
+    }
     return {
-      ok: false,
+      ok: true,
+      ack: true,
       reason: 'historico',
       employeeNo: event.employeeNo || null,
       name: event.name || null,
+      fecha: event.fecha,
+      hora: event.hora_marcacion,
+    };
+  }
+
+  // Replay del mismo evento de hoy: no reescribir log ni asistencia
+  if (await alreadyLoggedExact(colegioId, event.employeeNo, event.fecha, event.hora_marcacion)) {
+    return {
+      ok: true,
+      ack: true,
+      reason: 'ya_procesado',
+      employeeNo: event.employeeNo || null,
       fecha: event.fecha,
       hora: event.hora_marcacion,
     };
@@ -569,12 +585,12 @@ async function ingestHikvisionPayload(body, meta = {}) {
   const matched = matchPersonalBiometrico(event, personalList);
 
   if (!matched) {
-    console.warn('[biometrico] no_match', {
-      employeeNo: event.employeeNo,
-      name: event.name,
-      firstName: event.firstName,
-      lastName: event.lastName,
-    });
+    if (bioDebug()) {
+      console.warn('[biometrico] no_match', {
+        employeeNo: event.employeeNo,
+        name: event.name,
+      });
+    }
     await logEvento({
       colegio_id: colegioId,
       dispositivo_ip: dispositivoIp,
@@ -588,7 +604,8 @@ async function ingestHikvisionPayload(body, meta = {}) {
       payload_resumen: resumen,
     });
     return {
-      ok: false,
+      ok: true,
+      ack: true,
       reason: 'no_match',
       employeeNo: event.employeeNo || null,
       name: event.name || null,
@@ -610,7 +627,7 @@ async function ingestHikvisionPayload(body, meta = {}) {
       detalle: `Personal sin usuario activo (match por ${via})`,
       payload_resumen: resumen,
     });
-    return { ok: false, reason: 'no_user', personal_id: personal.personal_id };
+    return { ok: true, ack: true, reason: 'no_user', personal_id: personal.personal_id };
   }
 
   const { anio } = await getAnioActivo(query, colegioId);
@@ -626,22 +643,10 @@ async function ingestHikvisionPayload(body, meta = {}) {
     const prev = String(existing[0].hora_entrada || '').slice(0, 8);
     const nueva = String(event.hora_marcacion || '').slice(0, 8);
     if (prev && nueva && prev <= nueva) {
-      await logEvento({
-        colegio_id: colegioId,
-        dispositivo_ip: dispositivoIp,
-        employee_no: event.employeeNo,
-        personal_id: personal.personal_id,
-        usuario_id: personal.usuario_id,
-        fecha: event.fecha,
-        hora_marcacion: event.hora_marcacion,
-        metodo_verificacion: event.metodo,
-        nombre_evento: event.name,
-        estado: 'DUPLICADO',
-        detalle: `Ya existe entrada ${prev}; se conserva la más temprana`,
-        payload_resumen: resumen,
-      });
+      // Duplicado del día: ACK sin llenar el log (el terminal reenvía salidas/reintentos)
       return {
         ok: true,
+        ack: true,
         action: 'kept_earlier',
         personal_id: personal.personal_id,
         via,
@@ -676,6 +681,17 @@ async function ingestHikvisionPayload(body, meta = {}) {
     detalle: `${action} (match ${via})`,
     payload_resumen: resumen,
   });
+
+  if (bioDebug() || action === 'insertado' || action === 'actualizado') {
+    console.log('[biometrico] marcación', {
+      action,
+      via,
+      employeeNo: event.employeeNo,
+      name: event.name,
+      fecha: event.fecha,
+      hora: event.hora_marcacion,
+    });
+  }
 
   return {
     ok: true,

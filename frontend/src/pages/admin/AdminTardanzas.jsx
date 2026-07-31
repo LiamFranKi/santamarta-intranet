@@ -406,10 +406,10 @@ export default function AdminTardanzas() {
           <section className="admin-tardanzas-import admin-tz-bio" aria-label="Biométrico Hikvision">
             <h2 className="admin-tardanzas-import__title">Hikvision → intranet</h2>
             <p className="admin-tardanzas-import__desc">
-              Cada marcación del <strong>día de hoy</strong> (fecha del huellero = hoy Lima) se guarda como entrada.
-              El historial antiguo que el terminal reenvía se omite (no inventamos fecha de hoy).
-              La fecha/hora del dispositivo debe estar bien (NTP). En Usuarios → Equipo puede indicar el{' '}
-              <strong>código biométrico</strong>. Si el log se contaminó, use «Limpiar entradas de hoy» y marque de nuevo.
+              Solo se guardan marcaciones con fecha de <strong>hoy</strong> en el huellero. El historial que reenvía el
+              terminal (tras activar HTTP o reiniciar) se confirma en silencio: no llena este log ni la asistencia.
+              Si el equipo va lento, desactive temporalmente HTTP Listening, corrija fecha/NTP y Wi‑Fi, y vuelva a
+              activarlo. Use «Borrar omitidos» / «Limpiar entradas de hoy» si hace falta.
             </p>
 
             {bioLoading && <p className="admin-tz-bio__muted">Cargando estado…</p>}

@@ -43,33 +43,14 @@ async function handleEventPost(req, res) {
     const body = buildBodyFromRequest(req);
     const rawBody = req.rawBody || null;
 
-    console.log('[biometrico] POST', {
-      ct: req.headers['content-type'],
-      keys: Object.keys(body || {}),
-      eventLogType: typeof body?.event_log,
-      files: (req.files || []).map((f) => f.fieldname),
-      hasRaw: !!rawBody,
-    });
-
     const result = await ingestHikvisionPayload(body, {
       ip: clientIp(req),
       colegioId: process.env.BIOMETRICO_COLEGIO_ID || DEFAULT_COLEGIO_ID,
       rawBody,
     });
 
-    console.log('[biometrico] resultado', {
-      ok: result?.ok,
-      reason: result?.reason,
-      action: result?.action,
-      via: result?.via,
-      employeeNo: result?.employeeNo,
-      name: result?.name,
-      personal_id: result?.personal_id,
-      fecha: result?.fecha,
-      hora: result?.hora,
-    });
-
-    return res.status(200).json({ ok: true, ...result });
+    // Respuesta mínima y rápida: el huellero reenvía historial y satura si tardamos/logueamos mucho.
+    return res.status(200).json({ ok: true, ack: true, reason: result?.reason || result?.action || 'ok' });
   } catch (e) {
     console.error('[biometrico] webhook', e.message, e.stack);
     return res.status(e.status || 500).json({ ok: false, error: e.message || 'Error' });
@@ -123,7 +104,7 @@ router.get('/admin/estado', authenticateToken, async (req, res) => {
       eventos: events || [],
       filtros: { ...filters, hoy: hoyLimaISO() },
       mapeo:
-        'Igual que el Excel: se identifica por nombre. Solo se aplica asistencia del día de hoy (Lima); el historial antiguo del huellero se omite. Código biométrico opcional; DNI como respaldo.',
+        'Solo asistencia del día de hoy (Lima). El historial que reenvía el huellero se confirma (ACK) sin guardar en el log ni en asistencia, para no saturar el servidor. Código biométrico opcional; DNI como respaldo.',
       tz: 'America/Lima',
     });
   } catch (e) {
