@@ -437,16 +437,7 @@ async function ingestHikvisionPayload(body, meta = {}) {
   }
 
   if (event.sinPersona) {
-    await logEvento({
-      colegio_id: colegioId,
-      dispositivo_ip: dispositivoIp,
-      fecha: event.fecha,
-      hora_marcacion: event.hora_marcacion,
-      metodo_verificacion: event.metodo,
-      estado: 'OMITIDO',
-      detalle: `Evento sin empleado (puerta/sistema) major=${event.majorEventType} sub=${event.subEventType}`,
-      payload_resumen: resumen,
-    });
+    // Puerta/sistema: no ensuciar el log admin
     return { ok: false, reason: 'no_employee' };
   }
 
@@ -610,6 +601,16 @@ async function listRecentEvents(colegioId, limit = 50) {
   );
 }
 
+/** Borra filas de diagnóstico OMITIDO (no toca asistencia_registros). */
+async function deleteEventosOmitidos(colegioId) {
+  const result = await execute(
+    `DELETE FROM biometrico_eventos_log
+     WHERE colegio_id = ? AND estado = 'OMITIDO'`,
+    [colegioId]
+  );
+  return { deleted: result?.affectedRows || 0 };
+}
+
 function webhookPublicUrl(req) {
   let base = String(
     process.env.BIOMETRICO_PUBLIC_URL ||
@@ -645,6 +646,7 @@ module.exports = {
   normalizeEvent,
   buildBodyFromRequest,
   listRecentEvents,
+  deleteEventosOmitidos,
   webhookPublicUrl,
   loadPersonalForBiometrico,
   parseEventDateTime,

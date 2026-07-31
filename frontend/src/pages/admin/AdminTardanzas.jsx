@@ -410,6 +410,40 @@ export default function AdminTardanzas() {
                   <button type="button" className="admin-tardanzas-btn" onClick={loadBioEstado}>
                     Actualizar
                   </button>
+                  <button
+                    type="button"
+                    className="admin-tardanzas-btn"
+                    onClick={async () => {
+                      const conf = await Swal.fire({
+                        icon: 'question',
+                        title: 'Borrar omitidos',
+                        text: 'Se eliminan del log las filas OMITIDO. No borra marcaciones de asistencia ni tardanzas.',
+                        showCancelButton: true,
+                        confirmButtonText: 'Borrar',
+                        cancelButtonText: 'Cancelar',
+                      });
+                      if (!conf.isConfirmed) return;
+                      try {
+                        const { data } = await api.delete('/biometrico/admin/eventos/omitidos');
+                        await loadBioEstado();
+                        Swal.fire({
+                          icon: 'success',
+                          title: 'Listo',
+                          text: `Se borraron ${data.deleted ?? 0} filas omitidas.`,
+                          timer: 2000,
+                          showConfirmButton: false,
+                        });
+                      } catch (e) {
+                        Swal.fire({
+                          icon: 'error',
+                          title: 'Error',
+                          text: e.response?.data?.error || 'No se pudo borrar.',
+                        });
+                      }
+                    }}
+                  >
+                    Borrar omitidos
+                  </button>
                 </div>
 
                 {bioEstado.webhook_url && (
@@ -444,7 +478,11 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
 
                 <p className="admin-tz-bio__hint">{bioEstado.mapeo}</p>
 
-                <h3 className="admin-tz-bio__sub">Últimos eventos recibidos</h3>
+                <h3 className="admin-tz-bio__sub">Últimos eventos del log (diagnóstico)</h3>
+                <p className="admin-tz-bio__hint">
+                  La asistencia real es <strong>1 marcación por persona por día</strong> (si marcas varias veces,
+                  se conserva la hora más temprana). Esta tabla solo es un historial técnico del huellero.
+                </p>
                 <div className="admin-tardanzas-table-wrap">
                   <table className="admin-tardanzas-table">
                     <thead>

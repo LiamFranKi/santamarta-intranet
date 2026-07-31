@@ -12,6 +12,7 @@ const {
   ingestHikvisionPayload,
   buildBodyFromRequest,
   listRecentEvents,
+  deleteEventosOmitidos,
   webhookPublicUrl,
 } = require('../utils/biometricoHikvision');
 const { DEFAULT_COLEGIO_ID } = require('../utils/defaultColegio');
@@ -117,6 +118,20 @@ router.get('/admin/eventos', authenticateToken, async (req, res) => {
     }
     console.error('[biometrico/admin/eventos]', e);
     res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/** DELETE omitidos del log (no borra marcaciones de asistencia). */
+router.delete('/admin/eventos/omitidos', authenticateToken, async (req, res) => {
+  try {
+    if (req.user?.tipo !== 'ADMINISTRADOR') {
+      return res.status(403).json({ error: 'Solo administrador' });
+    }
+    const out = await deleteEventosOmitidos(req.user.colegio_id);
+    res.json({ ok: true, ...out });
+  } catch (e) {
+    console.error('[biometrico/admin/eventos/omitidos]', e);
+    res.status(500).json({ error: e.message || 'Error al borrar' });
   }
 });
 
