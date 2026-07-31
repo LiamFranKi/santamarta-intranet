@@ -54,6 +54,8 @@ export default function AdminTardanzas() {
   const [exportLoading, setExportLoading] = useState(false);
   const [rowActionId, setRowActionId] = useState(null);
   const [tabActiva, setTabActiva] = useState('registros');
+  const [bioEstado, setBioEstado] = useState(null);
+  const [bioLoading, setBioLoading] = useState(false);
 
   const loadMeta = useCallback(async () => {
     try {
@@ -61,6 +63,20 @@ export default function AdminTardanzas() {
       setMeta(data);
     } catch {
       setMeta(null);
+    }
+  }, []);
+
+  const loadBioEstado = useCallback(async () => {
+    setBioLoading(true);
+    try {
+      const { data } = await api.get('/biometrico/admin/estado');
+      setBioEstado(data);
+    } catch (e) {
+      setBioEstado({
+        error: e.response?.data?.error || 'No se pudo cargar el estado del biométrico.',
+      });
+    } finally {
+      setBioLoading(false);
     }
   }, []);
 
@@ -92,6 +108,10 @@ export default function AdminTardanzas() {
   useEffect(() => {
     loadLista();
   }, [loadLista]);
+
+  useEffect(() => {
+    if (tabActiva === 'biometrico') loadBioEstado();
+  }, [tabActiva, loadBioEstado]);
 
   const onArchivoChange = (e) => {
     const f = e.target.files?.[0];
@@ -278,7 +298,7 @@ export default function AdminTardanzas() {
           <div className="admin-tz-hero-text">
             <h1>Tardanzas del personal</h1>
             <p>
-              Importe el Excel del huellero y consulte descuentos por tardanza (S/. 1.00 por minuto).
+              Marcaciones del huellero (Excel o automático Hikvision) y descuentos por tardanza (S/. 1.00 por minuto).
               {meta?.colegio_nombre ? ` ${meta.colegio_nombre} · Año ${meta.anio}` : ''}
             </p>
           </div>
@@ -289,11 +309,19 @@ export default function AdminTardanzas() {
             💡
           </div>
           <div>
-            <h2>{tabActiva === 'importar' ? 'Importación del huellero' : 'Consulta y descuentos'}</h2>
+            <h2>
+              {tabActiva === 'importar'
+                ? 'Importación del huellero'
+                : tabActiva === 'biometrico'
+                  ? 'Biométrico en vivo'
+                  : 'Consulta y descuentos'}
+            </h2>
             <p>
               {tabActiva === 'importar'
                 ? 'Subí el Excel, revisá la vista previa y confirmá. Se toma la primera entrada del día por persona.'
-                : 'Filtrá por empleado y fechas. Podés editar, eliminar filas y exportar PDF.'}
+                : tabActiva === 'biometrico'
+                  ? 'El terminal Hikvision envía cada marcación a la intranet. Mapee employeeNo con el código biométrico o el DNI del personal.'
+                  : 'Filtrá por empleado y fechas. Podés editar, eliminar filas y exportar PDF.'}
             </p>
           </div>
         </div>
@@ -318,8 +346,123 @@ export default function AdminTardanzas() {
             >
               Importar Excel
             </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tabActiva === 'biometrico'}
+              className={`admin-tz-tab admin-tz-tab--bio${tabActiva === 'biometrico' ? ' is-active' : ''}`}
+              onClick={() => setTabActiva('biometrico')}
+            >
+              Biométrico
+            </button>
           </nav>
         </div>
+
+        {tabActiva === 'biometrico' && (
+          <section className="admin-tardanzas-import admin-tz-bio" aria-label="Biométrico Hikvision">
+            <h2 className="admin-tardanzas-import__title">Hikvision → intranet</h2>
+            <p className="admin-tardanzas-import__desc">
+              Configure en el dispositivo la URL de monitoreo HTTP. Cada marcación válida se guarda como entrada del día
+              (igual que el Excel). En Usuarios → Equipo puede indicar el <strong>código biométrico</strong> por persona.
+            </p>
+
+            {bioLoading && <p className="admin-tz-bio__muted">Cargando estado…</p>}
+
+            {!bioLoading && bioEstado?.error && (
+              <p className="admin-tz-bio__err">{bioEstado.error}</p>
+            )}
+
+            {!bioLoading && bioEstado && !bioEstado.error && (
+              <>
+                <div className="admin-tz-bio__status">
+                  <span
+                    className={`admin-tz-bio__pill${bioEstado.webhook_configurado ? ' is-ok' : ' is-warn'}`}
+                  >
+                    {bioEstado.webhook_configurado ? 'Webhook listo en servidor' : 'Falta configurar token en .env'}
+                  </span>
+                  {bioEstado.migracion_pendiente && (
+                    <span className="admin-tz-bio__pill is-warn">Ejecutar migración SQL 067</span>
+                  )}
+                  <button type="button" className="admin-tardanzas-btn" onClick={loadBioEstado}>
+                    Actualizar
+                  </button>
+                </div>
+
+                {bioEstado.webhook_url && (
+                  <div className="admin-tz-bio__url-box">
+                    <label>URL para pegar en el huellero</label>
+                    <code className="admin-tz-bio__url">{bioEstado.webhook_url}</code>
+                    <button
+                      type="button"
+                      className="admin-tardanzas-btn admin-tardanzas-btn--primary"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(bioEstado.webhook_url);
+                          Swal.fire({ icon: 'success', title: 'Copiada', timer: 1400, showConfirmButton: false });
+                        } catch {
+                          Swal.fire({ icon: 'info', title: 'URL', text: bioEstado.webhook_url });
+                        }
+                      }}
+                    >
+                      Copiar URL
+                    </button>
+                    <p className="admin-tz-bio__hint">{bioEstado.webhook_url_hint}</p>
+                  </div>
+                )}
+
+                {!bioEstado.webhook_configurado && (
+                  <div className="admin-tz-bio__url-box">
+                    <p className="admin-tz-bio__hint">{bioEstado.webhook_url_hint}</p>
+                    <pre className="admin-tz-bio__env">{`BIOMETRICO_WEBHOOK_TOKEN=un_token_largo_secreto
+BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
+                  </div>
+                )}
+
+                <p className="admin-tz-bio__hint">{bioEstado.mapeo}</p>
+
+                <h3 className="admin-tz-bio__sub">Últimos eventos recibidos</h3>
+                <div className="admin-tardanzas-table-wrap">
+                  <table className="admin-tardanzas-table">
+                    <thead>
+                      <tr>
+                        <th>Cuándo</th>
+                        <th>EmployeeNo</th>
+                        <th>Personal</th>
+                        <th>Fecha / hora</th>
+                        <th>Estado</th>
+                        <th>Detalle</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(bioEstado.eventos || []).length === 0 && (
+                        <tr>
+                          <td colSpan={6}>Aún no hay eventos. Marque una vez en el terminal tras configurar la URL.</td>
+                        </tr>
+                      )}
+                      {(bioEstado.eventos || []).map((ev) => (
+                        <tr key={ev.id}>
+                          <td>{ev.created_at ? String(ev.created_at).replace('T', ' ').slice(0, 19) : '—'}</td>
+                          <td>{ev.employee_no || '—'}</td>
+                          <td>{ev.personal_nombre || '—'}</td>
+                          <td>
+                            {ev.fecha ? fmtFecha(ev.fecha) : '—'}
+                            {ev.hora_marcacion ? ` ${String(ev.hora_marcacion).slice(0, 8)}` : ''}
+                          </td>
+                          <td>
+                            <span className={`admin-tz-bio__st admin-tz-bio__st--${String(ev.estado || '').toLowerCase()}`}>
+                              {ev.estado}
+                            </span>
+                          </td>
+                          <td>{ev.detalle || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </section>
+        )}
 
         {tabActiva === 'importar' && (
         <section className="admin-tardanzas-import" aria-label="Importar Excel">

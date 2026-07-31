@@ -80,8 +80,9 @@ const limiter = rateLimit({
     return ipKeyGenerator(req);
   },
   skip: (req) => {
-    // Excluir health check del rate limiting
-    return req.path === '/api/health';
+    // Excluir health check y webhook del huellero (ráfagas de marcación)
+    const u = String(req.originalUrl || req.url || '');
+    return u.startsWith('/api/health') || u.startsWith('/api/biometrico/hikvision');
   }
 });
 
@@ -321,6 +322,8 @@ const adminTardanzasRoutes = require('./routes/admin.tardanzas.routes');
 app.use('/api/admin/tardanzas', adminTardanzasRoutes);
 const personalTardanzasRoutes = require('./routes/personal.tardanzas.routes');
 app.use('/api/personal/tardanzas', personalTardanzasRoutes);
+const biometricoRoutes = require('./routes/biometrico.routes');
+app.use('/api/biometrico', biometricoRoutes);
 app.use('/api/admin/psicologia', adminPsicologiaRoutes);
 /* Eventos antes que /api/admin: si no, admin.routes bloquea PSICOLOGA/Promotoría antes de llegar a eventos.routes */
 app.use('/api/public/eventos', eventosRoutes.publicEventosRouter);

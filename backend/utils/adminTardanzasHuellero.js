@@ -718,4 +718,7 @@ module.exports = {
   calcTardanza,
   calcularTardanzasMesPersonal,
   formatHoraDisplay,
+  matchPersonal,
+  parseHoraMarcacion,
+  upsertMarcacionDia,
 };

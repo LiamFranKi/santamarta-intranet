@@ -453,6 +453,117 @@
   margin: 0 0 0.75rem;
 }
 
+.admin-tz-tab--bio.is-active {
+  background: linear-gradient(135deg, #0f766e, #14b8a6);
+}
+
+.admin-tz-help--biometrico {
+  border-color: #99f6e4;
+  border-left-color: #0d9488;
+  background: #f0fdfa;
+}
+
+.admin-tz-bio__status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.75rem 0 1rem;
+}
+
+.admin-tz-bio__pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.admin-tz-bio__pill.is-ok {
+  background: #ccfbf1;
+  color: #115e59;
+}
+
+.admin-tz-bio__pill.is-warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.admin-tz-bio__url-box {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #99f6e4;
+  background: #fff;
+}
+
+.admin-tz-bio__url-box label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0f766e;
+  margin-bottom: 0.35rem;
+}
+
+.admin-tz-bio__url {
+  display: block;
+  word-break: break-all;
+  font-size: 0.78rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  margin-bottom: 0.55rem;
+  color: #0f172a;
+}
+
+.admin-tz-bio__hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: #475569;
+  line-height: 1.4;
+}
+
+.admin-tz-bio__env {
+  margin: 0.5rem 0 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 0.78rem;
+  overflow-x: auto;
+}
+
+.admin-tz-bio__sub {
+  margin: 1.1rem 0 0.5rem;
+  font-size: 0.95rem;
+  color: #0f766e;
+}
+
+.admin-tz-bio__muted {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.admin-tz-bio__err {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.admin-tz-bio__st {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.admin-tz-bio__st--ok { color: #0f766e; }
+.admin-tz-bio__st--omitido { color: #b45309; }
+.admin-tz-bio__st--error { color: #b91c1c; }
+.admin-tz-bio__st--duplicado { color: #64748b; }
+
 @media (max-width: 700px) {
   .admin-tardanzas-toolbar__actions {
     margin-left: 0;

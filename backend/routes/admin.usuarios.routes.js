@@ -2010,6 +2010,22 @@ router.post('/equipo', uploadUsuarioFoto.single('foto'), async (req, res) => {
       }
     }
 
+    if (req.body.codigo_biometrico !== undefined) {
+      const codigoBio =
+        req.body.codigo_biometrico == null || String(req.body.codigo_biometrico).trim() === ''
+          ? null
+          : String(req.body.codigo_biometrico).trim().slice(0, 64);
+      try {
+        await execute('UPDATE personal SET codigo_biometrico = ? WHERE id = ? AND colegio_id = ?', [
+          codigoBio,
+          personalId,
+          colegio_id,
+        ]);
+      } catch (bioErr) {
+        if (!String(bioErr.message || '').includes('codigo_biometrico')) throw bioErr;
+      }
+    }
+
     res.status(201).json({ personal_id: personalId, usuario_id: usuarioId });
   } catch (e) {
     console.error('POST /admin/usuarios/equipo', e);
@@ -2128,6 +2144,22 @@ router.put('/equipo/:personalId', async (req, res) => {
     if (sets.length) {
       params.push(personalId, colegio_id);
       await execute(`UPDATE personal SET ${sets.join(', ')} WHERE id = ? AND colegio_id = ?`, params);
+    }
+
+    if (req.body.codigo_biometrico !== undefined) {
+      const codigoBio =
+        req.body.codigo_biometrico == null || String(req.body.codigo_biometrico).trim() === ''
+          ? null
+          : String(req.body.codigo_biometrico).trim().slice(0, 64);
+      try {
+        await execute('UPDATE personal SET codigo_biometrico = ? WHERE id = ? AND colegio_id = ?', [
+          codigoBio,
+          personalId,
+          colegio_id,
+        ]);
+      } catch (bioErr) {
+        if (!String(bioErr.message || '').includes('codigo_biometrico')) throw bioErr;
+      }
     }
 
     const nuevoDoc = nro_documento != null ? nro_documento : exist[0].nro_documento;

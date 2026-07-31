@@ -194,6 +194,7 @@ export default function AdminUsuariosEquipo() {
       cargo: '',
       profesion: '',
       sueldo: '',
+      codigo_biometrico: '',
       fecha_ingreso: new Date().toISOString().slice(0, 10),
       hora_entrada: '08:00',
       hora_salida: '17:00',
@@ -237,6 +238,7 @@ export default function AdminUsuariosEquipo() {
         cargo: data.cargo || '',
         profesion: data.profesion || '',
         sueldo: data.sueldo != null && data.sueldo !== '' ? String(data.sueldo) : '',
+        codigo_biometrico: data.codigo_biometrico != null ? String(data.codigo_biometrico) : '',
         fecha_ingreso: (data.fecha_ingreso || '').toString().slice(0, 10),
         hora_entrada: (data.hora_entrada || '').toString().slice(0, 5),
         hora_salida: (data.hora_salida || '').toString().slice(0, 5),
@@ -923,6 +925,15 @@ export default function AdminUsuariosEquipo() {
                       />
                     </div>
                     <div className="admin-usu-field">
+                      <label>Código biométrico (huellero)</label>
+                      <input
+                        type="text"
+                        placeholder="employeeNo del Hikvision (o deje vacío = DNI)"
+                        value={form.codigo_biometrico ?? ''}
+                        onChange={(e) => setForm({ ...form, codigo_biometrico: e.target.value })}
+                      />
+                    </div>
+                    <div className="admin-usu-field">
                       <label>Fecha nacimiento</label>
                       <input
                         type="date"
@@ -1048,6 +1059,15 @@ export default function AdminUsuariosEquipo() {
                         placeholder="Solo administradores"
                         value={form.sueldo ?? ''}
                         onChange={(e) => setForm({ ...form, sueldo: e.target.value })}
+                      />
+                    </div>
+                    <div className="admin-usu-field">
+                      <label>Código biométrico (huellero)</label>
+                      <input
+                        type="text"
+                        placeholder="employeeNo del Hikvision (o deje vacío = DNI)"
+                        value={form.codigo_biometrico ?? ''}
+                        onChange={(e) => setForm({ ...form, codigo_biometrico: e.target.value })}
                       />
                     </div>
                     <div className="admin-usu-field">
