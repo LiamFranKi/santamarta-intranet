@@ -406,8 +406,10 @@ export default function AdminTardanzas() {
           <section className="admin-tardanzas-import admin-tz-bio" aria-label="Biométrico Hikvision">
             <h2 className="admin-tardanzas-import__title">Hikvision → intranet</h2>
             <p className="admin-tardanzas-import__desc">
-              Configure en el dispositivo la URL de monitoreo HTTP. Cada marcación válida se guarda como entrada del día
-              (igual que el Excel). En Usuarios → Equipo puede indicar el <strong>código biométrico</strong> por persona.
+              Cada marcación del <strong>día de hoy</strong> (fecha del huellero = hoy Lima) se guarda como entrada.
+              El historial antiguo que el terminal reenvía se omite (no inventamos fecha de hoy).
+              La fecha/hora del dispositivo debe estar bien (NTP). En Usuarios → Equipo puede indicar el{' '}
+              <strong>código biométrico</strong>. Si el log se contaminó, use «Limpiar entradas de hoy» y marque de nuevo.
             </p>
 
             {bioLoading && <p className="admin-tz-bio__muted">Cargando estado…</p>}
@@ -463,6 +465,40 @@ export default function AdminTardanzas() {
                     }}
                   >
                     Borrar omitidos
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-tardanzas-btn"
+                    onClick={async () => {
+                      const conf = await Swal.fire({
+                        icon: 'warning',
+                        title: 'Limpiar entradas de hoy',
+                        html: 'Borra las <strong>marcaciones de entrada de hoy</strong> en asistencia (las que el historial del huellero contaminó).<br>Luego marque de nuevo en el terminal.',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, limpiar hoy',
+                        cancelButtonText: 'Cancelar',
+                        confirmButtonColor: '#b91c1c',
+                      });
+                      if (!conf.isConfirmed) return;
+                      try {
+                        const { data } = await api.delete('/biometrico/admin/asistencia-hoy');
+                        await loadBioEstado();
+                        await loadLista();
+                        Swal.fire({
+                          icon: 'success',
+                          title: 'Limpiado',
+                          text: `Se borraron ${data.deleted ?? 0} entradas del ${data.fecha || 'día'}. Marque otra vez en el huellero.`,
+                        });
+                      } catch (e) {
+                        Swal.fire({
+                          icon: 'error',
+                          title: 'Error',
+                          text: e.response?.data?.error || 'No se pudo limpiar.',
+                        });
+                      }
+                    }}
+                  >
+                    Limpiar entradas de hoy
                   </button>
                 </div>
 

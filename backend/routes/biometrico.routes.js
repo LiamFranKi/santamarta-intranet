@@ -13,6 +13,7 @@ const {
   buildBodyFromRequest,
   listRecentEvents,
   deleteEventosOmitidos,
+  deleteAsistenciaEntradaHoy,
   webhookPublicUrl,
   hoyLimaISO,
 } = require('../utils/biometricoHikvision');
@@ -122,7 +123,7 @@ router.get('/admin/estado', authenticateToken, async (req, res) => {
       eventos: events || [],
       filtros: { ...filters, hoy: hoyLimaISO() },
       mapeo:
-        'Igual que el Excel: se identifica por nombre (First Name / Last Name). Código biométrico opcional; DNI solo como respaldo. Zona: Lima (UTC-5).',
+        'Igual que el Excel: se identifica por nombre. Solo se aplica asistencia del día de hoy (Lima); el historial antiguo del huellero se omite. Código biométrico opcional; DNI como respaldo.',
       tz: 'America/Lima',
     });
   } catch (e) {
@@ -161,6 +162,20 @@ router.delete('/admin/eventos/omitidos', authenticateToken, async (req, res) => 
   } catch (e) {
     console.error('[biometrico/admin/eventos/omitidos]', e);
     res.status(500).json({ error: e.message || 'Error al borrar' });
+  }
+});
+
+/** Emergencia: borra ENTRADAS de asistencia del día (limpiar flood histórico mal aplicado). */
+router.delete('/admin/asistencia-hoy', authenticateToken, async (req, res) => {
+  try {
+    if (req.user?.tipo !== 'ADMINISTRADOR') {
+      return res.status(403).json({ error: 'Solo administrador' });
+    }
+    const out = await deleteAsistenciaEntradaHoy(req.user.colegio_id);
+    res.json({ ok: true, ...out });
+  } catch (e) {
+    console.error('[biometrico/admin/asistencia-hoy]', e);
+    res.status(500).json({ error: e.message || 'Error al borrar asistencia de hoy' });
   }
 });
 

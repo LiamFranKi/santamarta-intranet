@@ -305,19 +305,8 @@ function normalizeEvent(ace, envelope) {
 
   const timeRaw = pickTimeRaw(ace, env);
   let dt = parseEventDateTime(timeRaw);
-  if (!dt && (employeeNo || name)) dt = nowLima();
+  // Nunca inventar fecha de hoy si el dispositivo no trae dateTime usable
   if (!dt) return null;
-
-  // Si la fecha del dispositivo está muy desviada, usar hoy Lima (conserva la hora del evento)
-  const hoy = nowLima();
-  if (dt.fecha && hoy.fecha && dt.fecha !== hoy.fecha) {
-    const tEvent = Date.parse(`${dt.fecha}T12:00:00-05:00`);
-    const tHoy = Date.parse(`${hoy.fecha}T12:00:00-05:00`);
-    if (Number.isFinite(tEvent) && Number.isFinite(tHoy) && Math.abs(tEvent - tHoy) > 36 * 3600 * 1000) {
-      console.warn('[biometrico] fecha dispositivo corregida', dt.fecha, '→', hoy.fecha);
-      dt = { fecha: hoy.fecha, hora: dt.hora || hoy.hora };
-    }
-  }
 
   // Sin persona: evento de puerta / heartbeat
   if (!employeeNo && !name) {
@@ -544,6 +533,38 @@ async function ingestHikvisionPayload(body, meta = {}) {
     return { ok: false, reason: 'no_employee', major: event.majorEventType, sub: event.subEventType };
   }
 
+  // El terminal suele reenviar historial al activar HTTP Listening.
+  // Solo aplicamos asistencia del día actual (Lima). Eventos antiguos se omiten.
+  const hoy = nowLima();
+  if (!event.fecha || event.fecha !== hoy.fecha) {
+    console.warn('[biometrico] histórico omitido', {
+      fechaEvento: event.fecha,
+      hoy: hoy.fecha,
+      name: event.name,
+      employeeNo: event.employeeNo,
+    });
+    await logEvento({
+      colegio_id: colegioId,
+      dispositivo_ip: dispositivoIp,
+      employee_no: event.employeeNo || null,
+      fecha: event.fecha,
+      hora_marcacion: event.hora_marcacion,
+      metodo_verificacion: event.metodo,
+      nombre_evento: event.name || null,
+      estado: 'OMITIDO',
+      detalle: `Evento histórico (${event.fecha || 'sin fecha'}); solo se registra asistencia del día ${hoy.fecha}`,
+      payload_resumen: resumen,
+    });
+    return {
+      ok: false,
+      reason: 'historico',
+      employeeNo: event.employeeNo || null,
+      name: event.name || null,
+      fecha: event.fecha,
+      hora: event.hora_marcacion,
+    };
+  }
+
   const personalList = await loadPersonalForBiometrico(colegioId);
   const matched = matchPersonalBiometrico(event, personalList);
 
@@ -767,6 +788,24 @@ async function deleteEventosOmitidos(colegioId) {
   return { deleted: result?.affectedRows || 0 };
 }
 
+/**
+ * Emergencia: borra marcaciones ENTRADA del día (Lima) creadas por el flood histórico.
+ * No borra el log biométrico.
+ */
+async function deleteAsistenciaEntradaHoy(colegioId) {
+  const hoy = hoyLimaISO();
+  const { anio } = await getAnioActivo(query, colegioId);
+  const result = await execute(
+    `DELETE FROM asistencia_registros
+     WHERE colegio_id = ?
+       AND anio = ?
+       AND DATE(fecha) = ?
+       AND (tipo_registro = 'ENTRADA' OR tipo_registro = 'ENTRADA_SALIDA')`,
+    [colegioId, anio, hoy]
+  );
+  return { deleted: result?.affectedRows || 0, fecha: hoy, anio };
+}
+
 function webhookPublicUrl(req) {
   let base = String(
     process.env.BIOMETRICO_PUBLIC_URL ||
@@ -803,6 +842,7 @@ module.exports = {
   buildBodyFromRequest,
   listRecentEvents,
   deleteEventosOmitidos,
+  deleteAsistenciaEntradaHoy,
   webhookPublicUrl,
   loadPersonalForBiometrico,
   parseEventDateTime,
