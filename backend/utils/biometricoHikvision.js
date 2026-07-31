@@ -1,6 +1,9 @@
 /**
  * Recepción de eventos HTTP del biométrico Hikvision (Monitoreo HTTP / AccessControllerEvent).
  * Inserta en asistencia_registros (misma lógica que import Excel de tardanzas).
+ *
+ * El terminal suele enviar multipart/form-data con campo "event_log" (JSON).
+ * La fecha va en el sobre (dateTime); employeeNoString dentro de AccessControllerEvent.
  */
 const multer = require('multer');
 const { query, execute } = require('./mysql');
@@ -12,6 +15,8 @@ const {
   dedupePersonalList,
   parseHoraMarcacion,
 } = require('./adminTardanzasHuellero');
+
+const TZ_LIMA = 'America/Lima';
 
 const uploadAny = multer({
   storage: multer.memoryStorage(),
@@ -37,7 +42,8 @@ function assertWebhookAuth(req) {
   const bearer = auth.toLowerCase().startsWith('bearer ')
     ? auth.slice(7).trim()
     : '';
-  const got = q || h || bearer;
+  const pathToken = String(req.params?.token || '').trim();
+  const got = q || h || bearer || pathToken;
   if (!got || got !== expected) {
     const err = new Error('Token inválido');
     err.status = 401;
@@ -53,102 +59,205 @@ function safeJsonParse(raw) {
   try {
     return JSON.parse(s);
   } catch {
+    // A veces viene basura alrededor del JSON
+    const start = s.indexOf('{');
+    const end = s.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(s.slice(start, end + 1));
+      } catch {
+        return null;
+      }
+    }
     return null;
   }
 }
 
-function dig(obj, paths) {
-  for (const p of paths) {
-    const parts = p.split('.');
-    let cur = obj;
-    let ok = true;
-    for (const part of parts) {
-      if (cur == null || typeof cur !== 'object' || !(part in cur)) {
-        ok = false;
-        break;
-      }
-      cur = cur[part];
-    }
-    if (ok && cur != null && cur !== '') return cur;
-  }
-  return null;
-}
-
-/**
- * Extrae AccessControllerEvent desde JSON o multipart típico Hikvision.
- */
-function extractAccessControllerEvent(body) {
-  if (!body || typeof body !== 'object') return null;
-
-  if (body.AccessControllerEvent && typeof body.AccessControllerEvent === 'object') {
-    return body.AccessControllerEvent;
-  }
-  if (typeof body.AccessControllerEvent === 'string') {
-    return safeJsonParse(body.AccessControllerEvent);
-  }
-
-  // A veces el body entero ES el evento
-  if (body.employeeNoString != null || body.employeeNo != null || body.time != null) {
-    return body;
-  }
-
-  for (const key of Object.keys(body)) {
-    const val = body[key];
-    if (typeof val === 'string' && val.includes('AccessControllerEvent')) {
-      const parsed = safeJsonParse(val);
-      if (parsed?.AccessControllerEvent) return parsed.AccessControllerEvent;
-      if (parsed?.employeeNoString || parsed?.employeeNo) return parsed;
-    }
-    if (typeof val === 'string' && (val.includes('employeeNo') || val.includes('dateTime'))) {
-      const parsed = safeJsonParse(val);
-      if (parsed?.AccessControllerEvent) return parsed.AccessControllerEvent;
-      if (parsed) return parsed;
-    }
-  }
-
-  return null;
-}
-
+/** Fecha/hora del evento convertida a Lima (America/Lima). */
 function parseEventDateTime(raw) {
   if (!raw) return null;
   const s = String(raw).trim();
-  // 2024-07-31T08:05:22-05:00 o 2024-07-31T08:05:22
-  const iso = s.match(
-    /^(\d{4}-\d{2}-\d{2})[T\s](\d{2}):(\d{2}):(\d{2})/
-  );
-  if (iso) {
+  if (!s) return null;
+
+  let d = new Date(s);
+  if (Number.isNaN(d.getTime())) {
+    // 31/07/2026 12:43:00
+    const dmy = s.match(/^(\d{2})\/(\d{2})\/(\d{4})[ T](\d{2}):(\d{2}):(\d{2})/);
+    if (dmy) {
+      d = new Date(
+        `${dmy[3]}-${dmy[2]}-${dmy[1]}T${dmy[4]}:${dmy[5]}:${dmy[6]}-05:00`
+      );
+    }
+  }
+  if (Number.isNaN(d.getTime())) {
+    // Fallback: tomar reloj de pared del string sin convertir
+    const iso = s.match(/^(\d{4}-\d{2}-\d{2})[T\s](\d{2}):(\d{2}):(\d{2})/);
+    if (!iso) return null;
     return {
       fecha: iso[1],
       hora: `${iso[2]}:${iso[3]}:${iso[4]}`,
     };
   }
-  const dmy = s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
-  if (dmy) {
-    return {
-      fecha: `${dmy[3]}-${dmy[2]}-${dmy[1]}`,
-      hora: `${dmy[4]}:${dmy[5]}:${dmy[6]}`,
-    };
+
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ_LIMA,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(d);
+  const get = (type) => parts.find((p) => p.type === type)?.value;
+  let hour = get('hour');
+  if (hour === '24') hour = '00'; // algunos motores
+  return {
+    fecha: `${get('year')}-${get('month')}-${get('day')}`,
+    hora: `${hour}:${get('minute')}:${get('second')}`,
+  };
+}
+
+function nowLima() {
+  return parseEventDateTime(new Date().toISOString());
+}
+
+/**
+ * Hikvision: multipart event_log → JSON envelope con AccessControllerEvent anidado.
+ */
+function resolveHikvisionPayload(body, rawBody) {
+  let root = body && typeof body === 'object' ? { ...body } : {};
+
+  if ((!root || !Object.keys(root).length) && rawBody) {
+    const parsed = safeJsonParse(rawBody);
+    if (parsed) root = parsed;
   }
-  return null;
+
+  // Multipart: event_log / AccessControllerEvent como string u objeto
+  const candidateKeys = [
+    'event_log',
+    'EventNotificationAlert',
+    'AccessControllerEvent',
+    'eventLog',
+    'json',
+  ];
+
+  let envelope = null;
+
+  for (const key of candidateKeys) {
+    if (root[key] == null) continue;
+    const val = root[key];
+    if (typeof val === 'string') {
+      const parsed = safeJsonParse(val);
+      if (!parsed) continue;
+      if (key === 'AccessControllerEvent' && !parsed.AccessControllerEvent) {
+        envelope = { ...root, AccessControllerEvent: parsed, dateTime: root.dateTime || parsed.dateTime };
+      } else {
+        envelope = parsed.AccessControllerEvent || parsed.eventType
+          ? parsed
+          : { AccessControllerEvent: parsed };
+      }
+      break;
+    }
+    if (typeof val === 'object') {
+      if (key === 'AccessControllerEvent' && !val.employeeNoString && !val.dateTime && root.dateTime) {
+        envelope = root;
+      } else if (val.AccessControllerEvent || val.eventType || val.employeeNoString != null) {
+        envelope = val.AccessControllerEvent || val.eventType ? val : root;
+      } else {
+        envelope = { ...root, AccessControllerEvent: val };
+      }
+      break;
+    }
+  }
+
+  if (!envelope) {
+    if (root.AccessControllerEvent || root.eventType === 'AccessControllerEvent' || root.employeeNoString != null) {
+      envelope = root;
+    }
+  }
+
+  // Buscar JSON embebido en cualquier campo string
+  if (!envelope) {
+    for (const val of Object.values(root)) {
+      if (typeof val !== 'string') continue;
+      if (!val.includes('AccessControllerEvent') && !val.includes('employeeNo') && !val.includes('dateTime')) {
+        continue;
+      }
+      const parsed = safeJsonParse(val);
+      if (parsed) {
+        envelope = parsed.AccessControllerEvent && !parsed.dateTime && root.dateTime
+          ? { ...parsed, dateTime: root.dateTime }
+          : parsed;
+        break;
+      }
+    }
+  }
+
+  if (!envelope && rawBody && (String(rawBody).includes('AccessControllerEvent') || String(rawBody).includes('employeeNo'))) {
+    envelope = safeJsonParse(rawBody);
+  }
+
+  if (!envelope) return { envelope: null, ace: null };
+
+  let ace = envelope.AccessControllerEvent;
+  if (typeof ace === 'string') ace = safeJsonParse(ace);
+  if (!ace || typeof ace !== 'object') {
+    if (envelope.employeeNoString != null || envelope.employeeNo != null || envelope.name) {
+      ace = envelope;
+    } else {
+      ace = null;
+    }
+  }
+
+  return { envelope, ace };
+}
+
+/** @deprecated usar resolveHikvisionPayload */
+function extractAccessControllerEvent(body) {
+  return resolveHikvisionPayload(body).ace;
 }
 
 function normalizeEvent(ace, envelope) {
   if (!ace || typeof ace !== 'object') return null;
+  const env = envelope && typeof envelope === 'object' ? envelope : {};
 
   const employeeNo = String(
     ace.employeeNoString ??
       ace.employeeNo ??
-      dig(envelope, ['employeeNoString', 'employeeNo']) ??
+      env.employeeNoString ??
+      env.employeeNo ??
       ''
   ).trim();
 
   const timeRaw =
     ace.time ||
     ace.dateTime ||
-    dig(envelope, ['dateTime', 'time']) ||
+    env.dateTime ||
+    env.time ||
     null;
-  const dt = parseEventDateTime(timeRaw);
+  let dt = parseEventDateTime(timeRaw);
+  if (!dt && employeeNo) {
+    // Marcación sin fecha usable → usar ahora (Lima)
+    dt = nowLima();
+  }
   if (!dt) return null;
+
+  // Sin persona: evento de puerta / heartbeat
+  if (!employeeNo && !ace.name && !ace.employeeName) {
+    return {
+      employeeNo: '',
+      fecha: dt.fecha,
+      hora_marcacion: parseHoraMarcacion(dt.hora) || dt.hora,
+      firstName: '',
+      lastName: '',
+      name: '',
+      metodo: '',
+      majorEventType: ace.majorEventType,
+      subEventType: ace.subEventType,
+      sinPersona: true,
+    };
+  }
 
   const hora = parseHoraMarcacion(dt.hora) || dt.hora;
   const name = String(ace.name || ace.employeeName || '').trim();
@@ -181,6 +290,7 @@ function normalizeEvent(ace, envelope) {
     metodo,
     majorEventType: ace.majorEventType,
     subEventType: ace.subEventType,
+    sinPersona: false,
   };
 }
 
@@ -197,7 +307,6 @@ async function loadPersonalForBiometrico(colegioId) {
     );
     return dedupePersonalList(rows || []);
   } catch (e) {
-    // Migración 067 aún no aplicada
     if (String(e.message || '').includes('codigo_biometrico')) {
       const rows = await query(
         `SELECT p.id AS personal_id, p.nombres, p.apellidos, p.hora_entrada, p.cargo,
@@ -228,6 +337,16 @@ function matchPersonalBiometrico(event, personalList) {
       (p) => p.nro_documento != null && String(p.nro_documento).trim() === code
     );
     if (byDni) return { personal: byDni, via: 'nro_documento' };
+
+    // employeeNo numérico corto vs codigo con ceros a la izquierda
+    const codeNorm = code.replace(/^0+/, '') || '0';
+    const byCodeNorm = personalList.find((p) => {
+      const c = p.codigo_biometrico != null ? String(p.codigo_biometrico).trim() : '';
+      const d = p.nro_documento != null ? String(p.nro_documento).trim() : '';
+      return (c && (c.replace(/^0+/, '') || '0') === codeNorm) ||
+        (d && (d.replace(/^0+/, '') || '0') === codeNorm);
+    });
+    if (byCodeNorm) return { personal: byCodeNorm, via: 'codigo_norm' };
   }
 
   if (event.firstName || event.lastName) {
@@ -268,37 +387,69 @@ async function logEvento(row) {
   }
 }
 
-/**
- * Procesa un payload ya parseado (objeto).
- */
-async function ingestHikvisionPayload(body, meta = {}) {
-  const colegioId = parseInt(meta.colegioId || process.env.BIOMETRICO_COLEGIO_ID || DEFAULT_COLEGIO_ID, 10);
-  const dispositivoIp = meta.ip || null;
-
-  const ace = extractAccessControllerEvent(body);
-  const event = normalizeEvent(ace, body);
-
-  const resumen = JSON.stringify({
-    keys: body && typeof body === 'object' ? Object.keys(body).slice(0, 20) : [],
+function buildResumen(body, envelope, event, rawBody) {
+  const snippet = (() => {
+    try {
+      const src = envelope || body || rawBody;
+      const s = typeof src === 'string' ? src : JSON.stringify(src);
+      return String(s).slice(0, 1500);
+    } catch {
+      return '';
+    }
+  })();
+  return JSON.stringify({
+    keys: body && typeof body === 'object' ? Object.keys(body).slice(0, 30) : [],
+    eventType: envelope?.eventType || body?.eventType,
     employeeNo: event?.employeeNo,
     fecha: event?.fecha,
     hora: event?.hora_marcacion,
     name: event?.name,
+    snippet,
   });
+}
+
+/**
+ * Procesa un payload ya parseado (objeto). meta.rawBody opcional.
+ */
+async function ingestHikvisionPayload(body, meta = {}) {
+  const colegioId = parseInt(meta.colegioId || process.env.BIOMETRICO_COLEGIO_ID || DEFAULT_COLEGIO_ID, 10);
+  const dispositivoIp = meta.ip || null;
+  const rawBody = meta.rawBody || null;
+
+  const { envelope, ace } = resolveHikvisionPayload(body, rawBody);
+  const event = normalizeEvent(ace, envelope || body);
+  const resumen = buildResumen(body, envelope, event, rawBody);
 
   if (!event) {
+    console.warn('[biometrico] unparsed', {
+      keys: body && typeof body === 'object' ? Object.keys(body) : [],
+      hasRaw: !!rawBody,
+      rawPreview: rawBody ? String(rawBody).slice(0, 300) : null,
+    });
     await logEvento({
       colegio_id: colegioId,
       dispositivo_ip: dispositivoIp,
       estado: 'OMITIDO',
-      detalle: 'No se pudo parsear AccessControllerEvent',
+      detalle: 'No se pudo parsear AccessControllerEvent (revise payload_resumen)',
       payload_resumen: resumen,
     });
     return { ok: false, reason: 'unparsed' };
   }
 
-  // Filtrar eventos que no son marcación de asistencia (si vienen major/sub)
-  // major 5 = event trigger; sub 75/76 often attendance. Si no hay datos, igual aceptamos si hay employee+time.
+  if (event.sinPersona) {
+    await logEvento({
+      colegio_id: colegioId,
+      dispositivo_ip: dispositivoIp,
+      fecha: event.fecha,
+      hora_marcacion: event.hora_marcacion,
+      metodo_verificacion: event.metodo,
+      estado: 'OMITIDO',
+      detalle: `Evento sin empleado (puerta/sistema) major=${event.majorEventType} sub=${event.subEventType}`,
+      payload_resumen: resumen,
+    });
+    return { ok: false, reason: 'no_employee' };
+  }
+
   const personalList = await loadPersonalForBiometrico(colegioId);
   const matched = matchPersonalBiometrico(event, personalList);
 
@@ -312,7 +463,7 @@ async function ingestHikvisionPayload(body, meta = {}) {
       metodo_verificacion: event.metodo,
       nombre_evento: event.name,
       estado: 'OMITIDO',
-      detalle: 'Sin coincidencia de personal (configure codigo_biometrico o DNI = employeeNo)',
+      detalle: `Sin coincidencia (employeeNo=${event.employeeNo || '—'}; configure codigo_biometrico o DNI)`,
       payload_resumen: resumen,
     });
     return { ok: false, reason: 'no_match', employeeNo: event.employeeNo };
@@ -338,7 +489,6 @@ async function ingestHikvisionPayload(body, meta = {}) {
 
   const { anio } = await getAnioActivo(query, colegioId);
 
-  // Si ya hay marcación ese día con hora igual o más temprana, no empeorar (primera entrada del día)
   const existing = await query(
     `SELECT id, hora_entrada FROM asistencia_registros
      WHERE usuario_id = ? AND colegio_id = ? AND DATE(fecha) = ? AND anio = ?
@@ -402,6 +552,50 @@ async function ingestHikvisionPayload(body, meta = {}) {
   };
 }
 
+/**
+ * Arma body desde req (JSON, urlencoded, multipart fields + files).
+ */
+function buildBodyFromRequest(req) {
+  let body =
+    req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)
+      ? { ...req.body }
+      : {};
+
+  if (typeof req.body === 'string' && req.body.trim()) {
+    const parsed = safeJsonParse(req.body);
+    if (parsed) body = parsed;
+    else body = { raw: req.body };
+  }
+
+  if (req.files?.length) {
+    for (const f of req.files) {
+      if (!f.fieldname || !f.buffer) continue;
+      const asText = f.buffer.toString('utf8');
+      const parsed = safeJsonParse(asText);
+      if (parsed) {
+        body[f.fieldname] = parsed;
+        if (parsed.AccessControllerEvent && !body.AccessControllerEvent) {
+          body.AccessControllerEvent = parsed.AccessControllerEvent;
+        }
+        if (parsed.dateTime && !body.dateTime) body.dateTime = parsed.dateTime;
+        // event_log suele ser el sobre completo
+        if (f.fieldname === 'event_log' || parsed.eventType) {
+          Object.assign(body, {
+            event_log: parsed,
+            dateTime: body.dateTime || parsed.dateTime,
+            AccessControllerEvent: body.AccessControllerEvent || parsed.AccessControllerEvent,
+          });
+        }
+      } else if (!f.mimetype || String(f.mimetype).includes('json') || String(f.mimetype).includes('text')) {
+        body[f.fieldname] = asText;
+      }
+      // omitir binarios (fotos)
+    }
+  }
+
+  return body;
+}
+
 async function listRecentEvents(colegioId, limit = 50) {
   const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
   return query(
@@ -430,6 +624,10 @@ function webhookPublicUrl(req) {
     const host = String(req.headers['x-forwarded-host'] || req.get?.('host') || '').split(',')[0].trim();
     if (host) base = `${proto}://${host}`;
   }
+  // Preferir dominio API real si FRONTEND_URL apunta a un host que no resuelve
+  if (/intranet\.vanguardschools\.com/i.test(base)) {
+    base = 'https://sistema.vanguardschools.edu.pe';
+  }
   const token = webhookTokenConfigured();
   const path = '/api/biometrico/hikvision/eventos';
   if (!base) return `${path}?token=***`;
@@ -443,8 +641,11 @@ module.exports = {
   webhookTokenConfigured,
   ingestHikvisionPayload,
   extractAccessControllerEvent,
+  resolveHikvisionPayload,
   normalizeEvent,
+  buildBodyFromRequest,
   listRecentEvents,
   webhookPublicUrl,
   loadPersonalForBiometrico,
+  parseEventDateTime,
 };

@@ -19,6 +19,30 @@ function fmtFecha(iso) {
   return `${d}/${m}/${y}`;
 }
 
+/** created_at en hora Lima (evita +5h si el driver entrega UTC). */
+function fmtLimaDateTime(raw) {
+  if (!raw) return '—';
+  const s = String(raw).trim();
+  // MySQL DATETIME sin zona → tratar como Lima ya guardado
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(s) && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(s)) {
+    return s.replace('T', ' ').slice(0, 19);
+  }
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s.replace('T', ' ').slice(0, 19);
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'America/Lima',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+    .format(d)
+    .replace(' ', ' ');
+}
+
 function toInputTime(horaFmt) {
   if (!horaFmt) return '';
   const parts = String(horaFmt).split(':');
@@ -441,7 +465,7 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                       )}
                       {(bioEstado.eventos || []).map((ev) => (
                         <tr key={ev.id}>
-                          <td>{ev.created_at ? String(ev.created_at).replace('T', ' ').slice(0, 19) : '—'}</td>
+                          <td>{fmtLimaDateTime(ev.created_at)}</td>
                           <td>{ev.employee_no || '—'}</td>
                           <td>{ev.personal_nombre || '—'}</td>
                           <td>

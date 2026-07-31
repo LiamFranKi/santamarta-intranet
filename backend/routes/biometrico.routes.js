@@ -10,6 +10,7 @@ const {
   assertWebhookAuth,
   webhookTokenConfigured,
   ingestHikvisionPayload,
+  buildBodyFromRequest,
   listRecentEvents,
   webhookPublicUrl,
 } = require('../utils/biometricoHikvision');
@@ -20,21 +21,34 @@ function clientIp(req) {
   return xf || req.ip || req.socket?.remoteAddress || null;
 }
 
-function parseBodyMaybeText(req) {
-  if (req.body && typeof req.body === 'object' && Object.keys(req.body).length) {
-    return req.body;
+async function handleEventPost(req, res) {
+  try {
+    assertWebhookAuth(req);
+
+    const body = buildBodyFromRequest(req);
+    const rawBody = req.rawBody || null;
+
+    console.log('[biometrico] POST', {
+      ct: req.headers['content-type'],
+      keys: Object.keys(body || {}),
+      files: (req.files || []).map((f) => f.fieldname),
+      hasRaw: !!rawBody,
+    });
+
+    const result = await ingestHikvisionPayload(body, {
+      ip: clientIp(req),
+      colegioId: process.env.BIOMETRICO_COLEGIO_ID || DEFAULT_COLEGIO_ID,
+      rawBody,
+    });
+
+    return res.status(200).json({ ok: true, ...result });
+  } catch (e) {
+    console.error('[biometrico] webhook', e.message);
+    return res.status(e.status || 500).json({ ok: false, error: e.message || 'Error' });
   }
-  if (typeof req.body === 'string' && req.body.trim()) {
-    try {
-      return JSON.parse(req.body);
-    } catch {
-      return { raw: req.body };
-    }
-  }
-  return req.body || {};
 }
 
-/** Health / prueba de conectividad del terminal (algunos firmware hacen GET). */
+/** Health / prueba de conectividad del terminal */
 router.get('/hikvision/eventos', (req, res) => {
   try {
     assertWebhookAuth(req);
@@ -42,58 +56,20 @@ router.get('/hikvision/eventos', (req, res) => {
       ok: true,
       service: 'biometrico-hikvision',
       message: 'Webhook activo. Configure el dispositivo para POST AccessControllerEvent aquí.',
+      tz: 'America/Lima',
     });
   } catch (e) {
     res.status(e.status || 500).json({ ok: false, error: e.message });
   }
 });
 
-/**
- * Receptor de eventos del huellero (sin JWT; autenticado por token).
- * Acepta JSON y multipart/form-data.
- */
 router.post('/hikvision/eventos', (req, res) => {
-  uploadAny(req, res, async (err) => {
+  uploadAny(req, res, (err) => {
     if (err) {
       console.error('[biometrico] multer', err.message);
       return res.status(400).json({ ok: false, error: 'Payload inválido' });
     }
-    try {
-      assertWebhookAuth(req);
-
-      let body = parseBodyMaybeText(req);
-      // Si multipart trajo campos string JSON, merge
-      if (req.files?.length) {
-        for (const f of req.files) {
-          if (f.fieldname && f.buffer) {
-            const asText = f.buffer.toString('utf8');
-            const parsed = (() => {
-              try {
-                return JSON.parse(asText);
-              } catch {
-                return null;
-              }
-            })();
-            if (parsed) {
-              body = { ...body, [f.fieldname]: parsed, AccessControllerEvent: parsed.AccessControllerEvent || parsed };
-            } else {
-              body = { ...body, [f.fieldname]: asText };
-            }
-          }
-        }
-      }
-
-      const result = await ingestHikvisionPayload(body, {
-        ip: clientIp(req),
-        colegioId: process.env.BIOMETRICO_COLEGIO_ID || DEFAULT_COLEGIO_ID,
-      });
-
-      // Hikvision espera 200; no fallar el device por OMITIDO
-      return res.status(200).json({ ok: true, ...result });
-    } catch (e) {
-      console.error('[biometrico] webhook', e.message);
-      return res.status(e.status || 500).json({ ok: false, error: e.message || 'Error' });
-    }
+    return handleEventPost(req, res);
   });
 });
 
@@ -112,12 +88,13 @@ router.get('/admin/estado', authenticateToken, async (req, res) => {
       webhook_configurado: tokenOk,
       webhook_url: tokenOk ? webhookPublicUrl(req) : null,
       webhook_url_hint: tokenOk
-        ? 'Pegue esta URL en el huellero: Configuración → Red → Notificación avanzada / Monitoreo HTTP (Listening Host).'
-        : 'Defina BIOMETRICO_WEBHOOK_TOKEN y BIOMETRICO_PUBLIC_URL en backend/.env y reinicie PM2.',
+        ? 'Pegue esta URL en el huellero: Configuration → Network → Network Service → HTTP(S) → HTTP Listening.'
+        : 'Defina BIOMETRICO_WEBHOOK_TOKEN y BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe en backend/.env y reinicie PM2.',
       migracion_pendiente: events === null,
       eventos: events || [],
       mapeo:
-        'Prioridad: personal.codigo_biometrico = employeeNo del terminal. Si está vacío, se usa DNI. Si no, nombre.',
+        'Prioridad: personal.codigo_biometrico = employeeNo del terminal. Si está vacío, se usa DNI. Si no, nombre. Zona horaria: Lima (UTC-5).',
+      tz: 'America/Lima',
     });
   } catch (e) {
     console.error('[biometrico/admin/estado]', e);

@@ -127,8 +127,24 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, _res, buf) => {
+    // Captura cruda para webhook Hikvision (multipart/JSON a veces llega raro)
+    if (buf?.length && String(req.originalUrl || '').includes('/api/biometrico/')) {
+      req.rawBody = buf.toString('utf8');
+    }
+  },
+}));
+app.use(express.urlencoded({
+  extended: true,
+  limit: '10mb',
+  verify: (req, _res, buf) => {
+    if (buf?.length && String(req.originalUrl || '').includes('/api/biometrico/') && !req.rawBody) {
+      req.rawBody = buf.toString('utf8');
+    }
+  },
+}));
 
 // Configurar trust proxy DESPUÉS de los middlewares básicos
 // Esto es necesario cuando el backend está detrás de un proxy reverso (Apache)

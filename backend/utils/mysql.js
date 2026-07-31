@@ -35,10 +35,17 @@ const mysqlReadPool = mysql.createPool({
   multipleStatements: false,
   // Configuración adicional para producción
   enableKeepAlive: true,
-  keepAliveInitialDelay: 0
-  // Nota: La zona horaria se manejará en las consultas SQL usando DATE() y CURDATE()
-  // o configurándola directamente en las consultas cuando sea necesario
+  keepAliveInitialDelay: 0,
+  // Lima, Perú (UTC-5). Afecta Date JS ↔ MySQL.
+  timezone: '-05:00',
   // Nota: 'reconnect' fue removido porque MySQL2 no lo soporta en createPool
+});
+
+// NOW()/CURRENT_TIMESTAMP en hora Lima (no UTC del servidor)
+mysqlReadPool.on('connection', (conn) => {
+  conn.query("SET time_zone = '-05:00'", (err) => {
+    if (err) console.warn('[mysql] No se pudo SET time_zone=-05:00:', err.message);
+  });
 });
 
 async function query(sql, params = []) {
