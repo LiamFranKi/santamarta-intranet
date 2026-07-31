@@ -389,11 +389,12 @@ function matchPersonalBiometrico(event, personalList) {
 
 async function logEvento(row) {
   try {
+    // created_at en hora Lima (UTC-5) sin tocar el time_zone del pool MySQL
     await execute(
       `INSERT INTO biometrico_eventos_log
         (colegio_id, dispositivo_ip, employee_no, personal_id, usuario_id, fecha, hora_marcacion,
-         metodo_verificacion, nombre_evento, estado, detalle, payload_resumen)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+         metodo_verificacion, nombre_evento, estado, detalle, payload_resumen, created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?, DATE_SUB(UTC_TIMESTAMP(), INTERVAL 5 HOUR))`,
       [
         row.colegio_id,
         row.dispositivo_ip || null,

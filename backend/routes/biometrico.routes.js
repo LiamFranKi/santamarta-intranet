@@ -45,6 +45,7 @@ async function handleEventPost(req, res) {
     console.log('[biometrico] POST', {
       ct: req.headers['content-type'],
       keys: Object.keys(body || {}),
+      eventLogType: typeof body?.event_log,
       files: (req.files || []).map((f) => f.fieldname),
       hasRaw: !!rawBody,
     });
@@ -55,9 +56,17 @@ async function handleEventPost(req, res) {
       rawBody,
     });
 
+    console.log('[biometrico] resultado', {
+      ok: result?.ok,
+      reason: result?.reason,
+      action: result?.action,
+      employeeNo: result?.employeeNo,
+      personal_id: result?.personal_id,
+    });
+
     return res.status(200).json({ ok: true, ...result });
   } catch (e) {
-    console.error('[biometrico] webhook', e.message);
+    console.error('[biometrico] webhook', e.message, e.stack);
     return res.status(e.status || 500).json({ ok: false, error: e.message || 'Error' });
   }
 }

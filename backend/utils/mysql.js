@@ -33,19 +33,11 @@ const mysqlReadPool = mysql.createPool({
   connectionLimit: MYSQL_POOL_LIMIT,
   queueLimit: 0,
   multipleStatements: false,
-  // Configuración adicional para producción
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
-  // Lima, Perú (UTC-5). Afecta Date JS ↔ MySQL.
-  timezone: '-05:00',
-  // Nota: 'reconnect' fue removido porque MySQL2 no lo soporta en createPool
-});
-
-// NOW()/CURRENT_TIMESTAMP en hora Lima (no UTC del servidor)
-mysqlReadPool.on('connection', (conn) => {
-  conn.query("SET time_zone = '-05:00'", (err) => {
-    if (err) console.warn('[mysql] No se pudo SET time_zone=-05:00:', err.message);
-  });
+  // Nota: NO usar pool.timezone ni SET time_zone en 'connection':
+  // en mysql2/promise rompe el pool (Error: Cannot read properties of undefined reading 'length').
+  // La hora Lima del biométrico se resuelve en biometricoHikvision (parseEventDateTime).
 });
 
 async function query(sql, params = []) {
@@ -54,7 +46,6 @@ async function query(sql, params = []) {
     if (!sqlUpper.startsWith('SELECT')) {
       throw new Error('Solo se permiten consultas SELECT. Modificación de datos no permitida.');
     }
-    // Asegurar que params es un array válido
     const queryParams = Array.isArray(params) ? params : [];
     const [rows] = await mysqlReadPool.execute(sql, queryParams);
     return rows;
@@ -69,7 +60,8 @@ async function query(sql, params = []) {
 // Función para ejecutar consultas de escritura (INSERT, UPDATE, DELETE)
 async function execute(sql, params = []) {
   try {
-    const [result] = await mysqlReadPool.execute(sql, params);
+    const queryParams = Array.isArray(params) ? params : [];
+    const [result] = await mysqlReadPool.execute(sql, queryParams);
     return result;
   } catch (error) {
     const isDup =
