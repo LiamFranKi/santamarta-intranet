@@ -10,13 +10,17 @@ const {
   assertWebhookAuth,
   webhookTokenConfigured,
   ingestHikvisionPayload,
+  simularMarcacionHoy,
+  getLastWebhook,
   buildBodyFromRequest,
   listRecentEvents,
   deleteEventosOmitidos,
   deleteAsistenciaEntradaHoy,
   webhookPublicUrl,
   hoyLimaISO,
+  nowLima,
 } = require('../utils/biometricoHikvision');
+const { query } = require('../utils/mysql');
 const { DEFAULT_COLEGIO_ID } = require('../utils/defaultColegio');
 
 function eventFiltersFromQuery(q = {}) {
@@ -94,6 +98,8 @@ router.get('/admin/estado', authenticateToken, async (req, res) => {
       if (String(e.message || '').includes('biometrico_eventos_log')) return null;
       throw e;
     });
+    const last = getLastWebhook();
+    const lima = nowLima();
     res.json({
       webhook_configurado: tokenOk,
       webhook_url: tokenOk ? webhookPublicUrl(req) : null,
@@ -103,13 +109,102 @@ router.get('/admin/estado', authenticateToken, async (req, res) => {
       migracion_pendiente: events === null,
       eventos: events || [],
       filtros: { ...filters, hoy: hoyLimaISO() },
+      ultimo_contacto: last,
+      servidor_ahora: { fecha: lima.fecha, hora: lima.hora },
+      diagnostico:
+        !last.at
+          ? 'Aún no llegó ningún POST del huellero a este proceso (HTTP Listening apagado, URL/token mal, o PM2 reiniciado hace poco).'
+          : last.reason === 'historico'
+            ? `El huellero SÍ está enviando, pero con fecha de dispositivo ${last.fecha || '—'} (hoy servidor: ${lima.fecha}). Corrija fecha/NTP del terminal.`
+            : last.reason === 'no_employee'
+              ? 'Llegan heartbeats/puerta sin persona. Marque con huella/cara para enviar un evento con empleado.'
+              : last.reason === 'no_match'
+                ? 'Llegó una marcación de hoy pero no coincidió con personal. Revise nombre/DNI/código biométrico.'
+                : last.reason === 'insertado' || last.reason === 'actualizado' || last.action === 'insertado'
+                  ? 'Última marcación aplicada correctamente.'
+                  : `Último motivo: ${last.reason || last.action || '—'}.`,
       mapeo:
-        'Solo asistencia del día de hoy (Lima). El historial que reenvía el huellero se confirma (ACK) sin guardar en el log ni en asistencia, para no saturar el servidor. Código biométrico opcional; DNI como respaldo.',
+        'Solo asistencia del día de hoy (Lima). El historial se confirma sin llenar el log. Use «Probar marcación» para validar el backend sin el huellero.',
       tz: 'America/Lima',
     });
   } catch (e) {
     console.error('[biometrico/admin/estado]', e);
     res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/** Simula marcación de hoy del admin logueado (o personal_id del body) para probar el backend. */
+router.post('/admin/probar-marcacion', authenticateToken, async (req, res) => {
+  try {
+    if (req.user?.tipo !== 'ADMINISTRADOR') {
+      return res.status(403).json({ error: 'Solo administrador' });
+    }
+    const colegioId = req.user.colegio_id;
+    let personalId = parseInt(req.body?.personal_id || req.body?.personalId || 0, 10) || null;
+
+    let row;
+    if (personalId) {
+      const rows = await query(
+        `SELECT p.id as personal_id, p.nombres, p.apellidos, p.nro_documento, p.codigo_biometrico, u.id as usuario_id
+         FROM personal p
+         LEFT JOIN usuarios u ON u.personal_id = p.id AND u.estado = 'ACTIVO'
+         WHERE p.id = ? AND p.colegio_id = ?
+         LIMIT 1`,
+        [personalId, colegioId]
+      );
+      row = rows[0];
+    } else {
+      const rows = await query(
+        `SELECT p.id as personal_id, p.nombres, p.apellidos, p.nro_documento, p.codigo_biometrico, u.id as usuario_id
+         FROM usuarios u
+         INNER JOIN personal p ON p.id = u.personal_id
+         WHERE u.id = ? AND p.colegio_id = ?
+         LIMIT 1`,
+        [req.user.id, colegioId]
+      );
+      row = rows[0];
+    }
+
+    if (!row?.personal_id) {
+      return res.status(400).json({
+        error:
+          'No hay personal vinculado a este admin. Envíe personal_id en el body o asocie su usuario a un registro de personal.',
+      });
+    }
+    if (!row.usuario_id) {
+      return res.status(400).json({ error: 'Ese personal no tiene usuario ACTIVO; no se puede marcar asistencia.' });
+    }
+
+    const employeeNo =
+      String(row.codigo_biometrico || '').trim() ||
+      String(row.nro_documento || '').trim() ||
+      String(row.personal_id);
+    const name = `${row.apellidos || ''} ${row.nombres || ''}`.trim();
+
+    const result = await simularMarcacionHoy({
+      colegioId,
+      employeeNo,
+      name,
+      ip: 'admin-probar',
+    });
+
+    res.json({
+      ok: true,
+      prueba: true,
+      personal_id: row.personal_id,
+      employeeNo,
+      name,
+      resultado: result,
+      mensaje:
+        result.action === 'insertado' || result.action === 'actualizado'
+          ? 'Marcación de prueba OK. Debe aparecer en el log y en Tardanzas/Registros.'
+          : result.reason === 'kept_earlier' || result.action === 'kept_earlier'
+            ? 'Ya tenía entrada más temprana hoy; se conservó esa hora (prueba OK del pipeline).'
+            : `Prueba respondió: ${result.reason || result.action || 'sin detalle'}`,
+    });
+  } catch (e) {
+    console.error('[biometrico/admin/probar-marcacion]', e);
+    res.status(500).json({ error: e.message || 'Error en prueba' });
   }
 });
 

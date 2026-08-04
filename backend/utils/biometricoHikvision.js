@@ -18,6 +18,35 @@ const {
 
 const TZ_LIMA = 'America/Lima';
 
+/** Diagnóstico en memoria: último POST del huellero (no persiste tras reinicio PM2). */
+const lastWebhook = {
+  at: null,
+  ip: null,
+  reason: null,
+  action: null,
+  employeeNo: null,
+  name: null,
+  fecha: null,
+  hora: null,
+  count: 0,
+};
+
+function noteWebhook(meta = {}) {
+  lastWebhook.at = new Date().toISOString();
+  lastWebhook.ip = meta.ip || lastWebhook.ip;
+  lastWebhook.reason = meta.reason != null ? meta.reason : lastWebhook.reason;
+  lastWebhook.action = meta.action != null ? meta.action : null;
+  lastWebhook.employeeNo = meta.employeeNo != null ? meta.employeeNo : null;
+  lastWebhook.name = meta.name != null ? meta.name : null;
+  lastWebhook.fecha = meta.fecha != null ? meta.fecha : null;
+  lastWebhook.hora = meta.hora != null ? meta.hora : null;
+  lastWebhook.count += 1;
+}
+
+function getLastWebhook() {
+  return { ...lastWebhook };
+}
+
 const uploadAny = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024 },
@@ -531,6 +560,19 @@ async function ingestHikvisionPayload(body, meta = {}) {
   const event = normalizeEvent(ace, envelope || body);
   const resumen = buildResumen(body, envelope, event, rawBody);
 
+  const finish = (result) => {
+    noteWebhook({
+      ip: dispositivoIp,
+      reason: result.reason || result.action || (result.ok ? 'ok' : 'error'),
+      action: result.action || null,
+      employeeNo: result.employeeNo ?? event?.employeeNo ?? null,
+      name: result.name ?? event?.name ?? null,
+      fecha: result.fecha ?? event?.fecha ?? null,
+      hora: result.hora ?? event?.hora_marcacion ?? null,
+    });
+    return result;
+  };
+
   if (!event) {
     if (bioDebug()) {
       console.warn('[biometrico] unparsed', {
@@ -538,13 +580,17 @@ async function ingestHikvisionPayload(body, meta = {}) {
         hasRaw: !!rawBody,
       });
     }
-    // ACK rápido: no saturar BD ni logs con basura del replay
-    return { ok: true, ack: true, reason: 'unparsed' };
+    return finish({ ok: true, ack: true, reason: 'unparsed' });
   }
 
   if (event.sinPersona) {
-    // Heartbeat / puerta: ACK silencioso (el terminal reenvía miles)
-    return { ok: true, ack: true, reason: 'no_employee', major: event.majorEventType, sub: event.subEventType };
+    return finish({
+      ok: true,
+      ack: true,
+      reason: 'no_employee',
+      major: event.majorEventType,
+      sub: event.subEventType,
+    });
   }
 
   // El terminal reenvía historial al activar HTTP Listening o tras reinicio.
@@ -558,7 +604,7 @@ async function ingestHikvisionPayload(body, meta = {}) {
         employeeNo: event.employeeNo,
       });
     }
-    return {
+    return finish({
       ok: true,
       ack: true,
       reason: 'historico',
@@ -566,19 +612,19 @@ async function ingestHikvisionPayload(body, meta = {}) {
       name: event.name || null,
       fecha: event.fecha,
       hora: event.hora_marcacion,
-    };
+    });
   }
 
   // Replay del mismo evento de hoy: no reescribir log ni asistencia
   if (await alreadyLoggedExact(colegioId, event.employeeNo, event.fecha, event.hora_marcacion)) {
-    return {
+    return finish({
       ok: true,
       ack: true,
       reason: 'ya_procesado',
       employeeNo: event.employeeNo || null,
       fecha: event.fecha,
       hora: event.hora_marcacion,
-    };
+    });
   }
 
   const personalList = await loadPersonalForBiometrico(colegioId);
@@ -603,13 +649,15 @@ async function ingestHikvisionPayload(body, meta = {}) {
       detalle: `Sin coincidencia (id=${event.employeeNo || '—'}; nombre=${event.name || '—'}). Use código biométrico o revise el nombre en el huellero.`,
       payload_resumen: resumen,
     });
-    return {
+    return finish({
       ok: true,
       ack: true,
       reason: 'no_match',
       employeeNo: event.employeeNo || null,
       name: event.name || null,
-    };
+      fecha: event.fecha,
+      hora: event.hora_marcacion,
+    });
   }
 
   const { personal, via } = matched;
@@ -627,7 +675,16 @@ async function ingestHikvisionPayload(body, meta = {}) {
       detalle: `Personal sin usuario activo (match por ${via})`,
       payload_resumen: resumen,
     });
-    return { ok: true, ack: true, reason: 'no_user', personal_id: personal.personal_id };
+    return finish({
+      ok: true,
+      ack: true,
+      reason: 'no_user',
+      personal_id: personal.personal_id,
+      employeeNo: event.employeeNo || null,
+      name: event.name || null,
+      fecha: event.fecha,
+      hora: event.hora_marcacion,
+    });
   }
 
   const { anio } = await getAnioActivo(query, colegioId);
@@ -644,9 +701,10 @@ async function ingestHikvisionPayload(body, meta = {}) {
     const nueva = String(event.hora_marcacion || '').slice(0, 8);
     if (prev && nueva && prev <= nueva) {
       // Duplicado del día: ACK sin llenar el log (el terminal reenvía salidas/reintentos)
-      return {
+      return finish({
         ok: true,
         ack: true,
+        reason: 'kept_earlier',
         action: 'kept_earlier',
         personal_id: personal.personal_id,
         via,
@@ -654,7 +712,7 @@ async function ingestHikvisionPayload(body, meta = {}) {
         name: event.name || null,
         fecha: event.fecha,
         hora: event.hora_marcacion,
-      };
+      });
     }
   }
 
@@ -693,16 +751,36 @@ async function ingestHikvisionPayload(body, meta = {}) {
     });
   }
 
-  return {
+  return finish({
     ok: true,
     action,
+    reason: action,
     personal_id: personal.personal_id,
     via,
     employeeNo: event.employeeNo || null,
     name: event.name || null,
     fecha: event.fecha,
     hora: event.hora_marcacion,
+  });
+}
+
+/**
+ * Simula un evento Hikvision de hoy para un personal (prueba sin huellero).
+ */
+async function simularMarcacionHoy({ colegioId, employeeNo, name, ip = 'admin-test' }) {
+  const lima = nowLima();
+  const body = {
+    ipAddress: ip,
+    dateTime: `${lima.fecha}T${lima.hora}`,
+    eventType: 'AccessControllerEvent',
+    AccessControllerEvent: {
+      employeeNoString: String(employeeNo || ''),
+      name: String(name || ''),
+      currentVerifyMode: 'cardOrFaceOrFp',
+      attendanceStatus: 'checkIn',
+    },
   };
+  return ingestHikvisionPayload(body, { colegioId, ip, rawBody: JSON.stringify(body) });
 }
 
 /**
@@ -852,6 +930,8 @@ module.exports = {
   assertWebhookAuth,
   webhookTokenConfigured,
   ingestHikvisionPayload,
+  simularMarcacionHoy,
+  getLastWebhook,
   extractAccessControllerEvent,
   resolveHikvisionPayload,
   normalizeEvent,
@@ -863,4 +943,5 @@ module.exports = {
   loadPersonalForBiometrico,
   parseEventDateTime,
   hoyLimaISO,
+  nowLima,
 };

@@ -500,7 +500,64 @@ export default function AdminTardanzas() {
                   >
                     Limpiar entradas de hoy
                   </button>
+                  <button
+                    type="button"
+                    className="admin-tardanzas-btn admin-tardanzas-btn--primary"
+                    onClick={async () => {
+                      try {
+                        const { data } = await api.post('/biometrico/admin/probar-marcacion', {});
+                        await loadBioEstado();
+                        await loadLista();
+                        Swal.fire({
+                          icon: data.resultado?.ok === false ? 'warning' : 'success',
+                          title: 'Prueba de marcación',
+                          html: `<p>${data.mensaje || 'Listo'}</p>
+                            <p style="font-size:0.85rem;opacity:.85">${data.name || ''} · id ${data.employeeNo || '—'}</p>
+                            <p style="font-size:0.8rem">reason: <code>${data.resultado?.reason || data.resultado?.action || '—'}</code></p>`,
+                        });
+                      } catch (e) {
+                        Swal.fire({
+                          icon: 'error',
+                          title: 'No se pudo probar',
+                          text: e.response?.data?.error || e.message || 'Error',
+                        });
+                      }
+                    }}
+                  >
+                    Probar marcación
+                  </button>
                 </div>
+
+                {(bioEstado.diagnostico || bioEstado.ultimo_contacto) && (
+                  <div className="admin-tz-bio__url-box">
+                    <label>Diagnóstico en vivo</label>
+                    <p className="admin-tz-bio__hint">{bioEstado.diagnostico}</p>
+                    {bioEstado.servidor_ahora && (
+                      <p className="admin-tz-bio__hint">
+                        Servidor (Lima): {bioEstado.servidor_ahora.fecha} {bioEstado.servidor_ahora.hora}
+                      </p>
+                    )}
+                    {bioEstado.ultimo_contacto?.at ? (
+                      <p className="admin-tz-bio__hint">
+                        Último POST:{' '}
+                        <strong>{new Date(bioEstado.ultimo_contacto.at).toLocaleString('es-PE')}</strong>
+                        {' · '}
+                        motivo <code>{bioEstado.ultimo_contacto.reason || '—'}</code>
+                        {bioEstado.ultimo_contacto.fecha
+                          ? ` · fecha dispositivo ${bioEstado.ultimo_contacto.fecha} ${bioEstado.ultimo_contacto.hora || ''}`
+                          : ''}
+                        {bioEstado.ultimo_contacto.name ? ` · ${bioEstado.ultimo_contacto.name}` : ''}
+                        {bioEstado.ultimo_contacto.count != null
+                          ? ` · ${bioEstado.ultimo_contacto.count} eventos en este proceso`
+                          : ''}
+                      </p>
+                    ) : (
+                      <p className="admin-tz-bio__hint">
+                        Sin POST recibido aún. Marque en el huellero y pulse Actualizar.
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {bioEstado.webhook_url && (
                   <div className="admin-tz-bio__url-box">
