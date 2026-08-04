@@ -86,7 +86,7 @@ export default function AdminTardanzas() {
   const [listaLoading, setListaLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [rowActionId, setRowActionId] = useState(null);
-  const [tabActiva, setTabActiva] = useState('registros');
+  const [tabActiva, setTabActiva] = useState('biometrico');
   const [bioEstado, setBioEstado] = useState(null);
   const [bioLoading, setBioLoading] = useState(false);
   const [bioPersonalId, setBioPersonalId] = useState('');
@@ -375,6 +375,15 @@ export default function AdminTardanzas() {
             <button
               type="button"
               role="tab"
+              aria-selected={tabActiva === 'biometrico'}
+              className={`admin-tz-tab admin-tz-tab--bio${tabActiva === 'biometrico' ? ' is-active' : ''}`}
+              onClick={() => setTabActiva('biometrico')}
+            >
+              Biométrico
+            </button>
+            <button
+              type="button"
+              role="tab"
               aria-selected={tabActiva === 'registros'}
               className={`admin-tz-tab${tabActiva === 'registros' ? ' is-active' : ''}`}
               onClick={() => setTabActiva('registros')}
@@ -389,15 +398,6 @@ export default function AdminTardanzas() {
               onClick={() => setTabActiva('importar')}
             >
               Importar Excel
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tabActiva === 'biometrico'}
-              className={`admin-tz-tab admin-tz-tab--bio${tabActiva === 'biometrico' ? ' is-active' : ''}`}
-              onClick={() => setTabActiva('biometrico')}
-            >
-              Biométrico
             </button>
           </nav>
         </div>
@@ -528,59 +528,6 @@ export default function AdminTardanzas() {
                   </button>
                 </div>
 
-                {(bioEstado.diagnostico || bioEstado.ultimo_contacto) && (
-                  <div className="admin-tz-bio__url-box">
-                    <label>Diagnóstico en vivo</label>
-                    <p className="admin-tz-bio__hint">{bioEstado.diagnostico}</p>
-                    {bioEstado.servidor_ahora && (
-                      <p className="admin-tz-bio__hint">
-                        Servidor (Lima): {bioEstado.servidor_ahora.fecha} {bioEstado.servidor_ahora.hora}
-                      </p>
-                    )}
-                    {bioEstado.ultimo_contacto?.at ? (
-                      <p className="admin-tz-bio__hint">
-                        Último POST:{' '}
-                        <strong>{new Date(bioEstado.ultimo_contacto.at).toLocaleString('es-PE')}</strong>
-                        {' · '}
-                        motivo <code>{bioEstado.ultimo_contacto.reason || '—'}</code>
-                        {bioEstado.ultimo_contacto.fecha
-                          ? ` · fecha dispositivo ${bioEstado.ultimo_contacto.fecha} ${bioEstado.ultimo_contacto.hora || ''}`
-                          : ''}
-                        {bioEstado.ultimo_contacto.name ? ` · ${bioEstado.ultimo_contacto.name}` : ''}
-                        {bioEstado.ultimo_contacto.count != null
-                          ? ` · ${bioEstado.ultimo_contacto.count} eventos en este proceso`
-                          : ''}
-                      </p>
-                    ) : (
-                      <p className="admin-tz-bio__hint">
-                        Sin POST recibido aún. Marque en el huellero y pulse Actualizar.
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {bioEstado.webhook_url && (
-                  <div className="admin-tz-bio__url-box">
-                    <label>URL para pegar en el huellero</label>
-                    <code className="admin-tz-bio__url">{bioEstado.webhook_url}</code>
-                    <button
-                      type="button"
-                      className="admin-tardanzas-btn admin-tardanzas-btn--primary"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(bioEstado.webhook_url);
-                          Swal.fire({ icon: 'success', title: 'Copiada', timer: 1400, showConfirmButton: false });
-                        } catch {
-                          Swal.fire({ icon: 'info', title: 'URL', text: bioEstado.webhook_url });
-                        }
-                      }}
-                    >
-                      Copiar URL
-                    </button>
-                    <p className="admin-tz-bio__hint">{bioEstado.webhook_url_hint}</p>
-                  </div>
-                )}
-
                 {!bioEstado.webhook_configurado && (
                   <div className="admin-tz-bio__url-box">
                     <p className="admin-tz-bio__hint">{bioEstado.webhook_url_hint}</p>
@@ -588,8 +535,6 @@ export default function AdminTardanzas() {
 BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                   </div>
                 )}
-
-                <p className="admin-tz-bio__hint">{bioEstado.mapeo}</p>
 
                 <h3 className="admin-tz-bio__sub">Marcaciones (entrada / salida)</h3>
                 <p className="admin-tz-bio__hint">
