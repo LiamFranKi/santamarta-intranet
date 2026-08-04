@@ -74,10 +74,25 @@ function assertWebhookAuth(req) {
   const pathToken = String(req.params?.token || '').trim();
   const got = q || h || bearer || pathToken;
   if (!got || got !== expected) {
+    console.warn('[biometrico] auth fallida', {
+      ip: req.ip || req.socket?.remoteAddress || null,
+      hasToken: !!got,
+      path: String(req.originalUrl || '').split('?')[0],
+    });
     const err = new Error('Token inválido');
     err.status = 401;
     throw err;
   }
+}
+
+/** Compara IDs/DNI ignorando ceros a la izquierda y no-dígitos. */
+function idsMatch(a, b) {
+  const dig = (v) => String(v ?? '').replace(/\D/g, '');
+  const na = dig(a);
+  const nb = dig(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  return na.replace(/^0+/, '') === nb.replace(/^0+/, '');
 }
 
 function safeJsonParse(raw) {
@@ -332,13 +347,22 @@ function normalizeEvent(ace, envelope) {
       ''
   );
 
+  // Algunos firmwares mandan First/Last Name separados (como el Excel)
+  const aceFirst = cleanName(ace.firstName || ace.FirstName || '');
+  const aceLast = cleanName(ace.lastName || ace.LastName || '');
+
   const timeRaw = pickTimeRaw(ace, env);
   let dt = parseEventDateTime(timeRaw);
-  // Nunca inventar fecha de hoy si el dispositivo no trae dateTime usable
+  let fechaDesdeServidor = false;
+  // Si hay persona pero no dateTime parseable: usar reloj Lima (dispositivo con fecha OK suele traer dateTime)
+  if (!dt && (employeeNo || name || aceFirst || aceLast)) {
+    dt = nowLima();
+    fechaDesdeServidor = true;
+  }
   if (!dt) return null;
 
   // Sin persona: evento de puerta / heartbeat
-  if (!employeeNo && !name) {
+  if (!employeeNo && !name && !aceFirst && !aceLast) {
     return {
       employeeNo: '',
       fecha: dt.fecha,
@@ -350,11 +374,23 @@ function normalizeEvent(ace, envelope) {
       majorEventType: ace.majorEventType,
       subEventType: ace.subEventType,
       sinPersona: true,
+      fechaDesdeServidor,
     };
   }
 
   const hora = parseHoraMarcacion(dt.hora) || dt.hora;
-  const { firstName, lastName } = splitPersonName(name);
+  // Excel: First Name = nombres, Last Name = apellidos
+  let firstName = aceFirst;
+  let lastName = aceLast;
+  if (!firstName && !lastName && name) {
+    if (name.includes(',')) {
+      const [ape, nom] = name.split(',').map((x) => cleanName(x));
+      lastName = ape || '';
+      firstName = nom || '';
+    } else {
+      ({ firstName, lastName } = splitPersonName(name));
+    }
+  }
 
   const metodo = String(
     ace.currentVerifyMode ||
@@ -369,11 +405,12 @@ function normalizeEvent(ace, envelope) {
     hora_marcacion: hora,
     firstName,
     lastName,
-    name,
+    name: name || `${lastName} ${firstName}`.trim(),
     metodo,
     majorEventType: ace.majorEventType,
     subEventType: ace.subEventType,
     sinPersona: false,
+    fechaDesdeServidor,
   };
 }
 
@@ -413,19 +450,26 @@ async function loadPersonalForBiometrico(colegioId) {
 function matchPersonalBiometrico(event, personalList) {
   const code = cleanId(event.employeeNo);
 
-  // 0) Solo si configuraron código biométrico explícito en Equipo
+  // 0) Código biométrico en Equipo (o employeeNo = ese código)
   if (code) {
     const byCode = personalList.find(
       (p) =>
         p.codigo_biometrico != null &&
         String(p.codigo_biometrico).trim() !== '' &&
-        String(p.codigo_biometrico).trim() === code
+        idsMatch(p.codigo_biometrico, code)
     );
     if (byCode) return { personal: byCode, via: 'codigo_biometrico' };
   }
 
-  // 1) Igual que import Excel: matchPersonal(firstName, lastName)
-  //    En Excel: First Name = nombres, Last Name = apellidos
+  // 0b) DNI como employeeNo (muy común en su huellero) — antes del nombre
+  if (code) {
+    const byDni = personalList.find(
+      (p) => p.nro_documento != null && idsMatch(p.nro_documento, code)
+    );
+    if (byDni) return { personal: byDni, via: 'nro_documento' };
+  }
+
+  // 1) Igual que import Excel: matchPersonal(First Name=nombres, Last Name=apellidos)
   const candidates = [];
 
   if (event.firstName || event.lastName) {
@@ -434,19 +478,30 @@ function matchPersonalBiometrico(event, personalList) {
       lastName: event.lastName || '',
       via: 'nombre_excel',
     });
+    // Por si vinieron al revés
+    candidates.push({
+      firstName: event.lastName || '',
+      lastName: event.firstName || '',
+      via: 'nombre_excel_swap',
+    });
   }
 
   const full = cleanName(event.name);
   if (full) {
-    const parts = full.split(/\s+/).filter(Boolean);
+    if (full.includes(',')) {
+      const [ape, nom] = full.split(',').map((x) => cleanName(x));
+      if (ape || nom) {
+        candidates.push({ firstName: nom || '', lastName: ape || '', via: 'nombre_coma' });
+      }
+    }
+    const parts = full.replace(/,/g, ' ').split(/\s+/).filter(Boolean);
     if (parts.length >= 2) {
-      // Last Name = 1er token, First Name = resto (formato típico export Hikvision)
+      // Export Hikvision típico: "Apellido Nombre..." → Last=1er, First=resto
       candidates.push({
         firstName: parts.slice(1).join(' '),
         lastName: parts[0],
         via: 'nombre_1ape',
       });
-      // Last Name = 2 apellidos, First Name = resto
       if (parts.length >= 3) {
         candidates.push({
           firstName: parts.slice(2).join(' '),
@@ -454,7 +509,7 @@ function matchPersonalBiometrico(event, personalList) {
           via: 'nombre_2ape',
         });
       }
-      // Por si el terminal guarda NOMBRE APELLIDO
+      // NOMBRE APELLIDO
       candidates.push({
         firstName: parts[0],
         lastName: parts.slice(1).join(' '),
@@ -467,14 +522,6 @@ function matchPersonalBiometrico(event, personalList) {
     if (!String(c.firstName || '').trim() && !String(c.lastName || '').trim()) continue;
     const m = matchPersonal(c.firstName, c.lastName, personalList);
     if (m) return { personal: m, via: c.via };
-  }
-
-  // 2) DNI solo como último recurso (no confiar primero)
-  if (code) {
-    const byDni = personalList.find(
-      (p) => p.nro_documento != null && String(p.nro_documento).trim() === code
-    );
-    if (byDni) return { personal: byDni, via: 'nro_documento' };
   }
 
   return null;

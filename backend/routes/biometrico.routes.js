@@ -41,6 +41,7 @@ function clientIp(req) {
 }
 
 async function handleEventPost(req, res) {
+  const ip = clientIp(req);
   try {
     assertWebhookAuth(req);
 
@@ -48,15 +49,25 @@ async function handleEventPost(req, res) {
     const rawBody = req.rawBody || null;
 
     const result = await ingestHikvisionPayload(body, {
-      ip: clientIp(req),
+      ip,
       colegioId: process.env.BIOMETRICO_COLEGIO_ID || DEFAULT_COLEGIO_ID,
       rawBody,
     });
 
-    // Respuesta mínima y rápida: el huellero reenvía historial y satura si tardamos/logueamos mucho.
+    // Una línea siempre: si al marcar no aparece esto en pm2, el POST no llega al servidor.
+    console.log(
+      '[biometrico] recv',
+      result?.reason || result?.action || 'ok',
+      result?.employeeNo || '-',
+      result?.name || '-',
+      result?.fecha || '-',
+      result?.hora || '-',
+      ip || '-'
+    );
+
     return res.status(200).json({ ok: true, ack: true, reason: result?.reason || result?.action || 'ok' });
   } catch (e) {
-    console.error('[biometrico] webhook', e.message, e.stack);
+    console.error('[biometrico] webhook', e.message);
     return res.status(e.status || 500).json({ ok: false, error: e.message || 'Error' });
   }
 }
