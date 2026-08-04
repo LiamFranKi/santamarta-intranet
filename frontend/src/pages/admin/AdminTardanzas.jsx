@@ -406,10 +406,10 @@ export default function AdminTardanzas() {
           <section className="admin-tardanzas-import admin-tz-bio" aria-label="Biométrico Hikvision">
             <h2 className="admin-tardanzas-import__title">Hikvision → intranet</h2>
             <p className="admin-tardanzas-import__desc">
-              Solo se guardan marcaciones con fecha de <strong>hoy</strong> en el huellero. El historial que reenvía el
-              terminal (tras activar HTTP o reiniciar) se confirma en silencio: no llena este log ni la asistencia.
-              Si el equipo va lento, desactive temporalmente HTTP Listening, corrija fecha/NTP y Wi‑Fi, y vuelva a
-              activarlo. Use «Borrar omitidos» / «Limpiar entradas de hoy» si hace falta.
+              Solo se guardan marcaciones con fecha de <strong>hoy</strong> en el huellero. La{' '}
+              <strong>primera</strong> del día es la entrada (se mantiene la más temprana); las siguientes actualizan
+              la <strong>salida</strong> (siempre la última). El historial que reenvía el terminal no se guarda. Use
+              «Limpiar entradas de hoy» si hace falta borrar el día.
             </p>
 
             {bioLoading && <p className="admin-tz-bio__muted">Cargando estado…</p>}
@@ -591,10 +591,10 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
 
                 <p className="admin-tz-bio__hint">{bioEstado.mapeo}</p>
 
-                <h3 className="admin-tz-bio__sub">Eventos del log (diagnóstico)</h3>
+                <h3 className="admin-tz-bio__sub">Marcaciones (entrada / salida)</h3>
                 <p className="admin-tz-bio__hint">
-                  Por defecto: <strong>solo hoy</strong>, del más reciente al más antiguo. La asistencia real sigue
-                  siendo 1 marcación por persona/día.
+                  Por defecto: <strong>solo hoy</strong>. Una fila por persona: entrada = primera marcación; salida =
+                  última (se actualiza si marca de nuevo).
                 </p>
 
                 <div className="admin-tardanzas-toolbar admin-tz-bio__filters">
@@ -641,36 +641,36 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                     <thead>
                       <tr>
                         <th>Recibido</th>
-                        <th>EmployeeNo</th>
                         <th>Personal</th>
-                        <th>Fecha / hora marcación</th>
-                        <th>Estado</th>
-                        <th>Detalle</th>
+                        <th>Fecha / hora entrada</th>
+                        <th>Fecha / hora salida</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(bioEstado.eventos || []).length === 0 && (
+                      {((bioEstado.marcaciones || bioEstado.eventos) || []).length === 0 && (
                         <tr>
-                          <td colSpan={6}>
-                            No hay eventos para el filtro (por defecto día de hoy). Marque en el terminal o amplíe las fechas.
+                          <td colSpan={4}>
+                            No hay marcaciones para el filtro (por defecto día de hoy). Marque en el terminal o amplíe
+                            las fechas.
                           </td>
                         </tr>
                       )}
-                      {(bioEstado.eventos || []).map((ev) => (
+                      {((bioEstado.marcaciones || bioEstado.eventos) || []).map((ev) => (
                         <tr key={ev.id}>
-                          <td>{fmtLimaDateTime(ev.created_at)}</td>
-                          <td>{ev.employee_no || '—'}</td>
+                          <td>{fmtLimaDateTime(ev.recibido_at || ev.created_at)}</td>
                           <td>{ev.personal_nombre || '—'}</td>
                           <td>
-                            {ev.fecha ? fmtFecha(ev.fecha) : '—'}
-                            {ev.hora_marcacion ? ` ${String(ev.hora_marcacion).slice(0, 8)}` : ''}
+                            {ev.fecha_hora_entrada ||
+                              (ev.fecha
+                                ? `${fmtFecha(ev.fecha)}${ev.hora_entrada ? ` ${String(ev.hora_entrada).slice(0, 8)}` : ''}`
+                                : '—')}
                           </td>
                           <td>
-                            <span className={`admin-tz-bio__st admin-tz-bio__st--${String(ev.estado || '').toLowerCase()}`}>
-                              {ev.estado}
-                            </span>
+                            {ev.fecha_hora_salida ||
+                              (ev.hora_salida
+                                ? `${ev.fecha ? fmtFecha(ev.fecha) : ''} ${String(ev.hora_salida).slice(0, 8)}`.trim()
+                                : '—')}
                           </td>
-                          <td>{ev.detalle || '—'}</td>
                         </tr>
                       ))}
                     </tbody>

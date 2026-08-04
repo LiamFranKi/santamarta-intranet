@@ -344,7 +344,7 @@ async function getAnioActivo(query, colegioId) {
 
 async function findRegistrosMarcacion(query, usuarioId, colegioId, fecha, anio) {
   return query(
-    `SELECT id, hora_entrada
+    `SELECT id, hora_entrada, hora_salida
      FROM asistencia_registros
      WHERE usuario_id = ? AND colegio_id = ? AND DATE(fecha) = ? AND anio = ?
      ORDER BY id DESC`,
@@ -352,7 +352,7 @@ async function findRegistrosMarcacion(query, usuarioId, colegioId, fecha, anio) 
   );
 }
 
-/** Inserta o actualiza la marcación del día; elimina duplicados previos. */
+/** Inserta o actualiza solo la entrada del día (import Excel / tardanzas). */
 async function upsertMarcacionDia(execute, query, { usuarioId, colegioId, anio, fecha, horaMarcacion, auditUserId }) {
   const existing = await findRegistrosMarcacion(query, usuarioId, colegioId, fecha, anio);
 
@@ -360,7 +360,8 @@ async function upsertMarcacionDia(execute, query, { usuarioId, colegioId, anio, 
     const keepId = existing[0].id;
     await execute(
       `UPDATE asistencia_registros
-       SET hora_entrada = ?, tipo_registro = 'ENTRADA', actualizado_por = ?, fecha_actualizacion = NOW()
+       SET hora_entrada = ?, tipo_registro = IF(hora_salida IS NULL, 'ENTRADA', 'ENTRADA_SALIDA'),
+           actualizado_por = ?, fecha_actualizacion = NOW()
        WHERE id = ?`,
       [horaMarcacion, auditUserId, keepId]
     );
@@ -381,6 +382,90 @@ async function upsertMarcacionDia(execute, query, { usuarioId, colegioId, anio, 
     [usuarioId, colegioId, anio, fecha, horaMarcacion, auditUserId]
   );
   return 'insertado';
+}
+
+/**
+ * Biométrico: 1ª marcación del día = entrada (se conserva la más temprana);
+ * marcaciones posteriores = salida (siempre la más tardía).
+ * @returns {'insertado'|'actualizado_entrada'|'actualizado_salida'|'ya_procesado'|'kept_between'}
+ */
+async function upsertMarcacionEntradaSalida(
+  execute,
+  query,
+  { usuarioId, colegioId, anio, fecha, horaMarcacion, auditUserId }
+) {
+  const nuevaHora = parseHoraMarcacion(horaMarcacion) || String(horaMarcacion || '').slice(0, 8);
+  const nuevaMin = toMinutesFromMidnight(nuevaHora);
+  if (!nuevaHora || nuevaMin == null) {
+    const err = new Error('Hora de marcación inválida');
+    err.status = 400;
+    throw err;
+  }
+
+  const existing = await findRegistrosMarcacion(query, usuarioId, colegioId, fecha, anio);
+
+  if (!existing.length) {
+    await execute(
+      `INSERT INTO asistencia_registros
+       (usuario_id, colegio_id, anio, fecha, tipo_registro, hora_entrada, creado_por, fecha_creacion)
+       VALUES (?, ?, ?, ?, 'ENTRADA', ?, ?, NOW())`,
+      [usuarioId, colegioId, anio, fecha, nuevaHora, auditUserId]
+    );
+    return 'insertado';
+  }
+
+  const keepId = existing[0].id;
+  const dupIds = existing.slice(1).map((r) => r.id);
+  if (dupIds.length) {
+    await execute(
+      `DELETE FROM asistencia_registros WHERE id IN (${dupIds.map(() => '?').join(',')})`,
+      dupIds
+    );
+  }
+
+  const entradaHora =
+    parseHoraMarcacion(existing[0].hora_entrada) || String(existing[0].hora_entrada || '').slice(0, 8);
+  const salidaHora = existing[0].hora_salida
+    ? parseHoraMarcacion(existing[0].hora_salida) || String(existing[0].hora_salida || '').slice(0, 8)
+    : null;
+  const entradaMin = toMinutesFromMidnight(entradaHora);
+  const salidaMin = toMinutesFromMidnight(salidaHora);
+
+  if (entradaMin != null && nuevaMin === entradaMin) return 'ya_procesado';
+  if (salidaMin != null && nuevaMin === salidaMin) return 'ya_procesado';
+
+  // Más temprana → nueva entrada; la anterior entrada pasa a candidata de salida
+  if (entradaMin != null && nuevaMin < entradaMin) {
+    let nuevaSalida = entradaHora;
+    let nuevaSalidaMin = entradaMin;
+    if (salidaMin != null && salidaMin > nuevaSalidaMin) {
+      nuevaSalida = salidaHora;
+      nuevaSalidaMin = salidaMin;
+    }
+    await execute(
+      `UPDATE asistencia_registros
+       SET hora_entrada = ?, hora_salida = ?, tipo_registro = 'ENTRADA_SALIDA',
+           actualizado_por = ?, fecha_actualizacion = NOW()
+       WHERE id = ?`,
+      [nuevaHora, nuevaSalida, auditUserId, keepId]
+    );
+    return 'actualizado_entrada';
+  }
+
+  // Más tardía que la salida actual (o primera salida) → actualizar salida
+  if (salidaMin == null || nuevaMin > salidaMin) {
+    await execute(
+      `UPDATE asistencia_registros
+       SET hora_salida = ?, tipo_registro = 'ENTRADA_SALIDA',
+           actualizado_por = ?, fecha_actualizacion = NOW()
+       WHERE id = ?`,
+      [nuevaHora, auditUserId, keepId]
+    );
+    return 'actualizado_salida';
+  }
+
+  // Entre entrada y salida ya registrada: no mueve nada
+  return 'kept_between';
 }
 
 function enrichFilaMarcacion(row, personal) {
@@ -720,5 +805,7 @@ module.exports = {
   formatHoraDisplay,
   matchPersonal,
   parseHoraMarcacion,
+  toMinutesFromMidnight,
   upsertMarcacionDia,
+  upsertMarcacionEntradaSalida,
 };

@@ -14,6 +14,7 @@ const {
   getLastWebhook,
   buildBodyFromRequest,
   listRecentEvents,
+  listMarcacionesAsistencia,
   deleteEventosOmitidos,
   deleteAsistenciaEntradaHoy,
   webhookPublicUrl,
@@ -54,16 +55,26 @@ async function handleEventPost(req, res) {
       rawBody,
     });
 
-    // Una línea siempre: si al marcar no aparece esto en pm2, el POST no llega al servidor.
-    console.log(
-      '[biometrico] recv',
-      result?.reason || result?.action || 'ok',
-      result?.employeeNo || '-',
-      result?.name || '-',
-      result?.fecha || '-',
-      result?.hora || '-',
-      ip || '-'
-    );
+    // Heartbeat / histórico / reenvíos: no inundar pm2 (BIOMETRICO_DEBUG=1 para ver todo).
+    const reason = result?.reason || result?.action || 'ok';
+    const silent = [
+      'no_employee',
+      'historico',
+      'unparsed',
+      'ya_procesado',
+      'kept_between',
+    ].includes(reason);
+    if (!silent || process.env.BIOMETRICO_DEBUG === '1') {
+      console.log(
+        '[biometrico] recv',
+        reason,
+        result?.employeeNo || '-',
+        result?.name || '-',
+        result?.fecha || '-',
+        result?.hora || '-',
+        ip || '-'
+      );
+    }
 
     return res.status(200).json({ ok: true, ack: true, reason: result?.reason || result?.action || 'ok' });
   } catch (e) {
@@ -105,20 +116,32 @@ router.get('/admin/estado', authenticateToken, async (req, res) => {
     }
     const tokenOk = !!webhookTokenConfigured();
     const filters = eventFiltersFromQuery(req.query);
-    const events = await listRecentEvents(req.user.colegio_id, filters).catch((e) => {
+    const marcaciones = await listMarcacionesAsistencia(req.user.colegio_id, {
+      ...filters,
+      limit: 200,
+    });
+    // Solo para detectar si falta migración 067 (tabla log); la UI usa marcaciones.
+    const eventsProbe = await listRecentEvents(req.user.colegio_id, { ...filters, limit: 1 }).catch((e) => {
       if (String(e.message || '').includes('biometrico_eventos_log')) return null;
       throw e;
     });
     const last = getLastWebhook();
     const lima = nowLima();
+    const appliedOk = [
+      'insertado',
+      'actualizado_entrada',
+      'actualizado_salida',
+      'actualizado',
+    ].includes(last.reason) || ['insertado', 'actualizado_entrada', 'actualizado_salida'].includes(last.action);
     res.json({
       webhook_configurado: tokenOk,
       webhook_url: tokenOk ? webhookPublicUrl(req) : null,
       webhook_url_hint: tokenOk
         ? 'Pegue esta URL en el huellero: Configuration → Network → Network Service → HTTP(S) → HTTP Listening.'
         : 'Defina BIOMETRICO_WEBHOOK_TOKEN y BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe en backend/.env y reinicie PM2.',
-      migracion_pendiente: events === null,
-      eventos: events || [],
+      migracion_pendiente: eventsProbe === null,
+      marcaciones,
+      eventos: marcaciones,
       filtros: { ...filters, hoy: hoyLimaISO() },
       ultimo_contacto: last,
       servidor_ahora: { fecha: lima.fecha, hora: lima.hora },
@@ -131,11 +154,13 @@ router.get('/admin/estado', authenticateToken, async (req, res) => {
               ? 'Llegan heartbeats/puerta sin persona. Marque con huella/cara para enviar un evento con empleado.'
               : last.reason === 'no_match'
                 ? 'Llegó una marcación de hoy pero no coincidió con personal. Revise nombre/DNI/código biométrico.'
-                : last.reason === 'insertado' || last.reason === 'actualizado' || last.action === 'insertado'
-                  ? 'Última marcación aplicada correctamente.'
-                  : `Último motivo: ${last.reason || last.action || '—'}.`,
+                : last.reason === 'actualizado_salida'
+                  ? 'Última marcación guardada como salida (se actualiza con la más tardía).'
+                  : appliedOk
+                    ? 'Última marcación aplicada correctamente.'
+                    : `Último motivo: ${last.reason || last.action || '—'}.`,
       mapeo:
-        'Solo asistencia del día de hoy (Lima). El historial se confirma sin llenar el log. Use «Probar marcación» para validar el backend sin el huellero.',
+        '1ª marcación del día = entrada (se mantiene la más temprana). Marcaciones siguientes = salida (siempre la última/más tardía). El historial del huellero no se guarda.',
       tz: 'America/Lima',
     });
   } catch (e) {
@@ -207,11 +232,15 @@ router.post('/admin/probar-marcacion', authenticateToken, async (req, res) => {
       name,
       resultado: result,
       mensaje:
-        result.action === 'insertado' || result.action === 'actualizado'
-          ? 'Marcación de prueba OK. Debe aparecer en el log y en Tardanzas/Registros.'
-          : result.reason === 'kept_earlier' || result.action === 'kept_earlier'
-            ? 'Ya tenía entrada más temprana hoy; se conservó esa hora (prueba OK del pipeline).'
-            : `Prueba respondió: ${result.reason || result.action || 'sin detalle'}`,
+        result.action === 'insertado'
+          ? 'Entrada de prueba OK (1ª marcación del día).'
+          : result.action === 'actualizado_salida'
+            ? 'Salida de prueba OK (se actualizó la hora de salida).'
+            : result.action === 'actualizado_entrada'
+              ? 'Entrada actualizada (llegó una hora más temprana).'
+              : result.reason === 'ya_procesado' || result.action === 'ya_procesado'
+                ? 'Misma hora ya registrada (prueba OK del pipeline).'
+                : `Prueba respondió: ${result.reason || result.action || 'sin detalle'}`,
     });
   } catch (e) {
     console.error('[biometrico/admin/probar-marcacion]', e);

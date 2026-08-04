@@ -10,10 +10,11 @@ const { query, execute } = require('./mysql');
 const { DEFAULT_COLEGIO_ID } = require('./defaultColegio');
 const {
   getAnioActivo,
-  upsertMarcacionDia,
+  upsertMarcacionEntradaSalida,
   matchPersonal,
   dedupePersonalList,
   parseHoraMarcacion,
+  formatHoraDisplay,
 } = require('./adminTardanzasHuellero');
 
 const TZ_LIMA = 'America/Lima';
@@ -736,41 +737,38 @@ async function ingestHikvisionPayload(body, meta = {}) {
 
   const { anio } = await getAnioActivo(query, colegioId);
 
-  const existing = await query(
-    `SELECT id, hora_entrada FROM asistencia_registros
-     WHERE usuario_id = ? AND colegio_id = ? AND DATE(fecha) = ? AND anio = ?
-     ORDER BY id DESC LIMIT 1`,
-    [personal.usuario_id, colegioId, event.fecha, anio]
-  );
+  const nuevaHora = parseHoraMarcacion(event.hora_marcacion) || String(event.hora_marcacion || '').slice(0, 8);
 
-  if (existing.length) {
-    const prev = String(existing[0].hora_entrada || '').slice(0, 8);
-    const nueva = String(event.hora_marcacion || '').slice(0, 8);
-    if (prev && nueva && prev <= nueva) {
-      // Duplicado del día: ACK sin llenar el log (el terminal reenvía salidas/reintentos)
-      return finish({
-        ok: true,
-        ack: true,
-        reason: 'kept_earlier',
-        action: 'kept_earlier',
-        personal_id: personal.personal_id,
-        via,
-        employeeNo: event.employeeNo || null,
-        name: event.name || null,
-        fecha: event.fecha,
-        hora: event.hora_marcacion,
-      });
-    }
-  }
-
-  const action = await upsertMarcacionDia(execute, query, {
+  const action = await upsertMarcacionEntradaSalida(execute, query, {
     usuarioId: personal.usuario_id,
     colegioId,
     anio,
     fecha: event.fecha,
-    horaMarcacion: event.hora_marcacion,
+    horaMarcacion: nuevaHora,
     auditUserId: null,
   });
+
+  // No spamear el log de diagnóstico con reenvíos idénticos / entre entrada-salida
+  if (action === 'ya_procesado' || action === 'kept_between') {
+    return finish({
+      ok: true,
+      ack: true,
+      reason: action,
+      action,
+      personal_id: personal.personal_id,
+      via,
+      employeeNo: event.employeeNo || null,
+      name: event.name || null,
+      fecha: event.fecha,
+      hora: nuevaHora,
+    });
+  }
+
+  const detalleMap = {
+    insertado: 'entrada (1ª marcación del día)',
+    actualizado_entrada: 'entrada actualizada (más temprana)',
+    actualizado_salida: 'salida (última marcación)',
+  };
 
   await logEvento({
     colegio_id: colegioId,
@@ -779,22 +777,27 @@ async function ingestHikvisionPayload(body, meta = {}) {
     personal_id: personal.personal_id,
     usuario_id: personal.usuario_id,
     fecha: event.fecha,
-    hora_marcacion: event.hora_marcacion,
+    hora_marcacion: nuevaHora,
     metodo_verificacion: event.metodo,
     nombre_evento: event.name,
     estado: 'OK',
-    detalle: `${action} (match ${via})`,
+    detalle: `${detalleMap[action] || action} (match ${via})`,
     payload_resumen: resumen,
   });
 
-  if (bioDebug() || action === 'insertado' || action === 'actualizado') {
+  if (
+    bioDebug() ||
+    action === 'insertado' ||
+    action === 'actualizado_entrada' ||
+    action === 'actualizado_salida'
+  ) {
     console.log('[biometrico] marcación', {
       action,
       via,
       employeeNo: event.employeeNo,
       name: event.name,
       fecha: event.fecha,
-      hora: event.hora_marcacion,
+      hora: nuevaHora,
     });
   }
 
@@ -807,7 +810,7 @@ async function ingestHikvisionPayload(body, meta = {}) {
     employeeNo: event.employeeNo || null,
     name: event.name || null,
     fecha: event.fecha,
-    hora: event.hora_marcacion,
+    hora: nuevaHora,
   });
 }
 
@@ -915,6 +918,84 @@ async function listRecentEvents(colegioId, opts = {}) {
   );
 }
 
+/**
+ * Marcaciones reales (1 fila por persona/día): entrada + salida.
+ * "Recibido" = última actualización del registro.
+ */
+async function listMarcacionesAsistencia(colegioId, opts = {}) {
+  const lim = Math.min(Math.max(parseInt(opts.limit, 10) || 200, 1), 500);
+  const { anio } = await getAnioActivo(query, colegioId);
+  const where = [
+    'ar.colegio_id = ?',
+    'ar.anio = ?',
+    'ar.hora_entrada IS NOT NULL',
+    `(ar.tipo_registro = 'ENTRADA' OR ar.tipo_registro = 'ENTRADA_SALIDA')`,
+  ];
+  const params = [colegioId, anio];
+
+  const personalId = parseInt(opts.personalId, 10);
+  if (personalId) {
+    where.push('p.id = ?');
+    params.push(personalId);
+  }
+
+  const desde = opts.desde ? String(opts.desde).slice(0, 10) : '';
+  const hasta = opts.hasta ? String(opts.hasta).slice(0, 10) : '';
+  if (desde && /^\d{4}-\d{2}-\d{2}$/.test(desde)) {
+    where.push('DATE(ar.fecha) >= ?');
+    params.push(desde);
+  }
+  if (hasta && /^\d{4}-\d{2}-\d{2}$/.test(hasta)) {
+    where.push('DATE(ar.fecha) <= ?');
+    params.push(hasta);
+  }
+
+  const rows = await query(
+    `SELECT ar.id,
+            ar.fecha,
+            ar.hora_entrada,
+            ar.hora_salida,
+            ar.tipo_registro,
+            COALESCE(ar.fecha_actualizacion, ar.fecha_creacion) AS recibido_at,
+            ar.fecha_creacion,
+            ar.fecha_actualizacion,
+            p.id AS personal_id,
+            CONCAT(COALESCE(p.apellidos,''), ', ', COALESCE(p.nombres,'')) AS personal_nombre
+     FROM asistencia_registros ar
+     INNER JOIN usuarios u ON u.id = ar.usuario_id
+     INNER JOIN personal p ON p.id = u.personal_id
+     WHERE ${where.join(' AND ')}
+     ORDER BY DATE(ar.fecha) DESC,
+              COALESCE(ar.fecha_actualizacion, ar.fecha_creacion) DESC,
+              ar.id DESC
+     LIMIT ${lim}`,
+    params
+  );
+
+  return (rows || []).map((r) => {
+    const fechaStr =
+      r.fecha instanceof Date
+        ? r.fecha.toISOString().slice(0, 10)
+        : String(r.fecha || '').slice(0, 10);
+    const he = parseHoraMarcacion(r.hora_entrada) || formatHoraDisplay(r.hora_entrada);
+    const hs = r.hora_salida
+      ? parseHoraMarcacion(r.hora_salida) || formatHoraDisplay(r.hora_salida)
+      : null;
+    return {
+      id: r.id,
+      personal_id: r.personal_id,
+      personal_nombre: (r.personal_nombre || '').replace(/^,\s*/, '').trim() || '—',
+      fecha: fechaStr,
+      hora_entrada: he,
+      hora_salida: hs,
+      fecha_hora_entrada: he ? `${fechaStr} ${he}` : fechaStr,
+      fecha_hora_salida: hs ? `${fechaStr} ${hs}` : null,
+      recibido_at: r.recibido_at,
+      tipo_registro: r.tipo_registro,
+    };
+  });
+}
+
 function hoyLimaISO() {
   return formatDateInLima(new Date()).fecha;
 }
@@ -984,6 +1065,7 @@ module.exports = {
   normalizeEvent,
   buildBodyFromRequest,
   listRecentEvents,
+  listMarcacionesAsistencia,
   deleteEventosOmitidos,
   deleteAsistenciaEntradaHoy,
   webhookPublicUrl,
