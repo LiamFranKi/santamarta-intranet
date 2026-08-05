@@ -1719,7 +1719,6 @@ function DocenteTutoria({
         await exportarExcelNominaGrupo({
           titulo: 'REGISTRO ACADÉMICO',
           subtitulo: grupoNombre,
-          meta: { grado: grupoNombre },
           filas: alumnosConNombre,
           filename: `Nomina_${grupoNombre.replace(/\s+/g, '_')}`,
         });

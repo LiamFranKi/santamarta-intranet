@@ -76,10 +76,15 @@ export async function exportarExcelNominaGrupo(opts = {}) {
   // Fila 2: subtítulo / meta
   ws.mergeCells(2, 1, 2, totalCols);
   const sub = ws.getCell(2, 1);
+  const subtitulo = (opts.subtitulo || '').trim();
+  const gradoMeta = (meta.grado || '').trim();
+  // Evitar "3° A - Primaria · Grado: 3° A - Primaria" cuando el subtítulo ya es el grado
+  const gradoParte =
+    gradoMeta && gradoMeta !== subtitulo ? `Grado: ${gradoMeta}` : null;
   const parts = [
-    opts.subtitulo,
+    subtitulo || null,
     meta.curso ? `Curso: ${meta.curso}` : null,
-    meta.grado ? `Grado: ${meta.grado}` : null,
+    gradoParte,
     meta.docente ? `Docente: ${meta.docente}` : null,
     meta.bimestre != null ? `Bimestre: ${meta.bimestre}` : null,
     meta.colegio || null,

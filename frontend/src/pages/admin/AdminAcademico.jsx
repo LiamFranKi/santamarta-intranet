@@ -1375,7 +1375,6 @@ function GruposPanel({ meta }) {
           await exportarExcelNominaGrupo({
             titulo: 'REGISTRO ACADÉMICO',
             subtitulo: grupoNombre,
-            meta: { grado: grupoNombre },
             filas: alumnos,
             filename: `Nomina_${grupoNombre.replace(/\s+/g, '_')}`,
           });

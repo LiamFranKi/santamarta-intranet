@@ -118,7 +118,7 @@ function dibujarTablaNomina(doc, opts) {
     });
     doc.setTextColor(0, 0, 0);
     let x = leftOffset + colNumWidth;
-    const nombre = safeTxtPdf(f.alumno_nombre || f.nombre || '');
+    const nombre = safeTxtPdf(f.alumno_nombre || nombreAlumnoFila(f) || '');
     doc.text(nombre.substring(0, 48), x + 2, y + cuadroHeight / 2 + 1);
     x += colNombresWidth;
     for (let c = 0; c < numCols; c += 1) {
@@ -131,10 +131,25 @@ function dibujarTablaNomina(doc, opts) {
   return y;
 }
 
+function nombreAlumnoFila(f) {
+  if (!f) return '';
+  const directo =
+    f.alumno_nombre ||
+    f.nombre_completo ||
+    f.nombre ||
+    f.alumno ||
+    '';
+  if (String(directo).trim()) return String(directo).trim();
+  const ape = [f.apellido_paterno, f.apellido_materno].filter(Boolean).join(' ');
+  const nom = f.nombres || '';
+  if (ape && nom) return `${ape}, ${nom}`.trim();
+  return ape || nom || '';
+}
+
 function prepFilas(filas) {
   return (filas || []).map((f, i) => ({
     n: f.n ?? i + 1,
-    alumno_nombre: f.alumno_nombre || f.nombre || '',
+    alumno_nombre: nombreAlumnoFila(f),
   }));
 }
 
