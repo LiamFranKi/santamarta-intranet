@@ -116,10 +116,11 @@ router.get('/admin/estado', authenticateToken, async (req, res) => {
     }
     const tokenOk = !!webhookTokenConfigured();
     const filters = eventFiltersFromQuery(req.query);
-    const marcaciones = await listMarcacionesAsistencia(req.user.colegio_id, {
+    const listaBio = await listMarcacionesAsistencia(req.user.colegio_id, {
       ...filters,
       limit: 200,
     });
+    const marcaciones = listaBio?.filas || [];
     // Solo para detectar si falta migración 067 (tabla log); la UI usa marcaciones.
     const eventsProbe = await listRecentEvents(req.user.colegio_id, { ...filters, limit: 1 }).catch((e) => {
       if (String(e.message || '').includes('biometrico_eventos_log')) return null;
@@ -142,6 +143,10 @@ router.get('/admin/estado', authenticateToken, async (req, res) => {
       migracion_pendiente: eventsProbe === null,
       marcaciones,
       eventos: marcaciones,
+      total_descuento: listaBio?.total_descuento ?? 0,
+      total_minutos: listaBio?.total_minutos ?? 0,
+      total_registros: listaBio?.total_registros ?? marcaciones.length,
+      tarifa_por_minuto: listaBio?.tarifa_por_minuto ?? 1,
       filtros: { ...filters, hoy: hoyLimaISO() },
       ultimo_contacto: last,
       servidor_ahora: { fecha: lima.fecha, hora: lima.hora },

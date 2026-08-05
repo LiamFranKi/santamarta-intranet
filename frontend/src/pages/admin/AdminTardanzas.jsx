@@ -403,6 +403,55 @@ export default function AdminTardanzas() {
         filas: lista.filas,
         total_descuento: lista.total_descuento,
         tarifa_por_minuto: lista.tarifa_por_minuto ?? 1,
+        incluirHoraSalida: true,
+      });
+    } catch {
+      Swal.fire({ icon: 'error', title: 'PDF', text: 'No se pudo generar el PDF.' });
+    }
+  };
+
+  const exportExcelBio = async () => {
+    setExportLoading(true);
+    try {
+      const res = await api.get('/admin/tardanzas/export', {
+        params: bioQueryParams,
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `biometrico-marcaciones-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      Swal.fire({ icon: 'error', title: 'Excel', text: 'No se pudo exportar.' });
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const exportPdfBio = async () => {
+    const filas = bioEstado?.marcaciones || [];
+    if (!filas.length) {
+      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay marcaciones para exportar con los filtros actuales.' });
+      return;
+    }
+    try {
+      await generarPdfTardanzasPersonal({
+        colegioNombre: meta?.colegio_nombre,
+        anio: meta?.anio,
+        titulo: 'Marcaciones biométrico',
+        filtroEtiqueta: buildFiltroEtiqueta({
+          personalId: bioPersonalId,
+          personal: meta?.personal || [],
+          desde: bioDesde,
+          hasta: bioHasta,
+        }),
+        filas,
+        total_descuento: bioEstado?.total_descuento ?? 0,
+        tarifa_por_minuto: bioEstado?.tarifa_por_minuto ?? 1,
+        incluirHoraSalida: true,
+        minutosCeroComoCero: true,
       });
     } catch {
       Swal.fire({ icon: 'error', title: 'PDF', text: 'No se pudo generar el PDF.' });
@@ -415,6 +464,8 @@ export default function AdminTardanzas() {
     desde,
     hasta,
   });
+
+  const bioFilas = bioEstado?.marcaciones || bioEstado?.eventos || [];
 
   return (
     <DashboardLayout>
@@ -432,24 +483,24 @@ export default function AdminTardanzas() {
           </div>
         </header>
 
-        <div className={`admin-tz-help admin-tz-help--${tabActiva}`}>
+        <div
+          className={`admin-tz-help admin-tz-help--${
+            tabActiva === 'importacion' ? 'importar' : tabActiva
+          }`}
+        >
           <div className="admin-tz-help-icon" aria-hidden="true">
             💡
           </div>
           <div>
             <h2>
-              {tabActiva === 'importar'
-                ? 'Importación del huellero'
-                : tabActiva === 'biometrico'
-                  ? 'Biométrico en vivo'
-                  : 'Consulta y descuentos'}
+              {tabActiva === 'biometrico'
+                ? 'Biométrico en vivo'
+                : 'Registros de importación'}
             </h2>
             <p>
-              {tabActiva === 'importar'
-                ? 'Subí el Excel, revisá la vista previa y confirmá. Se toma la primera entrada del día por persona.'
-                : tabActiva === 'biometrico'
-                  ? 'El terminal envía cada marcación. Se identifica igual que el Excel: por nombre (First/Last Name). El DNI del huellero es solo respaldo.'
-                  : 'Filtrá por empleado y fechas. Podés editar, eliminar filas y exportar PDF.'}
+              {tabActiva === 'biometrico'
+                ? 'El terminal envía cada marcación. Se identifica igual que el Excel: por nombre (First/Last Name). El DNI del huellero es solo respaldo. Descuento: S/ 1.00 por minuto de tardanza en la entrada.'
+                : 'Importe el Excel del huellero arriba y consulte abajo los registros (entrada, tardanza y descuento).'}
             </p>
           </div>
         </div>
@@ -468,20 +519,11 @@ export default function AdminTardanzas() {
             <button
               type="button"
               role="tab"
-              aria-selected={tabActiva === 'registros'}
-              className={`admin-tz-tab${tabActiva === 'registros' ? ' is-active' : ''}`}
-              onClick={() => setTabActiva('registros')}
+              aria-selected={tabActiva === 'importacion'}
+              className={`admin-tz-tab admin-tz-tab--amber${tabActiva === 'importacion' ? ' is-active' : ''}`}
+              onClick={() => setTabActiva('importacion')}
             >
-              Registros
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tabActiva === 'importar'}
-              className={`admin-tz-tab admin-tz-tab--amber${tabActiva === 'importar' ? ' is-active' : ''}`}
-              onClick={() => setTabActiva('importar')}
-            >
-              Importar Excel
+              Registros de importación
             </button>
           </nav>
         </div>
@@ -663,11 +705,32 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                     >
                       Solo hoy
                     </button>
-                    <button type="button" className="admin-tardanzas-btn admin-tardanzas-btn--primary" onClick={loadBioEstado}>
+                    <button type="button" className="admin-tardanzas-btn" onClick={loadBioEstado}>
                       Filtrar
+                    </button>
+                    <button
+                      type="button"
+                      className="admin-tardanzas-btn"
+                      onClick={exportExcelBio}
+                      disabled={exportLoading || !bioFilas.length}
+                    >
+                      {exportLoading ? '…' : 'Excel'}
+                    </button>
+                    <button
+                      type="button"
+                      className="admin-tardanzas-btn admin-tardanzas-btn--primary"
+                      onClick={exportPdfBio}
+                      disabled={!bioFilas.length}
+                    >
+                      PDF
                     </button>
                   </div>
                 </div>
+
+                <p className="admin-tardanzas-meta">
+                  Tarifa: {fmtSoles(bioEstado.tarifa_por_minuto ?? 1)} por minuto tarde
+                  {bioEstado.total_registros != null ? ` · ${bioEstado.total_registros} registro(s)` : ''}
+                </p>
 
                 <div className="admin-tardanzas-table-wrap">
                   <table className="admin-tardanzas-table">
@@ -675,26 +738,47 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                       <tr>
                         <th>Fecha</th>
                         <th>Personal</th>
+                        <th>Hora entrada real</th>
                         <th>Hora entrada</th>
+                        <th>Min. tarde</th>
+                        <th>Descuento</th>
                         <th>Hora salida</th>
                         <th aria-label="Acciones">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {((bioEstado.marcaciones || bioEstado.eventos) || []).length === 0 && (
+                      {bioFilas.length === 0 && (
                         <tr>
-                          <td colSpan={5}>
+                          <td colSpan={8}>
                             No hay marcaciones para el filtro (por defecto día de hoy). Marque en el terminal o amplíe
                             las fechas.
                           </td>
                         </tr>
                       )}
-                      {((bioEstado.marcaciones || bioEstado.eventos) || []).map((ev) => (
+                      {bioFilas.map((ev) => (
                         <tr key={ev.id}>
                           <td>{ev.fecha ? fmtFecha(ev.fecha) : '—'}</td>
-                          <td>{ev.personal_nombre || '—'}</td>
-                          <td>{ev.hora_entrada ? String(ev.hora_entrada).slice(0, 8) : '—'}</td>
-                          <td>{ev.hora_salida ? String(ev.hora_salida).slice(0, 8) : '—'}</td>
+                          <td className="col-personal">{ev.personal_nombre || '—'}</td>
+                          <td>{ev.hora_entrada_real_fmt || '—'}</td>
+                          <td>
+                            {ev.hora_marcacion_fmt ||
+                              (ev.hora_entrada ? String(ev.hora_entrada).slice(0, 8) : '—')}
+                          </td>
+                          <td>{ev.minutos_tardanza != null ? ev.minutos_tardanza : 0}</td>
+                          <td
+                            className={
+                              (ev.descuento || 0) > 0 ? 'col-descuento' : 'col-descuento col-descuento--cero'
+                            }
+                          >
+                            {fmtSoles(ev.descuento ?? 0)}
+                          </td>
+                          <td>
+                            {ev.hora_salida_fmt && ev.hora_salida_fmt !== '—'
+                              ? ev.hora_salida_fmt
+                              : ev.hora_salida
+                                ? String(ev.hora_salida).slice(0, 8)
+                                : '—'}
+                          </td>
                           <td className="col-acciones">
                             <button
                               type="button"
@@ -721,89 +805,97 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                       ))}
                     </tbody>
                   </table>
+                  {bioFilas.length > 0 && (
+                    <div className="admin-tardanzas-total">
+                      <span className="admin-tardanzas-total__label">Total descuento</span>
+                      <span className="admin-tardanzas-total__value">
+                        {fmtSoles(bioEstado.total_descuento ?? 0)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </>
             )}
           </section>
         )}
 
-        {tabActiva === 'importar' && (
-        <section className="admin-tardanzas-import" aria-label="Importar Excel">
-          <h2 className="admin-tardanzas-import__title">Importar marcaciones del huellero</h2>
-          <p className="admin-tardanzas-import__desc">
-            Se usa la primera entrada del día por persona (hora más temprana del Excel). Si un día ya fue importado, se actualiza la hora y el descuento. Si editó celdas de hora en Excel, guarde el archivo antes de subirlo.
-          </p>
-          <div className="admin-tardanzas-import__row">
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              className="admin-tardanzas-file"
-              onChange={onArchivoChange}
-            />
-            <button
-              type="button"
-              className="admin-tardanzas-btn"
-              disabled={!archivo || previewLoading}
-              onClick={verPreview}
-            >
-              {previewLoading ? 'Analizando…' : 'Vista previa'}
-            </button>
-            <button
-              type="button"
-              className="admin-tardanzas-btn admin-tardanzas-btn--primary"
-              disabled={!archivo || !preview || importLoading}
-              onClick={confirmarImport}
-            >
-              {importLoading ? 'Importando…' : 'Confirmar importación'}
-            </button>
-          </div>
-
-          {preview && (
-            <div className="admin-tardanzas-preview">
-              <div className="admin-tardanzas-kpis">
-                <div className="admin-tardanzas-kpi admin-tardanzas-kpi--ok">
-                  <strong>{preview.resumen.coincidencias}</strong>
-                  <span>A importar</span>
-                </div>
-                <div className="admin-tardanzas-kpi">
-                  <strong>{preview.resumen.nuevos}</strong>
-                  <span>Nuevos</span>
-                </div>
-                <div className="admin-tardanzas-kpi">
-                  <strong>{preview.resumen.actualizados}</strong>
-                  <span>Actualizar</span>
-                </div>
-                <div className="admin-tardanzas-kpi admin-tardanzas-kpi--warn">
-                  <strong>{preview.resumen.sin_coincidencia}</strong>
-                  <span>Sin match</span>
-                </div>
-                <div className="admin-tardanzas-kpi admin-tardanzas-kpi--warn">
-                  <strong>{preview.resumen.sin_usuario}</strong>
-                  <span>Sin usuario</span>
-                </div>
+        {tabActiva === 'importacion' && (
+          <>
+            <section className="admin-tardanzas-import" aria-label="Importar Excel">
+              <h2 className="admin-tardanzas-import__title">Importar marcaciones del huellero</h2>
+              <p className="admin-tardanzas-import__desc">
+                Se usa la primera entrada del día por persona (hora más temprana del Excel). Si un día ya fue
+                importado, se actualiza la hora y el descuento. Si editó celdas de hora en Excel, guarde el archivo
+                antes de subirlo.
+              </p>
+              <div className="admin-tardanzas-import__row">
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="admin-tardanzas-file"
+                  onChange={onArchivoChange}
+                />
+                <button
+                  type="button"
+                  className="admin-tardanzas-btn"
+                  disabled={!archivo || previewLoading}
+                  onClick={verPreview}
+                >
+                  {previewLoading ? 'Analizando…' : 'Vista previa'}
+                </button>
+                <button
+                  type="button"
+                  className="admin-tardanzas-btn admin-tardanzas-btn--primary"
+                  disabled={!archivo || !preview || importLoading}
+                  onClick={confirmarImport}
+                >
+                  {importLoading ? 'Importando…' : 'Confirmar importación'}
+                </button>
               </div>
-              {preview.sin_coincidencia?.length > 0 && (
-                <div className="admin-tardanzas-warn-list">
-                  <strong>Sin coincidencia en el sistema:</strong>
-                  <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem' }}>
-                    {preview.sin_coincidencia.slice(0, 15).map((s, i) => (
-                      <li key={`${s.last_name}-${s.first_name}-${s.fecha}-${i}`}>
-                        {s.last_name}, {s.first_name} — {fmtFecha(s.fecha)} {s.hora_marcacion_fmt}
-                      </li>
-                    ))}
-                    {preview.sin_coincidencia.length > 15 && (
-                      <li>… y {preview.sin_coincidencia.length - 15} más</li>
-                    )}
-                  </ul>
+
+              {preview && (
+                <div className="admin-tardanzas-preview">
+                  <div className="admin-tardanzas-kpis">
+                    <div className="admin-tardanzas-kpi admin-tardanzas-kpi--ok">
+                      <strong>{preview.resumen.coincidencias}</strong>
+                      <span>A importar</span>
+                    </div>
+                    <div className="admin-tardanzas-kpi">
+                      <strong>{preview.resumen.nuevos}</strong>
+                      <span>Nuevos</span>
+                    </div>
+                    <div className="admin-tardanzas-kpi">
+                      <strong>{preview.resumen.actualizados}</strong>
+                      <span>Actualizar</span>
+                    </div>
+                    <div className="admin-tardanzas-kpi admin-tardanzas-kpi--warn">
+                      <strong>{preview.resumen.sin_coincidencia}</strong>
+                      <span>Sin match</span>
+                    </div>
+                    <div className="admin-tardanzas-kpi admin-tardanzas-kpi--warn">
+                      <strong>{preview.resumen.sin_usuario}</strong>
+                      <span>Sin usuario</span>
+                    </div>
+                  </div>
+                  {preview.sin_coincidencia?.length > 0 && (
+                    <div className="admin-tardanzas-warn-list">
+                      <strong>Sin coincidencia en el sistema:</strong>
+                      <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem' }}>
+                        {preview.sin_coincidencia.slice(0, 15).map((s, i) => (
+                          <li key={`${s.last_name}-${s.first_name}-${s.fecha}-${i}`}>
+                            {s.last_name}, {s.first_name} — {fmtFecha(s.fecha)} {s.hora_marcacion_fmt}
+                          </li>
+                        ))}
+                        {preview.sin_coincidencia.length > 15 && (
+                          <li>… y {preview.sin_coincidencia.length - 15} más</li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
-        </section>
-        )}
+            </section>
 
-        {tabActiva === 'registros' && (
-          <>
             <section className="admin-tardanzas-toolbar" aria-label="Filtros">
               <label>
                 Empleado
@@ -870,6 +962,7 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                         <th>Hora marcación</th>
                         <th>Min. tarde</th>
                         <th>Descuento</th>
+                        <th>Hora salida</th>
                         <th aria-label="Acciones">Acciones</th>
                       </tr>
                     </thead>
@@ -887,6 +980,11 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                             }
                           >
                             {f.descuento > 0 ? fmtSoles(f.descuento) : '—'}
+                          </td>
+                          <td>
+                            {f.hora_salida_fmt && f.hora_salida_fmt !== '—'
+                              ? f.hora_salida_fmt
+                              : '—'}
                           </td>
                           <td className="col-acciones">
                             <button

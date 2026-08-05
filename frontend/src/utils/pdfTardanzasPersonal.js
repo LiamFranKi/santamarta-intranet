@@ -22,6 +22,9 @@ export async function generarPdfTardanzasPersonal({
   filas = [],
   total_descuento,
   tarifa_por_minuto = 1,
+  titulo = 'Tardanzas del personal',
+  incluirHoraSalida = false,
+  minutosCeroComoCero = false,
 }) {
   const logoData = await obtenerLogoColegioDataUrl();
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -29,16 +32,20 @@ export async function generarPdfTardanzasPersonal({
   const pageH = doc.internal.pageSize.getHeight();
   const tableW = pageW - MARGIN * 2;
 
-  const colRatios = [0.32, 0.12, 0.14, 0.14, 0.12, 0.16];
+  const colRatios = incluirHoraSalida
+    ? [0.26, 0.1, 0.12, 0.12, 0.1, 0.14, 0.16]
+    : [0.32, 0.12, 0.14, 0.14, 0.12, 0.16];
   const widths = colRatios.map((r) => tableW * r);
-  const labels = ['Personal', 'Fecha', 'Hora entrada', 'Hora marcación', 'Min. tarde', 'Descuento'];
+  const labels = incluirHoraSalida
+    ? ['Personal', 'Fecha', 'Hora real', 'Hora entrada', 'Min. tarde', 'Descuento', 'Hora salida']
+    : ['Personal', 'Fecha', 'Hora entrada', 'Hora marcación', 'Min. tarde', 'Descuento'];
 
   const drawPageHeader = (yStart) => {
     const logoH = dibujarLogoEsquina(doc, logoData, { margin: MARGIN, size: 14 });
     let y = Math.max(yStart, MARGIN + logoH);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
-    doc.text('Tardanzas del personal', pageW - MARGIN, y, { align: 'right' });
+    doc.text(titulo, pageW - MARGIN, y, { align: 'right' });
     y += 5.5;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
@@ -88,14 +95,38 @@ export async function generarPdfTardanzasPersonal({
       doc.setFillColor(248, 250, 252);
       doc.rect(MARGIN, y, tableW, ROW_H, 'F');
     }
-    const cells = [
-      f.personal_nombre,
-      f.fecha,
-      f.hora_entrada_real_fmt,
-      f.hora_marcacion_fmt,
-      f.minutos_tardanza > 0 ? String(f.minutos_tardanza) : '—',
-      f.descuento > 0 ? fmtSoles(f.descuento) : '—',
-    ];
+    const minTxt = minutosCeroComoCero
+      ? String(f.minutos_tardanza ?? 0)
+      : f.minutos_tardanza > 0
+        ? String(f.minutos_tardanza)
+        : '—';
+    const descTxt = minutosCeroComoCero
+      ? fmtSoles(f.descuento ?? 0)
+      : f.descuento > 0
+        ? fmtSoles(f.descuento)
+        : '—';
+    const cells = incluirHoraSalida
+      ? [
+          f.personal_nombre,
+          f.fecha,
+          f.hora_entrada_real_fmt,
+          f.hora_marcacion_fmt || f.hora_entrada,
+          minTxt,
+          descTxt,
+          f.hora_salida_fmt && f.hora_salida_fmt !== '—'
+            ? f.hora_salida_fmt
+            : f.hora_salida
+              ? String(f.hora_salida).slice(0, 8)
+              : '—',
+        ]
+      : [
+          f.personal_nombre,
+          f.fecha,
+          f.hora_entrada_real_fmt,
+          f.hora_marcacion_fmt,
+          minTxt,
+          descTxt,
+        ];
     let x = MARGIN;
     cells.forEach((txt, i) => {
       doc.text(safeTxt(txt), x + 2, y + 4.5, { maxWidth: widths[i] - 4 });

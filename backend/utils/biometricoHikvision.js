@@ -15,6 +15,8 @@ const {
   dedupePersonalList,
   parseHoraMarcacion,
   formatHoraDisplay,
+  calcTardanza,
+  DESCUENTO_POR_MINUTO,
 } = require('./adminTardanzasHuellero');
 
 const TZ_LIMA = 'America/Lima';
@@ -960,6 +962,7 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
             ar.fecha_creacion,
             ar.fecha_actualizacion,
             p.id AS personal_id,
+            p.hora_entrada AS hora_entrada_real,
             CONCAT(COALESCE(p.apellidos,''), ', ', COALESCE(p.nombres,'')) AS personal_nombre
      FROM asistencia_registros ar
      INNER JOIN usuarios u ON u.id = ar.usuario_id
@@ -972,7 +975,7 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
     params
   );
 
-  return (rows || []).map((r) => {
+  const filas = (rows || []).map((r) => {
     const fechaStr =
       r.fecha instanceof Date
         ? r.fecha.toISOString().slice(0, 10)
@@ -981,6 +984,8 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
     const hs = r.hora_salida
       ? parseHoraMarcacion(r.hora_salida) || formatHoraDisplay(r.hora_salida)
       : null;
+    const horaReal = r.hora_entrada_real;
+    const { minutos_tardanza, descuento } = calcTardanza(horaReal, he);
     return {
       id: r.id,
       personal_id: r.personal_id,
@@ -988,12 +993,30 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
       fecha: fechaStr,
       hora_entrada: he,
       hora_salida: hs,
+      hora_entrada_real: horaReal,
+      hora_entrada_real_fmt: formatHoraDisplay(horaReal),
+      hora_marcacion: he,
+      hora_marcacion_fmt: formatHoraDisplay(he),
+      hora_salida_fmt: hs ? formatHoraDisplay(hs) : '—',
+      minutos_tardanza,
+      descuento,
       fecha_hora_entrada: he ? `${fechaStr} ${he}` : fechaStr,
       fecha_hora_salida: hs ? `${fechaStr} ${hs}` : null,
       recibido_at: r.recibido_at,
       tipo_registro: r.tipo_registro,
     };
   });
+
+  const total_descuento = Math.round(filas.reduce((s, f) => s + (f.descuento || 0), 0) * 100) / 100;
+  const total_minutos = filas.reduce((s, f) => s + (f.minutos_tardanza || 0), 0);
+
+  return {
+    filas,
+    total_descuento,
+    total_minutos,
+    total_registros: filas.length,
+    tarifa_por_minuto: DESCUENTO_POR_MINUTO,
+  };
 }
 
 function hoyLimaISO() {

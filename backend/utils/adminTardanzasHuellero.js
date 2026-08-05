@@ -595,6 +595,9 @@ async function importarHuellero(query, execute, colegioId, adminUsuarioId, buffe
 function mapRowToFilaTardanza(r) {
   const horaMarcacion = r.hora_marcacion ?? r.hora_entrada;
   const { minutos_tardanza, descuento } = calcTardanza(r.hora_entrada_real, horaMarcacion);
+  const horaSalida = r.hora_salida
+    ? parseHoraMarcacion(r.hora_salida) || String(r.hora_salida).slice(0, 8)
+    : null;
   return {
     id: r.id,
     personal_id: r.personal_id,
@@ -604,6 +607,8 @@ function mapRowToFilaTardanza(r) {
     hora_entrada_real_fmt: formatHoraDisplay(r.hora_entrada_real),
     hora_marcacion: horaMarcacion,
     hora_marcacion_fmt: formatHoraDisplay(horaMarcacion),
+    hora_salida: horaSalida,
+    hora_salida_fmt: horaSalida ? formatHoraDisplay(horaSalida) : '—',
     minutos_tardanza,
     descuento,
   };
@@ -768,7 +773,7 @@ async function listarTardanzas(query, colegioId, params = {}) {
   }
 
   const rows = await query(
-    `SELECT ar.id, ar.fecha, ar.hora_entrada AS hora_marcacion,
+    `SELECT ar.id, ar.fecha, ar.hora_entrada AS hora_marcacion, ar.hora_salida,
             p.id AS personal_id, p.nombres, p.apellidos, p.hora_entrada AS hora_entrada_real,
             u.id AS usuario_id
      FROM asistencia_registros ar
@@ -837,7 +842,15 @@ async function calcularTardanzasMesColegio(query, colegioId, params = {}) {
 function buildExportWorkbook(lista) {
   const wb = XLSX.utils.book_new();
   const data = [
-    ['Personal', 'Fecha', 'Hora entrada real', 'Hora marcación', 'Min. tardanza', 'Descuento S/.'],
+    [
+      'Personal',
+      'Fecha',
+      'Hora entrada real',
+      'Hora entrada',
+      'Min. tardanza',
+      'Descuento S/.',
+      'Hora salida',
+    ],
     ...(lista.filas || []).map((f) => [
       f.personal_nombre,
       f.fecha,
@@ -845,9 +858,10 @@ function buildExportWorkbook(lista) {
       f.hora_marcacion_fmt,
       f.minutos_tardanza,
       f.descuento,
+      f.hora_salida_fmt && f.hora_salida_fmt !== '—' ? f.hora_salida_fmt : '',
     ]),
     [],
-    ['', '', '', '', 'TOTAL', lista.total_descuento],
+    ['', '', '', '', 'TOTAL', lista.total_descuento, ''],
   ];
   const ws = XLSX.utils.aoa_to_sheet(data);
   XLSX.utils.book_append_sheet(wb, ws, 'Tardanzas');
