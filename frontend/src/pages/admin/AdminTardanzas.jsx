@@ -627,7 +627,7 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                 <h3 className="admin-tz-bio__sub">Marcaciones (entrada / salida)</h3>
                 <p className="admin-tz-bio__hint">
                   Por defecto: <strong>solo hoy</strong>. Una fila por persona: entrada = primera marcación; salida =
-                  última (se actualiza si marca de nuevo).
+                  última (se actualiza si marca de nuevo). Orden: hora de entrada (más temprano → más tarde).
                 </p>
 
                 <div className="admin-tardanzas-toolbar admin-tz-bio__filters">
@@ -673,10 +673,10 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                   <table className="admin-tardanzas-table">
                     <thead>
                       <tr>
-                        <th>Recibido</th>
+                        <th>Fecha</th>
                         <th>Personal</th>
-                        <th>Fecha / hora entrada</th>
-                        <th>Fecha / hora salida</th>
+                        <th>Hora entrada</th>
+                        <th>Hora salida</th>
                         <th aria-label="Acciones">Acciones</th>
                       </tr>
                     </thead>
@@ -691,20 +691,10 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                       )}
                       {((bioEstado.marcaciones || bioEstado.eventos) || []).map((ev) => (
                         <tr key={ev.id}>
-                          <td>{fmtLimaDateTime(ev.recibido_at || ev.created_at)}</td>
+                          <td>{ev.fecha ? fmtFecha(ev.fecha) : '—'}</td>
                           <td>{ev.personal_nombre || '—'}</td>
-                          <td>
-                            {ev.fecha_hora_entrada ||
-                              (ev.fecha
-                                ? `${fmtFecha(ev.fecha)}${ev.hora_entrada ? ` ${String(ev.hora_entrada).slice(0, 8)}` : ''}`
-                                : '—')}
-                          </td>
-                          <td>
-                            {ev.fecha_hora_salida ||
-                              (ev.hora_salida
-                                ? `${ev.fecha ? fmtFecha(ev.fecha) : ''} ${String(ev.hora_salida).slice(0, 8)}`.trim()
-                                : '—')}
-                          </td>
+                          <td>{ev.hora_entrada ? String(ev.hora_entrada).slice(0, 8) : '—'}</td>
+                          <td>{ev.hora_salida ? String(ev.hora_salida).slice(0, 8) : '—'}</td>
                           <td className="col-acciones">
                             <button
                               type="button"
