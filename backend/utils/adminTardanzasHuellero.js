@@ -611,7 +611,7 @@ function mapRowToFilaTardanza(r) {
 
 async function getRegistroTardanzaPersonal(query, registroId, colegioId) {
   const [row] = await query(
-    `SELECT ar.id, ar.fecha, ar.hora_entrada, ar.hora_entrada AS hora_marcacion,
+    `SELECT ar.id, ar.fecha, ar.hora_entrada, ar.hora_salida, ar.hora_entrada AS hora_marcacion,
             p.id AS personal_id, p.nombres, p.apellidos, p.hora_entrada AS hora_entrada_real
      FROM asistencia_registros ar
      INNER JOIN usuarios u ON u.id = ar.usuario_id AND u.colegio_id = ar.colegio_id
@@ -650,6 +650,77 @@ async function actualizarHoraRegistro(query, execute, colegioId, registroId, hor
 
   const updated = await getRegistroTardanzaPersonal(query, registroId, colegioId);
   return mapRowToFilaTardanza(updated);
+}
+
+/**
+ * Edita entrada y/o salida de un registro de asistencia del personal.
+ * horaSalida: string HH:MM | ''/null para borrar salida | undefined para no tocar.
+ */
+async function actualizarEntradaSalidaRegistro(
+  query,
+  execute,
+  colegioId,
+  registroId,
+  { horaEntrada, horaSalida } = {},
+  auditUserId
+) {
+  const reg = await getRegistroTardanzaPersonal(query, registroId, colegioId);
+  if (!reg) {
+    const err = new Error('Registro no encontrado.');
+    err.status = 404;
+    throw err;
+  }
+
+  let he =
+    horaEntrada != null && String(horaEntrada).trim() !== ''
+      ? parseHoraMarcacion(horaEntrada)
+      : parseHoraMarcacion(reg.hora_entrada) || String(reg.hora_entrada || '').slice(0, 8);
+  if (!he) {
+    const err = new Error('Hora de entrada inválida. Use formato HH:MM.');
+    err.status = 400;
+    throw err;
+  }
+
+  let hs;
+  if (horaSalida === undefined) {
+    hs = reg.hora_salida
+      ? parseHoraMarcacion(reg.hora_salida) || String(reg.hora_salida || '').slice(0, 8)
+      : null;
+  } else if (horaSalida === null || String(horaSalida).trim() === '') {
+    hs = null;
+  } else {
+    hs = parseHoraMarcacion(horaSalida);
+    if (!hs) {
+      const err = new Error('Hora de salida inválida. Use formato HH:MM.');
+      err.status = 400;
+      throw err;
+    }
+  }
+
+  const entradaMin = toMinutesFromMidnight(he);
+  const salidaMin = toMinutesFromMidnight(hs);
+  if (entradaMin != null && salidaMin != null && salidaMin < entradaMin) {
+    const err = new Error('La hora de salida no puede ser anterior a la de entrada.');
+    err.status = 400;
+    throw err;
+  }
+
+  const tipo = hs ? 'ENTRADA_SALIDA' : 'ENTRADA';
+  await execute(
+    `UPDATE asistencia_registros
+     SET hora_entrada = ?, hora_salida = ?, tipo_registro = ?,
+         actualizado_por = ?, fecha_actualizacion = NOW()
+     WHERE id = ? AND colegio_id = ?`,
+    [he, hs, tipo, auditUserId ?? null, registroId, colegioId]
+  );
+
+  const updated = await getRegistroTardanzaPersonal(query, registroId, colegioId);
+  const fila = mapRowToFilaTardanza(updated);
+  fila.hora_salida = updated?.hora_salida
+    ? parseHoraMarcacion(updated.hora_salida) || String(updated.hora_salida).slice(0, 8)
+    : null;
+  fila.hora_salida_fmt = formatHoraDisplay(fila.hora_salida);
+  return fila;
 }
 
 async function eliminarRegistroTardanza(query, execute, colegioId, registroId) {
@@ -808,4 +879,5 @@ module.exports = {
   toMinutesFromMidnight,
   upsertMarcacionDia,
   upsertMarcacionEntradaSalida,
+  actualizarEntradaSalidaRegistro,
 };

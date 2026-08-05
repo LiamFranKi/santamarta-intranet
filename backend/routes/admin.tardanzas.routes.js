@@ -10,6 +10,7 @@ const {
   importarHuellero,
   listarTardanzas,
   actualizarHoraRegistro,
+  actualizarEntradaSalidaRegistro,
   eliminarRegistroTardanza,
   calcularTardanzasMesColegio,
   loadPersonalColegio,
@@ -143,27 +144,51 @@ router.post('/importar', upload.single('archivo'), async (req, res) => {
   }
 });
 
-/** PATCH /api/admin/tardanzas/registro/:id — editar solo hora de marcación */
+/** PATCH /api/admin/tardanzas/registro/:id — editar hora entrada (y opcionalmente salida) */
 router.patch('/registro/:id', async (req, res) => {
   try {
     const registroId = parseInt(req.params.id, 10);
     if (!Number.isFinite(registroId)) {
       return res.status(400).json({ error: 'ID de registro inválido.' });
     }
-    const horaMarcacion = req.body?.hora_marcacion ?? req.body?.hora;
-    if (!horaMarcacion) {
-      return res.status(400).json({ error: 'Indique la hora de marcación (HH:MM).' });
-    }
     const { query, execute } = require('../utils/mysql');
     const adminUsuarioId = req.user?.usuario_id || req.user?.id || null;
-    const fila = await actualizarHoraRegistro(
-      query,
-      execute,
-      colegioId(req),
-      registroId,
-      horaMarcacion,
-      adminUsuarioId
-    );
+    const body = req.body || {};
+    const hasEntradaSalida =
+      body.hora_entrada != null || Object.prototype.hasOwnProperty.call(body, 'hora_salida');
+
+    let fila;
+    if (hasEntradaSalida) {
+      if (body.hora_entrada == null || String(body.hora_entrada).trim() === '') {
+        return res.status(400).json({ error: 'Indique la hora de entrada (HH:MM).' });
+      }
+      fila = await actualizarEntradaSalidaRegistro(
+        query,
+        execute,
+        colegioId(req),
+        registroId,
+        {
+          horaEntrada: body.hora_entrada,
+          horaSalida: Object.prototype.hasOwnProperty.call(body, 'hora_salida')
+            ? body.hora_salida
+            : undefined,
+        },
+        adminUsuarioId
+      );
+    } else {
+      const horaMarcacion = body.hora_marcacion ?? body.hora;
+      if (!horaMarcacion) {
+        return res.status(400).json({ error: 'Indique la hora de marcación (HH:MM).' });
+      }
+      fila = await actualizarHoraRegistro(
+        query,
+        execute,
+        colegioId(req),
+        registroId,
+        horaMarcacion,
+        adminUsuarioId
+      );
+    }
     res.json({ ok: true, fila });
   } catch (e) {
     console.error('[admin/tardanzas/registro PATCH]', e);

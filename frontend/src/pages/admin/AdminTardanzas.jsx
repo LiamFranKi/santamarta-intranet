@@ -59,6 +59,9 @@ function toInputTime(horaFmt) {
   return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
 }
 
+/** Botones de mantenimiento biométrico (ocultos en UI; no eliminar el código). */
+const SHOW_BIO_DEV_BUTTONS = false;
+
 function buildFiltroEtiqueta({ personalId, personal, desde, hasta }) {
   const parts = [];
   if (personalId) {
@@ -281,6 +284,87 @@ export default function AdminTardanzas() {
     }
   };
 
+  const editarMarcacionBio = async (ev) => {
+    const entradaVal = toInputTime(ev.hora_entrada);
+    const salidaVal = toInputTime(ev.hora_salida);
+    const r = await Swal.fire({
+      icon: 'question',
+      title: 'Editar marcación',
+      html: `
+        <p style="margin:0 0 0.75rem;font-size:0.9rem;text-align:left">
+          <strong>${ev.personal_nombre || '—'}</strong><br>
+          ${fmtFecha(ev.fecha)}
+        </p>
+        <label style="display:block;text-align:left;font-size:0.85rem;margin-bottom:0.35rem">Hora entrada</label>
+        <input id="swal-bio-entrada" type="time" class="swal2-input" value="${entradaVal}" style="margin:0 0 0.75rem;width:100%">
+        <label style="display:block;text-align:left;font-size:0.85rem;margin-bottom:0.35rem">Hora salida (vacío = sin salida)</label>
+        <input id="swal-bio-salida" type="time" class="swal2-input" value="${salidaVal}" style="margin:0;width:100%">
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Guardar',
+      cancelButtonText: 'Cancelar',
+      focusConfirm: false,
+      preConfirm: () => {
+        const he = document.getElementById('swal-bio-entrada')?.value;
+        const hs = document.getElementById('swal-bio-salida')?.value || '';
+        if (!he) {
+          Swal.showValidationMessage('Indique la hora de entrada');
+          return false;
+        }
+        return { hora_entrada: he, hora_salida: hs };
+      },
+    });
+    if (!r.isConfirmed || !r.value) return;
+
+    setRowActionId(ev.id);
+    try {
+      await api.patch(`/admin/tardanzas/registro/${ev.id}`, {
+        hora_entrada: r.value.hora_entrada,
+        hora_salida: r.value.hora_salida,
+      });
+      await loadBioEstado();
+      await loadLista();
+      Swal.fire({ icon: 'success', title: 'Actualizado', timer: 1500, showConfirmButton: false });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Editar',
+        text: e.response?.data?.error || 'No se pudo actualizar.',
+      });
+    } finally {
+      setRowActionId(null);
+    }
+  };
+
+  const eliminarMarcacionBio = async (ev) => {
+    const r = await Swal.fire({
+      icon: 'warning',
+      title: 'Eliminar marcación',
+      html: `¿Eliminar la marcación de <strong>${ev.personal_nombre || '—'}</strong> del <strong>${fmtFecha(ev.fecha)}</strong>?<br><small>Solo se borra en la intranet. El huellero no se modifica.</small>`,
+      showCancelButton: true,
+      confirmButtonText: 'Eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!r.isConfirmed) return;
+
+    setRowActionId(ev.id);
+    try {
+      await api.delete(`/admin/tardanzas/registro/${ev.id}`);
+      await loadBioEstado();
+      await loadLista();
+      Swal.fire({ icon: 'success', title: 'Eliminado', timer: 1500, showConfirmButton: false });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Eliminar',
+        text: e.response?.data?.error || 'No se pudo eliminar.',
+      });
+    } finally {
+      setRowActionId(null);
+    }
+  };
+
   const exportExcel = async () => {
     setExportLoading(true);
     try {
@@ -432,100 +516,104 @@ export default function AdminTardanzas() {
                   <button type="button" className="admin-tardanzas-btn" onClick={loadBioEstado}>
                     Actualizar
                   </button>
-                  <button
-                    type="button"
-                    className="admin-tardanzas-btn"
-                    onClick={async () => {
-                      const conf = await Swal.fire({
-                        icon: 'question',
-                        title: 'Borrar omitidos',
-                        text: 'Se eliminan del log las filas OMITIDO. No borra marcaciones de asistencia ni tardanzas.',
-                        showCancelButton: true,
-                        confirmButtonText: 'Borrar',
-                        cancelButtonText: 'Cancelar',
-                      });
-                      if (!conf.isConfirmed) return;
-                      try {
-                        const { data } = await api.delete('/biometrico/admin/eventos/omitidos');
-                        await loadBioEstado();
-                        Swal.fire({
-                          icon: 'success',
-                          title: 'Listo',
-                          text: `Se borraron ${data.deleted ?? 0} filas omitidas.`,
-                          timer: 2000,
-                          showConfirmButton: false,
-                        });
-                      } catch (e) {
-                        Swal.fire({
-                          icon: 'error',
-                          title: 'Error',
-                          text: e.response?.data?.error || 'No se pudo borrar.',
-                        });
-                      }
-                    }}
-                  >
-                    Borrar omitidos
-                  </button>
-                  <button
-                    type="button"
-                    className="admin-tardanzas-btn"
-                    onClick={async () => {
-                      const conf = await Swal.fire({
-                        icon: 'warning',
-                        title: 'Limpiar entradas de hoy',
-                        html: 'Borra las <strong>marcaciones de entrada de hoy</strong> en asistencia (las que el historial del huellero contaminó).<br>Luego marque de nuevo en el terminal.',
-                        showCancelButton: true,
-                        confirmButtonText: 'Sí, limpiar hoy',
-                        cancelButtonText: 'Cancelar',
-                        confirmButtonColor: '#b91c1c',
-                      });
-                      if (!conf.isConfirmed) return;
-                      try {
-                        const { data } = await api.delete('/biometrico/admin/asistencia-hoy');
-                        await loadBioEstado();
-                        await loadLista();
-                        Swal.fire({
-                          icon: 'success',
-                          title: 'Limpiado',
-                          text: `Se borraron ${data.deleted ?? 0} entradas del ${data.fecha || 'día'}. Marque otra vez en el huellero.`,
-                        });
-                      } catch (e) {
-                        Swal.fire({
-                          icon: 'error',
-                          title: 'Error',
-                          text: e.response?.data?.error || 'No se pudo limpiar.',
-                        });
-                      }
-                    }}
-                  >
-                    Limpiar entradas de hoy
-                  </button>
-                  <button
-                    type="button"
-                    className="admin-tardanzas-btn admin-tardanzas-btn--primary"
-                    onClick={async () => {
-                      try {
-                        const { data } = await api.post('/biometrico/admin/probar-marcacion', {});
-                        await loadBioEstado();
-                        await loadLista();
-                        Swal.fire({
-                          icon: data.resultado?.ok === false ? 'warning' : 'success',
-                          title: 'Prueba de marcación',
-                          html: `<p>${data.mensaje || 'Listo'}</p>
+                  {SHOW_BIO_DEV_BUTTONS && (
+                    <>
+                      <button
+                        type="button"
+                        className="admin-tardanzas-btn"
+                        onClick={async () => {
+                          const conf = await Swal.fire({
+                            icon: 'question',
+                            title: 'Borrar omitidos',
+                            text: 'Se eliminan del log las filas OMITIDO. No borra marcaciones de asistencia ni tardanzas.',
+                            showCancelButton: true,
+                            confirmButtonText: 'Borrar',
+                            cancelButtonText: 'Cancelar',
+                          });
+                          if (!conf.isConfirmed) return;
+                          try {
+                            const { data } = await api.delete('/biometrico/admin/eventos/omitidos');
+                            await loadBioEstado();
+                            Swal.fire({
+                              icon: 'success',
+                              title: 'Listo',
+                              text: `Se borraron ${data.deleted ?? 0} filas omitidas.`,
+                              timer: 2000,
+                              showConfirmButton: false,
+                            });
+                          } catch (e) {
+                            Swal.fire({
+                              icon: 'error',
+                              title: 'Error',
+                              text: e.response?.data?.error || 'No se pudo borrar.',
+                            });
+                          }
+                        }}
+                      >
+                        Borrar omitidos
+                      </button>
+                      <button
+                        type="button"
+                        className="admin-tardanzas-btn"
+                        onClick={async () => {
+                          const conf = await Swal.fire({
+                            icon: 'warning',
+                            title: 'Limpiar entradas de hoy',
+                            html: 'Borra las <strong>marcaciones de entrada de hoy</strong> en asistencia (las que el historial del huellero contaminó).<br>Luego marque de nuevo en el terminal.',
+                            showCancelButton: true,
+                            confirmButtonText: 'Sí, limpiar hoy',
+                            cancelButtonText: 'Cancelar',
+                            confirmButtonColor: '#b91c1c',
+                          });
+                          if (!conf.isConfirmed) return;
+                          try {
+                            const { data } = await api.delete('/biometrico/admin/asistencia-hoy');
+                            await loadBioEstado();
+                            await loadLista();
+                            Swal.fire({
+                              icon: 'success',
+                              title: 'Limpiado',
+                              text: `Se borraron ${data.deleted ?? 0} entradas del ${data.fecha || 'día'}. Marque otra vez en el huellero.`,
+                            });
+                          } catch (e) {
+                            Swal.fire({
+                              icon: 'error',
+                              title: 'Error',
+                              text: e.response?.data?.error || 'No se pudo limpiar.',
+                            });
+                          }
+                        }}
+                      >
+                        Limpiar entradas de hoy
+                      </button>
+                      <button
+                        type="button"
+                        className="admin-tardanzas-btn admin-tardanzas-btn--primary"
+                        onClick={async () => {
+                          try {
+                            const { data } = await api.post('/biometrico/admin/probar-marcacion', {});
+                            await loadBioEstado();
+                            await loadLista();
+                            Swal.fire({
+                              icon: data.resultado?.ok === false ? 'warning' : 'success',
+                              title: 'Prueba de marcación',
+                              html: `<p>${data.mensaje || 'Listo'}</p>
                             <p style="font-size:0.85rem;opacity:.85">${data.name || ''} · id ${data.employeeNo || '—'}</p>
                             <p style="font-size:0.8rem">reason: <code>${data.resultado?.reason || data.resultado?.action || '—'}</code></p>`,
-                        });
-                      } catch (e) {
-                        Swal.fire({
-                          icon: 'error',
-                          title: 'No se pudo probar',
-                          text: e.response?.data?.error || e.message || 'Error',
-                        });
-                      }
-                    }}
-                  >
-                    Probar marcación
-                  </button>
+                            });
+                          } catch (e) {
+                            Swal.fire({
+                              icon: 'error',
+                              title: 'No se pudo probar',
+                              text: e.response?.data?.error || e.message || 'Error',
+                            });
+                          }
+                        }}
+                      >
+                        Probar marcación
+                      </button>
+                    </>
+                  )}
                 </div>
 
                 {!bioEstado.webhook_configurado && (
@@ -589,12 +677,13 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                         <th>Personal</th>
                         <th>Fecha / hora entrada</th>
                         <th>Fecha / hora salida</th>
+                        <th aria-label="Acciones">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
                       {((bioEstado.marcaciones || bioEstado.eventos) || []).length === 0 && (
                         <tr>
-                          <td colSpan={4}>
+                          <td colSpan={5}>
                             No hay marcaciones para el filtro (por defecto día de hoy). Marque en el terminal o amplíe
                             las fechas.
                           </td>
@@ -615,6 +704,28 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                               (ev.hora_salida
                                 ? `${ev.fecha ? fmtFecha(ev.fecha) : ''} ${String(ev.hora_salida).slice(0, 8)}`.trim()
                                 : '—')}
+                          </td>
+                          <td className="col-acciones">
+                            <button
+                              type="button"
+                              className="admin-tardanzas-icon-btn"
+                              title="Editar entrada / salida"
+                              aria-label={`Editar marcación de ${ev.personal_nombre || 'personal'}`}
+                              disabled={rowActionId === ev.id}
+                              onClick={() => editarMarcacionBio(ev)}
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              type="button"
+                              className="admin-tardanzas-icon-btn admin-tardanzas-icon-btn--danger"
+                              title="Eliminar marcación"
+                              aria-label={`Eliminar marcación de ${ev.personal_nombre || 'personal'}`}
+                              disabled={rowActionId === ev.id}
+                              onClick={() => eliminarMarcacionBio(ev)}
+                            >
+                              🗑️
+                            </button>
                           </td>
                         </tr>
                       ))}
