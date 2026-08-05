@@ -922,7 +922,7 @@ async function listRecentEvents(colegioId, opts = {}) {
 
 /**
  * Marcaciones reales (1 fila por persona/día): entrada + salida.
- * Orden: fecha ASC, hora de entrada ASC (más antiguo → más reciente).
+ * Orden: fecha DESC, hora de entrada DESC (más reciente → más temprano).
  */
 async function listMarcacionesAsistencia(colegioId, opts = {}) {
   const lim = Math.min(Math.max(parseInt(opts.limit, 10) || 200, 1), 500);
@@ -968,9 +968,9 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
      INNER JOIN usuarios u ON u.id = ar.usuario_id
      INNER JOIN personal p ON p.id = u.personal_id
      WHERE ${where.join(' AND ')}
-     ORDER BY DATE(ar.fecha) ASC,
-              ar.hora_entrada ASC,
-              ar.id ASC
+     ORDER BY DATE(ar.fecha) DESC,
+              ar.hora_entrada DESC,
+              ar.id DESC
      LIMIT ${lim}`,
     params
   );
