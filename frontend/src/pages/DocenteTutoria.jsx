@@ -1694,9 +1694,15 @@ function DocenteTutoria({
     await cargarConducta(grupo.id, 1);
   };
 
-  // Exportar Nómina PDF (directo, sin modal) - solo nombre del grupo + logo
+  // Exportar Nómina PDF o Excel
   const handleExportarNominaGrupo = async (grupo) => {
     try {
+      const { elegirFormatoExportNomina, exportarExcelNominaGrupo } = await import(
+        '../utils/excelNominaAlumnosGrupo'
+      );
+      const formato = await elegirFormatoExportNomina(Swal);
+      if (!formato) return;
+
       const res = await api.get(`${apiPrefix}/grupos/${grupo.id}/alumnos`);
       const alumnos = res.data.alumnos || [];
       if (alumnos.length === 0) {
@@ -1707,6 +1713,25 @@ function DocenteTutoria({
         ...a,
         nombre_completo: a.nombre_completo || `${(a.apellido_paterno || '')} ${(a.apellido_materno || '')}, ${(a.nombres || '')}`.trim()
       }));
+      const grupoNombre = `${grupo.grado}° ${grupo.seccion} - ${grupo.nivel_nombre || ''} - ${grupo.turno_nombre || ''}`.replace(/\s*-\s*$/, '').trim();
+
+      if (formato === 'excel') {
+        await exportarExcelNominaGrupo({
+          titulo: 'REGISTRO ACADÉMICO',
+          subtitulo: grupoNombre,
+          meta: { grado: grupoNombre },
+          filas: alumnosConNombre,
+          filename: `Nomina_${grupoNombre.replace(/\s+/g, '_')}`,
+        });
+        Swal.fire({
+          title: '¡Excel generado!',
+          text: 'La nómina se ha descargado correctamente',
+          icon: 'success',
+          timer: 2000,
+          showConfirmButton: false,
+        });
+        return;
+      }
 
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -1742,7 +1767,6 @@ function DocenteTutoria({
         doc.addImage(logoData, 'PNG', pageWidth - margin - logoW, 4, logoW, logoH);
       } catch (e) { console.warn('Logo no cargado:', e); }
 
-      const grupoNombre = `${grupo.grado}° ${grupo.seccion} - ${grupo.nivel_nombre || ''} - ${grupo.turno_nombre || ''}`.replace(/\s*-\s*$/, '').trim();
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       doc.text('REGISTRO ACADÉMICO', pageWidth / 2, 12, { align: 'center' });
@@ -1792,7 +1816,11 @@ function DocenteTutoria({
       Swal.fire({ title: '¡PDF Generado!', text: 'La nómina se ha descargado correctamente', icon: 'success', timer: 2000, showConfirmButton: false });
     } catch (err) {
       console.error('Error exportando nómina:', err);
-      Swal.fire({ icon: 'error', title: 'Error', text: err.response?.data?.error || 'No se pudo generar el PDF' });
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: err.response?.data?.error || err.message || 'No se pudo generar la nómina',
+      });
     }
   };
 

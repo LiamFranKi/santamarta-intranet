@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -608,6 +608,7 @@ const OPCIONES_GRUPO_MENU = [
   { key: 'ver_horario', label: 'Ver Horario', icon: '🗓️' },
   { key: 'registro_asistencia', label: 'Registro de Asistencia', icon: '📝' },
   { key: 'imprimir_qr', label: 'Imprimir QR', icon: '🧾' },
+  { key: 'ver_nomina', label: 'Ver Nómina', icon: '📄' },
   { key: 'registro_notas', label: 'Registro de Notas', icon: '📚' },
   { key: 'registrar_conducta', label: 'Registrar Conducta', icon: '📝' },
   { key: 'recomendaciones', label: 'Recomendaciones', icon: '💡' },
@@ -623,7 +624,68 @@ const KEYS_OPCIONES_GRUPO_PSICOLOGA = new Set([
   'reporte_incidencias',
   'reporte_presentacion',
   'ver_horario',
+  'ver_nomina',
 ]);
+
+/** Menú Opciones de grado en portal (evita recorte por overflow del dashboard). */
+function GrupoOpcionesMenuPortal({ open, anchorEl, onClose, children }) {
+  const [pos, setPos] = useState({ top: 8, left: 8, width: 260, maxH: 420 });
+
+  useLayoutEffect(() => {
+    if (!open || !anchorEl) return undefined;
+    const place = () => {
+      const r = anchorEl.getBoundingClientRect();
+      const w = Math.max(240, Math.min(280, r.width));
+      let left = r.left;
+      left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
+      const gap = 6;
+      const top = r.bottom + gap;
+      const maxH = Math.max(120, Math.min(480, window.innerHeight - top - 8));
+      setPos({ top, left, width: w, maxH });
+    };
+    place();
+    const t = window.setTimeout(place, 0);
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+  }, [open, anchorEl]);
+
+  if (!open || !anchorEl) return null;
+
+  return createPortal(
+    <>
+      <div
+        className="admin-academico-grupo-card__dropdown-backdrop"
+        aria-hidden
+        onMouseDown={(e) => {
+          e.preventDefault();
+          onClose();
+        }}
+      />
+      <div
+        className="admin-academico-grupo-card__dropdown admin-academico-grupo-card__dropdown--portal"
+        style={{
+          position: 'fixed',
+          top: pos.top,
+          left: pos.left,
+          width: pos.width,
+          maxHeight: pos.maxH,
+          overflowY: 'auto',
+          zIndex: 10060,
+        }}
+        role="menu"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </>,
+    document.body
+  );
+}
 
 function NivelesPanel({ onRefreshMeta }) {
   const [rows, setRows] = useState([]);
@@ -897,6 +959,7 @@ function GruposPanel({ meta }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [menuGrupoId, setMenuGrupoId] = useState(null);
+  const [menuGrupoAnchor, setMenuGrupoAnchor] = useState(null);
   const [listaAlumnosGrupoRow, setListaAlumnosGrupoRow] = useState(null);
   const [horarioModalGrupo, setHorarioModalGrupo] = useState(null);
   const [grupoAsistenciaAdmin, setGrupoAsistenciaAdmin] = useState(null);
@@ -952,15 +1015,21 @@ function GruposPanel({ meta }) {
     load();
   }, [load]);
 
+  const cerrarMenuGrupo = useCallback(() => {
+    setMenuGrupoId(null);
+    setMenuGrupoAnchor(null);
+  }, []);
+
   useEffect(() => {
     if (menuGrupoId == null) return;
     const close = (e) => {
-      const el = e.target?.closest?.('.admin-academico-grupo-card__menu');
-      if (!el) setMenuGrupoId(null);
+      if (e.target?.closest?.('.admin-academico-grupo-card__menu')) return;
+      if (e.target?.closest?.('.admin-academico-grupo-card__dropdown--portal')) return;
+      cerrarMenuGrupo();
     };
     document.addEventListener('click', close);
     return () => document.removeEventListener('click', close);
-  }, [menuGrupoId]);
+  }, [menuGrupoId, cerrarMenuGrupo]);
 
   const gradosOpciones = useMemo(() => {
     const base = gradosDisponiblesPorNivel(form.nivel_id, nivelesLista);
@@ -1232,7 +1301,7 @@ function GruposPanel({ meta }) {
       return;
     }
     if (accion === 'lista_alumnos') {
-      setMenuGrupoId(null);
+      cerrarMenuGrupo();
       setHorarioModalGrupo(null);
       setListaAlumnosGrupoRow(row);
       return;
@@ -1262,7 +1331,7 @@ function GruposPanel({ meta }) {
       return;
     }
     if (accion === 'ver_horario') {
-      setMenuGrupoId(null);
+      cerrarMenuGrupo();
       setHorarioModalGrupo(row);
       return;
     }
@@ -1271,9 +1340,82 @@ function GruposPanel({ meta }) {
       setGrupoAsistenciaAdmin(row);
       return;
     }
+    if (accion === 'ver_nomina') {
+      cerrarMenuGrupo();
+      try {
+        const { elegirFormatoExportNomina, exportarExcelNominaGrupo } = await import(
+          '../../utils/excelNominaAlumnosGrupo'
+        );
+        const { generarPdfNominaUnGrupo } = await import('../../utils/pdfNominaAlumnosGrupo');
+        const formato = await elegirFormatoExportNomina(SwalAcademico);
+        if (!formato) return;
+
+        SwalAcademico.fire({
+          title: formato === 'excel' ? 'Generando Excel…' : 'Generando PDF…',
+          allowOutsideClick: false,
+          didOpen: () => {
+            SwalAcademico.showLoading();
+          },
+        });
+        const { data } = await api.get(`/docente/grupos/${row.id}/alumnos`);
+        const alumnos = data.alumnos || [];
+        if (!alumnos.length) {
+          SwalAcademico.close();
+          await SwalAcademico.fire({
+            icon: 'info',
+            title: 'Sin alumnos',
+            text: 'Este grupo no tiene alumnos matriculados para exportar.',
+          });
+          return;
+        }
+        const grupoNombre = `${row.grado}° ${etiquetaSeccionGrupo(row.seccion)} - ${row.nivel_nombre || ''} - ${row.turno_nombre || ''}`.replace(/\s*-\s*$/, '').trim();
+        const anioGrupo = row.anio != null ? parseInt(row.anio, 10) : parseInt(anio, 10);
+
+        if (formato === 'excel') {
+          await exportarExcelNominaGrupo({
+            titulo: 'REGISTRO ACADÉMICO',
+            subtitulo: grupoNombre,
+            meta: { grado: grupoNombre },
+            filas: alumnos,
+            filename: `Nomina_${grupoNombre.replace(/\s+/g, '_')}`,
+          });
+          SwalAcademico.close();
+          await SwalAcademico.fire({
+            icon: 'success',
+            title: 'Excel generado',
+            text: 'La nómina se ha descargado correctamente',
+            timer: 2000,
+            showConfirmButton: false,
+          });
+          return;
+        }
+
+        await generarPdfNominaUnGrupo({
+          titulo: grupoNombre,
+          filas: alumnos,
+          anio: Number.isFinite(anioGrupo) ? anioGrupo : undefined,
+        });
+        SwalAcademico.close();
+        await SwalAcademico.fire({
+          icon: 'success',
+          title: 'PDF generado',
+          text: 'La nómina se ha descargado correctamente',
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      } catch (e) {
+        SwalAcademico.close();
+        await SwalAcademico.fire({
+          icon: 'error',
+          title: 'Error',
+          text: e.response?.data?.error || e.message || 'No se pudo exportar la nómina',
+        });
+      }
+      return;
+    }
     if (accion === 'imprimir_qr') {
       if (vistaSoloLecturaGrados) return;
-      setMenuGrupoId(null);
+      cerrarMenuGrupo();
       try {
         SwalAcademico.fire({
           title: 'Generando carnets…',
@@ -1317,7 +1459,7 @@ function GruposPanel({ meta }) {
     }
     if (accion === 'registro_notas') {
       if (vistaSoloLecturaGrados) return;
-      setMenuGrupoId(null);
+      cerrarMenuGrupo();
       const anioEsperado = row.anio != null ? parseInt(row.anio, 10) : parseInt(anio, 10);
       if (!Number.isFinite(anioEsperado)) {
         await SwalAcademico.fire({ icon: 'error', title: 'Error', text: 'No se pudo determinar el año del grupo.' });
@@ -1413,7 +1555,7 @@ function GruposPanel({ meta }) {
       return;
     }
     if (accion === 'ver_libretas') {
-      setMenuGrupoId(null);
+      cerrarMenuGrupo();
       await abrirVerLibretasGrupo(row, {
         alumnosApiUrl: `/docente/grupos/${row.id}/alumnos`,
         anioEsperado: row.anio != null ? parseInt(row.anio, 10) : parseInt(anio, 10),
@@ -1424,13 +1566,13 @@ function GruposPanel({ meta }) {
     }
     if (accion === 'registrar_conducta') {
       if (vistaSoloLecturaGrados) return;
-      setMenuGrupoId(null);
+      cerrarMenuGrupo();
       setGrupoConductaAdmin(row);
       return;
     }
     if (accion === 'recomendaciones') {
       if (vistaSoloLecturaGrados) return;
-      setMenuGrupoId(null);
+      cerrarMenuGrupo();
       setGrupoRecomendacionesAdmin(row);
       setMostrarModalRecomendacionesAdmin(true);
       setRecomendacionesCicloAdmin(1);
@@ -1573,35 +1715,16 @@ function GruposPanel({ meta }) {
                       aria-haspopup="menu"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setMenuGrupoId(menuGrupoId === r.id ? null : r.id);
+                        if (menuGrupoId === r.id) {
+                          cerrarMenuGrupo();
+                        } else {
+                          setMenuGrupoId(r.id);
+                          setMenuGrupoAnchor(e.currentTarget);
+                        }
                       }}
                     >
                       Opciones
                     </button>
-                    {menuGrupoId === r.id && (
-                      <div
-                        className="admin-academico-grupo-card__dropdown"
-                        role="menu"
-                      >
-                        {opcionesGrupoMenuParaFila(r, opcionesGrupoMenuVisibles).map((op) => (
-                          <button
-                            key={op.key}
-                            type="button"
-                            role="menuitem"
-                            className={`admin-academico-grupo-card__dropdown-item${op.danger ? ' admin-academico-grupo-card__dropdown-item--danger' : ''}`}
-                            onClick={async () => {
-                              setMenuGrupoId(null);
-                              await accionGrupoMenu(op.key, r);
-                            }}
-                          >
-                            <span className="admin-academico-grupo-card__dropdown-icon" aria-hidden>
-                              {op.icon}
-                            </span>
-                            {op.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
               </article>
@@ -1609,6 +1732,36 @@ function GruposPanel({ meta }) {
           })}
         </div>
       )}
+
+      {(() => {
+        const rowMenu = menuGrupoId != null ? rows.find((x) => x.id === menuGrupoId) : null;
+        if (!rowMenu || !menuGrupoAnchor) return null;
+        return (
+          <GrupoOpcionesMenuPortal
+            open
+            anchorEl={menuGrupoAnchor}
+            onClose={cerrarMenuGrupo}
+          >
+            {opcionesGrupoMenuParaFila(rowMenu, opcionesGrupoMenuVisibles).map((op) => (
+              <button
+                key={op.key}
+                type="button"
+                role="menuitem"
+                className={`admin-academico-grupo-card__dropdown-item${op.danger ? ' admin-academico-grupo-card__dropdown-item--danger' : ''}`}
+                onClick={async () => {
+                  cerrarMenuGrupo();
+                  await accionGrupoMenu(op.key, rowMenu);
+                }}
+              >
+                <span className="admin-academico-grupo-card__dropdown-icon" aria-hidden>
+                  {op.icon}
+                </span>
+                {op.label}
+              </button>
+            ))}
+          </GrupoOpcionesMenuPortal>
+        );
+      })()}
 
       <ModalRoot
         open={!!(modal && meta)}

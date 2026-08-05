@@ -2229,6 +2229,45 @@ function DocenteCursos() {
     });
   };
 
+  const exportarExcelNomina = async () => {
+    if (!cursoParaNomina || alumnosNomina.length === 0) return;
+    try {
+      const { exportarExcelNominaGrupo } = await import('../utils/excelNominaAlumnosGrupo');
+      const docenteNombre = user?.apellidos
+        ? `${user.apellidos}, ${user.nombres}`
+        : `${[user?.apellido_paterno, user?.apellido_materno].filter(Boolean).join(' ')}, ${user?.nombres || ''}`.trim();
+      await exportarExcelNominaGrupo({
+        titulo: 'REGISTRO ACADÉMICO',
+        subtitulo: cursoParaNomina.curso_nombre || 'Curso',
+        meta: {
+          curso: cursoParaNomina.curso_nombre,
+          grado: `${cursoParaNomina.grado}° ${cursoParaNomina.seccion} ${cursoParaNomina.nivel_nombre || ''}`.trim(),
+          docente: docenteNombre,
+          bimestre: bimestreNomina,
+        },
+        filas: alumnosNomina,
+        notasPorMatricula: notasNomina,
+        filename: `Nomina_${String(cursoParaNomina.curso_nombre || 'Curso').replace(/\s+/g, '_')}_B${bimestreNomina}`,
+      });
+      Swal.fire({
+        title: '¡Excel Generado!',
+        text: 'La nómina se ha descargado correctamente',
+        icon: 'success',
+        zIndex: 100001,
+        timer: 2000,
+        showConfirmButton: false,
+      });
+    } catch (err) {
+      console.error('Error exportando nómina Excel:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: err.message || 'No se pudo generar el Excel',
+        zIndex: 100001,
+      });
+    }
+  };
+
   const handleCursoAction = (curso, action) => {
     setOpenDropdown(null); // Cerrar dropdown al seleccionar una opción
     setDropdownPosition(null);
@@ -4975,6 +5014,14 @@ function DocenteCursos() {
                       disabled={loadingNomina || alumnosNomina.length === 0}
                     >
                       📥 Exportar PDF
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-exportar-excel-nomina"
+                      onClick={() => exportarExcelNomina()}
+                      disabled={loadingNomina || alumnosNomina.length === 0}
+                    >
+                      📊 Exportar Excel
                     </button>
                   </div>
                 </div>

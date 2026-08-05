@@ -868,6 +868,22 @@ body.admin-academico-modal-open .swal2-container.admin-academico-swal-over-modal
   z-index: 20;
 }
 
+/* Portal en document.body: no se recorta por overflow del panel / cards superiores */
+.admin-academico-grupo-card__dropdown-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10055;
+  background: transparent;
+}
+
+.admin-academico-grupo-card__dropdown--portal {
+  position: fixed;
+  bottom: auto;
+  left: auto;
+  right: auto;
+  z-index: 10060;
+}
+
 .admin-academico-grupo-card__dropdown-item {
   display: flex;
   align-items: center;

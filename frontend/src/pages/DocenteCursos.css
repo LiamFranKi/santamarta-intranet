@@ -2316,6 +2316,26 @@
   cursor: not-allowed;
 }
 
+.btn-exportar-excel-nomina {
+  background: rgba(255, 255, 255, 0.9);
+  color: #059669;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.btn-exportar-excel-nomina:hover:not(:disabled) {
+  background: white;
+}
+
+.btn-exportar-excel-nomina:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .modal-nomina-container {
   max-width: 98vw;
   width: min(1200px, 98vw);
