@@ -61,6 +61,13 @@ export async function generarPdfTardanzasPersonal({
     return y + 8;
   };
 
+  const drawCenteredInCol = (txt, colX, colW, textY) => {
+    doc.text(safeTxt(txt), colX + colW / 2, textY, {
+      align: 'center',
+      maxWidth: Math.max(colW - 2, 4),
+    });
+  };
+
   const drawTableHead = (y) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7);
@@ -70,7 +77,7 @@ export async function generarPdfTardanzasPersonal({
     doc.setTextColor(255, 255, 255);
     let x = MARGIN;
     labels.forEach((lb, i) => {
-      doc.text(lb, x + 2, y + 5.2, { maxWidth: widths[i] - 4 });
+      drawCenteredInCol(lb, x, widths[i], y + 5.2);
       x += widths[i];
     });
     doc.setTextColor(0, 0, 0);
@@ -129,7 +136,7 @@ export async function generarPdfTardanzasPersonal({
         ];
     let x = MARGIN;
     cells.forEach((txt, i) => {
-      doc.text(safeTxt(txt), x + 2, y + 4.5, { maxWidth: widths[i] - 4 });
+      drawCenteredInCol(txt, x, widths[i], y + 4.5);
       x += widths[i];
     });
     y += ROW_H;

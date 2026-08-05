@@ -839,33 +839,124 @@ async function calcularTardanzasMesColegio(query, colegioId, params = {}) {
   };
 }
 
-function buildExportWorkbook(lista) {
-  const wb = XLSX.utils.book_new();
-  const data = [
-    [
-      'Personal',
-      'Fecha',
-      'Hora entrada real',
-      'Hora entrada',
-      'Min. tardanza',
-      'Descuento S/.',
-      'Hora salida',
-    ],
-    ...(lista.filas || []).map((f) => [
-      f.personal_nombre,
-      f.fecha,
-      f.hora_entrada_real_fmt,
-      f.hora_marcacion_fmt,
-      f.minutos_tardanza,
-      f.descuento,
-      f.hora_salida_fmt && f.hora_salida_fmt !== '—' ? f.hora_salida_fmt : '',
-    ]),
-    [],
-    ['', '', '', '', 'TOTAL', lista.total_descuento, ''],
+function fmtFechaExcel(iso) {
+  const s = String(iso || '').slice(0, 10);
+  const [y, m, d] = s.split('-');
+  if (!d) return s;
+  return `${d}/${m}/${y}`;
+}
+
+/** Excel con formato (cabecera, bordes, anchos). Async → Buffer. */
+async function buildExportWorkbook(lista) {
+  const ExcelJS = require('exceljs');
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Intranet Vanguard';
+  const ws = wb.addWorksheet('Tardanzas', {
+    views: [{ state: 'frozen', ySplit: 3, showGridLines: false }],
+  });
+
+  const headers = [
+    'Personal',
+    'Fecha',
+    'Hora entrada real',
+    'Hora entrada',
+    'Min. tardanza',
+    'Descuento S/.',
+    'Hora salida',
   ];
-  const ws = XLSX.utils.aoa_to_sheet(data);
-  XLSX.utils.book_append_sheet(wb, ws, 'Tardanzas');
-  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  const colWidths = [36, 12, 16, 14, 13, 14, 12];
+  colWidths.forEach((w, i) => {
+    ws.getColumn(i + 1).width = w;
+  });
+
+  const thin = { style: 'thin', color: { argb: 'FF94A3B8' } };
+  const border = { top: thin, left: thin, bottom: thin, right: thin };
+  const fillHead = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E40AF' } };
+  const fillAlt = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+  const fillTotal = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFF6FF' } };
+  const center = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  const leftMid = { horizontal: 'left', vertical: 'middle' };
+
+  // Título
+  ws.mergeCells(1, 1, 1, 7);
+  const title = ws.getCell(1, 1);
+  title.value = `Tardanzas del personal${lista.colegio_nombre ? ` — ${lista.colegio_nombre}` : ''}`;
+  title.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
+  title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
+  title.alignment = center;
+  ws.getRow(1).height = 24;
+
+  // Subtítulo
+  ws.mergeCells(2, 1, 2, 7);
+  const sub = ws.getCell(2, 1);
+  const tarifa = lista.tarifa_por_minuto != null ? lista.tarifa_por_minuto : DESCUENTO_POR_MINUTO;
+  sub.value = `Año ${lista.anio || '—'} · Tarifa: S/ ${Number(tarifa).toFixed(2)} por minuto · ${lista.total_registros || (lista.filas || []).length} registro(s)`;
+  sub.font = { size: 9, color: { argb: 'FF334155' } };
+  sub.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+  sub.alignment = center;
+  ws.getRow(2).height = 18;
+
+  // Cabecera
+  const headRow = ws.getRow(3);
+  headers.forEach((h, i) => {
+    const cell = headRow.getCell(i + 1);
+    cell.value = h;
+    cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+    cell.fill = fillHead;
+    cell.alignment = center;
+    cell.border = border;
+  });
+  headRow.height = 20;
+
+  const filas = lista.filas || [];
+  filas.forEach((f, idx) => {
+    const row = ws.getRow(4 + idx);
+    const salida =
+      f.hora_salida_fmt && f.hora_salida_fmt !== '—'
+        ? f.hora_salida_fmt
+        : f.hora_salida
+          ? String(f.hora_salida).slice(0, 5)
+          : '—';
+    const vals = [
+      f.personal_nombre || '',
+      fmtFechaExcel(f.fecha),
+      f.hora_entrada_real_fmt && f.hora_entrada_real_fmt !== '—' ? f.hora_entrada_real_fmt : '—',
+      f.hora_marcacion_fmt && f.hora_marcacion_fmt !== '—' ? f.hora_marcacion_fmt : '—',
+      f.minutos_tardanza != null ? f.minutos_tardanza : 0,
+      Number(f.descuento || 0),
+      salida,
+    ];
+    vals.forEach((v, i) => {
+      const cell = row.getCell(i + 1);
+      cell.value = v;
+      cell.border = border;
+      cell.alignment = i === 0 ? leftMid : center;
+      cell.font = { size: 10 };
+      if (idx % 2 === 1) cell.fill = fillAlt;
+      if (i === 5 && typeof v === 'number') {
+        cell.numFmt = '"S/"#,##0.00';
+      }
+    });
+    row.height = 18;
+  });
+
+  const totalRowNum = 4 + filas.length;
+  const totalRow = ws.getRow(totalRowNum);
+  for (let c = 1; c <= 7; c += 1) {
+    const cell = totalRow.getCell(c);
+    cell.fill = fillTotal;
+    cell.border = border;
+    cell.font = { bold: true, size: 10 };
+    cell.alignment = center;
+  }
+  totalRow.getCell(1).value = '';
+  totalRow.getCell(5).value = 'TOTAL';
+  totalRow.getCell(6).value = Number(lista.total_descuento || 0);
+  totalRow.getCell(6).numFmt = '"S/"#,##0.00';
+  totalRow.height = 20;
+
+  const buf = await wb.xlsx.writeBuffer();
+  return Buffer.from(buf);
 }
 
 module.exports = {

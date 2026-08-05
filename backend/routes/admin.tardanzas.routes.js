@@ -96,7 +96,7 @@ router.get('/export', async (req, res) => {
   try {
     const { query } = require('../utils/mysql');
     const data = await listarTardanzas(query, colegioId(req), req.query);
-    const buf = buildExportWorkbook(data);
+    const buf = await buildExportWorkbook(data);
     const suffix = new Date().toISOString().slice(0, 10);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="tardanzas-personal-${suffix}.xlsx"`);
