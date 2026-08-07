@@ -1555,6 +1555,10 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>🔔</span>
                     <span className="sidebar-label">Notificaciones</span>
                   </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/reclamos-sugerencias">
+                    <span className="sidebar-icon" aria-hidden>📬</span>
+                    <span className="sidebar-label">Reclamos y Sugerencias</span>
+                  </NavLink>
                 </div>
               </div>
               <div className="sidebar-menu-item">

@@ -336,6 +336,8 @@ const adminReportesGeneralRoutes = require('./routes/admin.reportes.general.rout
 app.use('/api/admin/reportes/general', adminReportesGeneralRoutes);
 const adminTardanzasRoutes = require('./routes/admin.tardanzas.routes');
 app.use('/api/admin/tardanzas', adminTardanzasRoutes);
+const adminReclamosSugerenciasRoutes = require('./routes/admin.reclamosSugerencias.routes');
+app.use('/api/admin/reclamos-sugerencias', adminReclamosSugerenciasRoutes);
 const personalTardanzasRoutes = require('./routes/personal.tardanzas.routes');
 app.use('/api/personal/tardanzas', personalTardanzasRoutes);
 const biometricoRoutes = require('./routes/biometrico.routes');
