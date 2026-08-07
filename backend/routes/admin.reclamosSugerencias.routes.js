@@ -143,6 +143,26 @@ router.get('/reclamos/:id', async (req, res) => {
   }
 });
 
+/** Al abrir en admin: si está «nuevo», pasa a «en_revision». */
+router.post('/reclamos/:id/marcar-visto', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const rows = await query('SELECT id, estado FROM web_reclamos WHERE id = ? LIMIT 1', [id]);
+    if (!rows?.length) return res.status(404).json({ error: 'Reclamo no encontrado' });
+    let cambiado = false;
+    if (String(rows[0].estado || '') === 'nuevo') {
+      await execute(`UPDATE web_reclamos SET estado = 'en_revision' WHERE id = ? AND estado = 'nuevo'`, [id]);
+      cambiado = true;
+    }
+    const updated = await query('SELECT * FROM web_reclamos WHERE id = ? LIMIT 1', [id]);
+    res.json({ reclamo: mapReclamo(updated[0]), cambiado });
+  } catch (e) {
+    console.error('[admin/reclamos-sugerencias marcar-visto reclamo]', e);
+    res.status(500).json({ error: e.message || 'Error al marcar como visto.' });
+  }
+});
+
 router.put('/reclamos/:id', async (req, res) => {
   try {
     const id = parseId(req.params.id);
@@ -279,6 +299,26 @@ router.get('/sugerencias/:id', async (req, res) => {
   } catch (e) {
     console.error('[admin/reclamos-sugerencias/sugerencias/:id]', e);
     res.status(500).json({ error: e.message || 'Error al obtener sugerencia.' });
+  }
+});
+
+/** Al abrir en admin: si está «nuevo», pasa a «en_revision». */
+router.post('/sugerencias/:id/marcar-visto', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const rows = await query('SELECT id, estado FROM web_sugerencias WHERE id = ? LIMIT 1', [id]);
+    if (!rows?.length) return res.status(404).json({ error: 'Sugerencia no encontrada' });
+    let cambiado = false;
+    if (String(rows[0].estado || '') === 'nuevo') {
+      await execute(`UPDATE web_sugerencias SET estado = 'en_revision' WHERE id = ? AND estado = 'nuevo'`, [id]);
+      cambiado = true;
+    }
+    const updated = await query('SELECT * FROM web_sugerencias WHERE id = ? LIMIT 1', [id]);
+    res.json({ sugerencia: updated[0], cambiado });
+  } catch (e) {
+    console.error('[admin/reclamos-sugerencias marcar-visto sugerencia]', e);
+    res.status(500).json({ error: e.message || 'Error al marcar como visto.' });
   }
 });
 

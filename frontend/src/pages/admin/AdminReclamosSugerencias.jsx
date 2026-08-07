@@ -720,11 +720,23 @@ export default function AdminReclamosSugerencias() {
       if (tab === 'reclamos' && tipoReclamo) params.tipo = tipoReclamo;
 
       if (tab === 'reclamos') {
-        const { data } = await api.get(`${API}/reclamos`, { params });
+        const [{ data }, sugRes] = await Promise.all([
+          api.get(`${API}/reclamos`, { params }),
+          api.get(`${API}/sugerencias`).catch(() => ({ data: { sugerencias: null } })),
+        ]);
         setReclamos(data.reclamos || []);
+        if (Array.isArray(sugRes.data?.sugerencias)) {
+          setSugerencias(sugRes.data.sugerencias);
+        }
       } else {
-        const { data } = await api.get(`${API}/sugerencias`, { params });
+        const [{ data }, recRes] = await Promise.all([
+          api.get(`${API}/sugerencias`, { params }),
+          api.get(`${API}/reclamos`).catch(() => ({ data: { reclamos: null } })),
+        ]);
         setSugerencias(data.sugerencias || []);
+        if (Array.isArray(recRes.data?.reclamos)) {
+          setReclamos(recRes.data.reclamos);
+        }
       }
     } catch (e) {
       setError(e.response?.data?.error || 'Error al cargar datos');
@@ -737,10 +749,50 @@ export default function AdminReclamosSugerencias() {
     cargar();
   }, [cargar]);
 
-  const countNuevos = useMemo(() => {
-    const list = tab === 'reclamos' ? reclamos : sugerencias;
-    return list.filter((x) => x.estado === 'nuevo').length;
-  }, [tab, reclamos, sugerencias]);
+  const nuevosReclamos = useMemo(
+    () => reclamos.filter((x) => x.estado === 'nuevo').length,
+    [reclamos]
+  );
+  const nuevasSugerencias = useMemo(
+    () => sugerencias.filter((x) => x.estado === 'nuevo').length,
+    [sugerencias]
+  );
+
+  const abrirReclamo = async (row, mode) => {
+    let item = row;
+    if (row?.estado === 'nuevo') {
+      try {
+        const { data } = await api.post(`${API}/reclamos/${row.id}/marcar-visto`);
+        if (data?.reclamo) {
+          item = data.reclamo;
+          setReclamos((prev) =>
+            prev.map((r) => (r.id === row.id ? { ...r, ...data.reclamo, estado: data.reclamo.estado } : r))
+          );
+        }
+      } catch (e) {
+        console.warn('No se pudo marcar reclamo como visto:', e);
+      }
+    }
+    setModalReclamo({ open: true, mode, item });
+  };
+
+  const abrirSugerencia = async (row, mode) => {
+    let item = row;
+    if (row?.estado === 'nuevo') {
+      try {
+        const { data } = await api.post(`${API}/sugerencias/${row.id}/marcar-visto`);
+        if (data?.sugerencia) {
+          item = data.sugerencia;
+          setSugerencias((prev) =>
+            prev.map((r) => (r.id === row.id ? { ...r, ...data.sugerencia, estado: data.sugerencia.estado } : r))
+          );
+        }
+      } catch (e) {
+        console.warn('No se pudo marcar sugerencia como vista:', e);
+      }
+    }
+    setModalSugerencia({ open: true, mode, item });
+  };
 
   const eliminarReclamo = async (row) => {
     const conf = await Swal.fire({
@@ -845,10 +897,7 @@ export default function AdminReclamosSugerencias() {
             onClick={() => setTab('reclamos')}
           >
             📋 Reclamos
-            {tab === 'reclamos' && countNuevos > 0 && <span className="rs-tab-badge">{countNuevos}</span>}
-            {tab !== 'reclamos' && reclamos.filter((r) => r.estado === 'nuevo').length > 0 && (
-              <span className="rs-tab-badge">{reclamos.filter((r) => r.estado === 'nuevo').length}</span>
-            )}
+            {nuevosReclamos > 0 && <span className="rs-tab-badge">{nuevosReclamos}</span>}
           </button>
           <button
             type="button"
@@ -856,6 +905,7 @@ export default function AdminReclamosSugerencias() {
             onClick={() => setTab('sugerencias')}
           >
             💡 Sugerencias
+            {nuevasSugerencias > 0 && <span className="rs-tab-badge">{nuevasSugerencias}</span>}
           </button>
         </nav>
 
@@ -949,7 +999,7 @@ export default function AdminReclamosSugerencias() {
                             type="button"
                             className="rs-btn rs-btn-ghost rs-btn-sm"
                             title="Ver"
-                            onClick={() => setModalReclamo({ open: true, mode: 'view', item: row })}
+                            onClick={() => abrirReclamo(row, 'view')}
                           >
                             👁️
                           </button>
@@ -957,7 +1007,7 @@ export default function AdminReclamosSugerencias() {
                             type="button"
                             className="rs-btn rs-btn-ghost rs-btn-sm"
                             title="Editar"
-                            onClick={() => setModalReclamo({ open: true, mode: 'edit', item: row })}
+                            onClick={() => abrirReclamo(row, 'edit')}
                           >
                             ✏️
                           </button>
@@ -1010,7 +1060,7 @@ export default function AdminReclamosSugerencias() {
                           type="button"
                           className="rs-btn rs-btn-ghost rs-btn-sm"
                           title="Ver"
-                          onClick={() => setModalSugerencia({ open: true, mode: 'view', item: row })}
+                          onClick={() => abrirSugerencia(row, 'view')}
                         >
                           👁️
                         </button>
@@ -1018,7 +1068,7 @@ export default function AdminReclamosSugerencias() {
                           type="button"
                           className="rs-btn rs-btn-ghost rs-btn-sm"
                           title="Editar"
-                          onClick={() => setModalSugerencia({ open: true, mode: 'edit', item: row })}
+                          onClick={() => abrirSugerencia(row, 'edit')}
                         >
                           ✏️
                         </button>
