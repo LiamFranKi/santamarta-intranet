@@ -105,60 +105,86 @@ export default function AdminTardanzas() {
     }
   }, []);
 
-  const bioQueryParams = useMemo(() => {
-    const p = {};
-    if (bioPersonalId) p.personal_id = bioPersonalId;
-    if (bioDesde) p.desde = bioDesde;
-    if (bioHasta) p.hasta = bioHasta;
-    return p;
-  }, [bioPersonalId, bioDesde, bioHasta]);
+  const buildBioParams = useCallback(
+    (overrides = {}) => {
+      const pid = overrides.personal_id !== undefined ? overrides.personal_id : bioPersonalId;
+      const d = overrides.desde !== undefined ? overrides.desde : bioDesde;
+      const h = overrides.hasta !== undefined ? overrides.hasta : bioHasta;
+      const p = {};
+      if (pid) p.personal_id = pid;
+      if (d) p.desde = d;
+      if (h) p.hasta = h;
+      return p;
+    },
+    [bioPersonalId, bioDesde, bioHasta]
+  );
 
-  const loadBioEstado = useCallback(async () => {
-    setBioLoading(true);
-    try {
-      const { data } = await api.get('/biometrico/admin/estado', { params: bioQueryParams });
-      setBioEstado(data);
-    } catch (e) {
-      setBioEstado({
-        error: e.response?.data?.error || 'No se pudo cargar el estado del biométrico.',
-      });
-    } finally {
-      setBioLoading(false);
-    }
-  }, [bioQueryParams]);
+  /** Solo filtra al pulsar Filtrar / Solo hoy / Actualizar (no al tipear Desde). */
+  const loadBioEstado = useCallback(
+    async (overrides) => {
+      setBioLoading(true);
+      try {
+        const { data } = await api.get('/biometrico/admin/estado', {
+          params: buildBioParams(overrides || {}),
+        });
+        setBioEstado(data);
+      } catch (e) {
+        setBioEstado({
+          error: e.response?.data?.error || 'No se pudo cargar el estado del biométrico.',
+        });
+      } finally {
+        setBioLoading(false);
+      }
+    },
+    [buildBioParams]
+  );
 
-  const queryParams = useMemo(() => {
-    const p = {};
-    if (personalId) p.personal_id = personalId;
-    if (desde) p.desde = desde;
-    if (hasta) p.hasta = hasta;
-    return p;
-  }, [personalId, desde, hasta]);
+  const buildListaParams = useCallback(
+    (overrides = {}) => {
+      const pid = overrides.personal_id !== undefined ? overrides.personal_id : personalId;
+      const d = overrides.desde !== undefined ? overrides.desde : desde;
+      const h = overrides.hasta !== undefined ? overrides.hasta : hasta;
+      const p = {};
+      if (pid) p.personal_id = pid;
+      if (d) p.desde = d;
+      if (h) p.hasta = h;
+      return p;
+    },
+    [personalId, desde, hasta]
+  );
 
-  const loadLista = useCallback(async () => {
-    setListaLoading(true);
-    try {
-      const { data } = await api.get('/admin/tardanzas/lista', { params: queryParams });
-      setLista(data);
-    } catch (e) {
-      setLista(null);
-      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar la lista.' });
-    } finally {
-      setListaLoading(false);
-    }
-  }, [queryParams]);
+  const loadLista = useCallback(
+    async (overrides) => {
+      setListaLoading(true);
+      try {
+        const { data } = await api.get('/admin/tardanzas/lista', {
+          params: buildListaParams(overrides || {}),
+        });
+        setLista(data);
+      } catch (e) {
+        setLista(null);
+        Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar la lista.' });
+      } finally {
+        setListaLoading(false);
+      }
+    },
+    [buildListaParams]
+  );
 
   useEffect(() => {
     loadMeta();
   }, [loadMeta]);
 
+  // Carga inicial una sola vez (no al cambiar Desde/Hasta; eso es con el botón Filtrar)
   useEffect(() => {
     loadLista();
-  }, [loadLista]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo montaje
+  }, []);
 
   useEffect(() => {
     if (tabActiva === 'biometrico') loadBioEstado();
-  }, [tabActiva, loadBioEstado]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al cambiar de tab
+  }, [tabActiva]);
 
   const onArchivoChange = (e) => {
     const f = e.target.files?.[0];
@@ -452,7 +478,7 @@ export default function AdminTardanzas() {
     setExportLoading(true);
     try {
       const res = await api.get('/admin/tardanzas/export', {
-        params: queryParams,
+        params: buildListaParams(),
         responseType: 'blob',
       });
       const url = window.URL.createObjectURL(new Blob([res.data]));
@@ -497,7 +523,7 @@ export default function AdminTardanzas() {
     setExportLoading(true);
     try {
       const res = await api.get('/admin/tardanzas/export', {
-        params: bioQueryParams,
+        params: buildBioParams(),
         responseType: 'blob',
       });
       const url = window.URL.createObjectURL(new Blob([res.data]));
@@ -791,11 +817,12 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                         setBioPersonalId('');
                         setBioDesde(hoy);
                         setBioHasta(hoy);
+                        loadBioEstado({ personal_id: '', desde: hoy, hasta: hoy });
                       }}
                     >
                       Solo hoy
                     </button>
-                    <button type="button" className="admin-tardanzas-btn" onClick={loadBioEstado}>
+                    <button type="button" className="admin-tardanzas-btn" onClick={() => loadBioEstado()}>
                       Filtrar
                     </button>
                     <button
