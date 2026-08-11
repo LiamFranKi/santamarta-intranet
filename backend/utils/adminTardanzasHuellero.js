@@ -744,6 +744,113 @@ async function eliminarRegistroTardanza(query, execute, colegioId, registroId) {
   return { ok: true, id: registroId };
 }
 
+/**
+ * Alta manual (olvido de marcación): personal + fecha + hora entrada (+ salida opcional).
+ * Si ya existe registro ese día, lo actualiza (mismo criterio que editar).
+ */
+async function crearRegistroManual(
+  query,
+  execute,
+  colegioId,
+  { personalId, fecha, horaEntrada, horaSalida },
+  auditUserId
+) {
+  const pid = parseInt(personalId, 10);
+  if (!Number.isFinite(pid)) {
+    const err = new Error('Seleccione el personal.');
+    err.status = 400;
+    throw err;
+  }
+
+  const fechaIso = fechaIsoFromValue(fecha);
+  if (!fechaIso || !/^\d{4}-\d{2}-\d{2}$/.test(fechaIso)) {
+    const err = new Error('Indique una fecha válida (AAAA-MM-DD).');
+    err.status = 400;
+    throw err;
+  }
+
+  const he = parseHoraMarcacion(horaEntrada);
+  if (!he) {
+    const err = new Error('Indique la hora de entrada (HH:MM).');
+    err.status = 400;
+    throw err;
+  }
+
+  let hs = null;
+  if (horaSalida != null && String(horaSalida).trim() !== '') {
+    hs = parseHoraMarcacion(horaSalida);
+    if (!hs) {
+      const err = new Error('Hora de salida inválida (use HH:MM).');
+      err.status = 400;
+      throw err;
+    }
+  }
+
+  const entradaMin = toMinutesFromMidnight(he);
+  const salidaMin = toMinutesFromMidnight(hs);
+  if (entradaMin != null && salidaMin != null && salidaMin < entradaMin) {
+    const err = new Error('La hora de salida no puede ser anterior a la de entrada.');
+    err.status = 400;
+    throw err;
+  }
+
+  const personalList = await loadPersonalColegio(query, colegioId);
+  const personal = personalList.find((p) => Number(p.personal_id) === pid);
+  if (!personal) {
+    const err = new Error('Personal no encontrado en el colegio.');
+    err.status = 404;
+    throw err;
+  }
+  if (!personal.usuario_id) {
+    const err = new Error(
+      'Ese personal no tiene usuario activo en la intranet. Cree el usuario antes de registrar asistencia.'
+    );
+    err.status = 400;
+    throw err;
+  }
+
+  const { anio } = await getAnioActivo(query, colegioId);
+  const existing = await findRegistrosMarcacion(query, personal.usuario_id, colegioId, fechaIso, anio);
+  const tipo = hs ? 'ENTRADA_SALIDA' : 'ENTRADA';
+  let accion = 'insertado';
+  let registroId;
+
+  if (existing.length > 0) {
+    registroId = existing[0].id;
+    const dupIds = existing.slice(1).map((r) => r.id);
+    if (dupIds.length) {
+      await execute(
+        `DELETE FROM asistencia_registros WHERE id IN (${dupIds.map(() => '?').join(',')})`,
+        dupIds
+      );
+    }
+    await execute(
+      `UPDATE asistencia_registros
+       SET hora_entrada = ?, hora_salida = ?, tipo_registro = ?,
+           actualizado_por = ?, fecha_actualizacion = NOW()
+       WHERE id = ? AND colegio_id = ?`,
+      [he, hs, tipo, auditUserId ?? null, registroId, colegioId]
+    );
+    accion = 'actualizado';
+  } else {
+    const ins = await execute(
+      `INSERT INTO asistencia_registros
+       (usuario_id, colegio_id, anio, fecha, tipo_registro, hora_entrada, hora_salida, creado_por, fecha_creacion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [personal.usuario_id, colegioId, anio, fechaIso, tipo, he, hs, auditUserId ?? null]
+    );
+    registroId = ins.insertId;
+  }
+
+  const updated = await getRegistroTardanzaPersonal(query, registroId, colegioId);
+  const fila = mapRowToFilaTardanza(updated);
+  fila.hora_salida = updated?.hora_salida
+    ? parseHoraMarcacion(updated.hora_salida) || String(updated.hora_salida).slice(0, 8)
+    : null;
+  fila.hora_salida_fmt = formatHoraDisplay(fila.hora_salida);
+  return { accion, fila };
+}
+
 async function listarTardanzas(query, colegioId, params = {}) {
   const { anio, colegio_nombre } = await getAnioActivo(query, colegioId);
   const personalId = params.personal_id ? parseInt(params.personal_id, 10) : null;
@@ -985,4 +1092,5 @@ module.exports = {
   upsertMarcacionDia,
   upsertMarcacionEntradaSalida,
   actualizarEntradaSalidaRegistro,
+  crearRegistroManual,
 };

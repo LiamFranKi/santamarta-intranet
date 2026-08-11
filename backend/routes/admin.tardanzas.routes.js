@@ -12,6 +12,7 @@ const {
   actualizarHoraRegistro,
   actualizarEntradaSalidaRegistro,
   eliminarRegistroTardanza,
+  crearRegistroManual,
   calcularTardanzasMesColegio,
   loadPersonalColegio,
   getAnioActivo,
@@ -209,6 +210,42 @@ router.delete('/registro/:id', async (req, res) => {
   } catch (e) {
     console.error('[admin/tardanzas/registro DELETE]', e);
     res.status(e.status || 500).json({ error: e.message || 'Error al eliminar el registro.' });
+  }
+});
+
+/**
+ * POST /api/admin/tardanzas/registro
+ * Alta manual por olvido de marcación: { personal_id, fecha, hora_entrada, hora_salida? }
+ */
+router.post('/registro', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const { query, execute } = require('../utils/mysql');
+    const adminUsuarioId = req.user?.usuario_id || req.user?.id || null;
+    const result = await crearRegistroManual(
+      query,
+      execute,
+      colegioId(req),
+      {
+        personalId: body.personal_id,
+        fecha: body.fecha,
+        horaEntrada: body.hora_entrada,
+        horaSalida: body.hora_salida,
+      },
+      adminUsuarioId
+    );
+    res.status(result.accion === 'insertado' ? 201 : 200).json({
+      ok: true,
+      accion: result.accion,
+      fila: result.fila,
+      message:
+        result.accion === 'insertado'
+          ? 'Ingreso registrado correctamente.'
+          : 'Ya existía un registro ese día; se actualizaron las horas.',
+    });
+  } catch (e) {
+    console.error('[admin/tardanzas/registro POST]', e);
+    res.status(e.status || 500).json({ error: e.message || 'Error al crear el registro.' });
   }
 });
 

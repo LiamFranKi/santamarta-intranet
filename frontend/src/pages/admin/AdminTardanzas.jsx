@@ -365,6 +365,89 @@ export default function AdminTardanzas() {
     }
   };
 
+  /** Alta manual cuando alguien olvidó marcar un día. */
+  const agregarIngresoManual = async () => {
+    const personalOpts = (meta?.personal || [])
+      .map((p) => `<option value="${p.id}">${String(p.nombre || '').replace(/</g, '')}</option>`)
+      .join('');
+    if (!personalOpts) {
+      Swal.fire({ icon: 'info', title: 'Personal', text: 'No hay personal cargado. Recargue la página.' });
+      return;
+    }
+    const fechaDef = bioDesde || desde || hoyLimaISO();
+    const personalDef = bioPersonalId || personalId || '';
+
+    const r = await Swal.fire({
+      icon: 'question',
+      title: 'Agregar ingreso',
+      width: '28rem',
+      html: `
+        <p style="margin:0 0 0.85rem;font-size:0.88rem;text-align:left;color:#64748b;line-height:1.4">
+          Use esta opción si alguien olvidó marcar. Indique fecha y horas. Si ya hay registro ese día, se actualizan las horas.
+        </p>
+        <label style="display:block;text-align:left;font-size:0.85rem;margin-bottom:0.3rem">Personal *</label>
+        <select id="swal-tz-personal" class="swal2-select" style="margin:0 0 0.75rem;width:100%">
+          <option value="">Seleccione…</option>
+          ${personalOpts}
+        </select>
+        <label style="display:block;text-align:left;font-size:0.85rem;margin-bottom:0.3rem">Fecha *</label>
+        <input id="swal-tz-fecha" type="date" class="swal2-input" value="${fechaDef}" style="margin:0 0 0.75rem;width:100%">
+        <label style="display:block;text-align:left;font-size:0.85rem;margin-bottom:0.3rem">Hora entrada *</label>
+        <input id="swal-tz-entrada" type="time" class="swal2-input" value="08:00" style="margin:0 0 0.75rem;width:100%">
+        <label style="display:block;text-align:left;font-size:0.85rem;margin-bottom:0.3rem">Hora salida (opcional)</label>
+        <input id="swal-tz-salida" type="time" class="swal2-input" value="" style="margin:0;width:100%">
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Guardar ingreso',
+      cancelButtonText: 'Cancelar',
+      focusConfirm: false,
+      didOpen: () => {
+        const sel = document.getElementById('swal-tz-personal');
+        if (sel && personalDef) sel.value = String(personalDef);
+      },
+      preConfirm: () => {
+        const pid = document.getElementById('swal-tz-personal')?.value;
+        const fecha = document.getElementById('swal-tz-fecha')?.value;
+        const he = document.getElementById('swal-tz-entrada')?.value;
+        const hs = document.getElementById('swal-tz-salida')?.value || '';
+        if (!pid) {
+          Swal.showValidationMessage('Seleccione el personal');
+          return false;
+        }
+        if (!fecha) {
+          Swal.showValidationMessage('Indique la fecha');
+          return false;
+        }
+        if (!he) {
+          Swal.showValidationMessage('Indique la hora de entrada');
+          return false;
+        }
+        return { personal_id: pid, fecha, hora_entrada: he, hora_salida: hs };
+      },
+    });
+    if (!r.isConfirmed || !r.value) return;
+
+    try {
+      Swal.fire({ title: 'Guardando…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      const { data } = await api.post('/admin/tardanzas/registro', r.value);
+      await loadBioEstado();
+      await loadLista();
+      Swal.fire({
+        icon: 'success',
+        title: data.accion === 'actualizado' ? 'Registro actualizado' : 'Ingreso agregado',
+        text: data.message || 'Guardado correctamente',
+        timer: 2200,
+        showConfirmButton: false,
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Agregar ingreso',
+        text: e.response?.data?.error || 'No se pudo guardar el registro.',
+      });
+    }
+  };
+
   const exportExcel = async () => {
     setExportLoading(true);
     try {
@@ -695,6 +778,13 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                   <div className="admin-tardanzas-toolbar__actions">
                     <button
                       type="button"
+                      className="admin-tardanzas-btn admin-tardanzas-btn--add"
+                      onClick={agregarIngresoManual}
+                    >
+                      + Agregar ingreso
+                    </button>
+                    <button
+                      type="button"
                       className="admin-tardanzas-btn"
                       onClick={() => {
                         const hoy = hoyLimaISO();
@@ -917,6 +1007,13 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                 <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
               </label>
               <div className="admin-tardanzas-toolbar__actions">
+                <button
+                  type="button"
+                  className="admin-tardanzas-btn admin-tardanzas-btn--add"
+                  onClick={agregarIngresoManual}
+                >
+                  + Agregar ingreso
+                </button>
                 <button type="button" className="admin-tardanzas-btn" onClick={loadLista} disabled={listaLoading}>
                   {listaLoading ? '…' : 'Actualizar'}
                 </button>

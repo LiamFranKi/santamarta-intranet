@@ -230,6 +230,16 @@
   background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
 }
 
+.admin-tardanzas-btn--add {
+  background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+  border-color: #0f766e;
+  color: #fff;
+}
+
+.admin-tardanzas-btn--add:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0d9488 0%, #2dd4bf 100%);
+}
+
 .admin-tardanzas-preview {
   margin-top: 1rem;
   padding-top: 1rem;
