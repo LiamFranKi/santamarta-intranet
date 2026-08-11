@@ -777,8 +777,9 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
 
                 <h3 className="admin-tz-bio__sub">Marcaciones (entrada / salida)</h3>
                 <p className="admin-tz-bio__hint">
-                  Por defecto: <strong>solo hoy</strong>. Una fila por persona: entrada = primera marcación; salida =
-                  última (se actualiza si marca de nuevo). Orden: hora de entrada (más reciente → más temprano).
+                  Por defecto: <strong>solo hoy</strong>. Elija Desde y Hasta y pulse <strong>Filtrar</strong> (no
+                  aplica al cambiar solo una fecha). Una fila por persona: entrada = primera; salida = última. Orden:
+                  hora de entrada (más reciente → más temprano).
                 </p>
 
                 <div className="admin-tardanzas-toolbar admin-tz-bio__filters">
