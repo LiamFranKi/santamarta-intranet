@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
@@ -698,7 +699,10 @@ function ModalSugerencia({ open, mode, item, onClose, onSaved }) {
 }
 
 export default function AdminReclamosSugerencias() {
-  const [tab, setTab] = useState('reclamos');
+  const [searchParams] = useSearchParams();
+  const tabInicial =
+    searchParams.get('tab') === 'sugerencias' ? 'sugerencias' : 'reclamos';
+  const [tab, setTab] = useState(tabInicial);
   const [reclamos, setReclamos] = useState([]);
   const [sugerencias, setSugerencias] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -709,6 +713,11 @@ export default function AdminReclamosSugerencias() {
   const [modalCorreos, setModalCorreos] = useState(false);
   const [modalReclamo, setModalReclamo] = useState({ open: false, mode: 'view', item: null });
   const [modalSugerencia, setModalSugerencia] = useState({ open: false, mode: 'view', item: null });
+
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t === 'sugerencias' || t === 'reclamos') setTab(t);
+  }, [searchParams]);
 
   const cargar = useCallback(async () => {
     try {

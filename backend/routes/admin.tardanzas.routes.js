@@ -234,6 +234,30 @@ router.post('/registro', async (req, res) => {
       },
       adminUsuarioId
     );
+
+    // Si el ingreso manual quedó con tardanza, avisar a administradores
+    if (result.fila?.minutos_tardanza > 0) {
+      try {
+        const { notificarAdminsTardanzaPersonal } = require('../services/tardanzaPersonalNotificacionService');
+        const personalList = await loadPersonalColegio(query, colegioId(req));
+        const personal = personalList.find(
+          (p) => Number(p.personal_id) === Number(body.personal_id)
+        );
+        if (personal) {
+          await notificarAdminsTardanzaPersonal({
+            colegioId: colegioId(req),
+            personal,
+            fecha: result.fila.fecha || body.fecha,
+            horaMarcacion: result.fila.hora_marcacion || body.hora_entrada,
+            accionUpsert: 'manual',
+            origen: 'manual',
+          });
+        }
+      } catch (e) {
+        console.warn('[admin/tardanzas/registro POST] notif tardanza:', e.message);
+      }
+    }
+
     res.status(result.accion === 'insertado' ? 201 : 200).json({
       ok: true,
       accion: result.accion,

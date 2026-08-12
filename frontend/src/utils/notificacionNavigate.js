@@ -130,6 +130,21 @@ export function normalizarUrlNotificacion(notif, user) {
     return '/docente/dashboard';
   }
 
+  if (tipoAccion === 'tardanza_personal') {
+    if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA') {
+      return '/admin/herramientas/tardanzas';
+    }
+  }
+
+  if (tipoAccion === 'web_reclamo' || tipoAccion === 'web_sugerencia') {
+    if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA') {
+      if (url) return url;
+      return tipoAccion === 'web_sugerencia'
+        ? '/admin/comunicaciones/reclamos-sugerencias?tab=sugerencias'
+        : '/admin/comunicaciones/reclamos-sugerencias?tab=reclamos';
+    }
+  }
+
   if (tipoAccion === 'encuesta_activa' && payload.encuesta_id) {
     return `/encuestas/responder/${payload.encuesta_id}`;
   }

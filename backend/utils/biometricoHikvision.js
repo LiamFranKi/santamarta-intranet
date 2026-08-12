@@ -787,6 +787,23 @@ async function ingestHikvisionPayload(body, meta = {}) {
     payload_resumen: resumen,
   });
 
+  // Aviso a administradores si la 1ª entrada del día es con tardanza
+  if (action === 'insertado' || action === 'actualizado_entrada') {
+    try {
+      const { notificarAdminsTardanzaPersonal } = require('../services/tardanzaPersonalNotificacionService');
+      await notificarAdminsTardanzaPersonal({
+        colegioId,
+        personal,
+        fecha: event.fecha,
+        horaMarcacion: nuevaHora,
+        accionUpsert: action,
+        origen: 'biometrico',
+      });
+    } catch (e) {
+      console.warn('[biometrico] notif tardanza:', e.message);
+    }
+  }
+
   if (
     bioDebug() ||
     action === 'insertado' ||

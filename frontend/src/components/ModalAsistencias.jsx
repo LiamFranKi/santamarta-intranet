@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../services/api';
 import './ModalAsistencias.css';
 
@@ -75,16 +76,26 @@ function ModalAsistencias({ isOpen, onClose }) {
 
   const mesNombre = resumen?.mes_nombre || MESES[mesSeleccionado - 1];
 
-  return (
+  // Portal a body: el sidebar (z-index 9999) no debe tapar el modal
+  return createPortal(
     <div
       className="modal-asistencias-overlay"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
+      role="presentation"
     >
-      <div className="modal-asistencias-container">
+      <div
+        className="modal-asistencias-container"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-asistencias-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-asistencias-header">
-          <h2 className="modal-asistencias-title">Detalle de tardanzas — {mesNombre} {anioSeleccionado}</h2>
+          <h2 id="modal-asistencias-title" className="modal-asistencias-title">
+            Detalle de tardanzas — {mesNombre} {anioSeleccionado}
+          </h2>
           <button type="button" className="modal-asistencias-close" onClick={onClose} aria-label="Cerrar">
             ✕
           </button>
@@ -205,7 +216,8 @@ function ModalAsistencias({ isOpen, onClose }) {
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
