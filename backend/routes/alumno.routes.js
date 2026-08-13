@@ -2358,8 +2358,18 @@ router.put('/perfil/password', async (req, res) => {
       `UPDATE usuarios SET password = ? WHERE id = ?`,
       [newPasswordHash, usuario_id]
     );
+    try {
+      const { bumpTokenVersion } = require('../utils/tokenVersion');
+      await bumpTokenVersion(execute, usuario_id);
+    } catch (e) {
+      console.warn('[alumno/perfil/password] bumpTokenVersion:', e.message);
+    }
 
-    res.json({ success: true, message: 'Contraseña actualizada correctamente' });
+    res.json({
+      success: true,
+      message: 'Contraseña actualizada correctamente. Vuelva a iniciar sesión.',
+      requiere_relogin: true,
+    });
   } catch (error) {
     console.error('Error cambiando contraseña:', error);
     res.status(500).json({ error: 'Error al cambiar contraseña' });

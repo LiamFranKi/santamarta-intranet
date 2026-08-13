@@ -118,7 +118,17 @@ api.interceptors.response.use(
     const status = error.response?.status;
     const statusText = error.response?.statusText || '';
     const errorMessage = error.response?.data?.error || error.response?.data?.message || '';
-    
+    const errorCode = error.response?.data?.code || '';
+
+    // Sesión revocada (cambio de clave / cierre forzado): siempre ir al login
+    if (status === 403 && errorCode === 'SESSION_REVOKED') {
+      forceLogout(
+        'SESSION_REVOKED',
+        errorMessage || 'Tu sesión fue cerrada. Inicia sesión nuevamente.'
+      );
+      return Promise.reject(new Error('SESSION_REVOKED'));
+    }
+
     // Errores críticos que requieren cerrar sesión automáticamente
     const criticalErrors = {
       401: {

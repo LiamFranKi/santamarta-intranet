@@ -31,12 +31,12 @@ nano backend/.env
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USER=walterlozanoalcalde@gmail.com
-EMAIL_PASSWORD=ldvkcmqxshxdkupv
+EMAIL_PASSWORD=REDACTED_ROTATE_ME
 EMAIL_FROM=walterlozanoalcalde@gmail.com
 
 # PWA - Notificaciones Push
 VAPID_PUBLIC_KEY=BHamMvc50IaZsThiAsM2tKzYQT0RfdYO0oeL9y3GCKhoWFPi1wAoAVdnObnNAmvNe2lYLrLtDCFksVixtetfBNA
-VAPID_PRIVATE_KEY=gytyf_oJzJqUfIBPeajxyaYwboUslwNqf2jY4ZtHbbA
+VAPID_PRIVATE_KEY=REDACTED_ROTATE_ME
 VAPID_EMAIL=walterlozanoalcalde@gmail.com
 ```
 
@@ -76,7 +76,7 @@ cd ~/intranet2026/backend
 echo "" >> .env
 echo "# PWA - Notificaciones Push" >> .env
 echo "VAPID_PUBLIC_KEY=BHamMvc50IaZsThiAsM2tKzYQT0RfdYO0oeL9y3GCKhoWFPi1wAoAVdnObnNAmvNe2lYLrLtDCFksVixtetfBNA" >> .env
-echo "VAPID_PRIVATE_KEY=gytyf_oJzJqUfIBPeajxyaYwboUslwNqf2jY4ZtHbbA" >> .env
+echo "VAPID_PRIVATE_KEY=REDACTED_ROTATE_ME
 echo "VAPID_EMAIL=walterlozanoalcalde@gmail.com" >> .env
 ```
 
@@ -116,7 +116,7 @@ grep VAPID .env
 
 # Debe mostrar 3 líneas:
 # VAPID_PUBLIC_KEY=...
-# VAPID_PRIVATE_KEY=...
+# VAPID_PRIVATE_KEY=REDACTED_ROTATE_ME
 # VAPID_EMAIL=...
 
 # Verificar frontend/.env
@@ -157,7 +157,7 @@ pm2 logs intranet2026-backend --lines 20
 ### backend/.env
 ```env
 VAPID_PUBLIC_KEY=BHamMvc50IaZsThiAsM2tKzYQT0RfdYO0oeL9y3GCKhoWFPi1wAoAVdnObnNAmvNe2lYLrLtDCFksVixtetfBNA
-VAPID_PRIVATE_KEY=gytyf_oJzJqUfIBPeajxyaYwboUslwNqf2jY4ZtHbbA
+VAPID_PRIVATE_KEY=REDACTED_ROTATE_ME
 VAPID_EMAIL=walterlozanoalcalde@gmail.com
 ```
 

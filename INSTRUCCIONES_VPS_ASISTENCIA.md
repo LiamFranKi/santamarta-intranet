@@ -21,12 +21,12 @@ Editar `backend/.env` y agregar/actualizar:
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USER=walterlozanoalcalde@gmail.com
-EMAIL_PASSWORD=ldvkcmqxshxdkupv
+EMAIL_PASSWORD=REDACTED_ROTATE_ME
 EMAIL_FROM=walterlozanoalcalde@gmail.com
 
 # PWA - Notificaciones Push (NUEVO - AGREGAR ESTAS LÍNEAS)
 VAPID_PUBLIC_KEY=BHamMvc50IaZsThiAsM2tKzYQT0RfdYO0oeL9y3GCKhoWFPi1wAoAVdnObnNAmvNe2lYLrLtDCFksVixtetfBNA
-VAPID_PRIVATE_KEY=gytyf_oJzJqUfIBPeajxyaYwboUslwNqf2jY4ZtHbbA
+VAPID_PRIVATE_KEY=REDACTED_ROTATE_ME
 VAPID_EMAIL=walterlozanoalcalde@gmail.com
 ```
 

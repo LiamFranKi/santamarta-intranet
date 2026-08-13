@@ -263,7 +263,7 @@ ls -la /var/www/html/intranet/frontend/build
 ```bash
 # Desde el servidor, probar conexión
 cd /var/www/html/intranet/backend
-node -e "const mysql = require('mysql2/promise'); mysql.createConnection({host: 'mysql.vanguardschools.edu.pe', user: 'vanguard', password: 'QI_jkA]RsHF_gUDN', database: 'vanguard_intranet'}).then(() => console.log('✅ MySQL OK')).catch(e => console.error('❌ Error:', e.message))"
+node -e "const mysql = require('mysql2/promise'); mysql.createConnection({host: 'mysql.vanguardschools.edu.pe', user: 'vanguard', password: 'REDACTED_ROTATE_ME', database: 'vanguard_intranet'}).then(() => console.log('✅ MySQL OK')).catch(e => console.error('❌ Error:', e.message))"
 ```
 
 ---

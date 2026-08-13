@@ -78,7 +78,7 @@ pm2 logs intranet2026-backend --err --lines 50
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USER=walterlozanoalcalde@gmail.com
-EMAIL_PASSWORD=ldvkcmqxshxdkupv
+EMAIL_PASSWORD=REDACTED_ROTATE_ME
 EMAIL_FROM=walterlozanoalcalde@gmail.com
 ```
 
@@ -86,7 +86,7 @@ EMAIL_FROM=walterlozanoalcalde@gmail.com
 
 ```env
 VAPID_PUBLIC_KEY=...
-VAPID_PRIVATE_KEY=...
+VAPID_PRIVATE_KEY=REDACTED_ROTATE_ME
 VAPID_EMAIL=walterlozanoalcalde@gmail.com
 ```
 

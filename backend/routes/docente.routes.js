@@ -2210,12 +2210,21 @@ router.put('/perfil/password', async (req, res) => {
       [passwordHashNueva, usuario_id]
     );
 
+    // Cerrar otras sesiones (tokens JWT previos dejan de valer)
+    try {
+      const { bumpTokenVersion } = require('../utils/tokenVersion');
+      await bumpTokenVersion(execute, usuario_id);
+    } catch (e) {
+      console.warn('[perfil/password] bumpTokenVersion:', e.message);
+    }
+
     // Marcar para que el middleware no registre automáticamente
     req.skipAudit = true;
 
     res.json({ 
       success: true, 
-      message: 'Contraseña actualizada correctamente' 
+      message: 'Contraseña actualizada correctamente. Vuelva a iniciar sesión.',
+      requiere_relogin: true,
     });
   } catch (error) {
     console.error('Error cambiando contraseña:', error);
@@ -10222,6 +10231,12 @@ router.post('/hijos/:hijoId/reiniciar-contrasena', async (req, res) => {
       `UPDATE usuarios SET password = ? WHERE id = ? AND alumno_id = ? AND colegio_id = ?`,
       [passwordHash, usuarioIdAlumno, hijoIdNum, colegio_id]
     );
+    try {
+      const { bumpTokenVersion } = require('../utils/tokenVersion');
+      await bumpTokenVersion(execute, usuarioIdAlumno);
+    } catch (e) {
+      console.warn('[hijos/reiniciar-password] bumpTokenVersion:', e.message);
+    }
 
     console.log(`✅ [HIJOS-REINICIAR-PASSWORD] Contraseña reiniciada exitosamente para hijoId: ${hijoIdNum}, DNI: ${dniAlumno}`);
     console.log(`🔵 ========== [HIJOS-REINICIAR-PASSWORD] FIN DE PETICIÓN ==========\n`);

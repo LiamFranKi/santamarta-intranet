@@ -96,11 +96,11 @@ PORT=5000
 MYSQL_HOST=localhost
 MYSQL_PORT=3306
 MYSQL_USER=vanguard
-MYSQL_PASSWORD=QI_jkA]RsHF_gUDN
+MYSQL_PASSWORD=REDACTED_ROTATE_ME
 MYSQL_DATABASE=vanguard_intranet
 
 # JWT Secret
-JWT_SECRET=VgS2026_React_Intranet_Production_Key_ChangeMe
+JWT_SECRET=REDACTED_ROTATE_ME
 
 # CORS - Subdominio para el sistema React (NO interfiere con el sistema PHP)
 ALLOWED_ORIGINS=https://sistema.vanguardschools.edu.pe

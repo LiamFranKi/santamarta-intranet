@@ -17,7 +17,7 @@ Crear `backend/.env.production`:
 MYSQL_HOST=localhost
 MYSQL_PORT=3306
 MYSQL_USER=vanguard
-MYSQL_PASSWORD=QI_jkA]RsHF_gUDN
+MYSQL_PASSWORD=REDACTED_ROTATE_ME
 MYSQL_DATABASE=vanguard_intranet
 
 # PostgreSQL (Local o servidor Hostinger)
@@ -32,7 +32,7 @@ PHP_API_URL=https://vanguardschools.edu.pe/api
 PHP_API_TOKEN=token_secreto
 
 # JWT
-JWT_SECRET=Vanguard2025_AulaVirtual_SuperSecreto_JWT_Key_2025
+JWT_SECRET=REDACTED_ROTATE_ME
 JWT_EXPIRES_IN=24h
 
 # Server
@@ -46,12 +46,12 @@ FRONTEND_URL=https://intranet.vanguardschools.com
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USER=walterlozanoalcalde@gmail.com
-EMAIL_PASSWORD=ldvkcmqxshxdkupv
+EMAIL_PASSWORD=REDACTED_ROTATE_ME
 EMAIL_FROM=walterlozanoalcalde@gmail.com
 
 # PWA - Notificaciones Push
 VAPID_PUBLIC_KEY=temporal_public_key
-VAPID_PRIVATE_KEY=temporal_private_key
+VAPID_PRIVATE_KEY=REDACTED_ROTATE_ME
 VAPID_EMAIL=walterlozanoalcalde@gmail.com
 
 # Configuración FTP/SFTP para subida automática al servidor PHP

@@ -21,12 +21,12 @@ Abre `backend/.env` en tu editor local y **agrega o verifica** estas líneas:
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USER=walterlozanoalcalde@gmail.com
-EMAIL_PASSWORD=ldvkcmqxshxdkupv
+EMAIL_PASSWORD=REDACTED_ROTATE_ME
 EMAIL_FROM=walterlozanoalcalde@gmail.com
 
 # PWA - Notificaciones Push
 VAPID_PUBLIC_KEY=BHamMvc50IaZsThiAsM2tKzYQT0RfdYO0oeL9y3GCKhoWFPi1wAoAVdnObnNAmvNe2lYLrLtDCFksVixtetfBNA
-VAPID_PRIVATE_KEY=gytyf_oJzJqUfIBPeajxyaYwboUslwNqf2jY4ZtHbbA
+VAPID_PRIVATE_KEY=REDACTED_ROTATE_ME
 VAPID_EMAIL=walterlozanoalcalde@gmail.com
 ```
 
@@ -150,7 +150,7 @@ grep VAPID .env
 
 # Debe mostrar 3 líneas:
 # VAPID_PUBLIC_KEY=...
-# VAPID_PRIVATE_KEY=...
+# VAPID_PRIVATE_KEY=REDACTED_ROTATE_ME
 # VAPID_EMAIL=...
 
 # Verificar frontend/.env

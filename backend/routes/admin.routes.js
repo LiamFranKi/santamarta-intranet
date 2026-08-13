@@ -2151,6 +2151,13 @@ router.post('/configuracion/reiniciar-accesos', async (req, res) => {
       stats.personal += 1;
     }
 
+    try {
+      const { bumpTokenVersionColegio } = require('../utils/tokenVersion');
+      await bumpTokenVersionColegio(execute, colegio_id);
+    } catch (e) {
+      console.warn('[reiniciar-accesos] bumpTokenVersionColegio:', e.message);
+    }
+
     registrarAccion({
       usuario_id,
       colegio_id,
@@ -2166,8 +2173,9 @@ router.post('/configuracion/reiniciar-accesos', async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Accesos reiniciados correctamente (contraseña = DNI)',
+      message: 'Accesos reiniciados correctamente (contraseña = DNI). Todas las sesiones fueron cerradas.',
       stats,
+      sesiones_cerradas: true,
     });
   } catch (error) {
     console.error('Error reiniciando accesos:', error);
@@ -3398,8 +3406,18 @@ router.put('/perfil/password', async (req, res) => {
       resultado: 'EXITOSO'
     });
     await execute(`UPDATE usuarios SET password = ? WHERE id = ?`, [passwordHashNueva, usuario_id]);
+    try {
+      const { bumpTokenVersion } = require('../utils/tokenVersion');
+      await bumpTokenVersion(execute, usuario_id);
+    } catch (e) {
+      console.warn('[admin/perfil/password] bumpTokenVersion:', e.message);
+    }
     req.skipAudit = true;
-    res.json({ success: true, message: 'Contraseña actualizada correctamente' });
+    res.json({
+      success: true,
+      message: 'Contraseña actualizada correctamente. Vuelva a iniciar sesión.',
+      requiere_relogin: true,
+    });
   } catch (error) {
     console.error('Error cambiando contraseña admin:', error);
     res.status(500).json({ error: 'Error al cambiar la contraseña' });

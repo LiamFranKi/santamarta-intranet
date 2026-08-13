@@ -2292,7 +2292,13 @@ router.post('/equipo/:personalId/reset-password', async (req, res) => {
       urows[0].id,
       colegio_id,
     ]);
-    res.json({ ok: true });
+    try {
+      const { bumpTokenVersion } = require('../utils/tokenVersion');
+      await bumpTokenVersion(execute, urows[0].id);
+    } catch (e) {
+      console.warn('[admin reset-password equipo] bumpTokenVersion:', e.message);
+    }
+    res.json({ ok: true, sesiones_cerradas: true });
   } catch (e) {
     console.error('reset-password equipo', e);
     res.status(500).json({ error: e.message || 'Error al restablecer' });
@@ -2324,7 +2330,13 @@ router.post('/equipo/:personalId/password', async (req, res) => {
       urows[0].id,
       colegio_id,
     ]);
-    res.json({ ok: true });
+    try {
+      const { bumpTokenVersion } = require('../utils/tokenVersion');
+      await bumpTokenVersion(execute, urows[0].id);
+    } catch (e) {
+      console.warn('[admin password equipo] bumpTokenVersion:', e.message);
+    }
+    res.json({ ok: true, sesiones_cerradas: true });
   } catch (e) {
     console.error('password equipo', e);
     res.status(500).json({ error: e.message || 'Error al cambiar contraseña' });
@@ -2910,7 +2922,13 @@ router.post('/alumnos/:id/reset-password', async (req, res) => {
       rows[0].id,
       colegio_id,
     ]);
-    res.json({ ok: true });
+    try {
+      const { bumpTokenVersion } = require('../utils/tokenVersion');
+      await bumpTokenVersion(execute, rows[0].id);
+    } catch (e) {
+      console.warn('[admin reset alumno] bumpTokenVersion:', e.message);
+    }
+    res.json({ ok: true, sesiones_cerradas: true });
   } catch (e) {
     console.error('reset alumno pwd', e);
     res.status(500).json({ error: e.message || 'Error' });
@@ -2945,7 +2963,13 @@ router.post('/alumnos/:id/password', async (req, res) => {
       rows[0].id,
       colegio_id,
     ]);
-    res.json({ ok: true });
+    try {
+      const { bumpTokenVersion } = require('../utils/tokenVersion');
+      await bumpTokenVersion(execute, rows[0].id);
+    } catch (e) {
+      console.warn('[admin password alumno] bumpTokenVersion:', e.message);
+    }
+    res.json({ ok: true, sesiones_cerradas: true });
   } catch (e) {
     console.error('password alumno', e);
     res.status(500).json({ error: e.message || 'Error al cambiar contraseña' });
@@ -5234,7 +5258,13 @@ router.post('/apoderados/:id/reset-password', async (req, res) => {
       urow.id,
       colegio_id,
     ]);
-    res.json({ ok: true });
+    try {
+      const { bumpTokenVersion } = require('../utils/tokenVersion');
+      await bumpTokenVersion(execute, urow.id);
+    } catch (e) {
+      console.warn('[admin reset apoderado] bumpTokenVersion:', e.message);
+    }
+    res.json({ ok: true, sesiones_cerradas: true });
   } catch (e) {
     console.error('reset apoderado pwd', e);
     res.status(500).json({ error: e.message || 'Error' });
@@ -5263,7 +5293,13 @@ router.post('/apoderados/:id/password', async (req, res) => {
       urow.id,
       colegio_id,
     ]);
-    res.json({ ok: true });
+    try {
+      const { bumpTokenVersion } = require('../utils/tokenVersion');
+      await bumpTokenVersion(execute, urow.id);
+    } catch (e) {
+      console.warn('[admin password apoderado] bumpTokenVersion:', e.message);
+    }
+    res.json({ ok: true, sesiones_cerradas: true });
   } catch (e) {
     console.error('POST apoderado password admin', e);
     res.status(500).json({ error: e.message || 'Error al cambiar contraseña' });

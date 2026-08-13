@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
+import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import Swal from 'sweetalert2';
 import ReactQuill from 'react-quill';
@@ -130,6 +131,8 @@ function MensajeModalContent({ mensaje, vista, onClose, onMensajeLeido }) {
 function DocenteMensajes() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const esAdmin = user?.tipo === 'ADMINISTRADOR';
   const [vista, setVista] = useState('recibidos'); // 'recibidos', 'enviados', 'nuevo'
   const [mensajesRecibidos, setMensajesRecibidos] = useState([]);
   const [mensajesEnviados, setMensajesEnviados] = useState([]);
@@ -505,7 +508,7 @@ function DocenteMensajes() {
     }
   };
 
-  // Eliminar mensajes seleccionados
+  // Eliminar mensajes seleccionados (solo de mi bandeja)
   const eliminarMensajesSeleccionados = async () => {
     if (mensajesSeleccionados.size === 0) {
       Swal.fire('Atención', 'Debe seleccionar al menos un mensaje para eliminar', 'warning');
@@ -549,6 +552,49 @@ function DocenteMensajes() {
     } catch (error) {
       console.error('Error eliminando mensajes:', error);
       Swal.fire('Error', error.response?.data?.error || 'Error al eliminar mensajes', 'error');
+    }
+  };
+
+  /** Admin: borra el envío completo (remitente + todos los destinatarios). */
+  const eliminarEnvioCompletoAdmin = async () => {
+    if (!esAdmin) return;
+    if (mensajesSeleccionados.size === 0) {
+      Swal.fire('Atención', 'Seleccione al menos un mensaje', 'warning');
+      return;
+    }
+
+    const resultado = await Swal.fire({
+      title: '¿Borrar para TODOS?',
+      html:
+        `Se eliminará el mensaje de <b>todas las bandejas</b> (quien lo envió y quienes lo recibieron).<br/><br/>` +
+        `Seleccionados: <b>${mensajesSeleccionados.size}</b>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#b91c1c',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Sí, borrar para todos',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!resultado.isConfirmed) return;
+
+    try {
+      const idsArray = Array.from(mensajesSeleccionados);
+      const { data } = await api.post('/admin/seguridad/mensajes/borrar-lote', {
+        mensaje_ids: idsArray,
+      });
+      Swal.fire(
+        'Eliminado',
+        data?.message || 'Envío(s) eliminado(s) de todas las bandejas.',
+        'success'
+      );
+      setMensajesSeleccionados(new Set());
+      setMensajeSeleccionado(null);
+      await cargarAniosDisponibles();
+      if (vista === 'recibidos') await cargarMensajesRecibidos();
+      else await cargarMensajesEnviados();
+    } catch (error) {
+      console.error('Error borrado admin mensajes:', error);
+      Swal.fire('Error', error.response?.data?.error || 'No se pudo borrar el envío', 'error');
     }
   };
 
@@ -1065,6 +1111,17 @@ function DocenteMensajes() {
                         >
                           🗑️ Eliminar ({mensajesSeleccionados.size})
                         </button>
+                        {esAdmin && (
+                          <button
+                            type="button"
+                            className="btn-eliminar-seleccionados"
+                            style={{ background: '#991b1b' }}
+                            onClick={eliminarEnvioCompletoAdmin}
+                            title="Borra este mensaje también de las bandejas de todos los destinatarios"
+                          >
+                            🗑️ Borrar para todos ({mensajesSeleccionados.size})
+                          </button>
+                        )}
                       </>
                     )}
                     <div className="lista-pagination">

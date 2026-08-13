@@ -964,7 +964,18 @@ router.put('/perfil/password', async (req, res) => {
       [passwordHashNueva, usuario_id, colegio_id]
     );
 
-    res.json({ success: true, message: 'Contraseña actualizada correctamente' });
+    try {
+      const { bumpTokenVersion } = require('../utils/tokenVersion');
+      await bumpTokenVersion(execute, usuario_id);
+    } catch (e) {
+      console.warn('[apoderado/perfil/password] bumpTokenVersion:', e.message);
+    }
+
+    res.json({
+      success: true,
+      message: 'Contraseña actualizada correctamente. Vuelva a iniciar sesión.',
+      requiere_relogin: true,
+    });
   } catch (error) {
     console.error('Error cambiando contraseña:', error);
     res.status(500).json({ error: 'Error al cambiar contraseña' });
@@ -5750,6 +5761,12 @@ router.post('/hijos/:hijoId/reiniciar-contrasena', async (req, res) => {
       `UPDATE usuarios SET password = ? WHERE id = ? AND alumno_id = ? AND colegio_id = ?`,
       [passwordHash, usuarioIdAlumno, hijoIdNum, colegio_id]
     );
+    try {
+      const { bumpTokenVersion } = require('../utils/tokenVersion');
+      await bumpTokenVersion(execute, usuarioIdAlumno);
+    } catch (e) {
+      console.warn('[apoderado/reiniciar-password] bumpTokenVersion:', e.message);
+    }
 
     console.log(`✅ [APODERADO-REINICIAR-PASSWORD] Contraseña reiniciada exitosamente para hijoId: ${hijoIdNum}, DNI: ${dniAlumno}`);
     console.log(`🔵 ========== [APODERADO-REINICIAR-PASSWORD] FIN DE PETICIÓN ==========\n`);

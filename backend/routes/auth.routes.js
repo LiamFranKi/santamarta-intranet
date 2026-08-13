@@ -91,6 +91,11 @@ router.post('/login', async (req, res) => {
     // Obtener datos del colegio
     const colegioData = await getColegioData(usuarioDB.colegio_id);
 
+    // Versión de sesión (invalidar JWT al cambiar password / forzar cierre)
+    const tokenVersion = Number.isFinite(parseInt(usuarioDB.token_version, 10))
+      ? parseInt(usuarioDB.token_version, 10)
+      : 1;
+
     // Generar token JWT
     const token = jwt.sign(
       {
@@ -100,7 +105,8 @@ router.post('/login', async (req, res) => {
         alumno_id: usuarioDB.alumno_id,
         personal_id: usuarioDB.personal_id,
         apoderado_id: usuarioDB.apoderado_id,
-        anio_activo: anioActivo
+        anio_activo: anioActivo,
+        tv: tokenVersion,
       },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
