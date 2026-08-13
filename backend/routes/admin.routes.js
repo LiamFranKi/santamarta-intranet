@@ -3226,6 +3226,141 @@ router.get('/conexiones/:id', async (req, res) => {
 });
 
 /**
+ * DELETE /api/admin/conexiones/:id?source=conexiones_envios|mensajes_grupos
+ * Borra el historial y marca borrado='SI' en TODOS los mensajes de ese envío (todas las bandejas).
+ */
+router.delete('/conexiones/:id', async (req, res) => {
+  try {
+    if (req.user?.tipo !== 'ADMINISTRADOR') {
+      return res.status(403).json({ error: 'Solo el administrador puede eliminar envíos para todos.' });
+    }
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    const source = String(req.query.source || req.body?.source || 'conexiones_envios').trim();
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+
+    let remitenteId = null;
+    let fechaHora = null;
+    let asunto = null;
+
+    if (source === 'mensajes_grupos') {
+      const [row] = await query(
+        `SELECT mg.id, mg.remitente_id, mg.fecha_hora, mg.asunto
+         FROM mensajes_grupos mg
+         LEFT JOIN usuarios u ON u.id = mg.remitente_id
+         LEFT JOIN grupos g ON g.id = mg.grupo_id
+         WHERE mg.id = ? AND (u.colegio_id = ? OR g.colegio_id = ?)
+         LIMIT 1`,
+        [id, colegio_id, colegio_id]
+      );
+      if (!row) return res.status(404).json({ error: 'Envío no encontrado' });
+      remitenteId = row.remitente_id;
+      fechaHora = row.fecha_hora;
+      asunto = row.asunto;
+    } else {
+      const [row] = await query(
+        `SELECT id, remitente_id, fecha_hora, asunto
+         FROM conexiones_envios
+         WHERE id = ? AND colegio_id = ?
+         LIMIT 1`,
+        [id, colegio_id]
+      );
+      if (!row) {
+        // Fallback: a veces el id es de mensajes_grupos aunque source diga moderno
+        const [leg] = await query(
+          `SELECT mg.id, mg.remitente_id, mg.fecha_hora, mg.asunto
+           FROM mensajes_grupos mg
+           LEFT JOIN usuarios u ON u.id = mg.remitente_id
+           LEFT JOIN grupos g ON g.id = mg.grupo_id
+           WHERE mg.id = ? AND (u.colegio_id = ? OR g.colegio_id = ?)
+           LIMIT 1`,
+          [id, colegio_id, colegio_id]
+        );
+        if (!leg) return res.status(404).json({ error: 'Envío no encontrado' });
+        remitenteId = leg.remitente_id;
+        fechaHora = leg.fecha_hora;
+        asunto = leg.asunto;
+      } else {
+        remitenteId = row.remitente_id;
+        fechaHora = row.fecha_hora;
+        asunto = row.asunto;
+      }
+    }
+
+    const resultMsg = await execute(
+      `UPDATE mensajes m
+       INNER JOIN usuarios u ON u.id = m.remitente_id AND u.colegio_id = ?
+       SET m.borrado = 'SI'
+       WHERE m.remitente_id = ?
+         AND m.asunto = ?
+         AND DATE_FORMAT(m.fecha_hora, '%Y-%m-%d %H:%i:%s') = DATE_FORMAT(?, '%Y-%m-%d %H:%i:%s')
+         AND m.borrado = 'NO'`,
+      [colegio_id, remitenteId, asunto, fechaHora]
+    );
+    const mensajesBorrados = resultMsg?.affectedRows ?? 0;
+
+    let histBorrados = 0;
+    try {
+      const r1 = await execute(
+        `DELETE FROM conexiones_envios
+         WHERE colegio_id = ?
+           AND remitente_id = ?
+           AND asunto = ?
+           AND DATE_FORMAT(fecha_hora, '%Y-%m-%d %H:%i:%s') = DATE_FORMAT(?, '%Y-%m-%d %H:%i:%s')`,
+        [colegio_id, remitenteId, asunto, fechaHora]
+      );
+      histBorrados += r1?.affectedRows ?? 0;
+    } catch {
+      /* tabla puede no existir */
+    }
+    try {
+      const r2 = await execute(
+        `DELETE mg FROM mensajes_grupos mg
+         LEFT JOIN usuarios u ON u.id = mg.remitente_id
+         LEFT JOIN grupos g ON g.id = mg.grupo_id
+         WHERE mg.remitente_id = ?
+           AND mg.asunto = ?
+           AND DATE_FORMAT(mg.fecha_hora, '%Y-%m-%d %H:%i:%s') = DATE_FORMAT(?, '%Y-%m-%d %H:%i:%s')
+           AND (u.colegio_id = ? OR g.colegio_id = ?)`,
+        [remitenteId, asunto, fechaHora, colegio_id, colegio_id]
+      );
+      histBorrados += r2?.affectedRows ?? 0;
+    } catch {
+      /* ignore */
+    }
+
+    registrarAccion({
+      usuario_id: req.user.usuario_id || req.user.id,
+      colegio_id,
+      tipo_usuario: 'ADMINISTRADOR',
+      accion: 'ELIMINAR',
+      modulo: 'CONEXIONES',
+      entidad: 'conexion_envio',
+      entidad_id: id,
+      descripcion: `Admin borró conexión para todos (asunto: "${String(asunto || '').slice(0, 80)}", mensajes: ${mensajesBorrados})`,
+      url: req.originalUrl,
+      metodo_http: req.method,
+      ip_address: req.ip || req.connection?.remoteAddress,
+      user_agent: req.get('user-agent'),
+      resultado: 'EXITOSO',
+    }).catch(() => {});
+    req.skipAudit = true;
+
+    res.json({
+      ok: true,
+      message: `Envío eliminado para todos (${mensajesBorrados} mensaje(s) de bandeja).`,
+      mensajes_borrados: mensajesBorrados,
+      historial_borrado: histBorrados,
+    });
+  } catch (error) {
+    console.error('Error eliminando conexión (admin):', error);
+    res.status(500).json({ error: 'Error al eliminar el envío para todos' });
+  }
+});
+
+/**
  * GET /api/admin/perfil — datos de personal vinculado al usuario administrador
  */
 router.get('/perfil', async (req, res) => {

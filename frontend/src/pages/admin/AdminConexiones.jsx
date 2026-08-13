@@ -59,6 +59,7 @@ export default function AdminConexiones() {
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [detalle, setDetalle] = useState(null);
+  const [detalleRow, setDetalleRow] = useState(null);
   const [loadingDetalle, setLoadingDetalle] = useState(false);
   const [grupos, setGrupos] = useState([]);
   const [filtroPersonal, setFiltroPersonal] = useState('');
@@ -176,8 +177,13 @@ export default function AdminConexiones() {
     }
   }, [paginaActual, totalPaginas]);
 
-  const abrirDetalle = async (id) => {
+  const abrirDetalle = async (rowOrId) => {
+    const row = typeof rowOrId === 'object' && rowOrId != null
+      ? rowOrId
+      : items.find((x) => x.id === rowOrId) || { id: rowOrId };
+    const id = row.id;
     try {
+      setDetalleRow(row);
       setModalOpen(true);
       setLoadingDetalle(true);
       const response = await api.get(`/admin/conexiones/${id}`);
@@ -190,6 +196,52 @@ export default function AdminConexiones() {
       });
     } finally {
       setLoadingDetalle(false);
+    }
+  };
+
+  /** Borra el envío del historial y de todas las bandejas (remitente + destinatarios). */
+  const eliminarEnvioParaTodos = async (row) => {
+    if (!row?.id) return;
+    const resultado = await Swal.fire({
+      ...cfSwalSobreModal,
+      title: '¿Borrar para TODOS?',
+      html:
+        `Se eliminará este envío del historial y de <b>todas las bandejas</b> (quien lo envió y quienes lo recibieron).<br/><br/>` +
+        `<b>Asunto:</b> ${String(row.asunto || '—').slice(0, 120)}`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#991b1b',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Sí, borrar para todos',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!resultado.isConfirmed) return;
+
+    try {
+      const source = row.source || 'conexiones_envios';
+      const { data } = await api.delete(`/admin/conexiones/${row.id}`, {
+        params: { source },
+      });
+      Swal.fire({
+        ...cfSwalSobreModal,
+        icon: 'success',
+        title: 'Eliminado',
+        text: data?.message || 'Envío eliminado para todos.',
+      });
+      if (modalOpen && (detalle?.id === row.id || detalleRow?.id === row.id)) {
+        setModalOpen(false);
+        setDetalle(null);
+        setDetalleRow(null);
+      }
+      await cargarConexiones();
+    } catch (err) {
+      console.error('Error borrando conexión:', err);
+      Swal.fire({
+        ...cfSwalSobreModal,
+        icon: 'error',
+        title: 'Error',
+        text: err?.response?.data?.error || 'No se pudo eliminar el envío.',
+      });
     }
   };
 
@@ -348,7 +400,7 @@ export default function AdminConexiones() {
                     <th>Grupo</th>
                     <th>Cobertura</th>
                     <th>Asunto</th>
-                    <th>Ver</th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -370,18 +422,30 @@ export default function AdminConexiones() {
                       <td>{formatCobertura(row)}</td>
                       <td title={row.asunto || ''}>{row.asunto || 'Sin asunto'}</td>
                       <td>
-                        <button
-                          type="button"
-                          className="btn-cf-ver"
-                          onClick={() => abrirDetalle(row.id)}
-                          title="Ver detalle"
-                          aria-label="Ver detalle"
-                        >
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                            <circle cx="12" cy="12" r="3" />
-                          </svg>
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            className="btn-cf-ver"
+                            onClick={() => abrirDetalle(row)}
+                            title="Ver detalle"
+                            aria-label="Ver detalle"
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-cf-ver"
+                            onClick={() => eliminarEnvioParaTodos(row)}
+                            title="Borrar para todos (todas las bandejas)"
+                            aria-label="Borrar para todos"
+                            style={{ background: '#991b1b', color: '#fff', borderColor: '#991b1b' }}
+                          >
+                            🗑️
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -580,7 +644,17 @@ export default function AdminConexiones() {
                 </div>
               )}
               <div className="modal-mensaje-body">
-                <div className="form-actions" style={{ marginTop: '0.25rem' }}>
+                <div className="form-actions" style={{ marginTop: '0.25rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {detalleRow?.id && (
+                    <button
+                      type="button"
+                      className="btn-cancelar"
+                      style={{ background: '#991b1b', color: '#fff', borderColor: '#991b1b' }}
+                      onClick={() => eliminarEnvioParaTodos(detalleRow)}
+                    >
+                      🗑️ Borrar para todos
+                    </button>
+                  )}
                   <button className="btn-cancelar" onClick={() => setModalOpen(false)} type="button">Cerrar</button>
                 </div>
               </div>
