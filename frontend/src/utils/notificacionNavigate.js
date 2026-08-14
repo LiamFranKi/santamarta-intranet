@@ -136,6 +136,15 @@ export function normalizarUrlNotificacion(notif, user) {
     }
   }
 
+  if (tipoAccion === 'tardanza_propia') {
+    // Abre Mis Asistencias (modal) vía hash en el dashboard del rol
+    if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA' || user?.tipo === 'PSICOLOGA' || user?.tipo === 'SECRETARIA') {
+      return '/admin/dashboard#mis-asistencias';
+    }
+    if (user?.tipo === 'ASISTENCIA') return '/asistencia/dashboard#mis-asistencias';
+    return '/docente/dashboard#mis-asistencias';
+  }
+
   if (tipoAccion === 'web_reclamo' || tipoAccion === 'web_sugerencia') {
     if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA') {
       if (url) return url;

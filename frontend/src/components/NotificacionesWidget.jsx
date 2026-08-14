@@ -95,6 +95,11 @@ function NotificacionesWidget({ variant = 'widget' }) {
     const destino = normalizarUrlNotificacion(notif, user);
     if (!isPage) setMostrarDropdown(false);
     navigate(destino);
+    if (String(destino).includes('#mis-asistencias') || String(notif?.accion_tipo) === 'tardanza_propia') {
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('vanguard:abrir-asistencias'));
+      }, 80);
+    }
   };
 
   const renderLista = () => (

@@ -175,6 +175,19 @@ export default function DashboardLayout({ children }) {
     return () => window.removeEventListener('vanguard:abrir-asistencias', abrirAsistencias);
   }, []);
 
+  // Notificación de tardanza propia (o link con #mis-asistencias)
+  useEffect(() => {
+    const openIfHash = () => {
+      if (typeof window === 'undefined') return;
+      if (window.location.hash === '#mis-asistencias') {
+        setMostrarModalAsistencias(true);
+      }
+    };
+    openIfHash();
+    window.addEventListener('hashchange', openIfHash);
+    return () => window.removeEventListener('hashchange', openIfHash);
+  }, []);
+
   useEffect(() => {
     if (!user?.tipo || !tiposConPosiblePersonal.includes(user.tipo)) {
       setTienePersonalAsistencias(false);
