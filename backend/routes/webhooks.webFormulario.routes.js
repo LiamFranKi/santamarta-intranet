@@ -1,13 +1,19 @@
 /**
  * Webhook interno: la web pública (web-vanguard) avisa a la intranet
- * cuando se registra un reclamo/sugerencia, para notificar ADMINISTRADORES.
+ * cuando se registra un formulario, para notificar ADMINISTRADORES.
  *
  * POST /api/webhooks/web-formulario
  * Auth: header X-Web-Formulario-Token o ?token=  (= WEB_FORMULARIO_WEBHOOK_SECRET)
+ *
+ * Canales: reclamo | queja | sugerencia | contacto | visita | trabaja | admision
  */
 const express = require('express');
 const router = express.Router();
-const { notificarAdminsWebFormulario } = require('../services/webFormularioNotificacionService');
+const {
+  notificarAdminsWebFormulario,
+  normalizeCanal,
+  CANAL_META,
+} = require('../services/webFormularioNotificacionService');
 const { DEFAULT_COLEGIO_ID } = require('../utils/defaultColegio');
 
 function expectedSecret() {
@@ -38,36 +44,35 @@ router.post('/web-formulario', async (req, res) => {
 
   try {
     const body = req.body || {};
-    const canalRaw = String(body.canal || body.tipo_canal || '').toLowerCase();
-    let canal = canalRaw;
-    if (canal === 'reclamos' || canal === 'libro-reclamaciones' || canal === 'queja') {
-      canal = canal === 'queja' ? 'queja' : 'reclamo';
-    }
-    if (canal === 'sugerencias') canal = 'sugerencia';
+    const canal = normalizeCanal(body.canal || body.tipo_canal, body.tipo);
 
-    if (canal !== 'reclamo' && canal !== 'sugerencia' && canal !== 'queja') {
+    if (!CANAL_META[canal]) {
       return res.status(400).json({
-        error: 'canal inválido (use reclamo, queja o sugerencia).',
+        error:
+          'canal inválido (use reclamo, queja, sugerencia, contacto, visita, trabaja o admision).',
       });
     }
 
-    const nombre = String(body.nombre || '').trim();
+    const nombre = String(
+      body.nombre ||
+        body.nombres_apoderado ||
+        [body.nombres_estudiante, body.apellidos_estudiante].filter(Boolean).join(' ') ||
+        ''
+    ).trim();
     if (!nombre) {
       return res.status(400).json({ error: 'nombre es obligatorio.' });
     }
 
     const result = await notificarAdminsWebFormulario({
       canal,
-      tipo: body.tipo || (canal === 'sugerencia' ? 'sugerencia' : canal),
+      tipo: body.tipo || canal,
       id: body.id != null ? parseInt(body.id, 10) : null,
       nombre,
-      email: body.email,
-      telefono: body.telefono,
-      resumen: body.resumen || body.mensaje || body.detalle || '',
+      email: body.email || body.email_apoderado,
+      telefono: body.telefono || body.telefono_apoderado,
+      resumen: body.resumen || body.mensaje || body.detalle || body.asunto || body.puesto || '',
       numero: body.numero,
-      colegioId: body.colegio_id
-        ? parseInt(body.colegio_id, 10)
-        : DEFAULT_COLEGIO_ID,
+      colegioId: body.colegio_id ? parseInt(body.colegio_id, 10) : DEFAULT_COLEGIO_ID,
     });
 
     res.json({ ok: true, ...result });

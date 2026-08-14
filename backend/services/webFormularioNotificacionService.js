@@ -1,14 +1,49 @@
 /**
- * Avisa a todos los ADMINISTRADORES cuando llega un reclamo/queja/sugerencia
- * desde la web pública (web-vanguard → misma BD).
- * Campanita (tabla notificaciones) + push PWA.
+ * Avisa a ADMINISTRADORES cuando llega un formulario desde la web pública.
+ * Canales: reclamo, queja, sugerencia, contacto, visita, trabaja, admision.
+ * Campanita + push PWA.
  */
 const { query, execute } = require('../utils/mysql');
 const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { enviarPushNotificacionesIndividuales } = require('./pushNotificationService');
 const { DEFAULT_COLEGIO_ID } = require('../utils/defaultColegio');
 
-const URL_DESTINO = '/admin/comunicaciones/reclamos-sugerencias';
+const URL_BASE = '/admin/comunicaciones/web';
+
+const CANAL_META = {
+  reclamo: { label: 'RECLAMO', accion: 'web_reclamo', tab: 'reclamos', pushTitle: 'Nuevo reclamo (web)' },
+  queja: { label: 'QUEJA', accion: 'web_reclamo', tab: 'reclamos', pushTitle: 'Nueva queja (web)' },
+  sugerencia: {
+    label: 'SUGERENCIA',
+    accion: 'web_sugerencia',
+    tab: 'sugerencias',
+    pushTitle: 'Nueva sugerencia (web)',
+  },
+  contacto: {
+    label: 'CONTACTO',
+    accion: 'web_contacto',
+    tab: 'contacto',
+    pushTitle: 'Nuevo contacto (web)',
+  },
+  visita: {
+    label: 'VISITA GUIADA',
+    accion: 'web_visita',
+    tab: 'visitas',
+    pushTitle: 'Nueva visita guiada (web)',
+  },
+  trabaja: {
+    label: 'TRABAJA CON NOSOTROS',
+    accion: 'web_trabaja',
+    tab: 'trabaja',
+    pushTitle: 'Nueva postulación (web)',
+  },
+  admision: {
+    label: 'ADMISIÓN',
+    accion: 'web_admision',
+    tab: 'admision',
+    pushTitle: 'Nueva admisión (web)',
+  },
+};
 
 async function obtenerIdsAdministradores(colegioId) {
   const rows = await query(
@@ -29,37 +64,35 @@ function clipTexto(texto, max = 220) {
   return `${s.slice(0, max - 1)}…`;
 }
 
+function normalizeCanal(canal, tipo) {
+  let c = String(canal || '').toLowerCase().trim();
+  if (c === 'reclamos' || c === 'libro-reclamaciones') c = 'reclamo';
+  if (c === 'sugerencias') c = 'sugerencia';
+  if (c === 'contactenos' || c === 'contáctenos') c = 'contacto';
+  if (c === 'visitas' || c === 'visita-guiada' || c === 'visitas-guiadas') c = 'visita';
+  if (c === 'trabaja-con-nosotros' || c === 'postulacion' || c === 'postulación') c = 'trabaja';
+  if (c === 'admision-2026' || c === 'admisión' || c === 'ratificacion') c = 'admision';
+  if (c === 'queja') return 'queja';
+  if (String(tipo || '').toLowerCase() === 'queja' && (c === 'reclamo' || !c)) return 'queja';
+  return c;
+}
+
 function labelCanal(canal, tipo) {
-  const c = String(canal || '').toLowerCase();
-  const t = String(tipo || '').toLowerCase();
-  if (c === 'sugerencia' || c === 'sugerencias') return 'SUGERENCIA';
-  if (t === 'queja') return 'QUEJA';
-  if (t === 'reclamo') return 'RECLAMO';
-  if (c === 'reclamo' || c === 'reclamos' || c === 'queja') {
-    return t === 'queja' ? 'QUEJA' : 'RECLAMO';
-  }
-  return 'FORMULARIO WEB';
+  const c = normalizeCanal(canal, tipo);
+  return CANAL_META[c]?.label || 'FORMULARIO WEB';
 }
 
 /**
  * @param {object} opts
- * @param {'reclamo'|'sugerencia'|'queja'} opts.canal
- * @param {string} [opts.tipo] - reclamo|queja|tipo de sugerencia del formulario
- * @param {number} [opts.id] - id en web_reclamos / web_sugerencias
- * @param {string} opts.nombre
- * @param {string} [opts.email]
- * @param {string} [opts.telefono]
- * @param {string} [opts.resumen] - detalle o mensaje
- * @param {string} [opts.numero] - nº libro de reclamaciones
- * @param {number} [opts.colegioId]
  */
 async function notificarAdminsWebFormulario(opts = {}) {
-  const canal = String(opts.canal || '').toLowerCase();
+  const canal = normalizeCanal(opts.canal, opts.tipo);
   const nombre = String(opts.nombre || '').trim();
   const resumen = clipTexto(opts.resumen);
   const colegioId = opts.colegioId || DEFAULT_COLEGIO_ID;
+  const meta = CANAL_META[canal];
 
-  if (!canal || !nombre) {
+  if (!meta || !nombre) {
     return { ok: false, reason: 'params' };
   }
 
@@ -72,12 +105,9 @@ async function notificarAdminsWebFormulario(opts = {}) {
   }
   if (!adminIds.length) return { ok: false, reason: 'sin_admins' };
 
-  const etiqueta = labelCanal(canal, opts.tipo);
-  const esSugerencia = etiqueta === 'SUGERENCIA';
-  const accionTipo = esSugerencia ? 'web_sugerencia' : 'web_reclamo';
-  const urlDestino = esSugerencia
-    ? `${URL_DESTINO}?tab=sugerencias`
-    : `${URL_DESTINO}?tab=reclamos`;
+  const accionTipo = meta.accion;
+  const urlDestino = `${URL_BASE}?tab=${meta.tab}`;
+  const etiqueta = meta.label;
 
   const email = String(opts.email || '').trim();
   const telefono = String(opts.telefono || '').trim();
@@ -89,13 +119,13 @@ async function notificarAdminsWebFormulario(opts = {}) {
     : `📋 ${etiqueta} web — ${nombre}`;
 
   const lineas = [
-    `Se recibió un(a) ${etiqueta.toLowerCase()} desde la web del colegio.`,
+    `Se recibió un registro (${etiqueta.toLowerCase()}) desde la web del colegio.`,
     `Quién: ${nombre}`,
   ];
   if (email) lineas.push(`Correo: ${email}`);
   if (telefono) lineas.push(`Teléfono: ${telefono}`);
   if (numero) lineas.push(`Nº registro: ${numero}`);
-  if (tipoForm && esSugerencia) lineas.push(`Tipo: ${tipoForm}`);
+  if (tipoForm && canal === 'sugerencia') lineas.push(`Tipo: ${tipoForm}`);
   lineas.push('');
   lineas.push(resumen);
 
@@ -113,12 +143,13 @@ async function notificarAdminsWebFormulario(opts = {}) {
         estado: 'ENVIADO',
         accion_tipo: accionTipo,
         accion_payload: {
-          canal: esSugerencia ? 'sugerencia' : 'reclamo',
-          tipo: tipoForm || (esSugerencia ? 'sugerencia' : 'reclamo'),
+          canal,
+          tipo: tipoForm || canal,
           id: registroId,
           numero: numero || null,
           nombre,
           email: email || null,
+          tab: meta.tab,
         },
         url_destino: urlDestino,
       });
@@ -142,7 +173,7 @@ async function notificarAdminsWebFormulario(opts = {}) {
           keys: { p256dh: sub.p256dh, auth: sub.auth },
         },
         payload: {
-          title: etiqueta === 'SUGERENCIA' ? 'Nueva sugerencia (web)' : `Nuevo ${etiqueta.toLowerCase()} (web)`,
+          title: meta.pushTitle,
           body: bodyPush.length > 120 ? `${bodyPush.slice(0, 117)}…` : bodyPush,
           icon: '/icons/icon-192x192.png',
           badge: '/icons/icon-192x192.png',
@@ -171,7 +202,7 @@ async function notificarAdminsWebFormulario(opts = {}) {
     admins: adminIds.length,
   });
 
-  return { ok: true, adminIds, accionTipo };
+  return { ok: true, adminIds, accionTipo, canal };
 }
 
 module.exports = {
@@ -179,4 +210,6 @@ module.exports = {
   obtenerIdsAdministradores,
   clipTexto,
   labelCanal,
+  normalizeCanal,
+  CANAL_META,
 };

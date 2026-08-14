@@ -1,7 +1,9 @@
 /**
- * Admin — Reclamos, sugerencias y correos de envío (formularios web pública).
- * Tablas: web_reclamos, web_sugerencias, web_correos_envio
- * Adjuntos: carpeta web-vanguard (hermana de la intranet) → data/libro-reclamaciones/adjuntos/
+ * Admin — Formularios web pública (módulo Web).
+ * Tablas: web_reclamos, web_sugerencias, web_contactenos, web_visitas_guiadas,
+ *         web_trabaja_con_nosotros, web_admision, web_correos_envio,
+ *         web_visita_dias, web_visita_horarios, web_visita_secuencias(+slots)
+ * Archivos: solo bajo WEB_VANGUARD_ROOT/data/ (nunca /var/www/web).
  */
 const express = require('express');
 const path = require('path');
@@ -9,59 +11,25 @@ const fs = require('fs');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const { query, execute } = require('../utils/mysql');
+const { resolveWebVanguardRoot, resolveWebDataFile } = require('../utils/webVanguardFiles');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
   if (req.user?.tipo === 'ADMINISTRADOR') return next();
-  return res.status(403).json({ error: 'Solo el administrador puede gestionar reclamos y sugerencias.' });
+  return res.status(403).json({ error: 'Solo el administrador puede gestionar formularios web.' });
 });
 
 const ESTADOS = ['nuevo', 'en_revision', 'atendido', 'cerrado'];
 const TIPOS_RECLAMO = ['reclamo', 'queja'];
 
-function resolveWebVanguardRoot() {
-  if (process.env.WEB_VANGUARD_ROOT) {
-    return String(process.env.WEB_VANGUARD_ROOT).replace(/[/\\]+$/, '');
-  }
-  // Producción típica: /home/vanguard/intranet2026/backend → ../../web-vanguard
-  const sibling = path.resolve(__dirname, '..', '..', 'web-vanguard');
-  if (fs.existsSync(sibling)) return sibling;
-  if (process.env.FTP_BASE_PATH) {
-    return String(process.env.FTP_BASE_PATH).replace(/[/\\]+$/, '');
-  }
-  return sibling;
-}
-
-function adjuntosDir() {
-  return path.join(resolveWebVanguardRoot(), 'data', 'libro-reclamaciones', 'adjuntos');
-}
-
-/** Resuelve ruta de archivo bajo la raíz web-vanguard (anti path-traversal). */
-function resolveAdjuntoFsPath(adjuntoRuta, adjuntoNombre) {
-  const root = path.resolve(resolveWebVanguardRoot());
-  const candidates = [];
-  const pushSafe = (p) => {
-    if (!p) return;
-    const abs = path.resolve(p);
-    if (abs === root || abs.startsWith(root + path.sep)) {
-      candidates.push(abs);
-    }
-  };
-
-  if (adjuntoRuta) {
-    const raw = String(adjuntoRuta).trim().replace(/^[/\\]+/, '');
-    pushSafe(path.join(root, raw));
-    pushSafe(path.join(adjuntosDir(), path.basename(raw)));
-  }
-  if (adjuntoNombre) {
-    pushSafe(path.join(adjuntosDir(), path.basename(String(adjuntoNombre))));
-  }
-
-  for (const c of candidates) {
-    if (fs.existsSync(c) && fs.statSync(c).isFile()) return c;
-  }
-  return null;
-}
+const CORREO_FLAGS = [
+  'recibe_sugerencias',
+  'recibe_reclamos',
+  'recibe_contacto',
+  'recibe_visitas',
+  'recibe_trabaja',
+  'recibe_admision',
+];
 
 function parseId(raw) {
   const id = parseInt(raw, 10);
@@ -90,6 +58,32 @@ function mapReclamo(row) {
     ...row,
     tiene_adjunto: !!(row.adjunto_ruta || row.adjunto_nombre),
   };
+}
+
+function mapTrabaja(row) {
+  if (!row) return null;
+  return {
+    ...row,
+    tiene_cv: !!(row.cv_ruta || row.cv_nombre),
+  };
+}
+
+async function marcarVisto(table, id) {
+  const rows = await query(`SELECT id, estado FROM ${table} WHERE id = ? LIMIT 1`, [id]);
+  if (!rows?.length) return { missing: true };
+  let cambiado = false;
+  if (String(rows[0].estado || '') === 'nuevo') {
+    await execute(`UPDATE ${table} SET estado = 'en_revision' WHERE id = ? AND estado = 'nuevo'`, [id]);
+    cambiado = true;
+  }
+  const updated = await query(`SELECT * FROM ${table} WHERE id = ? LIMIT 1`, [id]);
+  return { row: updated[0], cambiado };
+}
+
+function sendFileSafe(res, filePath, downloadName, inline = true) {
+  const disp = inline ? 'inline' : 'attachment';
+  res.setHeader('Content-Disposition', `${disp}; filename="${encodeURIComponent(downloadName)}"`);
+  return res.sendFile(filePath);
 }
 
 // ─── Reclamos ───────────────────────────────────────────────────────────────
@@ -125,7 +119,7 @@ router.get('/reclamos', async (req, res) => {
     const rows = await query(sql, params);
     res.json({ reclamos: (rows || []).map(mapReclamo) });
   } catch (e) {
-    console.error('[admin/reclamos-sugerencias/reclamos]', e);
+    console.error('[admin/web/reclamos]', e);
     res.status(500).json({ error: e.message || 'Error al listar reclamos.' });
   }
 });
@@ -138,27 +132,18 @@ router.get('/reclamos/:id', async (req, res) => {
     if (!rows?.length) return res.status(404).json({ error: 'Reclamo no encontrado' });
     res.json({ reclamo: mapReclamo(rows[0]) });
   } catch (e) {
-    console.error('[admin/reclamos-sugerencias/reclamos/:id]', e);
     res.status(500).json({ error: e.message || 'Error al obtener reclamo.' });
   }
 });
 
-/** Al abrir en admin: si está «nuevo», pasa a «en_revision». */
 router.post('/reclamos/:id/marcar-visto', async (req, res) => {
   try {
     const id = parseId(req.params.id);
     if (!id) return res.status(400).json({ error: 'ID inválido' });
-    const rows = await query('SELECT id, estado FROM web_reclamos WHERE id = ? LIMIT 1', [id]);
-    if (!rows?.length) return res.status(404).json({ error: 'Reclamo no encontrado' });
-    let cambiado = false;
-    if (String(rows[0].estado || '') === 'nuevo') {
-      await execute(`UPDATE web_reclamos SET estado = 'en_revision' WHERE id = ? AND estado = 'nuevo'`, [id]);
-      cambiado = true;
-    }
-    const updated = await query('SELECT * FROM web_reclamos WHERE id = ? LIMIT 1', [id]);
-    res.json({ reclamo: mapReclamo(updated[0]), cambiado });
+    const result = await marcarVisto('web_reclamos', id);
+    if (result.missing) return res.status(404).json({ error: 'Reclamo no encontrado' });
+    res.json({ reclamo: mapReclamo(result.row), cambiado: result.cambiado });
   } catch (e) {
-    console.error('[admin/reclamos-sugerencias marcar-visto reclamo]', e);
     res.status(500).json({ error: e.message || 'Error al marcar como visto.' });
   }
 });
@@ -213,7 +198,6 @@ router.put('/reclamos/:id', async (req, res) => {
     const updated = await query('SELECT * FROM web_reclamos WHERE id = ? LIMIT 1', [id]);
     res.json({ reclamo: mapReclamo(updated[0]), message: 'Reclamo actualizado' });
   } catch (e) {
-    console.error('[admin/reclamos-sugerencias PUT reclamos]', e);
     res.status(500).json({ error: e.message || 'Error al actualizar reclamo.' });
   }
 });
@@ -226,7 +210,6 @@ router.delete('/reclamos/:id', async (req, res) => {
     if (!r?.affectedRows) return res.status(404).json({ error: 'Reclamo no encontrado' });
     res.json({ message: 'Reclamo eliminado' });
   } catch (e) {
-    console.error('[admin/reclamos-sugerencias DELETE reclamos]', e);
     res.status(500).json({ error: e.message || 'Error al eliminar reclamo.' });
   }
 });
@@ -244,18 +227,19 @@ router.get('/reclamos/:id/adjunto', async (req, res) => {
     if (!adjunto_nombre && !adjunto_ruta) {
       return res.status(404).json({ error: 'Este reclamo no tiene adjunto' });
     }
-    const filePath = resolveAdjuntoFsPath(adjunto_ruta, adjunto_nombre);
+    const filePath = resolveWebDataFile({
+      ruta: adjunto_ruta,
+      nombre: adjunto_nombre,
+      subdirs: ['libro-reclamaciones/adjuntos'],
+    });
     if (!filePath) {
       return res.status(404).json({
         error: 'Archivo adjunto no encontrado en el servidor',
-        hint: 'Verifique WEB_VANGUARD_ROOT y la carpeta data/libro-reclamaciones/adjuntos/',
+        hint: 'Verifique WEB_VANGUARD_ROOT y data/libro-reclamaciones/adjuntos/',
       });
     }
-    const downloadName = adjunto_nombre || path.basename(filePath);
-    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(downloadName)}"`);
-    return res.sendFile(filePath);
+    return sendFileSafe(res, filePath, adjunto_nombre || path.basename(filePath), true);
   } catch (e) {
-    console.error('[admin/reclamos-sugerencias adjunto]', e);
     res.status(500).json({ error: e.message || 'Error al abrir adjunto.' });
   }
 });
@@ -284,7 +268,6 @@ router.get('/sugerencias', async (req, res) => {
     const rows = await query(sql, params);
     res.json({ sugerencias: rows || [] });
   } catch (e) {
-    console.error('[admin/reclamos-sugerencias/sugerencias]', e);
     res.status(500).json({ error: e.message || 'Error al listar sugerencias.' });
   }
 });
@@ -297,27 +280,18 @@ router.get('/sugerencias/:id', async (req, res) => {
     if (!rows?.length) return res.status(404).json({ error: 'Sugerencia no encontrada' });
     res.json({ sugerencia: rows[0] });
   } catch (e) {
-    console.error('[admin/reclamos-sugerencias/sugerencias/:id]', e);
     res.status(500).json({ error: e.message || 'Error al obtener sugerencia.' });
   }
 });
 
-/** Al abrir en admin: si está «nuevo», pasa a «en_revision». */
 router.post('/sugerencias/:id/marcar-visto', async (req, res) => {
   try {
     const id = parseId(req.params.id);
     if (!id) return res.status(400).json({ error: 'ID inválido' });
-    const rows = await query('SELECT id, estado FROM web_sugerencias WHERE id = ? LIMIT 1', [id]);
-    if (!rows?.length) return res.status(404).json({ error: 'Sugerencia no encontrada' });
-    let cambiado = false;
-    if (String(rows[0].estado || '') === 'nuevo') {
-      await execute(`UPDATE web_sugerencias SET estado = 'en_revision' WHERE id = ? AND estado = 'nuevo'`, [id]);
-      cambiado = true;
-    }
-    const updated = await query('SELECT * FROM web_sugerencias WHERE id = ? LIMIT 1', [id]);
-    res.json({ sugerencia: updated[0], cambiado });
+    const result = await marcarVisto('web_sugerencias', id);
+    if (result.missing) return res.status(404).json({ error: 'Sugerencia no encontrada' });
+    res.json({ sugerencia: result.row, cambiado: result.cambiado });
   } catch (e) {
-    console.error('[admin/reclamos-sugerencias marcar-visto sugerencia]', e);
     res.status(500).json({ error: e.message || 'Error al marcar como visto.' });
   }
 });
@@ -354,7 +328,6 @@ router.put('/sugerencias/:id', async (req, res) => {
     const updated = await query('SELECT * FROM web_sugerencias WHERE id = ? LIMIT 1', [id]);
     res.json({ sugerencia: updated[0], message: 'Sugerencia actualizada' });
   } catch (e) {
-    console.error('[admin/reclamos-sugerencias PUT sugerencias]', e);
     res.status(500).json({ error: e.message || 'Error al actualizar sugerencia.' });
   }
 });
@@ -367,23 +340,675 @@ router.delete('/sugerencias/:id', async (req, res) => {
     if (!r?.affectedRows) return res.status(404).json({ error: 'Sugerencia no encontrada' });
     res.json({ message: 'Sugerencia eliminada' });
   } catch (e) {
-    console.error('[admin/reclamos-sugerencias DELETE sugerencias]', e);
     res.status(500).json({ error: e.message || 'Error al eliminar sugerencia.' });
+  }
+});
+
+// ─── Contáctenos ────────────────────────────────────────────────────────────
+
+router.get('/contactenos', async (req, res) => {
+  try {
+    const { estado, q } = req.query;
+    const params = [];
+    let sql = `
+      SELECT id, fecha_registro, nombre, email, telefono, asunto, mensaje, estado, ip
+      FROM web_contactenos WHERE 1=1
+    `;
+    if (estado) {
+      sql += ' AND estado = ?';
+      params.push(String(estado));
+    }
+    if (q && String(q).trim()) {
+      const like = `%${String(q).trim()}%`;
+      sql += ' AND (nombre LIKE ? OR email LIKE ? OR asunto LIKE ? OR mensaje LIKE ?)';
+      params.push(like, like, like, like);
+    }
+    sql += ' ORDER BY fecha_registro DESC, id DESC LIMIT 500';
+    res.json({ contactenos: (await query(sql, params)) || [] });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al listar contactos.' });
+  }
+});
+
+router.get('/contactenos/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const rows = await query('SELECT * FROM web_contactenos WHERE id = ? LIMIT 1', [id]);
+    if (!rows?.length) return res.status(404).json({ error: 'Registro no encontrado' });
+    res.json({ contacto: rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al obtener contacto.' });
+  }
+});
+
+router.post('/contactenos/:id/marcar-visto', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const result = await marcarVisto('web_contactenos', id);
+    if (result.missing) return res.status(404).json({ error: 'Registro no encontrado' });
+    res.json({ contacto: result.row, cambiado: result.cambiado });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al marcar como visto.' });
+  }
+});
+
+router.put('/contactenos/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const rows = await query('SELECT id FROM web_contactenos WHERE id = ? LIMIT 1', [id]);
+    if (!rows?.length) return res.status(404).json({ error: 'Registro no encontrado' });
+    const b = req.body || {};
+    const estado = b.estado != null ? String(b.estado).trim() : null;
+    if (estado && !ESTADOS.includes(estado)) {
+      return res.status(400).json({ error: `Estado inválido. Use: ${ESTADOS.join(', ')}` });
+    }
+    await execute(
+      `UPDATE web_contactenos SET
+        nombre = ?, email = ?, telefono = ?, asunto = ?, mensaje = ?, estado = COALESCE(?, estado)
+      WHERE id = ?`,
+      [
+        String(b.nombre || '').trim(),
+        String(b.email || '').trim(),
+        b.telefono != null ? String(b.telefono).trim() || null : null,
+        b.asunto != null ? String(b.asunto).trim() || null : null,
+        String(b.mensaje || '').trim(),
+        estado,
+        id,
+      ]
+    );
+    const updated = await query('SELECT * FROM web_contactenos WHERE id = ? LIMIT 1', [id]);
+    res.json({ contacto: updated[0], message: 'Contacto actualizado' });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al actualizar.' });
+  }
+});
+
+router.delete('/contactenos/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const r = await execute('DELETE FROM web_contactenos WHERE id = ?', [id]);
+    if (!r?.affectedRows) return res.status(404).json({ error: 'Registro no encontrado' });
+    res.json({ message: 'Eliminado' });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al eliminar.' });
+  }
+});
+
+// ─── Visitas guiadas ────────────────────────────────────────────────────────
+
+router.get('/visitas', async (req, res) => {
+  try {
+    const { estado, q } = req.query;
+    const params = [];
+    let sql = `
+      SELECT id, fecha_registro, nombre, email, telefono, nivel_interes, fecha_preferida,
+             horario_preferido, numero_estudiantes, mensaje, estado, ip
+      FROM web_visitas_guiadas WHERE 1=1
+    `;
+    if (estado) {
+      sql += ' AND estado = ?';
+      params.push(String(estado));
+    }
+    if (q && String(q).trim()) {
+      const like = `%${String(q).trim()}%`;
+      sql += ' AND (nombre LIKE ? OR email LIKE ? OR nivel_interes LIKE ? OR mensaje LIKE ? OR horario_preferido LIKE ?)';
+      params.push(like, like, like, like, like);
+    }
+    sql += ' ORDER BY fecha_registro DESC, id DESC LIMIT 500';
+    res.json({ visitas: (await query(sql, params)) || [] });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al listar visitas.' });
+  }
+});
+
+router.get('/visitas/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const rows = await query('SELECT * FROM web_visitas_guiadas WHERE id = ? LIMIT 1', [id]);
+    if (!rows?.length) return res.status(404).json({ error: 'Visita no encontrada' });
+    res.json({ visita: rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al obtener visita.' });
+  }
+});
+
+router.post('/visitas/:id/marcar-visto', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const result = await marcarVisto('web_visitas_guiadas', id);
+    if (result.missing) return res.status(404).json({ error: 'Visita no encontrada' });
+    res.json({ visita: result.row, cambiado: result.cambiado });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al marcar como visto.' });
+  }
+});
+
+router.put('/visitas/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const rows = await query('SELECT id FROM web_visitas_guiadas WHERE id = ? LIMIT 1', [id]);
+    if (!rows?.length) return res.status(404).json({ error: 'Visita no encontrada' });
+    const b = req.body || {};
+    const estado = b.estado != null ? String(b.estado).trim() : null;
+    if (estado && !ESTADOS.includes(estado)) {
+      return res.status(400).json({ error: `Estado inválido. Use: ${ESTADOS.join(', ')}` });
+    }
+    await execute(
+      `UPDATE web_visitas_guiadas SET
+        nombre = ?, email = ?, telefono = ?, nivel_interes = ?, fecha_preferida = ?,
+        horario_preferido = ?, numero_estudiantes = ?, mensaje = ?, estado = COALESCE(?, estado)
+      WHERE id = ?`,
+      [
+        String(b.nombre || '').trim(),
+        String(b.email || '').trim(),
+        b.telefono != null ? String(b.telefono).trim() || null : null,
+        b.nivel_interes != null ? String(b.nivel_interes).trim() || null : null,
+        b.fecha_preferida || null,
+        String(b.horario_preferido || '').trim(),
+        b.numero_estudiantes != null ? String(b.numero_estudiantes).trim() || null : null,
+        b.mensaje != null ? String(b.mensaje).trim() || null : null,
+        estado,
+        id,
+      ]
+    );
+    const updated = await query('SELECT * FROM web_visitas_guiadas WHERE id = ? LIMIT 1', [id]);
+    res.json({ visita: updated[0], message: 'Visita actualizada' });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al actualizar visita.' });
+  }
+});
+
+router.delete('/visitas/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const r = await execute('DELETE FROM web_visitas_guiadas WHERE id = ?', [id]);
+    if (!r?.affectedRows) return res.status(404).json({ error: 'Visita no encontrada' });
+    res.json({ message: 'Eliminada' });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al eliminar.' });
+  }
+});
+
+// Config visitas: días
+router.get('/visita-config/dias', async (_req, res) => {
+  try {
+    const rows = await query(
+      `SELECT id, dia_semana, etiqueta, activo FROM web_visita_dias ORDER BY dia_semana ASC`
+    );
+    res.json({ dias: rows || [] });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al listar días.' });
+  }
+});
+
+router.put('/visita-config/dias/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const b = req.body || {};
+    const activo = toBool01(b.activo, 1);
+    const etiqueta = b.etiqueta != null ? String(b.etiqueta).trim() : null;
+    if (etiqueta) {
+      await execute(`UPDATE web_visita_dias SET activo = ?, etiqueta = ? WHERE id = ?`, [
+        activo,
+        etiqueta,
+        id,
+      ]);
+    } else {
+      await execute(`UPDATE web_visita_dias SET activo = ? WHERE id = ?`, [activo, id]);
+    }
+    const rows = await query(`SELECT * FROM web_visita_dias WHERE id = ? LIMIT 1`, [id]);
+    if (!rows?.length) return res.status(404).json({ error: 'Día no encontrado' });
+    res.json({ dia: rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al actualizar día.' });
+  }
+});
+
+// Config visitas: horarios
+router.get('/visita-config/horarios', async (_req, res) => {
+  try {
+    const rows = await query(
+      `SELECT id, etiqueta, activo, orden FROM web_visita_horarios ORDER BY orden ASC, id ASC`
+    );
+    res.json({ horarios: rows || [] });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al listar horarios.' });
+  }
+});
+
+router.post('/visita-config/horarios', async (req, res) => {
+  try {
+    const b = req.body || {};
+    const etiqueta = String(b.etiqueta || '').trim();
+    if (!etiqueta) return res.status(400).json({ error: 'Etiqueta obligatoria' });
+    const activo = toBool01(b.activo, 1);
+    const orden = Number.isFinite(Number(b.orden)) ? Number(b.orden) : 0;
+    const r = await execute(
+      `INSERT INTO web_visita_horarios (etiqueta, activo, orden) VALUES (?, ?, ?)`,
+      [etiqueta, activo, orden]
+    );
+    const rows = await query(`SELECT * FROM web_visita_horarios WHERE id = ?`, [r.insertId]);
+    res.status(201).json({ horario: rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al crear horario.' });
+  }
+});
+
+router.put('/visita-config/horarios/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const b = req.body || {};
+    const etiqueta = String(b.etiqueta || '').trim();
+    if (!etiqueta) return res.status(400).json({ error: 'Etiqueta obligatoria' });
+    await execute(
+      `UPDATE web_visita_horarios SET etiqueta = ?, activo = ?, orden = ? WHERE id = ?`,
+      [etiqueta, toBool01(b.activo, 1), Number.isFinite(Number(b.orden)) ? Number(b.orden) : 0, id]
+    );
+    const rows = await query(`SELECT * FROM web_visita_horarios WHERE id = ?`, [id]);
+    if (!rows?.length) return res.status(404).json({ error: 'Horario no encontrado' });
+    res.json({ horario: rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al actualizar horario.' });
+  }
+});
+
+router.delete('/visita-config/horarios/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const r = await execute(`DELETE FROM web_visita_horarios WHERE id = ?`, [id]);
+    if (!r?.affectedRows) return res.status(404).json({ error: 'Horario no encontrado' });
+    res.json({ message: 'Horario eliminado' });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al eliminar horario.' });
+  }
+});
+
+// Config visitas: secuencias
+router.get('/visita-config/secuencias', async (_req, res) => {
+  try {
+    const secuencias = await query(
+      `SELECT id, nombre, activo, creado_en FROM web_visita_secuencias ORDER BY id DESC`
+    );
+    const slots = await query(
+      `SELECT id, secuencia_id, dia_semana, horario_id FROM web_visita_secuencia_slots ORDER BY id ASC`
+    );
+    res.json({ secuencias: secuencias || [], slots: slots || [] });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al listar secuencias.' });
+  }
+});
+
+router.post('/visita-config/secuencias', async (req, res) => {
+  try {
+    const b = req.body || {};
+    const nombre = String(b.nombre || '').trim();
+    if (!nombre) return res.status(400).json({ error: 'Nombre obligatorio' });
+    const activo = toBool01(b.activo, 1);
+    const slots = Array.isArray(b.slots) ? b.slots : [];
+    const r = await execute(
+      `INSERT INTO web_visita_secuencias (nombre, activo) VALUES (?, ?)`,
+      [nombre, activo]
+    );
+    const seqId = r.insertId;
+    for (const s of slots) {
+      const dia = Number(s.dia_semana);
+      const hid = parseId(s.horario_id);
+      if (!Number.isFinite(dia) || dia < 0 || dia > 6 || !hid) continue;
+      await execute(
+        `INSERT INTO web_visita_secuencia_slots (secuencia_id, dia_semana, horario_id) VALUES (?, ?, ?)`,
+        [seqId, dia, hid]
+      );
+    }
+    const seq = await query(`SELECT * FROM web_visita_secuencias WHERE id = ?`, [seqId]);
+    const seqSlots = await query(
+      `SELECT * FROM web_visita_secuencia_slots WHERE secuencia_id = ?`,
+      [seqId]
+    );
+    res.status(201).json({ secuencia: seq[0], slots: seqSlots || [] });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al crear secuencia.' });
+  }
+});
+
+router.put('/visita-config/secuencias/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const rows = await query(`SELECT id FROM web_visita_secuencias WHERE id = ?`, [id]);
+    if (!rows?.length) return res.status(404).json({ error: 'Secuencia no encontrada' });
+    const b = req.body || {};
+    const nombre = String(b.nombre || '').trim();
+    if (!nombre) return res.status(400).json({ error: 'Nombre obligatorio' });
+    await execute(`UPDATE web_visita_secuencias SET nombre = ?, activo = ? WHERE id = ?`, [
+      nombre,
+      toBool01(b.activo, 1),
+      id,
+    ]);
+    if (Array.isArray(b.slots)) {
+      await execute(`DELETE FROM web_visita_secuencia_slots WHERE secuencia_id = ?`, [id]);
+      for (const s of b.slots) {
+        const dia = Number(s.dia_semana);
+        const hid = parseId(s.horario_id);
+        if (!Number.isFinite(dia) || dia < 0 || dia > 6 || !hid) continue;
+        await execute(
+          `INSERT INTO web_visita_secuencia_slots (secuencia_id, dia_semana, horario_id) VALUES (?, ?, ?)`,
+          [id, dia, hid]
+        );
+      }
+    }
+    const seq = await query(`SELECT * FROM web_visita_secuencias WHERE id = ?`, [id]);
+    const seqSlots = await query(
+      `SELECT * FROM web_visita_secuencia_slots WHERE secuencia_id = ?`,
+      [id]
+    );
+    res.json({ secuencia: seq[0], slots: seqSlots || [] });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al actualizar secuencia.' });
+  }
+});
+
+router.delete('/visita-config/secuencias/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const r = await execute(`DELETE FROM web_visita_secuencias WHERE id = ?`, [id]);
+    if (!r?.affectedRows) return res.status(404).json({ error: 'Secuencia no encontrada' });
+    res.json({ message: 'Secuencia eliminada' });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al eliminar secuencia.' });
+  }
+});
+
+// ─── Trabaja con nosotros ───────────────────────────────────────────────────
+
+router.get('/trabaja', async (req, res) => {
+  try {
+    const { estado, q } = req.query;
+    const params = [];
+    let sql = `
+      SELECT id, fecha_registro, nombre, email, telefono, puesto, mensaje,
+             cv_nombre, cv_ruta, cv_mime, cv_size, estado, ip
+      FROM web_trabaja_con_nosotros WHERE 1=1
+    `;
+    if (estado) {
+      sql += ' AND estado = ?';
+      params.push(String(estado));
+    }
+    if (q && String(q).trim()) {
+      const like = `%${String(q).trim()}%`;
+      sql += ' AND (nombre LIKE ? OR email LIKE ? OR puesto LIKE ? OR mensaje LIKE ?)';
+      params.push(like, like, like, like);
+    }
+    sql += ' ORDER BY fecha_registro DESC, id DESC LIMIT 500';
+    const rows = await query(sql, params);
+    res.json({ postulaciones: (rows || []).map(mapTrabaja) });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al listar postulaciones.' });
+  }
+});
+
+router.get('/trabaja/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const rows = await query('SELECT * FROM web_trabaja_con_nosotros WHERE id = ? LIMIT 1', [id]);
+    if (!rows?.length) return res.status(404).json({ error: 'Postulación no encontrada' });
+    res.json({ postulacion: mapTrabaja(rows[0]) });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al obtener postulación.' });
+  }
+});
+
+router.post('/trabaja/:id/marcar-visto', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const result = await marcarVisto('web_trabaja_con_nosotros', id);
+    if (result.missing) return res.status(404).json({ error: 'Postulación no encontrada' });
+    res.json({ postulacion: mapTrabaja(result.row), cambiado: result.cambiado });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al marcar como visto.' });
+  }
+});
+
+router.put('/trabaja/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const rows = await query('SELECT id FROM web_trabaja_con_nosotros WHERE id = ? LIMIT 1', [id]);
+    if (!rows?.length) return res.status(404).json({ error: 'Postulación no encontrada' });
+    const b = req.body || {};
+    const estado = b.estado != null ? String(b.estado).trim() : null;
+    if (estado && !ESTADOS.includes(estado)) {
+      return res.status(400).json({ error: `Estado inválido. Use: ${ESTADOS.join(', ')}` });
+    }
+    await execute(
+      `UPDATE web_trabaja_con_nosotros SET
+        nombre = ?, email = ?, telefono = ?, puesto = ?, mensaje = ?, estado = COALESCE(?, estado)
+      WHERE id = ?`,
+      [
+        String(b.nombre || '').trim(),
+        String(b.email || '').trim(),
+        b.telefono != null ? String(b.telefono).trim() || null : null,
+        String(b.puesto || '').trim(),
+        b.mensaje != null ? String(b.mensaje).trim() || null : null,
+        estado,
+        id,
+      ]
+    );
+    const updated = await query('SELECT * FROM web_trabaja_con_nosotros WHERE id = ? LIMIT 1', [id]);
+    res.json({ postulacion: mapTrabaja(updated[0]), message: 'Actualizado' });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al actualizar.' });
+  }
+});
+
+router.delete('/trabaja/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const r = await execute('DELETE FROM web_trabaja_con_nosotros WHERE id = ?', [id]);
+    if (!r?.affectedRows) return res.status(404).json({ error: 'Postulación no encontrada' });
+    res.json({ message: 'Eliminada' });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al eliminar.' });
+  }
+});
+
+router.get('/trabaja/:id/cv', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const rows = await query(
+      'SELECT cv_nombre, cv_ruta, cv_mime FROM web_trabaja_con_nosotros WHERE id = ? LIMIT 1',
+      [id]
+    );
+    if (!rows?.length) return res.status(404).json({ error: 'Postulación no encontrada' });
+    const { cv_nombre, cv_ruta, cv_mime } = rows[0];
+    if (!cv_nombre && !cv_ruta) {
+      return res.status(404).json({ error: 'Esta postulación no tiene CV' });
+    }
+    const filePath = resolveWebDataFile({
+      ruta: cv_ruta,
+      nombre: cv_nombre,
+      subdirs: ['curriculums'],
+    });
+    if (!filePath) {
+      return res.status(404).json({
+        error: 'CV no encontrado en el servidor',
+        hint: 'Verifique WEB_VANGUARD_ROOT y data/curriculums/',
+      });
+    }
+    if (cv_mime) res.setHeader('Content-Type', cv_mime);
+    return sendFileSafe(res, filePath, cv_nombre || path.basename(filePath), true);
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al abrir CV.' });
+  }
+});
+
+// ─── Admisión ───────────────────────────────────────────────────────────────
+
+router.get('/admision', async (req, res) => {
+  try {
+    const { estado, q } = req.query;
+    const params = [];
+    let sql = `
+      SELECT id, fecha_registro, nombres_estudiante, apellidos_estudiante, nombres_apoderado,
+             dni_apoderado, telefono_apoderado, email_apoderado, direccion_apoderado, grado, estado, ip
+      FROM web_admision WHERE 1=1
+    `;
+    if (estado) {
+      sql += ' AND estado = ?';
+      params.push(String(estado));
+    }
+    if (q && String(q).trim()) {
+      const like = `%${String(q).trim()}%`;
+      sql += ` AND (
+        nombres_estudiante LIKE ? OR apellidos_estudiante LIKE ? OR nombres_apoderado LIKE ?
+        OR dni_apoderado LIKE ? OR email_apoderado LIKE ? OR grado LIKE ?
+      )`;
+      params.push(like, like, like, like, like, like);
+    }
+    sql += ' ORDER BY fecha_registro DESC, id DESC LIMIT 500';
+    res.json({ admisiones: (await query(sql, params)) || [] });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al listar admisiones.' });
+  }
+});
+
+router.get('/admision/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const rows = await query('SELECT * FROM web_admision WHERE id = ? LIMIT 1', [id]);
+    if (!rows?.length) return res.status(404).json({ error: 'Registro no encontrado' });
+    res.json({ admision: rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al obtener admisión.' });
+  }
+});
+
+router.post('/admision/:id/marcar-visto', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const result = await marcarVisto('web_admision', id);
+    if (result.missing) return res.status(404).json({ error: 'Registro no encontrado' });
+    res.json({ admision: result.row, cambiado: result.cambiado });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al marcar como visto.' });
+  }
+});
+
+router.put('/admision/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const rows = await query('SELECT id FROM web_admision WHERE id = ? LIMIT 1', [id]);
+    if (!rows?.length) return res.status(404).json({ error: 'Registro no encontrado' });
+    const b = req.body || {};
+    const estado = b.estado != null ? String(b.estado).trim() : null;
+    if (estado && !ESTADOS.includes(estado)) {
+      return res.status(400).json({ error: `Estado inválido. Use: ${ESTADOS.join(', ')}` });
+    }
+    await execute(
+      `UPDATE web_admision SET
+        nombres_estudiante = ?, apellidos_estudiante = ?, nombres_apoderado = ?,
+        dni_apoderado = ?, telefono_apoderado = ?, email_apoderado = ?,
+        direccion_apoderado = ?, grado = ?, estado = COALESCE(?, estado)
+      WHERE id = ?`,
+      [
+        String(b.nombres_estudiante || '').trim(),
+        String(b.apellidos_estudiante || '').trim(),
+        String(b.nombres_apoderado || '').trim(),
+        String(b.dni_apoderado || '').trim(),
+        b.telefono_apoderado != null ? String(b.telefono_apoderado).trim() || null : null,
+        String(b.email_apoderado || '').trim(),
+        b.direccion_apoderado != null ? String(b.direccion_apoderado).trim() || null : null,
+        String(b.grado || '').trim(),
+        estado,
+        id,
+      ]
+    );
+    const updated = await query('SELECT * FROM web_admision WHERE id = ? LIMIT 1', [id]);
+    res.json({ admision: updated[0], message: 'Actualizado' });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al actualizar.' });
+  }
+});
+
+router.delete('/admision/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const r = await execute('DELETE FROM web_admision WHERE id = ?', [id]);
+    if (!r?.affectedRows) return res.status(404).json({ error: 'Registro no encontrado' });
+    res.json({ message: 'Eliminado' });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al eliminar.' });
   }
 });
 
 // ─── Correos de envío ───────────────────────────────────────────────────────
 
+function parseCorreoFlags(b, defaultsOn = true) {
+  const flags = {};
+  for (const f of CORREO_FLAGS) {
+    flags[f] = toBool01(b[f], defaultsOn ? 1 : 0);
+  }
+  return flags;
+}
+
+function anyFlagOn(flags) {
+  return CORREO_FLAGS.some((f) => flags[f] === 1);
+}
+
 router.get('/correos', async (req, res) => {
   try {
     const rows = await query(
-      `SELECT id, email, etiqueta, activo, recibe_sugerencias, recibe_reclamos, creado_en
+      `SELECT id, email, etiqueta, activo,
+              recibe_sugerencias, recibe_reclamos,
+              recibe_contacto, recibe_visitas, recibe_trabaja, recibe_admision,
+              creado_en
        FROM web_correos_envio
        ORDER BY activo DESC, etiqueta ASC, email ASC`
     );
     res.json({ correos: rows || [] });
   } catch (e) {
-    console.error('[admin/reclamos-sugerencias/correos]', e);
+    // Fallback si faltan columnas nuevas (SQL de web aún no corrido)
+    if (String(e.message || '').includes('Unknown column')) {
+      try {
+        const rows = await query(
+          `SELECT id, email, etiqueta, activo, recibe_sugerencias, recibe_reclamos, creado_en
+           FROM web_correos_envio
+           ORDER BY activo DESC, etiqueta ASC, email ASC`
+        );
+        return res.json({
+          correos: (rows || []).map((r) => ({
+            ...r,
+            recibe_contacto: 0,
+            recibe_visitas: 0,
+            recibe_trabaja: 0,
+            recibe_admision: 0,
+          })),
+          warning:
+            'Faltan columnas recibe_* nuevas en web_correos_envio. Ejecute los SQL de web-vanguard/sql/.',
+        });
+      } catch (e2) {
+        return res.status(500).json({ error: e2.message || 'Error al listar correos.' });
+      }
+    }
     res.status(500).json({ error: e.message || 'Error al listar correos.' });
   }
 });
@@ -397,10 +1022,9 @@ router.post('/correos', async (req, res) => {
     }
     const etiqueta = b.etiqueta != null ? String(b.etiqueta).trim() || null : null;
     const activo = toBool01(b.activo, 1);
-    const recibe_sugerencias = toBool01(b.recibe_sugerencias, 1);
-    const recibe_reclamos = toBool01(b.recibe_reclamos, 1);
-    if (!recibe_sugerencias && !recibe_reclamos) {
-      return res.status(400).json({ error: 'Marque al menos un destino: sugerencias o reclamos' });
+    const flags = parseCorreoFlags(b, false);
+    if (!anyFlagOn(flags)) {
+      return res.status(400).json({ error: 'Marque al menos un canal de recepción' });
     }
 
     const exists = await query('SELECT id FROM web_correos_envio WHERE email = ? LIMIT 1', [email]);
@@ -409,16 +1033,33 @@ router.post('/correos', async (req, res) => {
     }
 
     const r = await execute(
-      `INSERT INTO web_correos_envio (email, etiqueta, activo, recibe_sugerencias, recibe_reclamos)
-       VALUES (?, ?, ?, ?, ?)`,
-      [email, etiqueta, activo, recibe_sugerencias, recibe_reclamos]
+      `INSERT INTO web_correos_envio
+        (email, etiqueta, activo, recibe_sugerencias, recibe_reclamos,
+         recibe_contacto, recibe_visitas, recibe_trabaja, recibe_admision)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        email,
+        etiqueta,
+        activo,
+        flags.recibe_sugerencias,
+        flags.recibe_reclamos,
+        flags.recibe_contacto,
+        flags.recibe_visitas,
+        flags.recibe_trabaja,
+        flags.recibe_admision,
+      ]
     );
     const rows = await query('SELECT * FROM web_correos_envio WHERE id = ? LIMIT 1', [r.insertId]);
     res.status(201).json({ correo: rows[0], message: 'Correo creado' });
   } catch (e) {
-    console.error('[admin/reclamos-sugerencias POST correos]', e);
     if (e.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ error: 'Ese correo ya está registrado' });
+    }
+    if (String(e.message || '').includes('Unknown column')) {
+      return res.status(400).json({
+        error:
+          'Faltan columnas de canales en web_correos_envio. Ejecute los SQL de contacto/visitas/trabaja/admisión en web-vanguard/sql/.',
+      });
     }
     res.status(500).json({ error: e.message || 'Error al crear correo.' });
   }
@@ -438,10 +1079,9 @@ router.put('/correos/:id', async (req, res) => {
     }
     const etiqueta = b.etiqueta != null ? String(b.etiqueta).trim() || null : null;
     const activo = toBool01(b.activo, 1);
-    const recibe_sugerencias = toBool01(b.recibe_sugerencias, 1);
-    const recibe_reclamos = toBool01(b.recibe_reclamos, 1);
-    if (!recibe_sugerencias && !recibe_reclamos) {
-      return res.status(400).json({ error: 'Marque al menos un destino: sugerencias o reclamos' });
+    const flags = parseCorreoFlags(b, false);
+    if (!anyFlagOn(flags)) {
+      return res.status(400).json({ error: 'Marque al menos un canal de recepción' });
     }
 
     const dup = await query(
@@ -454,14 +1094,32 @@ router.put('/correos/:id', async (req, res) => {
 
     await execute(
       `UPDATE web_correos_envio
-       SET email = ?, etiqueta = ?, activo = ?, recibe_sugerencias = ?, recibe_reclamos = ?
+       SET email = ?, etiqueta = ?, activo = ?,
+           recibe_sugerencias = ?, recibe_reclamos = ?,
+           recibe_contacto = ?, recibe_visitas = ?, recibe_trabaja = ?, recibe_admision = ?
        WHERE id = ?`,
-      [email, etiqueta, activo, recibe_sugerencias, recibe_reclamos, id]
+      [
+        email,
+        etiqueta,
+        activo,
+        flags.recibe_sugerencias,
+        flags.recibe_reclamos,
+        flags.recibe_contacto,
+        flags.recibe_visitas,
+        flags.recibe_trabaja,
+        flags.recibe_admision,
+        id,
+      ]
     );
     const updated = await query('SELECT * FROM web_correos_envio WHERE id = ? LIMIT 1', [id]);
     res.json({ correo: updated[0], message: 'Correo actualizado' });
   } catch (e) {
-    console.error('[admin/reclamos-sugerencias PUT correos]', e);
+    if (String(e.message || '').includes('Unknown column')) {
+      return res.status(400).json({
+        error:
+          'Faltan columnas de canales en web_correos_envio. Ejecute los SQL de web-vanguard/sql/.',
+      });
+    }
     res.status(500).json({ error: e.message || 'Error al actualizar correo.' });
   }
 });
@@ -474,20 +1132,24 @@ router.delete('/correos/:id', async (req, res) => {
     if (!r?.affectedRows) return res.status(404).json({ error: 'Correo no encontrado' });
     res.json({ message: 'Correo eliminado' });
   } catch (e) {
-    console.error('[admin/reclamos-sugerencias DELETE correos]', e);
     res.status(500).json({ error: e.message || 'Error al eliminar correo.' });
   }
 });
 
 router.get('/meta', async (_req, res) => {
   const root = resolveWebVanguardRoot();
-  const adj = adjuntosDir();
+  const adj = path.join(root, 'data', 'libro-reclamaciones', 'adjuntos');
+  const cvs = path.join(root, 'data', 'curriculums');
   res.json({
     estados: ESTADOS,
     tipos_reclamo: TIPOS_RECLAMO,
+    canales: ['reclamos', 'sugerencias', 'contacto', 'visitas', 'trabaja', 'admision'],
+    correo_flags: CORREO_FLAGS,
     web_vanguard_root: root,
     adjuntos_dir: adj,
     adjuntos_dir_existe: fs.existsSync(adj),
+    curriculums_dir: cvs,
+    curriculums_dir_existe: fs.existsSync(cvs),
   });
 });
 

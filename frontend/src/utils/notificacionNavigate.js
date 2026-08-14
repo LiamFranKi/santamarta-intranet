@@ -145,12 +145,32 @@ export function normalizarUrlNotificacion(notif, user) {
     return '/docente/dashboard#mis-asistencias';
   }
 
-  if (tipoAccion === 'web_reclamo' || tipoAccion === 'web_sugerencia') {
+  if (
+    tipoAccion === 'web_reclamo' ||
+    tipoAccion === 'web_sugerencia' ||
+    tipoAccion === 'web_contacto' ||
+    tipoAccion === 'web_visita' ||
+    tipoAccion === 'web_trabaja' ||
+    tipoAccion === 'web_admision'
+  ) {
     if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA') {
-      if (url) return url;
-      return tipoAccion === 'web_sugerencia'
-        ? '/admin/comunicaciones/reclamos-sugerencias?tab=sugerencias'
-        : '/admin/comunicaciones/reclamos-sugerencias?tab=reclamos';
+      if (url) {
+        // Migrar URLs antiguas
+        return String(url).replace(
+          '/admin/comunicaciones/reclamos-sugerencias',
+          '/admin/comunicaciones/web'
+        );
+      }
+      const tabByTipo = {
+        web_sugerencia: 'sugerencias',
+        web_contacto: 'contacto',
+        web_visita: 'visitas',
+        web_trabaja: 'trabaja',
+        web_admision: 'admision',
+        web_reclamo: 'reclamos',
+      };
+      const tab = tabByTipo[tipoAccion] || payload.tab || 'reclamos';
+      return `/admin/comunicaciones/web?tab=${tab}`;
     }
   }
 

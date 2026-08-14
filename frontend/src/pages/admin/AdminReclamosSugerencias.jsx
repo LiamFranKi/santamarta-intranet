@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
@@ -7,12 +7,55 @@ import api from '../../services/api';
 import './AdminReclamosSugerencias.css';
 
 const API = '/admin/reclamos-sugerencias';
+
 const ESTADOS = [
   { value: 'nuevo', label: 'Nuevo' },
   { value: 'en_revision', label: 'En revisión' },
   { value: 'atendido', label: 'Atendido' },
   { value: 'cerrado', label: 'Cerrado' },
 ];
+
+const TABS = [
+  { id: 'reclamos', label: '📋 Reclamos' },
+  { id: 'sugerencias', label: '💡 Sugerencias' },
+  { id: 'contacto', label: '✉️ Contacto' },
+  { id: 'visitas', label: '🗓️ Visitas' },
+  { id: 'trabaja', label: '💼 Trabaja' },
+  { id: 'admision', label: '🎓 Admisión' },
+];
+
+const TAB_IDS = TABS.map((t) => t.id);
+
+const CORREO_CANALES = [
+  { key: 'recibe_sugerencias', label: 'Sugerencias', badge: 'rs-badge--ok' },
+  { key: 'recibe_reclamos', label: 'Reclamos', badge: 'rs-badge--reclamo' },
+  { key: 'recibe_contacto', label: 'Contacto', badge: 'rs-badge--ok' },
+  { key: 'recibe_visitas', label: 'Visitas', badge: 'rs-badge--ok' },
+  { key: 'recibe_trabaja', label: 'Trabaja', badge: 'rs-badge--ok' },
+  { key: 'recibe_admision', label: 'Admisión', badge: 'rs-badge--ok' },
+];
+
+const DIAS_SEMANA = [
+  { value: 0, label: 'Domingo' },
+  { value: 1, label: 'Lunes' },
+  { value: 2, label: 'Martes' },
+  { value: 3, label: 'Miércoles' },
+  { value: 4, label: 'Jueves' },
+  { value: 5, label: 'Viernes' },
+  { value: 6, label: 'Sábado' },
+];
+
+const correoFormVacio = () => ({
+  email: '',
+  etiqueta: '',
+  activo: true,
+  recibe_sugerencias: false,
+  recibe_reclamos: false,
+  recibe_contacto: false,
+  recibe_visitas: false,
+  recibe_trabaja: false,
+  recibe_admision: false,
+});
 
 const swalOpts = {
   target: document.body,
@@ -46,24 +89,89 @@ function BadgeEstado({ estado }) {
   return <span className={`rs-badge rs-badge--${key}`}>{etiquetaEstado(estado)}</span>;
 }
 
+function tabValido(raw) {
+  return TAB_IDS.includes(raw) ? raw : 'reclamos';
+}
+
+async function abrirBlob(url, fallbackMsg) {
+  try {
+    const res = await api.get(url, { responseType: 'blob' });
+    const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
+    const objUrl = URL.createObjectURL(blob);
+    window.open(objUrl, '_blank', 'noopener,noreferrer');
+    setTimeout(() => URL.revokeObjectURL(objUrl), 60_000);
+  } catch (e) {
+    let msg = fallbackMsg;
+    try {
+      if (e.response?.data instanceof Blob) {
+        const text = await e.response.data.text();
+        const j = JSON.parse(text);
+        msg = j.error || msg;
+      } else {
+        msg = e.response?.data?.error || msg;
+      }
+    } catch {
+      /* ignore */
+    }
+    Swal.fire({ icon: 'error', title: 'Archivo', text: msg, ...swalOpts });
+  }
+}
+
+function OverlayModal({ title, subtitle, wide, onClose, children, footer }) {
+  return createPortal(
+    <div className="rs-overlay" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div
+        className={`rs-modal${wide ? ' rs-modal--wide' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="rs-modal-header">
+          <div>
+            <h2>{title}</h2>
+            {subtitle ? <p>{subtitle}</p> : null}
+          </div>
+          <button type="button" className="rs-modal-close" onClick={onClose} aria-label="Cerrar">
+            ✕
+          </button>
+        </div>
+        <div className="rs-modal-body">{children}</div>
+        {footer ? <div className="rs-modal-footer">{footer}</div> : null}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function SelectEstado({ value, onChange }) {
+  return (
+    <select value={value || 'nuevo'} onChange={(e) => onChange(e.target.value)}>
+      {ESTADOS.map((e) => (
+        <option key={e.value} value={e.value}>
+          {e.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/* ─── Correos de envío ─────────────────────────────────────────────────────── */
+
 function CorreosModal({ open, onClose }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [edit, setEdit] = useState(null);
-  const [form, setForm] = useState({
-    email: '',
-    etiqueta: '',
-    activo: true,
-    recibe_sugerencias: true,
-    recibe_reclamos: true,
-  });
+  const [form, setForm] = useState(correoFormVacio);
 
   const cargar = useCallback(async () => {
     try {
       setLoading(true);
       const { data } = await api.get(`${API}/correos`);
       setItems(data.correos || []);
+      if (data.warning) {
+        Swal.fire({ icon: 'warning', title: 'Aviso', text: data.warning, ...swalOpts });
+      }
     } catch (e) {
       Swal.fire({
         icon: 'error',
@@ -79,13 +187,7 @@ function CorreosModal({ open, onClose }) {
   useEffect(() => {
     if (open) {
       setEdit(null);
-      setForm({
-        email: '',
-        etiqueta: '',
-        activo: true,
-        recibe_sugerencias: true,
-        recibe_reclamos: true,
-      });
+      setForm(correoFormVacio());
       cargar();
     }
   }, [open, cargar]);
@@ -98,21 +200,29 @@ function CorreosModal({ open, onClose }) {
       activo: !!row.activo,
       recibe_sugerencias: !!row.recibe_sugerencias,
       recibe_reclamos: !!row.recibe_reclamos,
+      recibe_contacto: !!row.recibe_contacto,
+      recibe_visitas: !!row.recibe_visitas,
+      recibe_trabaja: !!row.recibe_trabaja,
+      recibe_admision: !!row.recibe_admision,
     });
   };
 
   const cancelarForm = () => {
     setEdit(null);
-    setForm({
-      email: '',
-      etiqueta: '',
-      activo: true,
-      recibe_sugerencias: true,
-      recibe_reclamos: true,
-    });
+    setForm(correoFormVacio());
   };
 
   const guardar = async () => {
+    const algunCanal = CORREO_CANALES.some((c) => form[c.key]);
+    if (!algunCanal) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Canal requerido',
+        text: 'Marque al menos un canal de recepción',
+        ...swalOpts,
+      });
+      return;
+    }
     try {
       setSaving(true);
       const payload = {
@@ -121,6 +231,10 @@ function CorreosModal({ open, onClose }) {
         activo: form.activo ? 1 : 0,
         recibe_sugerencias: form.recibe_sugerencias ? 1 : 0,
         recibe_reclamos: form.recibe_reclamos ? 1 : 0,
+        recibe_contacto: form.recibe_contacto ? 1 : 0,
+        recibe_visitas: form.recibe_visitas ? 1 : 0,
+        recibe_trabaja: form.recibe_trabaja ? 1 : 0,
+        recibe_admision: form.recibe_admision ? 1 : 0,
       };
       if (edit?.id) {
         await api.put(`${API}/correos/${edit.id}`, payload);
@@ -175,140 +289,612 @@ function CorreosModal({ open, onClose }) {
 
   if (!open) return null;
 
-  return createPortal(
-    <div className="rs-overlay" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="rs-modal rs-modal--wide" role="dialog" aria-modal="true" aria-labelledby="rs-correos-title" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="rs-modal-header">
-          <div>
-            <h2 id="rs-correos-title">📧 Correos de envío</h2>
-            <p>Destinatarios que reciben avisos del libro de reclamaciones y sugerencias de la web.</p>
-          </div>
-          <button type="button" className="rs-modal-close" onClick={onClose} aria-label="Cerrar">
-            ✕
-          </button>
+  return (
+    <OverlayModal
+      title="📧 Correos de envío"
+      subtitle="Destinatarios de avisos por correo de los formularios web."
+      wide
+      onClose={onClose}
+    >
+      <div className="rs-form-grid" style={{ marginBottom: '1.1rem' }}>
+        <div className="rs-field">
+          <label>Correo *</label>
+          <input
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+            placeholder="nombre@colegio.edu.pe"
+          />
         </div>
-        <div className="rs-modal-body">
-          <div className="rs-form-grid" style={{ marginBottom: '1.1rem' }}>
-            <div className="rs-field">
-              <label>Correo *</label>
+        <div className="rs-field">
+          <label>Etiqueta</label>
+          <input
+            type="text"
+            value={form.etiqueta}
+            onChange={(e) => setForm((f) => ({ ...f, etiqueta: e.target.value }))}
+            placeholder="Ej. Dirección"
+          />
+        </div>
+        <div className="rs-field rs-field--full">
+          <label>Opciones</label>
+          <div className="rs-checks">
+            <label>
               <input
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                placeholder="nombre@colegio.edu.pe"
+                type="checkbox"
+                checked={form.activo}
+                onChange={(e) => setForm((f) => ({ ...f, activo: e.target.checked }))}
               />
-            </div>
-            <div className="rs-field">
-              <label>Etiqueta</label>
-              <input
-                type="text"
-                value={form.etiqueta}
-                onChange={(e) => setForm((f) => ({ ...f, etiqueta: e.target.value }))}
-                placeholder="Ej. Dirección"
-              />
-            </div>
-            <div className="rs-field rs-field--full">
-              <label>Opciones</label>
-              <div className="rs-checks">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={form.activo}
-                    onChange={(e) => setForm((f) => ({ ...f, activo: e.target.checked }))}
-                  />
-                  Activo
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={form.recibe_sugerencias}
-                    onChange={(e) => setForm((f) => ({ ...f, recibe_sugerencias: e.target.checked }))}
-                  />
-                  Recibe sugerencias
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={form.recibe_reclamos}
-                    onChange={(e) => setForm((f) => ({ ...f, recibe_reclamos: e.target.checked }))}
-                  />
-                  Recibe reclamos
-                </label>
-              </div>
-            </div>
+              Activo
+            </label>
+            {CORREO_CANALES.map((c) => (
+              <label key={c.key}>
+                <input
+                  type="checkbox"
+                  checked={!!form[c.key]}
+                  onChange={(e) => setForm((f) => ({ ...f, [c.key]: e.target.checked }))}
+                />
+                {c.label}
+              </label>
+            ))}
           </div>
-          <div className="rs-modal-footer" style={{ borderTop: 'none', padding: '0 0 1rem' }}>
-            {edit && (
-              <button type="button" className="rs-btn rs-btn-ghost" onClick={cancelarForm}>
-                Cancelar edición
-              </button>
-            )}
-            <button type="button" className="rs-btn rs-btn-primary" onClick={guardar} disabled={saving}>
-              {saving ? 'Guardando…' : edit ? '💾 Guardar cambios' : '➕ Crear correo'}
-            </button>
-          </div>
-
-          {loading ? (
-            <p className="rs-loading">Cargando correos…</p>
-          ) : items.length === 0 ? (
-            <p className="rs-empty">No hay correos configurados. Cree el primero arriba.</p>
-          ) : (
-            <div className="rs-table-wrap">
-              <table className="rs-table">
-                <thead>
-                  <tr>
-                    <th>Correo</th>
-                    <th>Etiqueta</th>
-                    <th>Estado</th>
-                    <th>Recibe</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((row) => (
-                    <tr key={row.id}>
-                      <td>
-                        <div className="rs-nombre">{row.email}</div>
-                        <div className="rs-muted">Desde {fmtFecha(row.creado_en)}</div>
-                      </td>
-                      <td>{row.etiqueta || '—'}</td>
-                      <td>
-                        <span className={`rs-badge ${row.activo ? 'rs-badge--ok' : 'rs-badge--off'}`}>
-                          {row.activo ? 'Activo' : 'Inactivo'}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="rs-chip-row">
-                          <span className={`rs-badge ${row.recibe_sugerencias ? 'rs-badge--ok' : 'rs-badge--off'}`}>
-                            Sugerencias
-                          </span>
-                          <span className={`rs-badge ${row.recibe_reclamos ? 'rs-badge--reclamo' : 'rs-badge--off'}`}>
-                            Reclamos
-                          </span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="rs-actions">
-                          <button type="button" className="rs-btn rs-btn-ghost rs-btn-sm" onClick={() => abrirEditar(row)} title="Editar">
-                            ✏️
-                          </button>
-                          <button type="button" className="rs-btn rs-btn-danger rs-btn-sm" onClick={() => eliminar(row)} title="Eliminar">
-                            🗑️
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
       </div>
-    </div>,
-    document.body
+      <div className="rs-modal-footer" style={{ borderTop: 'none', padding: '0 0 1rem' }}>
+        {edit && (
+          <button type="button" className="rs-btn rs-btn-ghost" onClick={cancelarForm}>
+            Cancelar edición
+          </button>
+        )}
+        <button type="button" className="rs-btn rs-btn-primary" onClick={guardar} disabled={saving}>
+          {saving ? 'Guardando…' : edit ? '💾 Guardar cambios' : '➕ Crear correo'}
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="rs-loading">Cargando correos…</p>
+      ) : items.length === 0 ? (
+        <p className="rs-empty">No hay correos configurados. Cree el primero arriba.</p>
+      ) : (
+        <div className="rs-table-wrap">
+          <table className="rs-table">
+            <thead>
+              <tr>
+                <th>Correo</th>
+                <th>Etiqueta</th>
+                <th>Estado</th>
+                <th>Canales</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((row) => (
+                <tr key={row.id}>
+                  <td>
+                    <div className="rs-nombre">{row.email}</div>
+                    <div className="rs-muted">Desde {fmtFecha(row.creado_en)}</div>
+                  </td>
+                  <td>{row.etiqueta || '—'}</td>
+                  <td>
+                    <span className={`rs-badge ${row.activo ? 'rs-badge--ok' : 'rs-badge--off'}`}>
+                      {row.activo ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="rs-chip-row">
+                      {CORREO_CANALES.filter((c) => row[c.key]).map((c) => (
+                        <span key={c.key} className={`rs-badge ${c.badge}`}>
+                          {c.label}
+                        </span>
+                      ))}
+                      {!CORREO_CANALES.some((c) => row[c.key]) && (
+                        <span className="rs-badge rs-badge--off">Sin canales</span>
+                      )}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="rs-actions">
+                      <button type="button" className="rs-btn rs-btn-ghost rs-btn-sm" onClick={() => abrirEditar(row)} title="Editar">
+                        ✏️
+                      </button>
+                      <button type="button" className="rs-btn rs-btn-danger rs-btn-sm" onClick={() => eliminar(row)} title="Eliminar">
+                        🗑️
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </OverlayModal>
   );
 }
+
+/* ─── Config. visitas ──────────────────────────────────────────────────────── */
+
+function VisitasConfigModal({ open, onClose }) {
+  const [loading, setLoading] = useState(true);
+  const [dias, setDias] = useState([]);
+  const [horarios, setHorarios] = useState([]);
+  const [secuencias, setSecuencias] = useState([]);
+  const [slots, setSlots] = useState([]);
+  const [horarioForm, setHorarioForm] = useState({ id: null, etiqueta: '', activo: true, orden: 0 });
+  const [seqForm, setSeqForm] = useState({ nombre: '', activo: true, slots: [] });
+  const [saving, setSaving] = useState(false);
+
+  const cargar = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [dRes, hRes, sRes] = await Promise.all([
+        api.get(`${API}/visita-config/dias`),
+        api.get(`${API}/visita-config/horarios`),
+        api.get(`${API}/visita-config/secuencias`),
+      ]);
+      setDias(dRes.data.dias || []);
+      setHorarios(hRes.data.horarios || []);
+      setSecuencias(sRes.data.secuencias || []);
+      setSlots(sRes.data.slots || []);
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo cargar la configuración de visitas',
+        ...swalOpts,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      setHorarioForm({ id: null, etiqueta: '', activo: true, orden: 0 });
+      setSeqForm({ nombre: '', activo: true, slots: [] });
+      cargar();
+    }
+  }, [open, cargar]);
+
+  const toggleDia = async (dia) => {
+    try {
+      await api.put(`${API}/visita-config/dias/${dia.id}`, { activo: dia.activo ? 0 : 1 });
+      await cargar();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo actualizar el día',
+        ...swalOpts,
+      });
+    }
+  };
+
+  const guardarHorario = async () => {
+    if (!horarioForm.etiqueta.trim()) {
+      Swal.fire({ icon: 'warning', title: 'Etiqueta obligatoria', ...swalOpts });
+      return;
+    }
+    try {
+      setSaving(true);
+      const payload = {
+        etiqueta: horarioForm.etiqueta.trim(),
+        activo: horarioForm.activo ? 1 : 0,
+        orden: Number(horarioForm.orden) || 0,
+      };
+      if (horarioForm.id) {
+        await api.put(`${API}/visita-config/horarios/${horarioForm.id}`, payload);
+      } else {
+        await api.post(`${API}/visita-config/horarios`, payload);
+      }
+      setHorarioForm({ id: null, etiqueta: '', activo: true, orden: 0 });
+      await cargar();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo guardar el horario',
+        ...swalOpts,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const eliminarHorario = async (row) => {
+    const conf = await Swal.fire({
+      icon: 'warning',
+      title: '¿Eliminar horario?',
+      text: row.etiqueta,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b91c1c',
+      ...swalOpts,
+    });
+    if (!conf.isConfirmed) return;
+    try {
+      await api.delete(`${API}/visita-config/horarios/${row.id}`);
+      await cargar();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo eliminar',
+        ...swalOpts,
+      });
+    }
+  };
+
+  const toggleSlotSeq = (dia_semana, horario_id) => {
+    setSeqForm((f) => {
+      const exists = f.slots.some((s) => Number(s.dia_semana) === Number(dia_semana) && Number(s.horario_id) === Number(horario_id));
+      const next = exists
+        ? f.slots.filter((s) => !(Number(s.dia_semana) === Number(dia_semana) && Number(s.horario_id) === Number(horario_id)))
+        : [...f.slots, { dia_semana, horario_id }];
+      return { ...f, slots: next };
+    });
+  };
+
+  const crearSecuencia = async () => {
+    if (!seqForm.nombre.trim()) {
+      Swal.fire({ icon: 'warning', title: 'Nombre obligatorio', ...swalOpts });
+      return;
+    }
+    if (!seqForm.slots.length) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Slots requeridos',
+        text: 'Agregue al menos una combinación día + horario',
+        ...swalOpts,
+      });
+      return;
+    }
+    try {
+      setSaving(true);
+      await api.post(`${API}/visita-config/secuencias`, {
+        nombre: seqForm.nombre.trim(),
+        activo: seqForm.activo ? 1 : 0,
+        slots: seqForm.slots,
+      });
+      setSeqForm({ nombre: '', activo: true, slots: [] });
+      await cargar();
+      await Swal.fire({
+        icon: 'success',
+        title: 'Secuencia creada',
+        timer: 1400,
+        showConfirmButton: false,
+        ...swalOpts,
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo crear la secuencia',
+        ...swalOpts,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleSecuenciaActivo = async (seq) => {
+    try {
+      const seqSlots = slots
+        .filter((s) => Number(s.secuencia_id) === Number(seq.id))
+        .map((s) => ({ dia_semana: s.dia_semana, horario_id: s.horario_id }));
+      await api.put(`${API}/visita-config/secuencias/${seq.id}`, {
+        nombre: seq.nombre,
+        activo: seq.activo ? 0 : 1,
+        slots: seqSlots,
+      });
+      await cargar();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo actualizar',
+        ...swalOpts,
+      });
+    }
+  };
+
+  const eliminarSecuencia = async (seq) => {
+    const conf = await Swal.fire({
+      icon: 'warning',
+      title: '¿Eliminar secuencia?',
+      text: seq.nombre,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b91c1c',
+      ...swalOpts,
+    });
+    if (!conf.isConfirmed) return;
+    try {
+      await api.delete(`${API}/visita-config/secuencias/${seq.id}`);
+      await cargar();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo eliminar',
+        ...swalOpts,
+      });
+    }
+  };
+
+  const etiquetaDia = (n) => DIAS_SEMANA.find((d) => d.value === Number(n))?.label || `Día ${n}`;
+  const etiquetaHorario = (id) => horarios.find((h) => Number(h.id) === Number(id))?.etiqueta || `#${id}`;
+
+  if (!open) return null;
+
+  return (
+    <OverlayModal
+      title="🗓️ Configuración de visitas"
+      subtitle="Días, horarios y secuencias disponibles en la web pública."
+      wide
+      onClose={onClose}
+      footer={
+        <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
+          Cerrar
+        </button>
+      }
+    >
+      <div className="rs-detail-block" style={{ background: '#f0f9ff', borderColor: '#bae6fd' }}>
+        <p className="rs-detail-text" style={{ margin: 0 }}>
+          Si <strong>no hay secuencias activas</strong>, la web ofrece el producto cartesiano: días activos × horarios
+          activos. Si hay <strong>secuencias activas</strong>, solo se ofrecen las combinaciones (día + horario) de esas
+          secuencias.
+        </p>
+      </div>
+
+      {loading ? (
+        <p className="rs-loading">Cargando configuración…</p>
+      ) : (
+        <>
+          <div className="rs-detail-block">
+            <h3>Días de la semana</h3>
+            <div className="rs-chip-row" style={{ marginTop: '0.5rem' }}>
+              {dias.map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  className={`rs-btn rs-btn-sm ${d.activo ? 'rs-btn-primary' : 'rs-btn-ghost'}`}
+                  onClick={() => toggleDia(d)}
+                  title={d.activo ? 'Desactivar' : 'Activar'}
+                >
+                  {d.etiqueta || etiquetaDia(d.dia_semana)} {d.activo ? '✓' : '○'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rs-detail-block">
+            <h3>Horarios</h3>
+            <div className="rs-form-grid" style={{ margin: '0.75rem 0' }}>
+              <div className="rs-field">
+                <label>Etiqueta *</label>
+                <input
+                  value={horarioForm.etiqueta}
+                  onChange={(e) => setHorarioForm((f) => ({ ...f, etiqueta: e.target.value }))}
+                  placeholder="Ej. 10:00 a.m."
+                />
+              </div>
+              <div className="rs-field">
+                <label>Orden</label>
+                <input
+                  type="number"
+                  value={horarioForm.orden}
+                  onChange={(e) => setHorarioForm((f) => ({ ...f, orden: e.target.value }))}
+                />
+              </div>
+              <div className="rs-field">
+                <label>Opciones</label>
+                <div className="rs-checks">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={horarioForm.activo}
+                      onChange={(e) => setHorarioForm((f) => ({ ...f, activo: e.target.checked }))}
+                    />
+                    Activo
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div style={{ marginBottom: '0.75rem', display: 'flex', gap: '0.5rem' }}>
+              {horarioForm.id && (
+                <button
+                  type="button"
+                  className="rs-btn rs-btn-ghost rs-btn-sm"
+                  onClick={() => setHorarioForm({ id: null, etiqueta: '', activo: true, orden: 0 })}
+                >
+                  Cancelar edición
+                </button>
+              )}
+              <button type="button" className="rs-btn rs-btn-primary rs-btn-sm" onClick={guardarHorario} disabled={saving}>
+                {horarioForm.id ? '💾 Guardar horario' : '➕ Crear horario'}
+              </button>
+            </div>
+            {horarios.length === 0 ? (
+              <p className="rs-empty">No hay horarios.</p>
+            ) : (
+              <div className="rs-table-wrap">
+                <table className="rs-table">
+                  <thead>
+                    <tr>
+                      <th>Etiqueta</th>
+                      <th>Orden</th>
+                      <th>Estado</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {horarios.map((h) => (
+                      <tr key={h.id}>
+                        <td className="rs-nombre">{h.etiqueta}</td>
+                        <td>{h.orden}</td>
+                        <td>
+                          <span className={`rs-badge ${h.activo ? 'rs-badge--ok' : 'rs-badge--off'}`}>
+                            {h.activo ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="rs-actions">
+                            <button
+                              type="button"
+                              className="rs-btn rs-btn-ghost rs-btn-sm"
+                              onClick={() =>
+                                setHorarioForm({
+                                  id: h.id,
+                                  etiqueta: h.etiqueta || '',
+                                  activo: !!h.activo,
+                                  orden: h.orden ?? 0,
+                                })
+                              }
+                            >
+                              ✏️
+                            </button>
+                            <button type="button" className="rs-btn rs-btn-danger rs-btn-sm" onClick={() => eliminarHorario(h)}>
+                              🗑️
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="rs-detail-block">
+            <h3>Secuencias</h3>
+            <div className="rs-form-grid" style={{ margin: '0.75rem 0' }}>
+              <div className="rs-field">
+                <label>Nombre *</label>
+                <input
+                  value={seqForm.nombre}
+                  onChange={(e) => setSeqForm((f) => ({ ...f, nombre: e.target.value }))}
+                  placeholder="Ej. Turno mañana"
+                />
+              </div>
+              <div className="rs-field">
+                <label>Opciones</label>
+                <div className="rs-checks">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={seqForm.activo}
+                      onChange={(e) => setSeqForm((f) => ({ ...f, activo: e.target.checked }))}
+                    />
+                    Activa
+                  </label>
+                </div>
+              </div>
+              <div className="rs-field rs-field--full">
+                <label>Slots (día + horario)</label>
+                <div className="rs-checks" style={{ flexWrap: 'wrap' }}>
+                  {dias.map((d) =>
+                    horarios.map((h) => {
+                      const checked = seqForm.slots.some(
+                        (s) => Number(s.dia_semana) === Number(d.dia_semana) && Number(s.horario_id) === Number(h.id)
+                      );
+                      return (
+                        <label key={`${d.id}-${h.id}`}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleSlotSeq(d.dia_semana, h.id)}
+                          />
+                          {d.etiqueta || etiquetaDia(d.dia_semana)} · {h.etiqueta}
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+            <button type="button" className="rs-btn rs-btn-primary rs-btn-sm" onClick={crearSecuencia} disabled={saving}>
+              ➕ Crear secuencia
+            </button>
+
+            {secuencias.length === 0 ? (
+              <p className="rs-empty" style={{ marginTop: '1rem' }}>
+                No hay secuencias. La web usará días activos × horarios activos.
+              </p>
+            ) : (
+              <div className="rs-table-wrap" style={{ marginTop: '1rem' }}>
+                <table className="rs-table">
+                  <thead>
+                    <tr>
+                      <th>Nombre</th>
+                      <th>Slots</th>
+                      <th>Estado</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {secuencias.map((seq) => {
+                      const seqSlots = slots.filter((s) => Number(s.secuencia_id) === Number(seq.id));
+                      return (
+                        <tr key={seq.id}>
+                          <td>
+                            <div className="rs-nombre">{seq.nombre}</div>
+                            <div className="rs-muted">{fmtFecha(seq.creado_en)}</div>
+                          </td>
+                          <td>
+                            <div className="rs-chip-row">
+                              {seqSlots.length === 0 ? (
+                                <span className="rs-muted">Sin slots</span>
+                              ) : (
+                                seqSlots.map((s) => (
+                                  <span key={s.id} className="rs-badge rs-badge--ok">
+                                    {etiquetaDia(s.dia_semana)} · {etiquetaHorario(s.horario_id)}
+                                  </span>
+                                ))
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`rs-badge ${seq.activo ? 'rs-badge--ok' : 'rs-badge--off'}`}>
+                              {seq.activo ? 'Activa' : 'Inactiva'}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="rs-actions">
+                              <button
+                                type="button"
+                                className="rs-btn rs-btn-ghost rs-btn-sm"
+                                title={seq.activo ? 'Desactivar' : 'Activar'}
+                                onClick={() => toggleSecuenciaActivo(seq)}
+                              >
+                                {seq.activo ? '⏸' : '▶️'}
+                              </button>
+                              <button
+                                type="button"
+                                className="rs-btn rs-btn-danger rs-btn-sm"
+                                onClick={() => eliminarSecuencia(seq)}
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </OverlayModal>
+  );
+}
+
+/* ─── Modales de detalle / edición ─────────────────────────────────────────── */
 
 function ModalReclamo({ open, mode, item, onClose, onSaved }) {
   const [form, setForm] = useState(null);
@@ -324,7 +910,6 @@ function ModalReclamo({ open, mode, item, onClose, onSaved }) {
   }, [open, item]);
 
   if (!open || !form) return null;
-
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const guardar = async () => {
@@ -352,195 +937,14 @@ function ModalReclamo({ open, mode, item, onClose, onSaved }) {
     }
   };
 
-  const abrirAdjunto = async () => {
-    try {
-      const res = await api.get(`${API}/reclamos/${form.id}/adjunto`, { responseType: 'blob' });
-      const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (e) {
-      let msg = 'No se pudo abrir el adjunto';
-      try {
-        if (e.response?.data instanceof Blob) {
-          const text = await e.response.data.text();
-          const j = JSON.parse(text);
-          msg = j.error || msg;
-        } else {
-          msg = e.response?.data?.error || msg;
-        }
-      } catch {
-        /* ignore */
-      }
-      Swal.fire({ icon: 'error', title: 'Adjunto', text: msg, ...swalOpts });
-    }
-  };
-
-  return createPortal(
-    <div className="rs-overlay" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="rs-modal rs-modal--wide" role="dialog" aria-modal="true" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="rs-modal-header">
-          <div>
-            <h2>{mode === 'edit' ? '✏️ Editar reclamo' : '📋 Detalle del reclamo'}</h2>
-            <p>
-              N.º {form.numero || form.id} · {fmtFecha(form.fecha_registro)}
-            </p>
-          </div>
-          <button type="button" className="rs-modal-close" onClick={onClose} aria-label="Cerrar">
-            ✕
-          </button>
-        </div>
-        <div className="rs-modal-body">
-          {mode === 'view' ? (
-            <>
-              <div className="rs-detail-block">
-                <h3>Reclamante</h3>
-                <div className="rs-detail-grid">
-                  <div className="rs-detail-item">
-                    <span>Nombre</span>
-                    <strong>{form.nombre}</strong>
-                  </div>
-                  <div className="rs-detail-item">
-                    <span>Email</span>
-                    <strong>{form.email}</strong>
-                  </div>
-                  <div className="rs-detail-item">
-                    <span>Teléfono</span>
-                    <strong>{form.telefono || '—'}</strong>
-                  </div>
-                  <div className="rs-detail-item">
-                    <span>Documento</span>
-                    <strong>
-                      {form.tipo_documento} {form.numero_documento}
-                    </strong>
-                  </div>
-                  <div className="rs-detail-item">
-                    <span>Relación</span>
-                    <strong>{form.relacion || '—'}</strong>
-                  </div>
-                  <div className="rs-detail-item">
-                    <span>Domicilio</span>
-                    <strong>{form.domicilio || '—'}</strong>
-                  </div>
-                </div>
-              </div>
-              <div className="rs-detail-block">
-                <h3>Alumno / registro</h3>
-                <div className="rs-detail-grid">
-                  <div className="rs-detail-item">
-                    <span>Alumno</span>
-                    <strong>{form.alumno_nombre || '—'}</strong>
-                  </div>
-                  <div className="rs-detail-item">
-                    <span>DNI alumno</span>
-                    <strong>{form.alumno_dni || '—'}</strong>
-                  </div>
-                  <div className="rs-detail-item">
-                    <span>Tipo</span>
-                    <strong>
-                      <span className={`rs-badge rs-badge--${form.tipo}`}>{form.tipo}</span>
-                    </strong>
-                  </div>
-                  <div className="rs-detail-item">
-                    <span>Estado</span>
-                    <strong>
-                      <BadgeEstado estado={form.estado} />
-                    </strong>
-                  </div>
-                  <div className="rs-detail-item">
-                    <span>Fecha del hecho</span>
-                    <strong>{form.fecha_hecho || '—'}</strong>
-                  </div>
-                  <div className="rs-detail-item">
-                    <span>Bien / servicio</span>
-                    <strong>{form.bien_contratado || '—'}</strong>
-                  </div>
-                  <div className="rs-detail-item">
-                    <span>Monto</span>
-                    <strong>{form.monto || '—'}</strong>
-                  </div>
-                </div>
-              </div>
-              <div className="rs-detail-block">
-                <h3>Detalle</h3>
-                <p className="rs-detail-text">{form.detalle}</p>
-              </div>
-              <div className="rs-detail-block">
-                <h3>Pedido</h3>
-                <p className="rs-detail-text">{form.pedido}</p>
-              </div>
-              {(form.adjunto_nombre || form.adjunto_ruta) && (
-                <div className="rs-detail-block">
-                  <h3>Adjunto</h3>
-                  <button type="button" className="rs-btn rs-btn-primary rs-btn-sm" onClick={abrirAdjunto}>
-                    📎 {form.adjunto_nombre || 'Abrir archivo'}
-                  </button>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="rs-form-grid">
-              <div className="rs-field">
-                <label>Nombre *</label>
-                <input value={form.nombre || ''} onChange={(e) => set('nombre', e.target.value)} />
-              </div>
-              <div className="rs-field">
-                <label>Email *</label>
-                <input value={form.email || ''} onChange={(e) => set('email', e.target.value)} />
-              </div>
-              <div className="rs-field">
-                <label>Teléfono</label>
-                <input value={form.telefono || ''} onChange={(e) => set('telefono', e.target.value)} />
-              </div>
-              <div className="rs-field">
-                <label>Estado</label>
-                <select value={form.estado || 'nuevo'} onChange={(e) => set('estado', e.target.value)}>
-                  {ESTADOS.map((e) => (
-                    <option key={e.value} value={e.value}>
-                      {e.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="rs-field">
-                <label>Tipo</label>
-                <select value={form.tipo || 'reclamo'} onChange={(e) => set('tipo', e.target.value)}>
-                  <option value="reclamo">Reclamo</option>
-                  <option value="queja">Queja</option>
-                </select>
-              </div>
-              <div className="rs-field">
-                <label>Fecha del hecho</label>
-                <input type="date" value={form.fecha_hecho || ''} onChange={(e) => set('fecha_hecho', e.target.value)} />
-              </div>
-              <div className="rs-field">
-                <label>Tipo documento</label>
-                <input value={form.tipo_documento || ''} onChange={(e) => set('tipo_documento', e.target.value)} />
-              </div>
-              <div className="rs-field">
-                <label>N° documento</label>
-                <input value={form.numero_documento || ''} onChange={(e) => set('numero_documento', e.target.value)} />
-              </div>
-              <div className="rs-field">
-                <label>Alumno</label>
-                <input value={form.alumno_nombre || ''} onChange={(e) => set('alumno_nombre', e.target.value)} />
-              </div>
-              <div className="rs-field">
-                <label>DNI alumno</label>
-                <input value={form.alumno_dni || ''} onChange={(e) => set('alumno_dni', e.target.value)} />
-              </div>
-              <div className="rs-field rs-field--full">
-                <label>Detalle *</label>
-                <textarea value={form.detalle || ''} onChange={(e) => set('detalle', e.target.value)} />
-              </div>
-              <div className="rs-field rs-field--full">
-                <label>Pedido *</label>
-                <textarea value={form.pedido || ''} onChange={(e) => set('pedido', e.target.value)} />
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="rs-modal-footer">
+  return (
+    <OverlayModal
+      title={mode === 'edit' ? '✏️ Editar reclamo' : '📋 Detalle del reclamo'}
+      subtitle={`N.º ${form.numero || form.id} · ${fmtFecha(form.fecha_registro)}`}
+      wide
+      onClose={onClose}
+      footer={
+        <>
           <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
             Cerrar
           </button>
@@ -549,10 +953,156 @@ function ModalReclamo({ open, mode, item, onClose, onSaved }) {
               {saving ? 'Guardando…' : '💾 Guardar'}
             </button>
           )}
+        </>
+      }
+    >
+      {mode === 'view' ? (
+        <>
+          <div className="rs-detail-block">
+            <h3>Reclamante</h3>
+            <div className="rs-detail-grid">
+              <div className="rs-detail-item">
+                <span>Nombre</span>
+                <strong>{form.nombre}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Email</span>
+                <strong>{form.email}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Teléfono</span>
+                <strong>{form.telefono || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Documento</span>
+                <strong>
+                  {form.tipo_documento} {form.numero_documento}
+                </strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Relación</span>
+                <strong>{form.relacion || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Domicilio</span>
+                <strong>{form.domicilio || '—'}</strong>
+              </div>
+            </div>
+          </div>
+          <div className="rs-detail-block">
+            <h3>Alumno / registro</h3>
+            <div className="rs-detail-grid">
+              <div className="rs-detail-item">
+                <span>Alumno</span>
+                <strong>{form.alumno_nombre || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>DNI alumno</span>
+                <strong>{form.alumno_dni || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Tipo</span>
+                <strong>
+                  <span className={`rs-badge rs-badge--${form.tipo}`}>{form.tipo}</span>
+                </strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Estado</span>
+                <strong>
+                  <BadgeEstado estado={form.estado} />
+                </strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Fecha del hecho</span>
+                <strong>{form.fecha_hecho || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Bien / servicio</span>
+                <strong>{form.bien_contratado || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Monto</span>
+                <strong>{form.monto || '—'}</strong>
+              </div>
+            </div>
+          </div>
+          <div className="rs-detail-block">
+            <h3>Detalle</h3>
+            <p className="rs-detail-text">{form.detalle}</p>
+          </div>
+          <div className="rs-detail-block">
+            <h3>Pedido</h3>
+            <p className="rs-detail-text">{form.pedido}</p>
+          </div>
+          {(form.adjunto_nombre || form.adjunto_ruta || form.tiene_adjunto) && (
+            <div className="rs-detail-block">
+              <h3>Adjunto</h3>
+              <button
+                type="button"
+                className="rs-btn rs-btn-primary rs-btn-sm"
+                onClick={() => abrirBlob(`${API}/reclamos/${form.id}/adjunto`, 'No se pudo abrir el adjunto')}
+              >
+                📎 {form.adjunto_nombre || 'Abrir archivo'}
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="rs-form-grid">
+          <div className="rs-field">
+            <label>Nombre *</label>
+            <input value={form.nombre || ''} onChange={(e) => set('nombre', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Email *</label>
+            <input value={form.email || ''} onChange={(e) => set('email', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Teléfono</label>
+            <input value={form.telefono || ''} onChange={(e) => set('telefono', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Estado</label>
+            <SelectEstado value={form.estado} onChange={(v) => set('estado', v)} />
+          </div>
+          <div className="rs-field">
+            <label>Tipo</label>
+            <select value={form.tipo || 'reclamo'} onChange={(e) => set('tipo', e.target.value)}>
+              <option value="reclamo">Reclamo</option>
+              <option value="queja">Queja</option>
+            </select>
+          </div>
+          <div className="rs-field">
+            <label>Fecha del hecho</label>
+            <input type="date" value={form.fecha_hecho || ''} onChange={(e) => set('fecha_hecho', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Tipo documento</label>
+            <input value={form.tipo_documento || ''} onChange={(e) => set('tipo_documento', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>N° documento</label>
+            <input value={form.numero_documento || ''} onChange={(e) => set('numero_documento', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Alumno</label>
+            <input value={form.alumno_nombre || ''} onChange={(e) => set('alumno_nombre', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>DNI alumno</label>
+            <input value={form.alumno_dni || ''} onChange={(e) => set('alumno_dni', e.target.value)} />
+          </div>
+          <div className="rs-field rs-field--full">
+            <label>Detalle *</label>
+            <textarea value={form.detalle || ''} onChange={(e) => set('detalle', e.target.value)} />
+          </div>
+          <div className="rs-field rs-field--full">
+            <label>Pedido *</label>
+            <textarea value={form.pedido || ''} onChange={(e) => set('pedido', e.target.value)} />
+          </div>
         </div>
-      </div>
-    </div>,
-    document.body
+      )}
+    </OverlayModal>
   );
 }
 
@@ -565,7 +1115,6 @@ function ModalSugerencia({ open, mode, item, onClose, onSaved }) {
   }, [open, item]);
 
   if (!open || !form) return null;
-
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const guardar = async () => {
@@ -593,96 +1142,13 @@ function ModalSugerencia({ open, mode, item, onClose, onSaved }) {
     }
   };
 
-  return createPortal(
-    <div className="rs-overlay" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="rs-modal" role="dialog" aria-modal="true" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="rs-modal-header">
-          <div>
-            <h2>{mode === 'edit' ? '✏️ Editar sugerencia' : '💡 Detalle de sugerencia'}</h2>
-            <p>{fmtFecha(form.fecha_registro)}</p>
-          </div>
-          <button type="button" className="rs-modal-close" onClick={onClose} aria-label="Cerrar">
-            ✕
-          </button>
-        </div>
-        <div className="rs-modal-body">
-          {mode === 'view' ? (
-            <>
-              <div className="rs-detail-block">
-                <div className="rs-detail-grid">
-                  <div className="rs-detail-item">
-                    <span>Nombre</span>
-                    <strong>{form.nombre}</strong>
-                  </div>
-                  <div className="rs-detail-item">
-                    <span>Email</span>
-                    <strong>{form.email}</strong>
-                  </div>
-                  <div className="rs-detail-item">
-                    <span>Teléfono</span>
-                    <strong>{form.telefono || '—'}</strong>
-                  </div>
-                  <div className="rs-detail-item">
-                    <span>Relación</span>
-                    <strong>{form.relacion || '—'}</strong>
-                  </div>
-                  <div className="rs-detail-item">
-                    <span>Tipo</span>
-                    <strong>{form.tipo || '—'}</strong>
-                  </div>
-                  <div className="rs-detail-item">
-                    <span>Estado</span>
-                    <strong>
-                      <BadgeEstado estado={form.estado} />
-                    </strong>
-                  </div>
-                </div>
-              </div>
-              <div className="rs-detail-block">
-                <h3>Mensaje</h3>
-                <p className="rs-detail-text">{form.mensaje}</p>
-              </div>
-            </>
-          ) : (
-            <div className="rs-form-grid">
-              <div className="rs-field">
-                <label>Nombre *</label>
-                <input value={form.nombre || ''} onChange={(e) => set('nombre', e.target.value)} />
-              </div>
-              <div className="rs-field">
-                <label>Email *</label>
-                <input value={form.email || ''} onChange={(e) => set('email', e.target.value)} />
-              </div>
-              <div className="rs-field">
-                <label>Teléfono</label>
-                <input value={form.telefono || ''} onChange={(e) => set('telefono', e.target.value)} />
-              </div>
-              <div className="rs-field">
-                <label>Estado</label>
-                <select value={form.estado || 'nuevo'} onChange={(e) => set('estado', e.target.value)}>
-                  {ESTADOS.map((e) => (
-                    <option key={e.value} value={e.value}>
-                      {e.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="rs-field">
-                <label>Relación</label>
-                <input value={form.relacion || ''} onChange={(e) => set('relacion', e.target.value)} />
-              </div>
-              <div className="rs-field">
-                <label>Tipo</label>
-                <input value={form.tipo || ''} onChange={(e) => set('tipo', e.target.value)} />
-              </div>
-              <div className="rs-field rs-field--full">
-                <label>Mensaje *</label>
-                <textarea value={form.mensaje || ''} onChange={(e) => set('mensaje', e.target.value)} />
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="rs-modal-footer">
+  return (
+    <OverlayModal
+      title={mode === 'edit' ? '✏️ Editar sugerencia' : '💡 Detalle de sugerencia'}
+      subtitle={fmtFecha(form.fecha_registro)}
+      onClose={onClose}
+      footer={
+        <>
           <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
             Cerrar
           </button>
@@ -691,33 +1157,685 @@ function ModalSugerencia({ open, mode, item, onClose, onSaved }) {
               {saving ? 'Guardando…' : '💾 Guardar'}
             </button>
           )}
+        </>
+      }
+    >
+      {mode === 'view' ? (
+        <>
+          <div className="rs-detail-block">
+            <div className="rs-detail-grid">
+              <div className="rs-detail-item">
+                <span>Nombre</span>
+                <strong>{form.nombre}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Email</span>
+                <strong>{form.email}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Teléfono</span>
+                <strong>{form.telefono || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Relación</span>
+                <strong>{form.relacion || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Tipo</span>
+                <strong>{form.tipo || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Estado</span>
+                <strong>
+                  <BadgeEstado estado={form.estado} />
+                </strong>
+              </div>
+            </div>
+          </div>
+          <div className="rs-detail-block">
+            <h3>Mensaje</h3>
+            <p className="rs-detail-text">{form.mensaje}</p>
+          </div>
+        </>
+      ) : (
+        <div className="rs-form-grid">
+          <div className="rs-field">
+            <label>Nombre *</label>
+            <input value={form.nombre || ''} onChange={(e) => set('nombre', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Email *</label>
+            <input value={form.email || ''} onChange={(e) => set('email', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Teléfono</label>
+            <input value={form.telefono || ''} onChange={(e) => set('telefono', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Estado</label>
+            <SelectEstado value={form.estado} onChange={(v) => set('estado', v)} />
+          </div>
+          <div className="rs-field">
+            <label>Relación</label>
+            <input value={form.relacion || ''} onChange={(e) => set('relacion', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Tipo</label>
+            <input value={form.tipo || ''} onChange={(e) => set('tipo', e.target.value)} />
+          </div>
+          <div className="rs-field rs-field--full">
+            <label>Mensaje *</label>
+            <textarea value={form.mensaje || ''} onChange={(e) => set('mensaje', e.target.value)} />
+          </div>
         </div>
-      </div>
-    </div>,
-    document.body
+      )}
+    </OverlayModal>
   );
 }
 
+function ModalContacto({ open, mode, item, onClose, onSaved }) {
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open && item) setForm({ ...item });
+  }, [open, item]);
+
+  if (!open || !form) return null;
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const guardar = async () => {
+    try {
+      setSaving(true);
+      await api.put(`${API}/contactenos/${form.id}`, form);
+      await Swal.fire({
+        icon: 'success',
+        title: 'Contacto actualizado',
+        timer: 1500,
+        showConfirmButton: false,
+        ...swalOpts,
+      });
+      onSaved?.();
+      onClose();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo guardar',
+        ...swalOpts,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <OverlayModal
+      title={mode === 'edit' ? '✏️ Editar contacto' : '✉️ Detalle de contacto'}
+      subtitle={fmtFecha(form.fecha_registro)}
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
+            Cerrar
+          </button>
+          {mode === 'edit' && (
+            <button type="button" className="rs-btn rs-btn-primary" onClick={guardar} disabled={saving}>
+              {saving ? 'Guardando…' : '💾 Guardar'}
+            </button>
+          )}
+        </>
+      }
+    >
+      {mode === 'view' ? (
+        <>
+          <div className="rs-detail-block">
+            <div className="rs-detail-grid">
+              <div className="rs-detail-item">
+                <span>Nombre</span>
+                <strong>{form.nombre}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Email</span>
+                <strong>{form.email}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Teléfono</span>
+                <strong>{form.telefono || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Asunto</span>
+                <strong>{form.asunto || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Estado</span>
+                <strong>
+                  <BadgeEstado estado={form.estado} />
+                </strong>
+              </div>
+            </div>
+          </div>
+          <div className="rs-detail-block">
+            <h3>Mensaje</h3>
+            <p className="rs-detail-text">{form.mensaje}</p>
+          </div>
+        </>
+      ) : (
+        <div className="rs-form-grid">
+          <div className="rs-field">
+            <label>Nombre *</label>
+            <input value={form.nombre || ''} onChange={(e) => set('nombre', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Email *</label>
+            <input value={form.email || ''} onChange={(e) => set('email', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Teléfono</label>
+            <input value={form.telefono || ''} onChange={(e) => set('telefono', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Estado</label>
+            <SelectEstado value={form.estado} onChange={(v) => set('estado', v)} />
+          </div>
+          <div className="rs-field rs-field--full">
+            <label>Asunto</label>
+            <input value={form.asunto || ''} onChange={(e) => set('asunto', e.target.value)} />
+          </div>
+          <div className="rs-field rs-field--full">
+            <label>Mensaje *</label>
+            <textarea value={form.mensaje || ''} onChange={(e) => set('mensaje', e.target.value)} />
+          </div>
+        </div>
+      )}
+    </OverlayModal>
+  );
+}
+
+function ModalVisita({ open, mode, item, onClose, onSaved }) {
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open && item) {
+      setForm({
+        ...item,
+        fecha_preferida: item.fecha_preferida ? String(item.fecha_preferida).slice(0, 10) : '',
+      });
+    }
+  }, [open, item]);
+
+  if (!open || !form) return null;
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const guardar = async () => {
+    try {
+      setSaving(true);
+      await api.put(`${API}/visitas/${form.id}`, form);
+      await Swal.fire({
+        icon: 'success',
+        title: 'Visita actualizada',
+        timer: 1500,
+        showConfirmButton: false,
+        ...swalOpts,
+      });
+      onSaved?.();
+      onClose();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo guardar',
+        ...swalOpts,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <OverlayModal
+      title={mode === 'edit' ? '✏️ Editar visita' : '🗓️ Detalle de visita'}
+      subtitle={fmtFecha(form.fecha_registro)}
+      wide
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
+            Cerrar
+          </button>
+          {mode === 'edit' && (
+            <button type="button" className="rs-btn rs-btn-primary" onClick={guardar} disabled={saving}>
+              {saving ? 'Guardando…' : '💾 Guardar'}
+            </button>
+          )}
+        </>
+      }
+    >
+      {mode === 'view' ? (
+        <>
+          <div className="rs-detail-block">
+            <div className="rs-detail-grid">
+              <div className="rs-detail-item">
+                <span>Nombre</span>
+                <strong>{form.nombre}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Email</span>
+                <strong>{form.email}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Teléfono</span>
+                <strong>{form.telefono || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Nivel de interés</span>
+                <strong>{form.nivel_interes || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Fecha preferida</span>
+                <strong>{form.fecha_preferida || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Horario preferido</span>
+                <strong>{form.horario_preferido || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>N° estudiantes</span>
+                <strong>{form.numero_estudiantes || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Estado</span>
+                <strong>
+                  <BadgeEstado estado={form.estado} />
+                </strong>
+              </div>
+            </div>
+          </div>
+          {form.mensaje && (
+            <div className="rs-detail-block">
+              <h3>Mensaje</h3>
+              <p className="rs-detail-text">{form.mensaje}</p>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="rs-form-grid">
+          <div className="rs-field">
+            <label>Nombre *</label>
+            <input value={form.nombre || ''} onChange={(e) => set('nombre', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Email *</label>
+            <input value={form.email || ''} onChange={(e) => set('email', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Teléfono</label>
+            <input value={form.telefono || ''} onChange={(e) => set('telefono', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Estado</label>
+            <SelectEstado value={form.estado} onChange={(v) => set('estado', v)} />
+          </div>
+          <div className="rs-field">
+            <label>Nivel de interés</label>
+            <input value={form.nivel_interes || ''} onChange={(e) => set('nivel_interes', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Fecha preferida</label>
+            <input
+              type="date"
+              value={form.fecha_preferida || ''}
+              onChange={(e) => set('fecha_preferida', e.target.value)}
+            />
+          </div>
+          <div className="rs-field">
+            <label>Horario preferido</label>
+            <input value={form.horario_preferido || ''} onChange={(e) => set('horario_preferido', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>N° estudiantes</label>
+            <input value={form.numero_estudiantes || ''} onChange={(e) => set('numero_estudiantes', e.target.value)} />
+          </div>
+          <div className="rs-field rs-field--full">
+            <label>Mensaje</label>
+            <textarea value={form.mensaje || ''} onChange={(e) => set('mensaje', e.target.value)} />
+          </div>
+        </div>
+      )}
+    </OverlayModal>
+  );
+}
+
+function ModalTrabaja({ open, mode, item, onClose, onSaved }) {
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open && item) setForm({ ...item });
+  }, [open, item]);
+
+  if (!open || !form) return null;
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const guardar = async () => {
+    try {
+      setSaving(true);
+      await api.put(`${API}/trabaja/${form.id}`, form);
+      await Swal.fire({
+        icon: 'success',
+        title: 'Postulación actualizada',
+        timer: 1500,
+        showConfirmButton: false,
+        ...swalOpts,
+      });
+      onSaved?.();
+      onClose();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo guardar',
+        ...swalOpts,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <OverlayModal
+      title={mode === 'edit' ? '✏️ Editar postulación' : '💼 Detalle de postulación'}
+      subtitle={fmtFecha(form.fecha_registro)}
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
+            Cerrar
+          </button>
+          {mode === 'edit' && (
+            <button type="button" className="rs-btn rs-btn-primary" onClick={guardar} disabled={saving}>
+              {saving ? 'Guardando…' : '💾 Guardar'}
+            </button>
+          )}
+        </>
+      }
+    >
+      {mode === 'view' ? (
+        <>
+          <div className="rs-detail-block">
+            <div className="rs-detail-grid">
+              <div className="rs-detail-item">
+                <span>Nombre</span>
+                <strong>{form.nombre}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Email</span>
+                <strong>{form.email}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Teléfono</span>
+                <strong>{form.telefono || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Puesto</span>
+                <strong>{form.puesto || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Estado</span>
+                <strong>
+                  <BadgeEstado estado={form.estado} />
+                </strong>
+              </div>
+            </div>
+          </div>
+          {form.mensaje && (
+            <div className="rs-detail-block">
+              <h3>Mensaje</h3>
+              <p className="rs-detail-text">{form.mensaje}</p>
+            </div>
+          )}
+          {(form.tiene_cv || form.cv_nombre || form.cv_ruta) && (
+            <div className="rs-detail-block">
+              <h3>CV</h3>
+              <button
+                type="button"
+                className="rs-btn rs-btn-primary rs-btn-sm"
+                onClick={() => abrirBlob(`${API}/trabaja/${form.id}/cv`, 'No se pudo abrir el CV')}
+              >
+                📄 {form.cv_nombre || 'Abrir CV'}
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="rs-form-grid">
+          <div className="rs-field">
+            <label>Nombre *</label>
+            <input value={form.nombre || ''} onChange={(e) => set('nombre', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Email *</label>
+            <input value={form.email || ''} onChange={(e) => set('email', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Teléfono</label>
+            <input value={form.telefono || ''} onChange={(e) => set('telefono', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Estado</label>
+            <SelectEstado value={form.estado} onChange={(v) => set('estado', v)} />
+          </div>
+          <div className="rs-field rs-field--full">
+            <label>Puesto *</label>
+            <input value={form.puesto || ''} onChange={(e) => set('puesto', e.target.value)} />
+          </div>
+          <div className="rs-field rs-field--full">
+            <label>Mensaje</label>
+            <textarea value={form.mensaje || ''} onChange={(e) => set('mensaje', e.target.value)} />
+          </div>
+        </div>
+      )}
+    </OverlayModal>
+  );
+}
+
+function ModalAdmision({ open, mode, item, onClose, onSaved }) {
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open && item) setForm({ ...item });
+  }, [open, item]);
+
+  if (!open || !form) return null;
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const guardar = async () => {
+    try {
+      setSaving(true);
+      await api.put(`${API}/admision/${form.id}`, form);
+      await Swal.fire({
+        icon: 'success',
+        title: 'Admisión actualizada',
+        timer: 1500,
+        showConfirmButton: false,
+        ...swalOpts,
+      });
+      onSaved?.();
+      onClose();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo guardar',
+        ...swalOpts,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <OverlayModal
+      title={mode === 'edit' ? '✏️ Editar admisión' : '🎓 Detalle de admisión'}
+      subtitle={fmtFecha(form.fecha_registro)}
+      wide
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
+            Cerrar
+          </button>
+          {mode === 'edit' && (
+            <button type="button" className="rs-btn rs-btn-primary" onClick={guardar} disabled={saving}>
+              {saving ? 'Guardando…' : '💾 Guardar'}
+            </button>
+          )}
+        </>
+      }
+    >
+      {mode === 'view' ? (
+        <>
+          <div className="rs-detail-block">
+            <h3>Estudiante</h3>
+            <div className="rs-detail-grid">
+              <div className="rs-detail-item">
+                <span>Nombres</span>
+                <strong>{form.nombres_estudiante}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Apellidos</span>
+                <strong>{form.apellidos_estudiante}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Grado</span>
+                <strong>{form.grado || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Estado</span>
+                <strong>
+                  <BadgeEstado estado={form.estado} />
+                </strong>
+              </div>
+            </div>
+          </div>
+          <div className="rs-detail-block">
+            <h3>Apoderado</h3>
+            <div className="rs-detail-grid">
+              <div className="rs-detail-item">
+                <span>Nombres</span>
+                <strong>{form.nombres_apoderado}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>DNI</span>
+                <strong>{form.dni_apoderado || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Teléfono</span>
+                <strong>{form.telefono_apoderado || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Email</span>
+                <strong>{form.email_apoderado || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
+                <span>Dirección</span>
+                <strong>{form.direccion_apoderado || '—'}</strong>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="rs-form-grid">
+          <div className="rs-field">
+            <label>Nombres estudiante *</label>
+            <input value={form.nombres_estudiante || ''} onChange={(e) => set('nombres_estudiante', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Apellidos estudiante *</label>
+            <input
+              value={form.apellidos_estudiante || ''}
+              onChange={(e) => set('apellidos_estudiante', e.target.value)}
+            />
+          </div>
+          <div className="rs-field">
+            <label>Grado *</label>
+            <input value={form.grado || ''} onChange={(e) => set('grado', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Estado</label>
+            <SelectEstado value={form.estado} onChange={(v) => set('estado', v)} />
+          </div>
+          <div className="rs-field">
+            <label>Nombres apoderado *</label>
+            <input value={form.nombres_apoderado || ''} onChange={(e) => set('nombres_apoderado', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>DNI apoderado *</label>
+            <input value={form.dni_apoderado || ''} onChange={(e) => set('dni_apoderado', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Teléfono apoderado</label>
+            <input
+              value={form.telefono_apoderado || ''}
+              onChange={(e) => set('telefono_apoderado', e.target.value)}
+            />
+          </div>
+          <div className="rs-field">
+            <label>Email apoderado *</label>
+            <input value={form.email_apoderado || ''} onChange={(e) => set('email_apoderado', e.target.value)} />
+          </div>
+          <div className="rs-field rs-field--full">
+            <label>Dirección apoderado</label>
+            <input
+              value={form.direccion_apoderado || ''}
+              onChange={(e) => set('direccion_apoderado', e.target.value)}
+            />
+          </div>
+        </div>
+      )}
+    </OverlayModal>
+  );
+}
+
+/* ─── Página principal ─────────────────────────────────────────────────────── */
+
 export default function AdminReclamosSugerencias() {
-  const [searchParams] = useSearchParams();
-  const tabInicial =
-    searchParams.get('tab') === 'sugerencias' ? 'sugerencias' : 'reclamos';
-  const [tab, setTab] = useState(tabInicial);
-  const [reclamos, setReclamos] = useState([]);
-  const [sugerencias, setSugerencias] = useState([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = tabValido(searchParams.get('tab'));
+
+  const [listas, setListas] = useState({
+    reclamos: [],
+    sugerencias: [],
+    contacto: [],
+    visitas: [],
+    trabaja: [],
+    admision: [],
+  });
+  const [badgeCounts, setBadgeCounts] = useState({
+    reclamos: 0,
+    sugerencias: 0,
+    contacto: 0,
+    visitas: 0,
+    trabaja: 0,
+    admision: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [q, setQ] = useState('');
   const [estado, setEstado] = useState('');
   const [tipoReclamo, setTipoReclamo] = useState('');
   const [modalCorreos, setModalCorreos] = useState(false);
-  const [modalReclamo, setModalReclamo] = useState({ open: false, mode: 'view', item: null });
-  const [modalSugerencia, setModalSugerencia] = useState({ open: false, mode: 'view', item: null });
+  const [modalVisitasCfg, setModalVisitasCfg] = useState(false);
+  const [modal, setModal] = useState({ tipo: null, open: false, mode: 'view', item: null });
 
-  useEffect(() => {
-    const t = searchParams.get('tab');
-    if (t === 'sugerencias' || t === 'reclamos') setTab(t);
-  }, [searchParams]);
+  const cambiarTab = (id) => {
+    setSearchParams({ tab: id });
+    setQ('');
+    setEstado('');
+    setTipoReclamo('');
+  };
 
   const cargar = useCallback(async () => {
     try {
@@ -728,25 +1846,36 @@ export default function AdminReclamosSugerencias() {
       if (estado) params.estado = estado;
       if (tab === 'reclamos' && tipoReclamo) params.tipo = tipoReclamo;
 
-      if (tab === 'reclamos') {
-        const [{ data }, sugRes] = await Promise.all([
-          api.get(`${API}/reclamos`, { params }),
-          api.get(`${API}/sugerencias`).catch(() => ({ data: { sugerencias: null } })),
-        ]);
-        setReclamos(data.reclamos || []);
-        if (Array.isArray(sugRes.data?.sugerencias)) {
-          setSugerencias(sugRes.data.sugerencias);
+      const endpoints = {
+        reclamos: { path: '/reclamos', key: 'reclamos' },
+        sugerencias: { path: '/sugerencias', key: 'sugerencias' },
+        contacto: { path: '/contactenos', key: 'contactenos' },
+        visitas: { path: '/visitas', key: 'visitas' },
+        trabaja: { path: '/trabaja', key: 'postulaciones' },
+        admision: { path: '/admision', key: 'admisiones' },
+      };
+
+      const activo = endpoints[tab];
+      const { data } = await api.get(`${API}${activo.path}`, { params });
+      const items = data[activo.key] || [];
+
+      const badgeRes = await Promise.all(
+        TAB_IDS.map((id) =>
+          api
+            .get(`${API}${endpoints[id].path}`, { params: { estado: 'nuevo' } })
+            .then((r) => ({ id, n: (r.data[endpoints[id].key] || []).length }))
+            .catch(() => ({ id, n: null }))
+        )
+      );
+
+      setListas((prev) => ({ ...prev, [tab]: items }));
+      setBadgeCounts((prev) => {
+        const next = { ...prev };
+        for (const br of badgeRes) {
+          if (br.n != null) next[br.id] = br.n;
         }
-      } else {
-        const [{ data }, recRes] = await Promise.all([
-          api.get(`${API}/sugerencias`, { params }),
-          api.get(`${API}/reclamos`).catch(() => ({ data: { reclamos: null } })),
-        ]);
-        setSugerencias(data.sugerencias || []);
-        if (Array.isArray(recRes.data?.reclamos)) {
-          setReclamos(recRes.data.reclamos);
-        }
-      }
+        return next;
+      });
     } catch (e) {
       setError(e.response?.data?.error || 'Error al cargar datos');
     } finally {
@@ -758,56 +1887,57 @@ export default function AdminReclamosSugerencias() {
     cargar();
   }, [cargar]);
 
-  const nuevosReclamos = useMemo(
-    () => reclamos.filter((x) => x.estado === 'nuevo').length,
-    [reclamos]
-  );
-  const nuevasSugerencias = useMemo(
-    () => sugerencias.filter((x) => x.estado === 'nuevo').length,
-    [sugerencias]
-  );
+  const badges = badgeCounts;
 
-  const abrirReclamo = async (row, mode) => {
+  const marcarVistoYAbrir = async (tipo, row, mode) => {
+    const map = {
+      reclamos: { path: 'reclamos', respKey: 'reclamo', listKey: 'reclamos' },
+      sugerencias: { path: 'sugerencias', respKey: 'sugerencia', listKey: 'sugerencias' },
+      contacto: { path: 'contactenos', respKey: 'contacto', listKey: 'contacto' },
+      visitas: { path: 'visitas', respKey: 'visita', listKey: 'visitas' },
+      trabaja: { path: 'trabaja', respKey: 'postulacion', listKey: 'trabaja' },
+      admision: { path: 'admision', respKey: 'admision', listKey: 'admision' },
+    };
+    const cfg = map[tipo];
     let item = row;
     if (row?.estado === 'nuevo') {
       try {
-        const { data } = await api.post(`${API}/reclamos/${row.id}/marcar-visto`);
-        if (data?.reclamo) {
-          item = data.reclamo;
-          setReclamos((prev) =>
-            prev.map((r) => (r.id === row.id ? { ...r, ...data.reclamo, estado: data.reclamo.estado } : r))
-          );
+        const { data } = await api.post(`${API}/${cfg.path}/${row.id}/marcar-visto`);
+        if (data?.[cfg.respKey]) {
+          item = data[cfg.respKey];
+          setListas((prev) => ({
+            ...prev,
+            [cfg.listKey]: (prev[cfg.listKey] || []).map((r) =>
+              r.id === row.id ? { ...r, ...item, estado: item.estado } : r
+            ),
+          }));
+          if (row.estado === 'nuevo' && item.estado !== 'nuevo') {
+            setBadgeCounts((prev) => ({
+              ...prev,
+              [cfg.listKey]: Math.max(0, (prev[cfg.listKey] || 0) - 1),
+            }));
+          }
         }
       } catch (e) {
-        console.warn('No se pudo marcar reclamo como visto:', e);
+        console.warn('No se pudo marcar como visto:', e);
       }
     }
-    setModalReclamo({ open: true, mode, item });
+    setModal({ tipo, open: true, mode, item });
   };
 
-  const abrirSugerencia = async (row, mode) => {
-    let item = row;
-    if (row?.estado === 'nuevo') {
-      try {
-        const { data } = await api.post(`${API}/sugerencias/${row.id}/marcar-visto`);
-        if (data?.sugerencia) {
-          item = data.sugerencia;
-          setSugerencias((prev) =>
-            prev.map((r) => (r.id === row.id ? { ...r, ...data.sugerencia, estado: data.sugerencia.estado } : r))
-          );
-        }
-      } catch (e) {
-        console.warn('No se pudo marcar sugerencia como vista:', e);
-      }
-    }
-    setModalSugerencia({ open: true, mode, item });
-  };
-
-  const eliminarReclamo = async (row) => {
+  const eliminarRegistro = async (tipo, row, label) => {
+    const paths = {
+      reclamos: 'reclamos',
+      sugerencias: 'sugerencias',
+      contacto: 'contactenos',
+      visitas: 'visitas',
+      trabaja: 'trabaja',
+      admision: 'admision',
+    };
     const conf = await Swal.fire({
       icon: 'warning',
-      title: '¿Eliminar reclamo?',
-      text: `${row.numero || row.id} — ${row.nombre}`,
+      title: '¿Eliminar registro?',
+      text: label,
       showCancelButton: true,
       confirmButtonText: 'Sí, eliminar',
       cancelButtonText: 'Cancelar',
@@ -816,7 +1946,7 @@ export default function AdminReclamosSugerencias() {
     });
     if (!conf.isConfirmed) return;
     try {
-      await api.delete(`${API}/reclamos/${row.id}`);
+      await api.delete(`${API}/${paths[tipo]}/${row.id}`);
       await cargar();
     } catch (e) {
       Swal.fire({
@@ -828,70 +1958,33 @@ export default function AdminReclamosSugerencias() {
     }
   };
 
-  const eliminarSugerencia = async (row) => {
-    const conf = await Swal.fire({
-      icon: 'warning',
-      title: '¿Eliminar sugerencia?',
-      text: row.nombre,
-      showCancelButton: true,
-      confirmButtonText: 'Sí, eliminar',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#b91c1c',
-      ...swalOpts,
-    });
-    if (!conf.isConfirmed) return;
-    try {
-      await api.delete(`${API}/sugerencias/${row.id}`);
-      await cargar();
-    } catch (e) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: e.response?.data?.error || 'No se pudo eliminar',
-        ...swalOpts,
-      });
-    }
-  };
+  const cerrarModal = () => setModal({ tipo: null, open: false, mode: 'view', item: null });
 
-  const abrirAdjunto = async (row) => {
-    try {
-      const res = await api.get(`${API}/reclamos/${row.id}/adjunto`, { responseType: 'blob' });
-      const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (e) {
-      let msg = 'No se pudo abrir el adjunto';
-      try {
-        if (e.response?.data instanceof Blob) {
-          const text = await e.response.data.text();
-          const j = JSON.parse(text);
-          msg = j.error || msg;
-        }
-      } catch {
-        /* ignore */
-      }
-      Swal.fire({ icon: 'error', title: 'Adjunto', text: msg, ...swalOpts });
-    }
-  };
+  const itemsActivos = listas[tab] || [];
+
+  const placeholderBuscar = {
+    reclamos: 'Nombre, N°, email, detalle…',
+    sugerencias: 'Nombre, email, mensaje…',
+    contacto: 'Nombre, email, asunto…',
+    visitas: 'Nombre, email, nivel, horario…',
+    trabaja: 'Nombre, email, puesto…',
+    admision: 'Estudiante, apoderado, DNI, grado…',
+  }[tab];
 
   return (
     <DashboardLayout>
       <div className="rs-page">
         <header className="rs-hero">
           <div>
-            <h1>Reclamos y Sugerencias</h1>
-            <p>
-              Gestión de registros enviados desde la web pública (
-              <a href="https://vanguardschools.com/libro-de-reclamaciones" target="_blank" rel="noreferrer" style={{ color: '#fff' }}>
-                Libro de reclamaciones
-              </a>
-              ). Solo administradores.
-            </p>
+            <h1>Web</h1>
+            <p>Formularios de la web pública Vanguard (gestión desde intranet).</p>
           </div>
           <div className="rs-hero-actions">
             <button type="button" className="rs-btn rs-btn-light" onClick={() => setModalCorreos(true)}>
               📧 Correos de envío
+            </button>
+            <button type="button" className="rs-btn rs-btn-light" onClick={() => setModalVisitasCfg(true)}>
+              🗓️ Config. visitas
             </button>
             <button type="button" className="rs-btn rs-btn-light" onClick={cargar}>
               🔄 Actualizar
@@ -900,32 +1993,23 @@ export default function AdminReclamosSugerencias() {
         </header>
 
         <nav className="rs-tabs" aria-label="Secciones">
-          <button
-            type="button"
-            className={`rs-tab${tab === 'reclamos' ? ' rs-tab--active' : ''}`}
-            onClick={() => setTab('reclamos')}
-          >
-            📋 Reclamos
-            {nuevosReclamos > 0 && <span className="rs-tab-badge">{nuevosReclamos}</span>}
-          </button>
-          <button
-            type="button"
-            className={`rs-tab${tab === 'sugerencias' ? ' rs-tab--active' : ''}`}
-            onClick={() => setTab('sugerencias')}
-          >
-            💡 Sugerencias
-            {nuevasSugerencias > 0 && <span className="rs-tab-badge">{nuevasSugerencias}</span>}
-          </button>
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={`rs-tab${tab === t.id ? ' rs-tab--active' : ''}`}
+              onClick={() => cambiarTab(t.id)}
+            >
+              {t.label}
+              {badges[t.id] > 0 && <span className="rs-tab-badge">{badges[t.id]}</span>}
+            </button>
+          ))}
         </nav>
 
         <div className="rs-toolbar">
           <div className="rs-field">
             <label>Buscar</label>
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={tab === 'reclamos' ? 'Nombre, N°, email, detalle…' : 'Nombre, email, mensaje…'}
-            />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholderBuscar} />
           </div>
           <div className="rs-field">
             <label>Estado</label>
@@ -956,11 +2040,11 @@ export default function AdminReclamosSugerencias() {
         {error && <p className="rs-error">{error}</p>}
         {loading ? (
           <p className="rs-loading">Cargando…</p>
-        ) : tab === 'reclamos' ? (
-          reclamos.length === 0 ? (
-            <p className="rs-empty">No hay reclamos con esos filtros.</p>
-          ) : (
-            <div className="rs-table-wrap">
+        ) : itemsActivos.length === 0 ? (
+          <p className="rs-empty">No hay registros con esos filtros.</p>
+        ) : (
+          <div className="rs-table-wrap">
+            {tab === 'reclamos' && (
               <table className="rs-table">
                 <thead>
                   <tr>
@@ -974,14 +2058,12 @@ export default function AdminReclamosSugerencias() {
                   </tr>
                 </thead>
                 <tbody>
-                  {reclamos.map((row) => (
+                  {itemsActivos.map((row) => (
                     <tr key={row.id}>
                       <td>
                         <div className="rs-nombre">{row.numero || row.id}</div>
                       </td>
-                      <td>
-                        <div>{fmtFecha(row.fecha_registro)}</div>
-                      </td>
+                      <td>{fmtFecha(row.fecha_registro)}</td>
                       <td>
                         <div className="rs-nombre">{row.nombre}</div>
                         <div className="rs-muted">{row.email}</div>
@@ -995,7 +2077,11 @@ export default function AdminReclamosSugerencias() {
                       </td>
                       <td>
                         {row.tiene_adjunto ? (
-                          <button type="button" className="rs-btn rs-btn-ghost rs-btn-sm" onClick={() => abrirAdjunto(row)} title="Abrir adjunto">
+                          <button
+                            type="button"
+                            className="rs-btn rs-btn-ghost rs-btn-sm"
+                            onClick={() => abrirBlob(`${API}/reclamos/${row.id}/adjunto`, 'No se pudo abrir el adjunto')}
+                          >
                             📎 Ver
                           </button>
                         ) : (
@@ -1008,7 +2094,7 @@ export default function AdminReclamosSugerencias() {
                             type="button"
                             className="rs-btn rs-btn-ghost rs-btn-sm"
                             title="Ver"
-                            onClick={() => abrirReclamo(row, 'view')}
+                            onClick={() => marcarVistoYAbrir('reclamos', row, 'view')}
                           >
                             👁️
                           </button>
@@ -1016,11 +2102,16 @@ export default function AdminReclamosSugerencias() {
                             type="button"
                             className="rs-btn rs-btn-ghost rs-btn-sm"
                             title="Editar"
-                            onClick={() => abrirReclamo(row, 'edit')}
+                            onClick={() => marcarVistoYAbrir('reclamos', row, 'edit')}
                           >
                             ✏️
                           </button>
-                          <button type="button" className="rs-btn rs-btn-danger rs-btn-sm" title="Eliminar" onClick={() => eliminarReclamo(row)}>
+                          <button
+                            type="button"
+                            className="rs-btn rs-btn-danger rs-btn-sm"
+                            title="Eliminar"
+                            onClick={() => eliminarRegistro('reclamos', row, `${row.numero || row.id} — ${row.nombre}`)}
+                          >
                             🗑️
                           </button>
                         </div>
@@ -1029,89 +2120,368 @@ export default function AdminReclamosSugerencias() {
                   ))}
                 </tbody>
               </table>
-            </div>
-          )
-        ) : sugerencias.length === 0 ? (
-          <p className="rs-empty">No hay sugerencias con esos filtros.</p>
-        ) : (
-          <div className="rs-table-wrap">
-            <table className="rs-table">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Nombre</th>
-                  <th>Tipo</th>
-                  <th>Mensaje</th>
-                  <th>Estado</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sugerencias.map((row) => (
-                  <tr key={row.id}>
-                    <td>{fmtFecha(row.fecha_registro)}</td>
-                    <td>
-                      <div className="rs-nombre">{row.nombre}</div>
-                      <div className="rs-muted">{row.email}</div>
-                    </td>
-                    <td>{row.tipo || '—'}</td>
-                    <td>
-                      <div className="rs-msg-preview" title={row.mensaje}>
-                        {row.mensaje}
-                      </div>
-                    </td>
-                    <td>
-                      <BadgeEstado estado={row.estado} />
-                    </td>
-                    <td>
-                      <div className="rs-actions">
-                        <button
-                          type="button"
-                          className="rs-btn rs-btn-ghost rs-btn-sm"
-                          title="Ver"
-                          onClick={() => abrirSugerencia(row, 'view')}
-                        >
-                          👁️
-                        </button>
-                        <button
-                          type="button"
-                          className="rs-btn rs-btn-ghost rs-btn-sm"
-                          title="Editar"
-                          onClick={() => abrirSugerencia(row, 'edit')}
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          type="button"
-                          className="rs-btn rs-btn-danger rs-btn-sm"
-                          title="Eliminar"
-                          onClick={() => eliminarSugerencia(row)}
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    </td>
+            )}
+
+            {tab === 'sugerencias' && (
+              <table className="rs-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Nombre</th>
+                    <th>Tipo</th>
+                    <th>Mensaje</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {itemsActivos.map((row) => (
+                    <tr key={row.id}>
+                      <td>{fmtFecha(row.fecha_registro)}</td>
+                      <td>
+                        <div className="rs-nombre">{row.nombre}</div>
+                        <div className="rs-muted">{row.email}</div>
+                      </td>
+                      <td>{row.tipo || '—'}</td>
+                      <td>
+                        <div className="rs-msg-preview" title={row.mensaje}>
+                          {row.mensaje}
+                        </div>
+                      </td>
+                      <td>
+                        <BadgeEstado estado={row.estado} />
+                      </td>
+                      <td>
+                        <div className="rs-actions">
+                          <button
+                            type="button"
+                            className="rs-btn rs-btn-ghost rs-btn-sm"
+                            onClick={() => marcarVistoYAbrir('sugerencias', row, 'view')}
+                          >
+                            👁️
+                          </button>
+                          <button
+                            type="button"
+                            className="rs-btn rs-btn-ghost rs-btn-sm"
+                            onClick={() => marcarVistoYAbrir('sugerencias', row, 'edit')}
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            type="button"
+                            className="rs-btn rs-btn-danger rs-btn-sm"
+                            onClick={() => eliminarRegistro('sugerencias', row, row.nombre)}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {tab === 'contacto' && (
+              <table className="rs-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Nombre</th>
+                    <th>Asunto</th>
+                    <th>Mensaje</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {itemsActivos.map((row) => (
+                    <tr key={row.id}>
+                      <td>{fmtFecha(row.fecha_registro)}</td>
+                      <td>
+                        <div className="rs-nombre">{row.nombre}</div>
+                        <div className="rs-muted">{row.email}</div>
+                      </td>
+                      <td>{row.asunto || '—'}</td>
+                      <td>
+                        <div className="rs-msg-preview" title={row.mensaje}>
+                          {row.mensaje}
+                        </div>
+                      </td>
+                      <td>
+                        <BadgeEstado estado={row.estado} />
+                      </td>
+                      <td>
+                        <div className="rs-actions">
+                          <button
+                            type="button"
+                            className="rs-btn rs-btn-ghost rs-btn-sm"
+                            onClick={() => marcarVistoYAbrir('contacto', row, 'view')}
+                          >
+                            👁️
+                          </button>
+                          <button
+                            type="button"
+                            className="rs-btn rs-btn-ghost rs-btn-sm"
+                            onClick={() => marcarVistoYAbrir('contacto', row, 'edit')}
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            type="button"
+                            className="rs-btn rs-btn-danger rs-btn-sm"
+                            onClick={() => eliminarRegistro('contacto', row, row.nombre)}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {tab === 'visitas' && (
+              <table className="rs-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Nombre</th>
+                    <th>Preferencia</th>
+                    <th>Nivel</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {itemsActivos.map((row) => (
+                    <tr key={row.id}>
+                      <td>{fmtFecha(row.fecha_registro)}</td>
+                      <td>
+                        <div className="rs-nombre">{row.nombre}</div>
+                        <div className="rs-muted">{row.email}</div>
+                      </td>
+                      <td>
+                        <div>{row.fecha_preferida || '—'}</div>
+                        <div className="rs-muted">{row.horario_preferido || ''}</div>
+                      </td>
+                      <td>{row.nivel_interes || '—'}</td>
+                      <td>
+                        <BadgeEstado estado={row.estado} />
+                      </td>
+                      <td>
+                        <div className="rs-actions">
+                          <button
+                            type="button"
+                            className="rs-btn rs-btn-ghost rs-btn-sm"
+                            onClick={() => marcarVistoYAbrir('visitas', row, 'view')}
+                          >
+                            👁️
+                          </button>
+                          <button
+                            type="button"
+                            className="rs-btn rs-btn-ghost rs-btn-sm"
+                            onClick={() => marcarVistoYAbrir('visitas', row, 'edit')}
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            type="button"
+                            className="rs-btn rs-btn-danger rs-btn-sm"
+                            onClick={() => eliminarRegistro('visitas', row, row.nombre)}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {tab === 'trabaja' && (
+              <table className="rs-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Nombre</th>
+                    <th>Puesto</th>
+                    <th>CV</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {itemsActivos.map((row) => (
+                    <tr key={row.id}>
+                      <td>{fmtFecha(row.fecha_registro)}</td>
+                      <td>
+                        <div className="rs-nombre">{row.nombre}</div>
+                        <div className="rs-muted">{row.email}</div>
+                      </td>
+                      <td>{row.puesto || '—'}</td>
+                      <td>
+                        {row.tiene_cv ? (
+                          <button
+                            type="button"
+                            className="rs-btn rs-btn-ghost rs-btn-sm"
+                            onClick={() => abrirBlob(`${API}/trabaja/${row.id}/cv`, 'No se pudo abrir el CV')}
+                          >
+                            📄 Ver
+                          </button>
+                        ) : (
+                          <span className="rs-muted">—</span>
+                        )}
+                      </td>
+                      <td>
+                        <BadgeEstado estado={row.estado} />
+                      </td>
+                      <td>
+                        <div className="rs-actions">
+                          <button
+                            type="button"
+                            className="rs-btn rs-btn-ghost rs-btn-sm"
+                            onClick={() => marcarVistoYAbrir('trabaja', row, 'view')}
+                          >
+                            👁️
+                          </button>
+                          <button
+                            type="button"
+                            className="rs-btn rs-btn-ghost rs-btn-sm"
+                            onClick={() => marcarVistoYAbrir('trabaja', row, 'edit')}
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            type="button"
+                            className="rs-btn rs-btn-danger rs-btn-sm"
+                            onClick={() => eliminarRegistro('trabaja', row, row.nombre)}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {tab === 'admision' && (
+              <table className="rs-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Estudiante</th>
+                    <th>Apoderado</th>
+                    <th>Grado</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {itemsActivos.map((row) => (
+                    <tr key={row.id}>
+                      <td>{fmtFecha(row.fecha_registro)}</td>
+                      <td>
+                        <div className="rs-nombre">
+                          {row.nombres_estudiante} {row.apellidos_estudiante}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="rs-nombre">{row.nombres_apoderado}</div>
+                        <div className="rs-muted">{row.email_apoderado}</div>
+                        <div className="rs-muted">DNI: {row.dni_apoderado || '—'}</div>
+                      </td>
+                      <td>{row.grado || '—'}</td>
+                      <td>
+                        <BadgeEstado estado={row.estado} />
+                      </td>
+                      <td>
+                        <div className="rs-actions">
+                          <button
+                            type="button"
+                            className="rs-btn rs-btn-ghost rs-btn-sm"
+                            onClick={() => marcarVistoYAbrir('admision', row, 'view')}
+                          >
+                            👁️
+                          </button>
+                          <button
+                            type="button"
+                            className="rs-btn rs-btn-ghost rs-btn-sm"
+                            onClick={() => marcarVistoYAbrir('admision', row, 'edit')}
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            type="button"
+                            className="rs-btn rs-btn-danger rs-btn-sm"
+                            onClick={() =>
+                              eliminarRegistro(
+                                'admision',
+                                row,
+                                `${row.nombres_estudiante} ${row.apellidos_estudiante}`
+                              )
+                            }
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
       </div>
 
       <CorreosModal open={modalCorreos} onClose={() => setModalCorreos(false)} />
+      <VisitasConfigModal open={modalVisitasCfg} onClose={() => setModalVisitasCfg(false)} />
+
       <ModalReclamo
-        open={modalReclamo.open}
-        mode={modalReclamo.mode}
-        item={modalReclamo.item}
-        onClose={() => setModalReclamo({ open: false, mode: 'view', item: null })}
+        open={modal.open && modal.tipo === 'reclamos'}
+        mode={modal.mode}
+        item={modal.item}
+        onClose={cerrarModal}
         onSaved={cargar}
       />
       <ModalSugerencia
-        open={modalSugerencia.open}
-        mode={modalSugerencia.mode}
-        item={modalSugerencia.item}
-        onClose={() => setModalSugerencia({ open: false, mode: 'view', item: null })}
+        open={modal.open && modal.tipo === 'sugerencias'}
+        mode={modal.mode}
+        item={modal.item}
+        onClose={cerrarModal}
+        onSaved={cargar}
+      />
+      <ModalContacto
+        open={modal.open && modal.tipo === 'contacto'}
+        mode={modal.mode}
+        item={modal.item}
+        onClose={cerrarModal}
+        onSaved={cargar}
+      />
+      <ModalVisita
+        open={modal.open && modal.tipo === 'visitas'}
+        mode={modal.mode}
+        item={modal.item}
+        onClose={cerrarModal}
+        onSaved={cargar}
+      />
+      <ModalTrabaja
+        open={modal.open && modal.tipo === 'trabaja'}
+        mode={modal.mode}
+        item={modal.item}
+        onClose={cerrarModal}
+        onSaved={cargar}
+      />
+      <ModalAdmision
+        open={modal.open && modal.tipo === 'admision'}
+        mode={modal.mode}
+        item={modal.item}
+        onClose={cerrarModal}
         onSaved={cargar}
       />
     </DashboardLayout>

@@ -396,12 +396,16 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/admin/comunicaciones/reclamos-sugerencias"
+        path="/admin/comunicaciones/web"
         element={
           <PrivateRoute requiredType="ADMINISTRADOR">
             <AdminReclamosSugerencias />
           </PrivateRoute>
         }
+      />
+      <Route
+        path="/admin/comunicaciones/reclamos-sugerencias"
+        element={<Navigate to="/admin/comunicaciones/web" replace />}
       />
       <Route path="/admin/publicaciones" element={<Navigate to="/admin/comunicaciones/publicaciones" replace />} />
       <Route path="/admin/conexiones" element={<Navigate to="/admin/comunicaciones/conexiones" replace />} />
