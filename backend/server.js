@@ -350,6 +350,7 @@ app.use('/api/admin/psicologia', adminPsicologiaRoutes);
 /* Eventos antes que /api/admin: si no, admin.routes bloquea PSICOLOGA/Promotoría antes de llegar a eventos.routes */
 app.use('/api/public/eventos', eventosRoutes.publicEventosRouter);
 app.use('/api/public/matricula-online', matriculaOnlineRoutes);
+app.use('/api/public', require('./routes/public.visitasConfig.routes'));
 app.use('/api/admin/eventos', eventosRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/apoderado', apoderadoRoutes);
