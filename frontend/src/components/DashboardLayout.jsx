@@ -85,7 +85,7 @@ export default function DashboardLayout({ children }) {
           || path.startsWith('/admin/vanguarcito')
         ) && { herramientas: true }
       ),
-      ...(path.startsWith('/admin/comunicaciones') && { comunicaciones: true }),
+      ...(path.startsWith('/admin/comunicaciones') && !path.startsWith('/admin/comunicaciones/web') && { comunicaciones: true }),
       ...(path.startsWith('/admin/pagos-facturas') && { pagosFacturas: true }),
       ...(path.startsWith('/admin/config') && { configuracion: true }),
       ...(
@@ -96,7 +96,7 @@ export default function DashboardLayout({ children }) {
           || path.startsWith('/elecciones-campana')
         ) && { docenteHerramientas: true }
       ),
-      ...((path.startsWith('/admin/comunicaciones')
+      ...(((path.startsWith('/admin/comunicaciones') && !path.startsWith('/admin/comunicaciones/web'))
         || path.startsWith('/admin/reportes/incidencias'))
         && user?.tipo === 'PSICOLOGA'
         ? { psicologaCom: true }
@@ -1389,6 +1389,12 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Institucional</span>
                 </NavLink>
               </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/web">
+                  <span className="sidebar-icon">🌐</span>
+                  <span className="sidebar-label">Web</span>
+                </NavLink>
+              </div>
               {false && (
                 <div className="sidebar-item">
                   <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/estadisticas">
@@ -1567,10 +1573,6 @@ export default function DashboardLayout({ children }) {
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/notificaciones">
                     <span className="sidebar-icon" aria-hidden>🔔</span>
                     <span className="sidebar-label">Notificaciones</span>
-                  </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/web">
-                    <span className="sidebar-icon" aria-hidden>🌐</span>
-                    <span className="sidebar-label">Web</span>
                   </NavLink>
                 </div>
               </div>
