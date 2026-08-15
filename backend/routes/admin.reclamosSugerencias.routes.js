@@ -37,9 +37,22 @@ function parseId(raw) {
 }
 
 function toBool01(v, fallback = 1) {
+  // MySQL TINYINT a veces llega como Buffer
+  if (Buffer.isBuffer(v)) {
+    return v.length && v[0] ? 1 : 0;
+  }
+  if (v && typeof v === 'object' && Array.isArray(v.data)) {
+    return v.data[0] ? 1 : 0;
+  }
   if (v === true || v === 1 || v === '1' || v === 'true') return 1;
   if (v === false || v === 0 || v === '0' || v === 'false') return 0;
   return fallback;
+}
+
+/** Normaliza filas de config visitas para el frontend (activo siempre 0|1). */
+function mapActivoRow(row) {
+  if (!row) return row;
+  return { ...row, activo: toBool01(row.activo, 0) };
 }
 
 function normalizeEmail(email) {
@@ -543,9 +556,31 @@ router.get('/visita-config/dias', async (_req, res) => {
     const rows = await query(
       `SELECT id, dia_semana, etiqueta, activo FROM web_visita_dias ORDER BY dia_semana ASC`
     );
-    res.json({ dias: rows || [] });
+    res.json({ dias: (rows || []).map(mapActivoRow) });
   } catch (e) {
     res.status(500).json({ error: e.message || 'Error al listar días.' });
+  }
+});
+
+/** Cierra visitas: desactiva TODOS los días de una vez. */
+router.post('/visita-config/cerrar', async (_req, res) => {
+  try {
+    await execute(`UPDATE web_visita_dias SET activo = 0`);
+    // Por si la web antigua aún lee secuencias
+    try {
+      await execute(`UPDATE web_visita_secuencias SET activo = 0`);
+    } catch {
+      /* tabla opcional */
+    }
+    const rows = await query(
+      `SELECT id, dia_semana, etiqueta, activo FROM web_visita_dias ORDER BY dia_semana ASC`
+    );
+    res.json({
+      message: 'Visitas cerradas: ningún día activo',
+      dias: (rows || []).map(mapActivoRow),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al cerrar visitas.' });
   }
 });
 
@@ -554,7 +589,8 @@ router.put('/visita-config/dias/:id', async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) return res.status(400).json({ error: 'ID inválido' });
     const b = req.body || {};
-    const activo = toBool01(b.activo, 1);
+    // Si mandan 0 explícito, no usar fallback 1
+    const activo = toBool01(b.activo, b.activo === undefined ? 1 : 0);
     const etiqueta = b.etiqueta != null ? String(b.etiqueta).trim() : null;
     if (etiqueta) {
       await execute(`UPDATE web_visita_dias SET activo = ?, etiqueta = ? WHERE id = ?`, [
@@ -567,7 +603,7 @@ router.put('/visita-config/dias/:id', async (req, res) => {
     }
     const rows = await query(`SELECT * FROM web_visita_dias WHERE id = ? LIMIT 1`, [id]);
     if (!rows?.length) return res.status(404).json({ error: 'Día no encontrado' });
-    res.json({ dia: rows[0] });
+    res.json({ dia: mapActivoRow(rows[0]) });
   } catch (e) {
     res.status(500).json({ error: e.message || 'Error al actualizar día.' });
   }
@@ -579,7 +615,7 @@ router.get('/visita-config/horarios', async (_req, res) => {
     const rows = await query(
       `SELECT id, etiqueta, activo, orden FROM web_visita_horarios ORDER BY orden ASC, id ASC`
     );
-    res.json({ horarios: rows || [] });
+    res.json({ horarios: (rows || []).map(mapActivoRow) });
   } catch (e) {
     res.status(500).json({ error: e.message || 'Error al listar horarios.' });
   }

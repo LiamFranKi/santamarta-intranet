@@ -413,6 +413,12 @@ function CorreosModal({ open, onClose }) {
 
 /* ─── Config. visitas ──────────────────────────────────────────────────────── */
 
+function esActivo(v) {
+  if (v === true || v === 1 || v === '1') return true;
+  if (v && typeof v === 'object' && Array.isArray(v.data)) return Boolean(v.data[0]);
+  return Number(v) === 1;
+}
+
 function VisitasConfigModal({ open, onClose }) {
   const [loading, setLoading] = useState(true);
   const [dias, setDias] = useState([]);
@@ -450,7 +456,8 @@ function VisitasConfigModal({ open, onClose }) {
 
   const toggleDia = async (dia) => {
     try {
-      await api.put(`${API}/visita-config/dias/${dia.id}`, { activo: dia.activo ? 0 : 1 });
+      const siguiente = esActivo(dia.activo) ? 0 : 1;
+      await api.put(`${API}/visita-config/dias/${dia.id}`, { activo: siguiente });
       await cargar();
     } catch (e) {
       Swal.fire({
@@ -459,6 +466,40 @@ function VisitasConfigModal({ open, onClose }) {
         text: e.response?.data?.error || 'No se pudo actualizar el día',
         ...swalOpts,
       });
+    }
+  };
+
+  const cerrarVisitas = async () => {
+    const conf = await Swal.fire({
+      icon: 'warning',
+      title: '¿Cerrar visitas en la web?',
+      text: 'Se desactivarán todos los días. La web no mostrará fechas disponibles.',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, cerrar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b91c1c',
+      ...swalOpts,
+    });
+    if (!conf.isConfirmed) return;
+    try {
+      setSaving(true);
+      await api.post(`${API}/visita-config/cerrar`);
+      await cargar();
+      await Swal.fire({
+        icon: 'success',
+        title: 'Visitas cerradas',
+        text: 'Ningún día activo. Recarga la web pública (Ctrl+Shift+R).',
+        ...swalOpts,
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo cerrar',
+        ...swalOpts,
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -546,20 +587,38 @@ function VisitasConfigModal({ open, onClose }) {
       ) : (
         <>
           <div className="rs-detail-block">
-            <h3>Días de la semana</h3>
-            <div className="rs-chip-row" style={{ marginTop: '0.5rem' }}>
-              {dias.map((d) => (
-                <button
-                  key={d.id}
-                  type="button"
-                  className={`rs-btn rs-btn-sm ${d.activo ? 'rs-btn-primary' : 'rs-btn-ghost'}`}
-                  onClick={() => toggleDia(d)}
-                  title={d.activo ? 'Desactivar' : 'Activar'}
-                >
-                  {d.etiqueta || etiquetaDia(d.dia_semana)} {d.activo ? '✓' : '○'}
-                </button>
-              ))}
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+              <h3 style={{ margin: 0 }}>Días de la semana</h3>
+              <button
+                type="button"
+                className="rs-btn rs-btn-danger rs-btn-sm"
+                onClick={cerrarVisitas}
+                disabled={saving || !dias.some((d) => esActivo(d.activo))}
+              >
+                🔒 Cerrar visitas (quitar todos los días)
+              </button>
             </div>
+            <div className="rs-chip-row" style={{ marginTop: '0.5rem' }}>
+              {dias.map((d) => {
+                const on = esActivo(d.activo);
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    className={`rs-btn rs-btn-sm ${on ? 'rs-btn-primary' : 'rs-btn-ghost'}`}
+                    onClick={() => toggleDia(d)}
+                    title={on ? 'Desactivar' : 'Activar'}
+                  >
+                    {d.etiqueta || etiquetaDia(d.dia_semana)} {on ? '✓' : '○'}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="rs-muted" style={{ marginTop: '0.65rem', marginBottom: 0 }}>
+              Activos ahora:{' '}
+              {dias.filter((d) => esActivo(d.activo)).map((d) => d.etiqueta || etiquetaDia(d.dia_semana)).join(', ') ||
+                'ninguno (web cerrada)'}
+            </p>
           </div>
 
           <div className="rs-detail-block">
@@ -628,8 +687,8 @@ function VisitasConfigModal({ open, onClose }) {
                         <td className="rs-nombre">{h.etiqueta}</td>
                         <td>{h.orden}</td>
                         <td>
-                          <span className={`rs-badge ${h.activo ? 'rs-badge--ok' : 'rs-badge--off'}`}>
-                            {h.activo ? 'Activo' : 'Inactivo'}
+                          <span className={`rs-badge ${esActivo(h.activo) ? 'rs-badge--ok' : 'rs-badge--off'}`}>
+                            {esActivo(h.activo) ? 'Activo' : 'Inactivo'}
                           </span>
                         </td>
                         <td>
@@ -641,7 +700,7 @@ function VisitasConfigModal({ open, onClose }) {
                                 setHorarioForm({
                                   id: h.id,
                                   etiqueta: h.etiqueta || '',
-                                  activo: !!h.activo,
+                                  activo: esActivo(h.activo),
                                   orden: h.orden ?? 0,
                                 })
                               }
