@@ -417,24 +417,18 @@ function VisitasConfigModal({ open, onClose }) {
   const [loading, setLoading] = useState(true);
   const [dias, setDias] = useState([]);
   const [horarios, setHorarios] = useState([]);
-  const [secuencias, setSecuencias] = useState([]);
-  const [slots, setSlots] = useState([]);
   const [horarioForm, setHorarioForm] = useState({ id: null, etiqueta: '', activo: true, orden: 0 });
-  const [seqForm, setSeqForm] = useState({ nombre: '', activo: true, slots: [] });
   const [saving, setSaving] = useState(false);
 
   const cargar = useCallback(async () => {
     try {
       setLoading(true);
-      const [dRes, hRes, sRes] = await Promise.all([
+      const [dRes, hRes] = await Promise.all([
         api.get(`${API}/visita-config/dias`),
         api.get(`${API}/visita-config/horarios`),
-        api.get(`${API}/visita-config/secuencias`),
       ]);
       setDias(dRes.data.dias || []);
       setHorarios(hRes.data.horarios || []);
-      setSecuencias(sRes.data.secuencias || []);
-      setSlots(sRes.data.slots || []);
     } catch (e) {
       Swal.fire({
         icon: 'error',
@@ -450,7 +444,6 @@ function VisitasConfigModal({ open, onClose }) {
   useEffect(() => {
     if (open) {
       setHorarioForm({ id: null, etiqueta: '', activo: true, orden: 0 });
-      setSeqForm({ nombre: '', activo: true, slots: [] });
       cargar();
     }
   }, [open, cargar]);
@@ -525,113 +518,14 @@ function VisitasConfigModal({ open, onClose }) {
     }
   };
 
-  const toggleSlotSeq = (dia_semana, horario_id) => {
-    setSeqForm((f) => {
-      const exists = f.slots.some((s) => Number(s.dia_semana) === Number(dia_semana) && Number(s.horario_id) === Number(horario_id));
-      const next = exists
-        ? f.slots.filter((s) => !(Number(s.dia_semana) === Number(dia_semana) && Number(s.horario_id) === Number(horario_id)))
-        : [...f.slots, { dia_semana, horario_id }];
-      return { ...f, slots: next };
-    });
-  };
-
-  const crearSecuencia = async () => {
-    if (!seqForm.nombre.trim()) {
-      Swal.fire({ icon: 'warning', title: 'Nombre obligatorio', ...swalOpts });
-      return;
-    }
-    if (!seqForm.slots.length) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Slots requeridos',
-        text: 'Agregue al menos una combinación día + horario',
-        ...swalOpts,
-      });
-      return;
-    }
-    try {
-      setSaving(true);
-      await api.post(`${API}/visita-config/secuencias`, {
-        nombre: seqForm.nombre.trim(),
-        activo: seqForm.activo ? 1 : 0,
-        slots: seqForm.slots,
-      });
-      setSeqForm({ nombre: '', activo: true, slots: [] });
-      await cargar();
-      await Swal.fire({
-        icon: 'success',
-        title: 'Secuencia creada',
-        timer: 1400,
-        showConfirmButton: false,
-        ...swalOpts,
-      });
-    } catch (e) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: e.response?.data?.error || 'No se pudo crear la secuencia',
-        ...swalOpts,
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const toggleSecuenciaActivo = async (seq) => {
-    try {
-      const seqSlots = slots
-        .filter((s) => Number(s.secuencia_id) === Number(seq.id))
-        .map((s) => ({ dia_semana: s.dia_semana, horario_id: s.horario_id }));
-      await api.put(`${API}/visita-config/secuencias/${seq.id}`, {
-        nombre: seq.nombre,
-        activo: seq.activo ? 0 : 1,
-        slots: seqSlots,
-      });
-      await cargar();
-    } catch (e) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: e.response?.data?.error || 'No se pudo actualizar',
-        ...swalOpts,
-      });
-    }
-  };
-
-  const eliminarSecuencia = async (seq) => {
-    const conf = await Swal.fire({
-      icon: 'warning',
-      title: '¿Eliminar secuencia?',
-      text: seq.nombre,
-      showCancelButton: true,
-      confirmButtonText: 'Sí, eliminar',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#b91c1c',
-      ...swalOpts,
-    });
-    if (!conf.isConfirmed) return;
-    try {
-      await api.delete(`${API}/visita-config/secuencias/${seq.id}`);
-      await cargar();
-    } catch (e) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: e.response?.data?.error || 'No se pudo eliminar',
-        ...swalOpts,
-      });
-    }
-  };
-
   const etiquetaDia = (n) => DIAS_SEMANA.find((d) => d.value === Number(n))?.label || `Día ${n}`;
-  const etiquetaHorario = (id) => horarios.find((h) => Number(h.id) === Number(id))?.etiqueta || `#${id}`;
 
   if (!open) return null;
 
   return (
     <OverlayModal
       title="🗓️ Configuración de visitas"
-      subtitle="Días, horarios y secuencias disponibles en la web pública."
+      subtitle="Elige los días y horarios que verá la web pública."
       wide
       onClose={onClose}
       footer={
@@ -642,9 +536,8 @@ function VisitasConfigModal({ open, onClose }) {
     >
       <div className="rs-detail-block" style={{ background: '#f0f9ff', borderColor: '#bae6fd' }}>
         <p className="rs-detail-text" style={{ margin: 0 }}>
-          Si <strong>no hay secuencias activas</strong>, la web ofrece el producto cartesiano: días activos × horarios
-          activos. Si hay <strong>secuencias activas</strong>, solo se ofrecen las combinaciones (día + horario) de esas
-          secuencias.
+          La web muestra la combinación de <strong>días activos</strong> × <strong>horarios activos</strong>. Si no hay
+          ningún día (o ningún horario) activo, las visitas quedan <strong>cerradas</strong> en la web.
         </p>
       </div>
 
@@ -702,7 +595,7 @@ function VisitasConfigModal({ open, onClose }) {
                 </div>
               </div>
             </div>
-            <div style={{ marginBottom: '0.75rem', display: 'flex', gap: '0.5rem' }}>
+            <div style={{ marginBottom: '0.75rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               {horarioForm.id && (
                 <button
                   type="button"
@@ -713,11 +606,11 @@ function VisitasConfigModal({ open, onClose }) {
                 </button>
               )}
               <button type="button" className="rs-btn rs-btn-primary rs-btn-sm" onClick={guardarHorario} disabled={saving}>
-                {horarioForm.id ? '💾 Guardar horario' : '➕ Crear horario'}
+                {saving ? 'Guardando…' : horarioForm.id ? '💾 Guardar horario' : '➕ Crear horario'}
               </button>
             </div>
             {horarios.length === 0 ? (
-              <p className="rs-empty">No hay horarios.</p>
+              <p className="rs-empty">No hay horarios. Cree el primero arriba.</p>
             ) : (
               <div className="rs-table-wrap">
                 <table className="rs-table">
@@ -762,127 +655,6 @@ function VisitasConfigModal({ open, onClose }) {
                         </td>
                       </tr>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          <div className="rs-detail-block">
-            <h3>Secuencias</h3>
-            <div className="rs-form-grid" style={{ margin: '0.75rem 0' }}>
-              <div className="rs-field">
-                <label>Nombre *</label>
-                <input
-                  value={seqForm.nombre}
-                  onChange={(e) => setSeqForm((f) => ({ ...f, nombre: e.target.value }))}
-                  placeholder="Ej. Turno mañana"
-                />
-              </div>
-              <div className="rs-field">
-                <label>Opciones</label>
-                <div className="rs-checks">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={seqForm.activo}
-                      onChange={(e) => setSeqForm((f) => ({ ...f, activo: e.target.checked }))}
-                    />
-                    Activa
-                  </label>
-                </div>
-              </div>
-              <div className="rs-field rs-field--full">
-                <label>Slots (día + horario)</label>
-                <div className="rs-checks" style={{ flexWrap: 'wrap' }}>
-                  {dias.map((d) =>
-                    horarios.map((h) => {
-                      const checked = seqForm.slots.some(
-                        (s) => Number(s.dia_semana) === Number(d.dia_semana) && Number(s.horario_id) === Number(h.id)
-                      );
-                      return (
-                        <label key={`${d.id}-${h.id}`}>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleSlotSeq(d.dia_semana, h.id)}
-                          />
-                          {d.etiqueta || etiquetaDia(d.dia_semana)} · {h.etiqueta}
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            </div>
-            <button type="button" className="rs-btn rs-btn-primary rs-btn-sm" onClick={crearSecuencia} disabled={saving}>
-              ➕ Crear secuencia
-            </button>
-
-            {secuencias.length === 0 ? (
-              <p className="rs-empty" style={{ marginTop: '1rem' }}>
-                No hay secuencias. La web usará días activos × horarios activos.
-              </p>
-            ) : (
-              <div className="rs-table-wrap" style={{ marginTop: '1rem' }}>
-                <table className="rs-table">
-                  <thead>
-                    <tr>
-                      <th>Nombre</th>
-                      <th>Slots</th>
-                      <th>Estado</th>
-                      <th>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {secuencias.map((seq) => {
-                      const seqSlots = slots.filter((s) => Number(s.secuencia_id) === Number(seq.id));
-                      return (
-                        <tr key={seq.id}>
-                          <td>
-                            <div className="rs-nombre">{seq.nombre}</div>
-                            <div className="rs-muted">{fmtFecha(seq.creado_en)}</div>
-                          </td>
-                          <td>
-                            <div className="rs-chip-row">
-                              {seqSlots.length === 0 ? (
-                                <span className="rs-muted">Sin slots</span>
-                              ) : (
-                                seqSlots.map((s) => (
-                                  <span key={s.id} className="rs-badge rs-badge--ok">
-                                    {etiquetaDia(s.dia_semana)} · {etiquetaHorario(s.horario_id)}
-                                  </span>
-                                ))
-                              )}
-                            </div>
-                          </td>
-                          <td>
-                            <span className={`rs-badge ${seq.activo ? 'rs-badge--ok' : 'rs-badge--off'}`}>
-                              {seq.activo ? 'Activa' : 'Inactiva'}
-                            </span>
-                          </td>
-                          <td>
-                            <div className="rs-actions">
-                              <button
-                                type="button"
-                                className="rs-btn rs-btn-ghost rs-btn-sm"
-                                title={seq.activo ? 'Desactivar' : 'Activar'}
-                                onClick={() => toggleSecuenciaActivo(seq)}
-                              >
-                                {seq.activo ? '⏸' : '▶️'}
-                              </button>
-                              <button
-                                type="button"
-                                className="rs-btn rs-btn-danger rs-btn-sm"
-                                onClick={() => eliminarSecuencia(seq)}
-                              >
-                                🗑️
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
                   </tbody>
                 </table>
               </div>
