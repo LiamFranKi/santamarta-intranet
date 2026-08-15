@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
+import AdminWebCalendarizacion from './AdminWebCalendarizacion';
 import './AdminReclamosSugerencias.css';
 
 const API = '/admin/reclamos-sugerencias';
@@ -22,8 +23,10 @@ const TABS = [
   { id: 'visitas', label: '🗓️ Visitas' },
   { id: 'trabaja', label: '💼 Trabaja' },
   { id: 'admision', label: '🎓 Admisión' },
+  { id: 'calendarizacion', label: '📆 Calendarización' },
 ];
 
+const FORM_TAB_IDS = ['reclamos', 'sugerencias', 'contacto', 'visitas', 'trabaja', 'admision'];
 const TAB_IDS = TABS.map((t) => t.id);
 
 const CORREO_CANALES = [
@@ -1669,6 +1672,11 @@ export default function AdminReclamosSugerencias() {
   };
 
   const cargar = useCallback(async () => {
+    if (tab === 'calendarizacion') {
+      setLoading(false);
+      setError('');
+      return;
+    }
     try {
       setLoading(true);
       setError('');
@@ -1687,11 +1695,15 @@ export default function AdminReclamosSugerencias() {
       };
 
       const activo = endpoints[tab];
+      if (!activo) {
+        setLoading(false);
+        return;
+      }
       const { data } = await api.get(`${API}${activo.path}`, { params });
       const items = data[activo.key] || [];
 
       const badgeRes = await Promise.all(
-        TAB_IDS.map((id) =>
+        FORM_TAB_IDS.map((id) =>
           api
             .get(`${API}${endpoints[id].path}`, { params: { estado: 'nuevo' } })
             .then((r) => ({ id, n: (r.data[endpoints[id].key] || []).length }))
@@ -1808,16 +1820,24 @@ export default function AdminReclamosSugerencias() {
         <header className="rs-hero">
           <div>
             <h1>Web</h1>
-            <p>Formularios de la web pública Vanguard (gestión desde intranet).</p>
+            <p>Formularios y calendarización de la web pública Vanguard (gestión desde intranet).</p>
           </div>
           <div className="rs-hero-actions">
-            <button type="button" className="rs-btn rs-btn-light" onClick={() => setModalCorreos(true)}>
-              📧 Correos de envío
-            </button>
-            <button type="button" className="rs-btn rs-btn-light" onClick={() => setModalVisitasCfg(true)}>
-              🗓️ Config. visitas
-            </button>
-            <button type="button" className="rs-btn rs-btn-light" onClick={cargar}>
+            {tab !== 'calendarizacion' && (
+              <>
+                <button type="button" className="rs-btn rs-btn-light" onClick={() => setModalCorreos(true)}>
+                  📧 Correos de envío
+                </button>
+                <button type="button" className="rs-btn rs-btn-light" onClick={() => setModalVisitasCfg(true)}>
+                  🗓️ Config. visitas
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              className="rs-btn rs-btn-light"
+              onClick={() => (tab === 'calendarizacion' ? window.location.reload() : cargar())}
+            >
               🔄 Actualizar
             </button>
           </div>
@@ -1837,6 +1857,10 @@ export default function AdminReclamosSugerencias() {
           ))}
         </nav>
 
+        {tab === 'calendarizacion' ? (
+          <AdminWebCalendarizacion />
+        ) : (
+          <>
         <div className="rs-toolbar">
           <div className="rs-field">
             <label>Buscar</label>
@@ -2267,6 +2291,8 @@ export default function AdminReclamosSugerencias() {
               </table>
             )}
           </div>
+        )}
+          </>
         )}
       </div>
 
