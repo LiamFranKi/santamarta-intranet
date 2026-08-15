@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import AdminWebCalendarizacion from './AdminWebCalendarizacion';
+import AdminWebFaqs from './AdminWebFaqs';
 import './AdminReclamosSugerencias.css';
 
 const API = '/admin/reclamos-sugerencias';
@@ -24,9 +25,11 @@ const TABS = [
   { id: 'trabaja', label: '💼 Trabaja' },
   { id: 'admision', label: '🎓 Admisión' },
   { id: 'calendarizacion', label: '📆 Calendarización' },
+  { id: 'faqs', label: '❓ Preguntas frecuentes' },
 ];
 
 const FORM_TAB_IDS = ['reclamos', 'sugerencias', 'contacto', 'visitas', 'trabaja', 'admision'];
+const PANEL_TABS = new Set(['calendarizacion', 'faqs']);
 const TAB_IDS = TABS.map((t) => t.id);
 
 const CORREO_CANALES = [
@@ -1672,7 +1675,7 @@ export default function AdminReclamosSugerencias() {
   };
 
   const cargar = useCallback(async () => {
-    if (tab === 'calendarizacion') {
+    if (PANEL_TABS.has(tab)) {
       setLoading(false);
       setError('');
       return;
@@ -1823,7 +1826,7 @@ export default function AdminReclamosSugerencias() {
             <p>Formularios y calendarización de la web pública Vanguard (gestión desde intranet).</p>
           </div>
           <div className="rs-hero-actions">
-            {tab !== 'calendarizacion' && (
+            {tab !== 'calendarizacion' && tab !== 'faqs' && (
               <>
                 <button type="button" className="rs-btn rs-btn-light" onClick={() => setModalCorreos(true)}>
                   📧 Correos de envío
@@ -1836,14 +1839,14 @@ export default function AdminReclamosSugerencias() {
             <button
               type="button"
               className="rs-btn rs-btn-light"
-              onClick={() => (tab === 'calendarizacion' ? window.location.reload() : cargar())}
+              onClick={() => (PANEL_TABS.has(tab) ? window.location.reload() : cargar())}
             >
               🔄 Actualizar
             </button>
           </div>
         </header>
 
-        <nav className="rs-tabs" aria-label="Secciones">
+        <nav className="rs-tabs rs-tabs--grid" aria-label="Secciones">
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -1859,6 +1862,8 @@ export default function AdminReclamosSugerencias() {
 
         {tab === 'calendarizacion' ? (
           <AdminWebCalendarizacion />
+        ) : tab === 'faqs' ? (
+          <AdminWebFaqs />
         ) : (
           <>
         <div className="rs-toolbar">
