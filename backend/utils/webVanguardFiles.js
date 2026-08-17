@@ -1,5 +1,5 @@
 /**
- * Rutas seguras bajo web-vanguard (adjuntos reclamos / CVs).
+ * Rutas seguras bajo web-vanguard (adjuntos reclamos / CVs / PDFs públicos).
  * Solo permite archivos dentro de WEB_VANGUARD_ROOT (nunca /var/www/web).
  */
 const path = require('path');
@@ -11,6 +11,8 @@ function resolveWebVanguardRoot() {
   }
   const sibling = path.resolve(__dirname, '..', '..', 'web-vanguard');
   if (fs.existsSync(sibling)) return sibling;
+  const vpsDefault = '/home/vanguard/web-vanguard';
+  if (fs.existsSync(vpsDefault)) return vpsDefault;
   if (process.env.FTP_BASE_PATH) {
     return String(process.env.FTP_BASE_PATH).replace(/[/\\]+$/, '');
   }
@@ -21,6 +23,60 @@ function isUnderRoot(absPath, root) {
   const abs = path.resolve(absPath);
   const r = path.resolve(root);
   return abs === r || abs.startsWith(r + path.sep);
+}
+
+/** public/utiles | public/documentos — PDFs servidos por la web Next.js */
+function ensureWebPublicDir(subdir) {
+  const root = path.resolve(resolveWebVanguardRoot());
+  const dir = path.join(root, 'public', String(subdir || '').replace(/^[/\\]+/, ''));
+  if (!isUnderRoot(dir, path.join(root, 'public'))) {
+    throw new Error('Subdirectorio público inválido');
+  }
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function sanitizePdfBasename(name, fallback = 'archivo.pdf') {
+  let base = path.basename(String(name || fallback).trim());
+  base = base.replace(/[^\w.\-() áéíóúÁÉÍÓÚñÑ]+/gi, '_').replace(/\s+/g, '_');
+  if (!base.toLowerCase().endsWith('.pdf')) base = `${base || 'archivo'}.pdf`;
+  if (!base || base === '.pdf') base = fallback;
+  return base;
+}
+
+/**
+ * Guarda un PDF en web-vanguard/public/<subdir> y devuelve { archivo, ruta, absPath }.
+ * ruta pública: /utiles/x.pdf o /documentos/x.pdf
+ */
+function saveWebPublicPdf({ subdir, publicPrefix, originalName, destName, tempPath }) {
+  const dir = ensureWebPublicDir(subdir);
+  const archivo = sanitizePdfBasename(destName || originalName);
+  const absPath = path.join(dir, archivo);
+  if (!isUnderRoot(absPath, dir)) throw new Error('Nombre de archivo inválido');
+  if (tempPath && tempPath !== absPath) {
+    fs.copyFileSync(tempPath, absPath);
+    try {
+      fs.unlinkSync(tempPath);
+    } catch {
+      /* ignore */
+    }
+  }
+  const prefix = `/${String(publicPrefix || subdir).replace(/^\/+|\/+$/g, '')}`;
+  return { archivo, ruta: `${prefix}/${archivo}`, absPath };
+}
+
+function removeWebPublicFileIfSafe(rutaPublica) {
+  if (!rutaPublica) return;
+  const root = path.resolve(resolveWebVanguardRoot());
+  const publicRoot = path.join(root, 'public');
+  const rel = String(rutaPublica).replace(/^[/\\]+/, '');
+  const abs = path.resolve(publicRoot, rel);
+  if (!isUnderRoot(abs, publicRoot)) return;
+  try {
+    if (fs.existsSync(abs) && fs.statSync(abs).isFile()) fs.unlinkSync(abs);
+  } catch {
+    /* ignore */
+  }
 }
 
 /**
@@ -75,4 +131,8 @@ module.exports = {
   resolveWebVanguardRoot,
   resolveWebDataFile,
   isUnderRoot,
+  ensureWebPublicDir,
+  sanitizePdfBasename,
+  saveWebPublicPdf,
+  removeWebPublicFileIfSafe,
 };

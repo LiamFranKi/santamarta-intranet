@@ -342,6 +342,10 @@ const adminCalendarizacionRoutes = require('./routes/admin.calendarizacion.route
 app.use('/api/admin/calendarizacion', adminCalendarizacionRoutes);
 const adminFaqsRoutes = require('./routes/admin.faqs.routes');
 app.use('/api/admin/faqs', adminFaqsRoutes);
+const adminUtilesRoutes = require('./routes/admin.utiles.routes');
+app.use('/api/admin/utiles', adminUtilesRoutes);
+const adminDocumentosWebRoutes = require('./routes/admin.documentosWeb.routes');
+app.use('/api/admin/documentos-web', adminDocumentosWebRoutes);
 const adminSeguridadRoutes = require('./routes/admin.seguridad.routes');
 app.use('/api/admin/seguridad', adminSeguridadRoutes);
 const webhooksWebFormularioRoutes = require('./routes/webhooks.webFormulario.routes');
