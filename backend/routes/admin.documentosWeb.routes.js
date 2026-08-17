@@ -17,6 +17,7 @@ const {
   saveWebPublicPdf,
   removeWebPublicFileIfSafe,
   resolveWebVanguardRoot,
+  isUnderRoot,
 } = require('../utils/webVanguardFiles');
 
 router.use(authenticateToken);
@@ -92,6 +93,28 @@ router.get('/meta', (_req, res) => {
     webRoot: resolveWebVanguardRoot(),
     pdfDir: ensureWebPublicDir('documentos'),
   });
+});
+
+/** Sirve PDF desde public/documentos para vista previa admin */
+router.get('/archivo', (req, res) => {
+  try {
+    const ruta = String(req.query.ruta || '').trim();
+    if (!ruta.startsWith('/documentos/')) {
+      return res.status(400).json({ error: 'Ruta inválida' });
+    }
+    const root = path.resolve(resolveWebVanguardRoot());
+    const publicRoot = path.join(root, 'public');
+    const abs = path.resolve(publicRoot, ruta.replace(/^[/\\]+/, ''));
+    if (!isUnderRoot(abs, path.join(publicRoot, 'documentos'))) {
+      return res.status(400).json({ error: 'Ruta fuera de documentos' });
+    }
+    if (!fs.existsSync(abs)) return res.status(404).json({ error: 'Archivo no encontrado en disco' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${path.basename(abs)}"`);
+    return res.sendFile(abs);
+  } catch (e) {
+    return res.status(500).json({ error: e.message || 'Error al abrir PDF' });
+  }
 });
 
 // ─── Categorías ─────────────────────────────────────────────────────────────

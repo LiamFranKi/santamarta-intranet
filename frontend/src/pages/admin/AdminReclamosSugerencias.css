@@ -507,6 +507,124 @@
   gap: 0.35rem;
 }
 
+.rs-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.rs-pdf-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 96px;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.rs-pdf-card__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.rs-pdf-card__title {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.35;
+}
+
+.rs-pdf-card__hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.rs-pdf-open {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #ef4444, #b91c1c);
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  box-shadow: 0 6px 14px rgba(185, 28, 28, 0.28);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.rs-pdf-open:hover {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow: 0 8px 18px rgba(185, 28, 28, 0.35);
+}
+
+.rs-pdf-open__icon {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.rs-pdf-open__label {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.rs-color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.rs-color-swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 2px solid #e2e8f0;
+  cursor: pointer;
+  padding: 0;
+}
+
+.rs-color-swatch--active {
+  border-color: #0f172a;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #3b82f6;
+}
+
+.rs-color-custom {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rs-color-custom input[type='color'] {
+  width: 42px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.rs-color-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  vertical-align: middle;
+  margin-right: 0.35rem;
+}
+
 @media (max-width: 640px) {
   .rs-form-grid {
     grid-template-columns: 1fr;
@@ -518,5 +636,9 @@
 
   .rs-hero h1 {
     font-size: 1.3rem;
+  }
+
+  .rs-preview-grid {
+    grid-template-columns: 1fr;
   }
 }

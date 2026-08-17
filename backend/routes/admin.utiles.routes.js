@@ -17,6 +17,7 @@ const {
   saveWebPublicPdf,
   removeWebPublicFileIfSafe,
   resolveWebVanguardRoot,
+  isUnderRoot,
 } = require('../utils/webVanguardFiles');
 
 router.use(authenticateToken);
@@ -26,6 +27,14 @@ router.use((req, res, next) => {
 });
 
 const COLORES = new Set(['pink', 'blue', 'purple']);
+
+function normalizeColor(raw) {
+  const s = String(raw || '').trim();
+  if (/^#[0-9a-fA-F]{3,8}$/.test(s)) return s.toLowerCase();
+  const named = s.toLowerCase();
+  if (COLORES.has(named)) return named;
+  return null;
+}
 
 const uploadPdf = multer({
   storage: multer.diskStorage({
@@ -94,13 +103,35 @@ function applyPdfUpload(req, body) {
 router.get('/meta', (_req, res) => {
   res.json({
     colores: [
-      { value: 'pink', label: 'Rosa (Inicial)' },
-      { value: 'blue', label: 'Azul (Primaria)' },
-      { value: 'purple', label: 'Morado (Secundaria)' },
+      { value: 'pink', label: 'Rosa (Inicial)', hex: '#ec4899' },
+      { value: 'blue', label: 'Azul (Primaria)', hex: '#3b82f6' },
+      { value: 'purple', label: 'Morado (Secundaria)', hex: '#a855f7' },
     ],
     webRoot: resolveWebVanguardRoot(),
     pdfDir: ensureWebPublicDir('utiles'),
   });
+});
+
+/** Sirve PDF desde public/utiles para vista previa admin */
+router.get('/archivo', (req, res) => {
+  try {
+    const ruta = String(req.query.ruta || '').trim();
+    if (!ruta.startsWith('/utiles/')) {
+      return res.status(400).json({ error: 'Ruta inválida' });
+    }
+    const root = path.resolve(resolveWebVanguardRoot());
+    const publicRoot = path.join(root, 'public');
+    const abs = path.resolve(publicRoot, ruta.replace(/^[/\\]+/, ''));
+    if (!isUnderRoot(abs, path.join(publicRoot, 'utiles'))) {
+      return res.status(400).json({ error: 'Ruta fuera de útiles' });
+    }
+    if (!fs.existsSync(abs)) return res.status(404).json({ error: 'Archivo no encontrado en disco' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${path.basename(abs)}"`);
+    return res.sendFile(abs);
+  } catch (e) {
+    return res.status(500).json({ error: e.message || 'Error al abrir PDF' });
+  }
 });
 
 // ─── Niveles ────────────────────────────────────────────────────────────────
@@ -124,9 +155,9 @@ router.post('/niveles', async (req, res) => {
     const b = req.body || {};
     let codigo = slugify(b.codigo || b.nombre);
     const nombre = String(b.nombre || '').trim();
-    const color = String(b.color || 'blue').trim().toLowerCase();
+    const color = normalizeColor(b.color || 'blue');
     if (!codigo || !nombre) return res.status(400).json({ error: 'Código y nombre obligatorios' });
-    if (!COLORES.has(color)) return res.status(400).json({ error: 'Color inválido (pink|blue|purple)' });
+    if (!color) return res.status(400).json({ error: 'Color inválido (pink|blue|purple o #hex)' });
     const orden = Number.isFinite(Number(b.orden)) ? Number(b.orden) : 0;
     const activo = toBool01(b.activo, 1);
     const r = await execute(
@@ -151,9 +182,9 @@ router.put('/niveles/:id', async (req, res) => {
     const b = req.body || {};
     const codigo = slugify(b.codigo);
     const nombre = String(b.nombre || '').trim();
-    const color = String(b.color || 'blue').trim().toLowerCase();
+    const color = normalizeColor(b.color || 'blue');
     if (!codigo || !nombre) return res.status(400).json({ error: 'Código y nombre obligatorios' });
-    if (!COLORES.has(color)) return res.status(400).json({ error: 'Color inválido (pink|blue|purple)' });
+    if (!color) return res.status(400).json({ error: 'Color inválido (pink|blue|purple o #hex)' });
 
     await execute(
       `UPDATE web_utiles_niveles SET codigo = ?, nombre = ?, color = ?, orden = ?, activo = ? WHERE id = ?`,

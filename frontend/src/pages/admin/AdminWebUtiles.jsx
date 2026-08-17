@@ -5,10 +5,16 @@ import api from '../../services/api';
 
 const API = '/admin/utiles';
 const COLORES = [
-  { value: 'pink', label: 'Rosa (Inicial)' },
-  { value: 'blue', label: 'Azul (Primaria)' },
-  { value: 'purple', label: 'Morado (Secundaria)' },
+  { value: 'pink', label: 'Rosa (Inicial)', hex: '#ec4899' },
+  { value: 'blue', label: 'Azul (Primaria)', hex: '#3b82f6' },
+  { value: 'purple', label: 'Morado (Secundaria)', hex: '#a855f7' },
 ];
+
+const COLOR_HEX = {
+  pink: '#ec4899',
+  blue: '#3b82f6',
+  purple: '#a855f7',
+};
 
 const swalOpts = {
   target: document.body,
@@ -21,6 +27,44 @@ const swalOpts = {
 
 function esActivo(v) {
   return v === true || v === 1 || v === '1' || Number(v) === 1;
+}
+
+function colorToCss(color) {
+  if (!color) return COLOR_HEX.blue;
+  if (String(color).startsWith('#')) return color;
+  return COLOR_HEX[color] || color || COLOR_HEX.blue;
+}
+
+function isNamedPreset(color) {
+  return COLORES.some((c) => c.value === color);
+}
+
+async function abrirPdfApi(ruta) {
+  try {
+    const res = await api.get(`${API}/archivo`, { params: { ruta }, responseType: 'blob' });
+    const blob = new Blob([res.data], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (e) {
+    Swal.fire({
+      icon: 'error',
+      title: 'No se pudo abrir el PDF',
+      text: e.response?.data?.error || 'Verifique que el archivo exista en web-vanguard/public/utiles',
+      ...swalOpts,
+    });
+  }
+}
+
+function PdfOpenButton({ onClick, title }) {
+  return (
+    <button type="button" className="rs-pdf-open" onClick={onClick} title={title || 'Abrir PDF'}>
+      <span className="rs-pdf-open__icon" aria-hidden>
+        📄
+      </span>
+      <span className="rs-pdf-open__label">PDF</span>
+    </button>
+  );
 }
 
 function Overlay({ title, subtitle, onClose, children, footer, wide }) {
@@ -353,7 +397,10 @@ export default function AdminWebUtiles() {
                     <td>{n.orden}</td>
                     <td>{n.codigo}</td>
                     <td className="rs-nombre">{n.nombre}</td>
-                    <td>{n.color}</td>
+                    <td>
+                      <span className="rs-color-dot" style={{ background: colorToCss(n.color) }} />
+                      {n.color}
+                    </td>
                     <td>{n.total_grados ?? '—'}</td>
                     <td>
                       <span className={`rs-badge ${esActivo(n.activo) ? 'rs-badge--ok' : 'rs-badge--off'}`}>
@@ -388,37 +435,34 @@ export default function AdminWebUtiles() {
       {subTab === 'preview' && (
         <div>
           <p className="rs-muted" style={{ marginBottom: '1rem' }}>
-            Vista agrupada como en /lista-utiles (solo activos).
+            Vista agrupada como en /lista-utiles (solo activos). Clic en el icono PDF para abrir.
           </p>
           {preview.length === 0 ? (
             <p className="rs-empty">No hay niveles/grados activos.</p>
           ) : (
             preview.map((n) => (
               <div key={n.id} className="rs-detail-block" style={{ marginBottom: '1.25rem' }}>
-                <h3 style={{ textAlign: 'center', marginBottom: '0.85rem' }}>
-                  {n.nombre} <span className="rs-muted">({n.color})</span>
-                </h3>
-                <div
+                <h3
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-                    gap: '0.75rem',
+                    textAlign: 'center',
+                    marginBottom: '1rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
                   }}
                 >
+                  <span className="rs-color-dot" style={{ background: colorToCss(n.color), width: 16, height: 16 }} />
+                  {n.nombre}
+                </h3>
+                <div className="rs-preview-grid">
                   {(n.grados || []).map((g) => (
-                    <div
-                      key={g.id}
-                      style={{
-                        border: '1px solid #e2e8f0',
-                        borderRadius: 10,
-                        padding: '0.85rem',
-                        background: '#fff',
-                      }}
-                    >
-                      <strong>{g.nombre}</strong>
-                      <p className="rs-muted" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
-                        {g.ruta}
-                      </p>
+                    <div key={g.id} className="rs-pdf-card">
+                      <div className="rs-pdf-card__body">
+                        <p className="rs-pdf-card__title">{g.nombre}</p>
+                        <p className="rs-pdf-card__hint">Lista de útiles · Abrir PDF</p>
+                      </div>
+                      <PdfOpenButton title={`Abrir ${g.archivo || g.nombre}`} onClick={() => abrirPdfApi(g.ruta)} />
                     </div>
                   ))}
                 </div>
@@ -502,14 +546,16 @@ export default function AdminWebUtiles() {
 }
 
 function NivelModal({ mode, item, saving, onClose, onSave }) {
+  const initial = item?.color || 'blue';
   const [form, setForm] = useState(() => ({
     codigo: item?.codigo || '',
     nombre: item?.nombre || '',
-    color: item?.color || 'blue',
+    color: initial,
     orden: item?.orden ?? 0,
     activo: esActivo(item?.activo ?? 1),
   }));
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const pickerHex = colorToCss(form.color);
 
   return (
     <Overlay
@@ -548,15 +594,42 @@ function NivelModal({ mode, item, saving, onClose, onSave }) {
           <label>Nombre *</label>
           <input value={form.nombre} onChange={(e) => set('nombre', e.target.value)} placeholder="Educación Inicial" />
         </div>
-        <div className="rs-field">
+        <div className="rs-field rs-field--full">
           <label>Color (diseño web) *</label>
-          <select value={form.color} onChange={(e) => set('color', e.target.value)}>
+          <div className="rs-color-swatches" style={{ marginBottom: '0.65rem' }}>
             {COLORES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
+              <button
+                key={c.value}
+                type="button"
+                className={`rs-color-swatch${form.color === c.value ? ' rs-color-swatch--active' : ''}`}
+                style={{ background: c.hex }}
+                title={c.label}
+                onClick={() => set('color', c.value)}
+              />
             ))}
-          </select>
+            <span className="rs-muted" style={{ fontSize: '0.82rem' }}>
+              Presets web
+            </span>
+          </div>
+          <div className="rs-color-custom">
+            <input
+              type="color"
+              value={/^#[0-9a-fA-F]{6}$/.test(pickerHex) ? pickerHex : '#3b82f6'}
+              onChange={(e) => set('color', e.target.value)}
+              title="Color personalizado"
+            />
+            <input
+              value={form.color}
+              onChange={(e) => set('color', e.target.value)}
+              placeholder="#3b82f6 o pink"
+              style={{ flex: 1 }}
+            />
+          </div>
+          <p className="rs-muted" style={{ marginTop: '0.45rem', fontSize: '0.8rem' }}>
+            {isNamedPreset(form.color)
+              ? 'La web pública usa este preset (rosa/azul/morado).'
+              : 'Color personalizado guardado en BD. La web pública mapea solo pink/blue/purple; el resto cae a azul hasta actualizar el diseño web.'}
+          </p>
         </div>
         <div className="rs-field">
           <label>Orden</label>

@@ -18,6 +18,34 @@ function esActivo(v) {
   return v === true || v === 1 || v === '1' || Number(v) === 1;
 }
 
+async function abrirPdfApi(apiPath, ruta) {
+  try {
+    const res = await api.get(apiPath, { params: { ruta }, responseType: 'blob' });
+    const blob = new Blob([res.data], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (e) {
+    Swal.fire({
+      icon: 'error',
+      title: 'No se pudo abrir el PDF',
+      text: e.response?.data?.error || 'Verifique que el archivo exista en web-vanguard/public',
+      ...swalOpts,
+    });
+  }
+}
+
+function PdfOpenButton({ onClick, title }) {
+  return (
+    <button type="button" className="rs-pdf-open" onClick={onClick} title={title || 'Abrir PDF'}>
+      <span className="rs-pdf-open__icon" aria-hidden>
+        📄
+      </span>
+      <span className="rs-pdf-open__label">PDF</span>
+    </button>
+  );
+}
+
 function Overlay({ title, subtitle, onClose, children, footer, wide }) {
   return createPortal(
     <div className="rs-overlay" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -377,43 +405,25 @@ export default function AdminWebDocumentos() {
       {subTab === 'preview' && (
         <div>
           <p className="rs-muted" style={{ marginBottom: '1rem' }}>
-            Vista agrupada como en /documentos (solo activos).
+            Vista agrupada como en /documentos (solo activos). Clic en el icono PDF para abrir.
           </p>
           {preview.length === 0 ? (
             <p className="rs-empty">No hay categorías/documentos activos.</p>
           ) : (
             preview.map((g) => (
               <div key={g.id} className="rs-detail-block" style={{ marginBottom: '1.25rem' }}>
-                <h3 style={{ textAlign: 'center', marginBottom: '0.85rem' }}>{g.etiqueta}</h3>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-                    gap: '0.75rem',
-                  }}
-                >
+                <h3 style={{ textAlign: 'center', marginBottom: '1rem' }}>{g.etiqueta}</h3>
+                <div className="rs-preview-grid">
                   {(g.documentos || []).map((d) => (
-                    <div
-                      key={d.id}
-                      style={{
-                        border: '1px solid #e2e8f0',
-                        borderRadius: 10,
-                        padding: '0.85rem 1rem',
-                        background: '#fff',
-                        display: 'flex',
-                        gap: '0.75rem',
-                        alignItems: 'flex-start',
-                      }}
-                    >
-                      <span style={{ fontSize: '1.5rem' }} aria-hidden>
-                        📄
-                      </span>
-                      <div>
-                        <strong>{d.nombre}</strong>
-                        <p className="rs-muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-                          {d.tipo} · {d.ruta}
-                        </p>
+                    <div key={d.id} className="rs-pdf-card">
+                      <div className="rs-pdf-card__body">
+                        <p className="rs-pdf-card__title">{d.nombre}</p>
+                        <p className="rs-pdf-card__hint">{d.tipo || 'PDF'} · Abrir archivo</p>
                       </div>
+                      <PdfOpenButton
+                        title={`Abrir ${d.archivo || d.nombre}`}
+                        onClick={() => abrirPdfApi(`${API}/archivo`, d.ruta)}
+                      />
                     </div>
                   ))}
                 </div>

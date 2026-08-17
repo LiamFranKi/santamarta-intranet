@@ -29,7 +29,7 @@ const TABS = [
   { id: 'calendarizacion', label: '📆 Calendarización' },
   { id: 'faqs', label: '❓ Preguntas frecuentes' },
   { id: 'utiles', label: '📚 Lista de útiles' },
-  { id: 'documentos', label: '📁 Documentos de interés' },
+  { id: 'documentos', label: '📁 Documentos' },
 ];
 
 const FORM_TAB_IDS = ['reclamos', 'sugerencias', 'contacto', 'visitas', 'trabaja', 'admision'];
