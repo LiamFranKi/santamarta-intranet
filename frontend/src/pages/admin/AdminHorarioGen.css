@@ -143,6 +143,74 @@
   background: rgba(255, 255, 255, 0.22);
 }
 
+.hg-tab--amber.hg-tab--active .hg-tab-icon {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.hg-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-top: 0.75rem;
+}
+
+.hg-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.hg-filters select {
+  min-width: 160px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+  font-weight: 600;
+}
+
+.hg-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.hg-stat strong {
+  color: #0f172a;
+  font-size: 1.05rem;
+}
+
+.hg-inline-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.hg-inline-field input {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.35rem 0.45rem;
+  font-weight: 600;
+}
+
+.hg-color-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  vertical-align: middle;
+}
+
 /* Futuras fases (cuando se agreguen) */
 .hg-tab--amber:hover {
   border-color: #fcd34d;

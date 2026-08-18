@@ -33,6 +33,7 @@ const ESTADOS_DISP = [
 const TABS = [
   { id: 'config', label: '1. Configuración', icon: '⚙️', tone: 'blue' },
   { id: 'disponibilidad', label: '2. Disponibilidad', icon: '👤', tone: 'green' },
+  { id: 'carga', label: '3. Carga semanal', icon: '📚', tone: 'amber' },
 ];
 
 const swalOpts = {
@@ -303,6 +304,8 @@ export default function AdminHorarioGen() {
           </div>
         ) : tab === 'disponibilidad' ? (
           <DisponibilidadPanel anio={anio} docentes={meta.docentes || []} />
+        ) : tab === 'carga' ? (
+          <CargaPanel anio={anio} niveles={meta.niveles || []} docentes={meta.docentes || []} />
         ) : (
           <div className="hg-layout">
             <section className="hg-panel">
@@ -445,8 +448,8 @@ export default function AdminHorarioGen() {
           <h3>Fases del módulo (piloto)</h3>
           <ol>
             <li>✅ Configuración de bloques por año/nivel</li>
-            <li>✅ Disponibilidad docente (esta pestaña)</li>
-            <li>Carga semanal (horas por curso/grupo)</li>
+            <li>✅ Disponibilidad docente</li>
+            <li>✅ Carga semanal (horas por curso/grupo)</li>
             <li>Editor drag &amp; drop</li>
             <li>Solver automático</li>
             <li>Cuando funcione → sincronizar a `grupos_horarios` (opt-in)</li>
@@ -517,6 +520,359 @@ export default function AdminHorarioGen() {
         />
       )}
     </DashboardLayout>
+  );
+}
+
+function CargaPanel({ anio, niveles, docentes }) {
+  const [nivelId, setNivelId] = useState('');
+  const [grupoId, setGrupoId] = useState('');
+  const [grupos, setGrupos] = useState([]);
+  const [cargas, setCargas] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [bloquesDefault, setBloquesDefault] = useState(2);
+  const [editId, setEditId] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  const cargarGrupos = useCallback(async () => {
+    if (!anio) return;
+    try {
+      const params = { anio };
+      if (nivelId) params.nivel_id = nivelId;
+      const { data } = await api.get(`${API}/grupos`, { params });
+      setGrupos(data.grupos || []);
+    } catch {
+      setGrupos([]);
+    }
+  }, [anio, nivelId]);
+
+  const cargarCargas = useCallback(async () => {
+    if (!anio) return;
+    try {
+      setLoading(true);
+      const params = { anio };
+      if (nivelId) params.nivel_id = nivelId;
+      if (grupoId) params.grupo_id = grupoId;
+      const { data } = await api.get(`${API}/carga`, { params });
+      setCargas(data.cargas || []);
+    } catch (e) {
+      setCargas([]);
+      if (e.response?.status !== 503) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: e.response?.data?.error || 'No se pudo cargar',
+          ...swalOpts,
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [anio, nivelId, grupoId]);
+
+  useEffect(() => {
+    cargarGrupos();
+  }, [cargarGrupos]);
+
+  useEffect(() => {
+    setGrupoId('');
+  }, [nivelId]);
+
+  useEffect(() => {
+    cargarCargas();
+  }, [cargarCargas]);
+
+  const importar = async () => {
+    const conf = await Swal.fire({
+      icon: 'question',
+      title: 'Importar desde Asignaturas',
+      html: `Trae docente + curso + grupo del catálogo académico del año <b>${anio}</b>.<br/>Bloques por defecto: <b>${bloquesDefault}</b>. No duplica si ya existe.`,
+      showCancelButton: true,
+      confirmButtonText: 'Importar',
+      cancelButtonText: 'Cancelar',
+      ...swalOpts,
+    });
+    if (!conf.isConfirmed) return;
+    try {
+      const { data } = await api.post(`${API}/carga/importar-asignaturas`, {
+        anio,
+        nivel_id: nivelId || undefined,
+        grupo_id: grupoId || undefined,
+        bloques_default: Number(bloquesDefault) || 2,
+      });
+      await cargarCargas();
+      Swal.fire({
+        icon: 'success',
+        title: 'Importado',
+        text: `Creadas: ${data.creadas} · Omitidas: ${data.omitidas} · Asignaturas: ${data.total_asignaturas}`,
+        ...swalOpts,
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo importar',
+        ...swalOpts,
+      });
+    }
+  };
+
+  const empezarEdit = (row) => {
+    setEditId(row.id);
+    setEditForm({
+      bloques_semanales: row.bloques_semanales,
+      bloques_consecutivos_min: row.bloques_consecutivos_min,
+      bloques_consecutivos_max: row.bloques_consecutivos_max,
+      personal_id: row.personal_id || '',
+      color: row.color || '',
+      activo: esActivo(row.activo),
+    });
+  };
+
+  const guardarEdit = async () => {
+    if (!editId) return;
+    try {
+      setSaving(true);
+      await api.put(`${API}/carga/${editId}`, {
+        bloques_semanales: Number(editForm.bloques_semanales) || 1,
+        bloques_consecutivos_min: Number(editForm.bloques_consecutivos_min) || 1,
+        bloques_consecutivos_max: Number(editForm.bloques_consecutivos_max) || 2,
+        personal_id: editForm.personal_id ? Number(editForm.personal_id) : null,
+        color: editForm.color || null,
+        activo: editForm.activo ? 1 : 0,
+      });
+      setEditId(null);
+      await cargarCargas();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo guardar',
+        ...swalOpts,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const eliminar = async (row) => {
+    const conf = await Swal.fire({
+      icon: 'warning',
+      title: '¿Eliminar carga?',
+      text: `${row.curso_nombre || 'Curso'} · ${row.grupo_label}`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b91c1c',
+      ...swalOpts,
+    });
+    if (!conf.isConfirmed) return;
+    try {
+      await api.delete(`${API}/carga/${row.id}`);
+      await cargarCargas();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo eliminar',
+        ...swalOpts,
+      });
+    }
+  };
+
+  const totalBloques = cargas.reduce((s, c) => s + (Number(c.bloques_semanales) || 0), 0);
+
+  return (
+    <div>
+      <section className="hg-panel" style={{ marginBottom: '1rem' }}>
+        <div className="hg-panel-head">
+          <h2>Carga semanal · {anio}</h2>
+          <div className="hg-actions">
+            <label className="hg-inline-field">
+              Bloques def.
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={bloquesDefault}
+                onChange={(e) => setBloquesDefault(e.target.value)}
+                style={{ width: 64 }}
+              />
+            </label>
+            <button type="button" className="hg-btn hg-btn-primary" onClick={importar}>
+              Importar asignaturas
+            </button>
+            <button type="button" className="hg-btn hg-btn-light" onClick={cargarCargas}>
+              Actualizar
+            </button>
+          </div>
+        </div>
+        <p className="hg-muted" style={{ marginTop: 0 }}>
+          Cuántos bloques semanales necesita cada curso en cada aula. Se importa desde{' '}
+          <strong>Asignaturas</strong> del sistema (no modifica esas tablas).
+        </p>
+        <div className="hg-filters">
+          <label>
+            Nivel
+            <select
+              value={nivelId}
+              onChange={(e) => setNivelId(e.target.value)}
+            >
+              <option value="">Todos</option>
+              {niveles.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Grupo / aula
+            <select value={grupoId} onChange={(e) => setGrupoId(e.target.value)}>
+              <option value="">Todos</option>
+              {grupos.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.nivel_nombre} {g.grado}
+                  {g.seccion ? ` ${g.seccion}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="hg-stat">
+            <span>{cargas.length} cargas</span>
+            <strong>{totalBloques} bloques/semana</strong>
+          </div>
+        </div>
+      </section>
+
+      <section className="hg-panel">
+        {loading ? (
+          <p className="hg-muted">Cargando…</p>
+        ) : cargas.length === 0 ? (
+          <p className="hg-muted">
+            Sin carga todavía. Usa <strong>Importar asignaturas</strong> o filtra otro nivel/grupo.
+          </p>
+        ) : (
+          <div className="hg-table-wrap">
+            <table className="hg-table">
+              <thead>
+                <tr>
+                  <th>Grupo</th>
+                  <th>Curso</th>
+                  <th>Docente</th>
+                  <th>Bloques</th>
+                  <th>Consec. min/max</th>
+                  <th>Estado</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {cargas.map((c) =>
+                  editId === c.id ? (
+                    <tr key={c.id} className="hg-row-active">
+                      <td>{c.grupo_label}</td>
+                      <td>{c.curso_nombre || '—'}</td>
+                      <td>
+                        <select
+                          value={editForm.personal_id}
+                          onChange={(e) => setEditForm((f) => ({ ...f, personal_id: e.target.value }))}
+                        >
+                          <option value="">—</option>
+                          {docentes.map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.nombre}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          min={1}
+                          style={{ width: 64 }}
+                          value={editForm.bloques_semanales}
+                          onChange={(e) => setEditForm((f) => ({ ...f, bloques_semanales: e.target.value }))}
+                        />
+                      </td>
+                      <td>
+                        <div className="hg-actions">
+                          <input
+                            type="number"
+                            min={1}
+                            style={{ width: 52 }}
+                            value={editForm.bloques_consecutivos_min}
+                            onChange={(e) =>
+                              setEditForm((f) => ({ ...f, bloques_consecutivos_min: e.target.value }))
+                            }
+                          />
+                          <input
+                            type="number"
+                            min={1}
+                            style={{ width: 52 }}
+                            value={editForm.bloques_consecutivos_max}
+                            onChange={(e) =>
+                              setEditForm((f) => ({ ...f, bloques_consecutivos_max: e.target.value }))
+                            }
+                          />
+                        </div>
+                      </td>
+                      <td>
+                        <label className="hg-check" style={{ marginTop: 0 }}>
+                          <input
+                            type="checkbox"
+                            checked={editForm.activo}
+                            onChange={(e) => setEditForm((f) => ({ ...f, activo: e.target.checked }))}
+                          />
+                          Activo
+                        </label>
+                      </td>
+                      <td className="hg-actions">
+                        <button type="button" className="hg-btn hg-btn-sm hg-btn-primary" disabled={saving} onClick={guardarEdit}>
+                          Guardar
+                        </button>
+                        <button type="button" className="hg-btn hg-btn-sm hg-btn-ghost" onClick={() => setEditId(null)}>
+                          Cancelar
+                        </button>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={c.id}>
+                      <td>{c.grupo_label}</td>
+                      <td>
+                        <strong>{c.curso_nombre || '—'}</strong>
+                        {c.color ? (
+                          <span className="hg-color-dot" style={{ background: c.color, marginLeft: 6 }} />
+                        ) : null}
+                      </td>
+                      <td>{c.docente_nombre || '—'}</td>
+                      <td>
+                        <strong>{c.bloques_semanales}</strong>
+                      </td>
+                      <td>
+                        {c.bloques_consecutivos_min}/{c.bloques_consecutivos_max}
+                      </td>
+                      <td>
+                        <span className={`hg-badge ${esActivo(c.activo) ? 'ok' : 'off'}`}>
+                          {esActivo(c.activo) ? 'Activo' : 'Off'}
+                        </span>
+                      </td>
+                      <td className="hg-actions">
+                        <button type="button" className="hg-btn hg-btn-sm" onClick={() => empezarEdit(c)}>
+                          Editar
+                        </button>
+                        <button type="button" className="hg-btn hg-btn-sm hg-btn-danger" onClick={() => eliminar(c)}>
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 

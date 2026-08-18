@@ -642,4 +642,246 @@ router.delete('/disponibilidad', async (req, res) => {
   }
 });
 
+// ─── Carga semanal (fase 3) ─────────────────────────────────────────────────
+
+router.get('/grupos', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const anioActivo = await anioActivoColegio(cid);
+    const anio = parseAnio(req.query.anio, anioActivo);
+    const nivelId = parseId(req.query.nivel_id);
+
+    let sql = `
+      SELECT g.id, g.grado, g.seccion, g.nivel_id, g.anio,
+             n.nombre AS nivel_nombre
+      FROM grupos g
+      INNER JOIN niveles n ON n.id = g.nivel_id
+      WHERE g.colegio_id = ? AND g.anio = ?
+    `;
+    const params = [cid, anio];
+    if (nivelId) {
+      sql += ' AND g.nivel_id = ?';
+      params.push(nivelId);
+    }
+    sql += ' ORDER BY n.nombre, g.grado, g.seccion';
+    const rows = await query(sql, params);
+    res.json({ anio, grupos: rows || [] });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al listar grupos.' });
+  }
+});
+
+router.get('/carga', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const anioActivo = await anioActivoColegio(cid);
+    const anio = parseAnio(req.query.anio, anioActivo);
+    const grupoId = parseId(req.query.grupo_id);
+    const nivelId = parseId(req.query.nivel_id);
+
+    let sql = `
+      SELECT c.*,
+             cur.nombre AS curso_nombre,
+             g.grado, g.seccion, g.nivel_id,
+             n.nombre AS nivel_nombre,
+             TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS docente_nombre
+      FROM horario_gen_carga c
+      INNER JOIN grupos g ON g.id = c.grupo_id
+      LEFT JOIN niveles n ON n.id = g.nivel_id
+      LEFT JOIN cursos cur ON cur.id = c.curso_id
+      LEFT JOIN personal p ON p.id = c.personal_id
+      WHERE c.colegio_id = ? AND c.anio = ?
+    `;
+    const params = [cid, anio];
+    if (grupoId) {
+      sql += ' AND c.grupo_id = ?';
+      params.push(grupoId);
+    }
+    if (nivelId) {
+      sql += ' AND g.nivel_id = ?';
+      params.push(nivelId);
+    }
+    sql += ' ORDER BY n.nombre, g.grado, g.seccion, cur.nombre, c.id';
+
+    const rows = await query(sql, params);
+    const mapped = (rows || []).map((r) => ({
+      ...mapActivo(r),
+      grupo_label: `${r.nivel_nombre || ''} ${r.grado ?? ''}${r.seccion ? ` ${r.seccion}` : ''}`.trim(),
+    }));
+    res.json({ anio, cargas: mapped });
+  } catch (e) {
+    if (e.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({
+        error: 'Faltan tablas horario_gen_*. Ejecute sql/horario_gen_modulo.sql en phpMyAdmin.',
+        code: 'TABLES_MISSING',
+      });
+    }
+    res.status(500).json({ error: e.message || 'Error al listar carga.' });
+  }
+});
+
+router.post('/carga', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const anioActivo = await anioActivoColegio(cid);
+    const b = req.body || {};
+    const anio = parseAnio(b.anio, anioActivo);
+    const grupo_id = parseId(b.grupo_id);
+    if (!grupo_id) return res.status(400).json({ error: 'grupo_id obligatorio' });
+
+    const g = await query(`SELECT id FROM grupos WHERE id = ? AND colegio_id = ? AND anio = ?`, [
+      grupo_id,
+      cid,
+      anio,
+    ]);
+    if (!g?.length) return res.status(400).json({ error: 'Grupo no existe en ese año' });
+
+    const curso_id = parseId(b.curso_id);
+    const asignatura_id = parseId(b.asignatura_id);
+    const personal_id = parseId(b.personal_id);
+    const bloques = Math.max(1, parseInt(b.bloques_semanales, 10) || 1);
+    const minC = Math.max(1, parseInt(b.bloques_consecutivos_min, 10) || 1);
+    const maxC = Math.max(minC, parseInt(b.bloques_consecutivos_max, 10) || 2);
+    const color = b.color != null ? String(b.color).slice(0, 20) : null;
+    const activo = toBool01(b.activo, 1);
+
+    const r = await execute(
+      `INSERT INTO horario_gen_carga
+        (colegio_id, anio, grupo_id, curso_id, asignatura_id, personal_id,
+         bloques_semanales, bloques_consecutivos_min, bloques_consecutivos_max, color, activo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [cid, anio, grupo_id, curso_id, asignatura_id, personal_id, bloques, minC, maxC, color, activo]
+    );
+    const rows = await query(`SELECT * FROM horario_gen_carga WHERE id = ?`, [r.insertId]);
+    res.status(201).json({ carga: mapActivo(rows[0]) });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al crear carga.' });
+  }
+});
+
+router.put('/carga/:id', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const curRows = await query(`SELECT * FROM horario_gen_carga WHERE id = ? AND colegio_id = ?`, [id, cid]);
+    if (!curRows?.length) return res.status(404).json({ error: 'Carga no encontrada' });
+    const cur = curRows[0];
+    const b = req.body || {};
+
+    const bloques = Number.isFinite(Number(b.bloques_semanales))
+      ? Math.max(1, Number(b.bloques_semanales))
+      : cur.bloques_semanales;
+    const minC = Number.isFinite(Number(b.bloques_consecutivos_min))
+      ? Math.max(1, Number(b.bloques_consecutivos_min))
+      : cur.bloques_consecutivos_min;
+    const maxC = Number.isFinite(Number(b.bloques_consecutivos_max))
+      ? Math.max(minC, Number(b.bloques_consecutivos_max))
+      : Math.max(minC, cur.bloques_consecutivos_max);
+    const personal_id =
+      b.personal_id !== undefined ? parseId(b.personal_id) : cur.personal_id;
+    const color = b.color !== undefined ? (b.color ? String(b.color).slice(0, 20) : null) : cur.color;
+    const activo = b.activo !== undefined ? toBool01(b.activo, 1) : toBool01(cur.activo, 1);
+
+    await execute(
+      `UPDATE horario_gen_carga
+       SET personal_id = ?, bloques_semanales = ?, bloques_consecutivos_min = ?,
+           bloques_consecutivos_max = ?, color = ?, activo = ?
+       WHERE id = ? AND colegio_id = ?`,
+      [personal_id, bloques, minC, maxC, color, activo, id, cid]
+    );
+    const updated = await query(`SELECT * FROM horario_gen_carga WHERE id = ?`, [id]);
+    res.json({ carga: mapActivo(updated[0]) });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al actualizar carga.' });
+  }
+});
+
+router.delete('/carga/:id', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const r = await execute(`DELETE FROM horario_gen_carga WHERE id = ? AND colegio_id = ?`, [id, cid]);
+    if (!r?.affectedRows) return res.status(404).json({ error: 'Carga no encontrada' });
+    res.json({ message: 'Carga eliminada (solo piloto).' });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al eliminar carga.' });
+  }
+});
+
+/**
+ * Importa desde asignaturas del año (docente+curso+grupo ya existentes).
+ * No duplica si ya hay fila con mismo asignatura_id.
+ * Body: { anio, nivel_id?, grupo_id?, bloques_default? }
+ */
+router.post('/carga/importar-asignaturas', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const anioActivo = await anioActivoColegio(cid);
+    const b = req.body || {};
+    const anio = parseAnio(b.anio, anioActivo);
+    const nivelId = parseId(b.nivel_id);
+    const grupoId = parseId(b.grupo_id);
+    const bloquesDefault = Math.max(1, parseInt(b.bloques_default, 10) || 2);
+
+    let sql = `
+      SELECT a.id AS asignatura_id, a.grupo_id, a.curso_id, a.personal_id
+      FROM asignaturas a
+      INNER JOIN grupos g ON g.id = a.grupo_id
+      WHERE a.colegio_id = ? AND g.anio = ?
+    `;
+    const params = [cid, anio];
+    if (grupoId) {
+      sql += ' AND a.grupo_id = ?';
+      params.push(grupoId);
+    }
+    if (nivelId) {
+      sql += ' AND g.nivel_id = ?';
+      params.push(nivelId);
+    }
+
+    const asigs = await query(sql, params);
+    let creadas = 0;
+    let omitidas = 0;
+
+    for (const a of asigs || []) {
+      const exists = await query(
+        `SELECT id FROM horario_gen_carga
+         WHERE colegio_id = ? AND anio = ? AND asignatura_id = ? LIMIT 1`,
+        [cid, anio, a.asignatura_id]
+      );
+      if (exists?.length) {
+        omitidas += 1;
+        continue;
+      }
+      await execute(
+        `INSERT INTO horario_gen_carga
+          (colegio_id, anio, grupo_id, curso_id, asignatura_id, personal_id,
+           bloques_semanales, bloques_consecutivos_min, bloques_consecutivos_max, activo)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1, 2, 1)`,
+        [cid, anio, a.grupo_id, a.curso_id, a.asignatura_id, a.personal_id, bloquesDefault]
+      );
+      creadas += 1;
+    }
+
+    res.json({
+      message: 'Importación completada',
+      anio,
+      creadas,
+      omitidas,
+      total_asignaturas: (asigs || []).length,
+      bloques_default: bloquesDefault,
+    });
+  } catch (e) {
+    if (e.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({
+        error: 'Faltan tablas horario_gen_*. Ejecute sql/horario_gen_modulo.sql en phpMyAdmin.',
+        code: 'TABLES_MISSING',
+      });
+    }
+    res.status(500).json({ error: e.message || 'Error al importar carga.' });
+  }
+});
+
 module.exports = router;
