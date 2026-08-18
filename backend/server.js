@@ -346,6 +346,8 @@ const adminUtilesRoutes = require('./routes/admin.utiles.routes');
 app.use('/api/admin/utiles', adminUtilesRoutes);
 const adminDocumentosWebRoutes = require('./routes/admin.documentosWeb.routes');
 app.use('/api/admin/documentos-web', adminDocumentosWebRoutes);
+const adminHorarioGenRoutes = require('./routes/admin.horarioGen.routes');
+app.use('/api/admin/horario-gen', adminHorarioGenRoutes);
 const adminSeguridadRoutes = require('./routes/admin.seguridad.routes');
 app.use('/api/admin/seguridad', adminSeguridadRoutes);
 const webhooksWebFormularioRoutes = require('./routes/webhooks.webFormulario.routes');

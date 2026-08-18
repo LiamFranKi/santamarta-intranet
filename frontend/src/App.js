@@ -40,6 +40,7 @@ import AdminPublicaciones from './pages/admin/AdminPublicaciones';
 import AdminConexiones from './pages/admin/AdminConexiones';
 import AdminNotificacionesEnvio from './pages/admin/AdminNotificacionesEnvio';
 import AdminReclamosSugerencias from './pages/admin/AdminReclamosSugerencias';
+import AdminHorarioGen from './pages/admin/AdminHorarioGen';
 import AdminHerramientasDinamicas from './pages/admin/AdminHerramientasDinamicas';
 import AdminHerramientasAcademicas from './pages/admin/AdminHerramientasAcademicas';
 import AdminHerramientasEmocionales from './pages/admin/AdminHerramientasEmocionales';
@@ -392,6 +393,14 @@ function AppRoutes() {
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA']}>
             <AdminNotificacionesEnvio />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/horario-gen"
+        element={
+          <PrivateRoute requiredType="ADMINISTRADOR">
+            <AdminHorarioGen />
           </PrivateRoute>
         }
       />

@@ -76,7 +76,7 @@ export default function DashboardLayout({ children }) {
     setExpandedMenus(prev => ({
       ...prev,
       ...(path.startsWith('/admin/usuarios') && { usuarios: true }),
-      ...((path.startsWith('/admin/academico') || path.startsWith('/admin/avatares') || path.startsWith('/admin/gamificacion')) && { academico: true }),
+      ...((path.startsWith('/admin/academico') || path.startsWith('/admin/avatares') || path.startsWith('/admin/gamificacion') || path.startsWith('/admin/horario-gen')) && { academico: true }),
       ...(path.startsWith('/admin/reportes') && { reportes: true }),
       ...(
         (
@@ -1466,6 +1466,10 @@ export default function DashboardLayout({ children }) {
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/academico/areas">
                     <span className="sidebar-icon" aria-hidden>🗂️</span>
                     <span className="sidebar-label">Áreas</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/horario-gen">
+                    <span className="sidebar-icon" aria-hidden>🗓️</span>
+                    <span className="sidebar-label">Generar Horarios</span>
                   </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/avatares">
                     <span className="sidebar-icon" aria-hidden>🎮</span>
