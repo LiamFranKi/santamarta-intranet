@@ -14,6 +14,27 @@ const TIPOS = [
   { value: 'ACTIVITY', label: 'Actividad' },
 ];
 
+const DIAS = [
+  { value: 1, label: 'Lunes' },
+  { value: 2, label: 'Martes' },
+  { value: 3, label: 'Miércoles' },
+  { value: 4, label: 'Jueves' },
+  { value: 5, label: 'Viernes' },
+];
+
+const ESTADOS_DISP = [
+  { value: 'AVAILABLE', label: 'Disponible' },
+  { value: 'UNAVAILABLE', label: 'No disponible' },
+  { value: 'AVAILABLE_UNTIL', label: 'Hasta' },
+  { value: 'AVAILABLE_FROM', label: 'Desde' },
+  { value: 'CUSTOM_INTERVAL', label: 'Intervalo' },
+];
+
+const TABS = [
+  { id: 'config', label: '1. Configuración', icon: '⚙️', tone: 'blue' },
+  { id: 'disponibilidad', label: '2. Disponibilidad', icon: '👤', tone: 'green' },
+];
+
 const swalOpts = {
   target: document.body,
   customClass: { container: 'hg-swal' },
@@ -52,7 +73,8 @@ function Overlay({ title, onClose, children, footer }) {
 }
 
 export default function AdminHorarioGen() {
-  const [meta, setMeta] = useState({ anios: [], niveles: [], anio_activo: null, aviso: '' });
+  const [meta, setMeta] = useState({ anios: [], niveles: [], docentes: [], anio_activo: null, aviso: '' });
+  const [tab, setTab] = useState('config');
   const [anio, setAnio] = useState(null);
   const [configs, setConfigs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -236,7 +258,14 @@ export default function AdminHorarioGen() {
                 ))}
               </select>
             </label>
-            <button type="button" className="hg-btn hg-btn-light" onClick={() => cargarConfigs(anio)}>
+            <button
+              type="button"
+              className="hg-btn hg-btn-light"
+              onClick={() => {
+                if (tab === 'config') cargarConfigs(anio);
+                else window.location.reload();
+              }}
+            >
               Actualizar
             </button>
           </div>
@@ -245,6 +274,22 @@ export default function AdminHorarioGen() {
         <div className="hg-banner">
           🧪 Piloto: tablas <code>horario_gen_*</code>. El horario que ven docentes/alumnos hoy no se toca.
         </div>
+
+        <nav className="hg-tabs" aria-label="Fases del módulo">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={`hg-tab hg-tab--${t.tone}${tab === t.id ? ' hg-tab--active' : ''}`}
+              onClick={() => setTab(t.id)}
+            >
+              <span className="hg-tab-icon" aria-hidden>
+                {t.icon}
+              </span>
+              <span>{t.label}</span>
+            </button>
+          ))}
+        </nav>
 
         {loading ? (
           <p className="hg-muted">Cargando…</p>
@@ -256,6 +301,8 @@ export default function AdminHorarioGen() {
               En phpMyAdmin ejecuta el archivo <code>sql/horario_gen_modulo.sql</code> del repo.
             </p>
           </div>
+        ) : tab === 'disponibilidad' ? (
+          <DisponibilidadPanel anio={anio} docentes={meta.docentes || []} />
         ) : (
           <div className="hg-layout">
             <section className="hg-panel">
@@ -395,11 +442,12 @@ export default function AdminHorarioGen() {
         )}
 
         <section className="hg-roadmap">
-          <h3>Próximas fases (este módulo)</h3>
+          <h3>Fases del módulo (piloto)</h3>
           <ol>
-            <li>Disponibilidad docente</li>
+            <li>✅ Configuración de bloques por año/nivel</li>
+            <li>✅ Disponibilidad docente (esta pestaña)</li>
             <li>Carga semanal (horas por curso/grupo)</li>
-            <li>Editor drag & drop</li>
+            <li>Editor drag &amp; drop</li>
             <li>Solver automático</li>
             <li>Cuando funcione → sincronizar a `grupos_horarios` (opt-in)</li>
           </ol>
@@ -469,6 +517,282 @@ export default function AdminHorarioGen() {
         />
       )}
     </DashboardLayout>
+  );
+}
+
+function DisponibilidadPanel({ anio, docentes }) {
+  const [personalId, setPersonalId] = useState('');
+  const [dias, setDias] = useState([]);
+  const [resumen, setResumen] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const cargarResumen = useCallback(async () => {
+    if (!anio) return;
+    try {
+      const { data } = await api.get(`${API}/disponibilidad`, { params: { anio } });
+      setResumen(data.resumen || []);
+    } catch {
+      setResumen([]);
+    }
+  }, [anio]);
+
+  const cargarDocente = useCallback(async (pid) => {
+    if (!anio || !pid) {
+      setDias([]);
+      return;
+    }
+    try {
+      setLoading(true);
+      const { data } = await api.get(`${API}/disponibilidad`, {
+        params: { anio, personal_id: pid },
+      });
+      setDias(
+        (data.dias || []).map((d) => ({
+          ...d,
+          hora_desde: fmtTime(d.hora_desde) === '—' ? '' : fmtTime(d.hora_desde),
+          hora_hasta: fmtTime(d.hora_hasta) === '—' ? '' : fmtTime(d.hora_hasta),
+        }))
+      );
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo cargar',
+        ...swalOpts,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [anio]);
+
+  useEffect(() => {
+    cargarResumen();
+  }, [cargarResumen]);
+
+  useEffect(() => {
+    if (personalId) cargarDocente(personalId);
+    else setDias([]);
+  }, [personalId, cargarDocente]);
+
+  const setDia = (diaSemana, patch) => {
+    setDias((prev) => prev.map((d) => (Number(d.dia_semana) === Number(diaSemana) ? { ...d, ...patch } : d)));
+  };
+
+  const aplicarLunesATodos = () => {
+    const lun = dias.find((d) => Number(d.dia_semana) === 1);
+    if (!lun) return;
+    setDias((prev) =>
+      prev.map((d) =>
+        Number(d.dia_semana) === 1
+          ? d
+          : {
+              ...d,
+              estado: lun.estado,
+              hora_desde: lun.hora_desde,
+              hora_hasta: lun.hora_hasta,
+            }
+      )
+    );
+  };
+
+  const guardar = async () => {
+    if (!personalId) return;
+    try {
+      setSaving(true);
+      await api.put(`${API}/disponibilidad`, {
+        anio,
+        personal_id: Number(personalId),
+        dias: dias.map((d) => ({
+          dia_semana: d.dia_semana,
+          estado: d.estado,
+          hora_desde: d.hora_desde || null,
+          hora_hasta: d.hora_hasta || null,
+          notas: d.notas || null,
+        })),
+      });
+      await cargarResumen();
+      await Swal.fire({
+        icon: 'success',
+        title: 'Guardado',
+        timer: 1200,
+        showConfirmButton: false,
+        ...swalOpts,
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo guardar',
+        ...swalOpts,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const limpiar = async () => {
+    if (!personalId) return;
+    const conf = await Swal.fire({
+      icon: 'warning',
+      title: '¿Quitar disponibilidad de este docente?',
+      text: 'Solo borra en tablas piloto.',
+      showCancelButton: true,
+      confirmButtonText: 'Sí',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b91c1c',
+      ...swalOpts,
+    });
+    if (!conf.isConfirmed) return;
+    try {
+      await api.delete(`${API}/disponibilidad`, { params: { anio, personal_id: personalId } });
+      setPersonalId('');
+      setDias([]);
+      await cargarResumen();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo eliminar',
+        ...swalOpts,
+      });
+    }
+  };
+
+  return (
+    <div className="hg-layout hg-layout--disp">
+      <section className="hg-panel">
+        <div className="hg-panel-head">
+          <h2>Disponibilidad docente · {anio}</h2>
+        </div>
+        <p className="hg-muted" style={{ marginTop: 0 }}>
+          Define en qué días/horas puede dictar cada docente. Se usa después en el solver (no afecta el horario actual).
+        </p>
+        <label className="hg-field">
+          Docente
+          <select value={personalId} onChange={(e) => setPersonalId(e.target.value)}>
+            <option value="">— Seleccionar —</option>
+            {docentes.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {loading ? (
+          <p className="hg-muted">Cargando semana…</p>
+        ) : !personalId ? (
+          <p className="hg-muted">Elige un docente para editar lunes a viernes.</p>
+        ) : (
+          <>
+            <div className="hg-actions" style={{ marginBottom: '0.75rem' }}>
+              <button type="button" className="hg-btn hg-btn-sm hg-btn-ghost" onClick={aplicarLunesATodos}>
+                Copiar lunes → todos
+              </button>
+              <button type="button" className="hg-btn hg-btn-sm hg-btn-primary" disabled={saving} onClick={guardar}>
+                {saving ? 'Guardando…' : 'Guardar semana'}
+              </button>
+              <button type="button" className="hg-btn hg-btn-sm hg-btn-danger" onClick={limpiar}>
+                Limpiar
+              </button>
+            </div>
+            <div className="hg-table-wrap">
+              <table className="hg-table">
+                <thead>
+                  <tr>
+                    <th>Día</th>
+                    <th>Estado</th>
+                    <th>Desde</th>
+                    <th>Hasta</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dias.map((d) => {
+                    const needDesde =
+                      d.estado === 'AVAILABLE' || d.estado === 'CUSTOM_INTERVAL' || d.estado === 'AVAILABLE_FROM';
+                    const needHasta =
+                      d.estado === 'AVAILABLE' || d.estado === 'CUSTOM_INTERVAL' || d.estado === 'AVAILABLE_UNTIL';
+                    return (
+                      <tr key={d.dia_semana}>
+                        <td>
+                          <strong>{DIAS.find((x) => x.value === Number(d.dia_semana))?.label || d.dia_semana}</strong>
+                        </td>
+                        <td>
+                          <select value={d.estado} onChange={(e) => setDia(d.dia_semana, { estado: e.target.value })}>
+                            {ESTADOS_DISP.map((e) => (
+                              <option key={e.value} value={e.value}>
+                                {e.label}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <input
+                            type="time"
+                            disabled={!needDesde}
+                            value={needDesde ? d.hora_desde || '' : ''}
+                            onChange={(e) => setDia(d.dia_semana, { hora_desde: e.target.value })}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="time"
+                            disabled={!needHasta}
+                            value={needHasta ? d.hora_hasta || '' : ''}
+                            onChange={(e) => setDia(d.dia_semana, { hora_hasta: e.target.value })}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </section>
+
+      <section className="hg-panel">
+        <div className="hg-panel-head">
+          <h2>Ya configurados</h2>
+        </div>
+        {resumen.length === 0 ? (
+          <p className="hg-muted">Ningún docente tiene disponibilidad guardada este año.</p>
+        ) : (
+          <div className="hg-table-wrap">
+            <table className="hg-table">
+              <thead>
+                <tr>
+                  <th>Docente</th>
+                  <th>Días</th>
+                  <th>No disp.</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {resumen.map((r) => (
+                  <tr key={r.personal_id}>
+                    <td className="rs-nombre">{r.nombre || r.personal_id}</td>
+                    <td>{r.dias_configurados}</td>
+                    <td>{r.dias_no_disponibles}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="hg-btn hg-btn-sm"
+                        onClick={() => setPersonalId(String(r.personal_id))}
+                      >
+                        Editar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 

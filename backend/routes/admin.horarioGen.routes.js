@@ -31,6 +31,27 @@ function parseAnio(raw, fallback) {
   return fallback;
 }
 
+function isAnioValido(n) {
+  const a = Number(n);
+  return Number.isFinite(a) && a >= 2000 && a <= 2100;
+}
+
+const DIAS_SEMANA = [
+  { value: 1, label: 'Lunes' },
+  { value: 2, label: 'Martes' },
+  { value: 3, label: 'Miércoles' },
+  { value: 4, label: 'Jueves' },
+  { value: 5, label: 'Viernes' },
+];
+
+const ESTADOS_DISP = new Set([
+  'AVAILABLE',
+  'UNAVAILABLE',
+  'AVAILABLE_UNTIL',
+  'AVAILABLE_FROM',
+  'CUSTOM_INTERVAL',
+]);
+
 function toBool01(v, fallback = 1) {
   if (Buffer.isBuffer(v)) return v.length && v[0] ? 1 : 0;
   if (v && typeof v === 'object' && Array.isArray(v.data)) return v.data[0] ? 1 : 0;
@@ -53,7 +74,8 @@ function normalizeTime(v) {
 
 async function anioActivoColegio(cid) {
   const rows = await query('SELECT anio_activo FROM colegios WHERE id = ? LIMIT 1', [cid]);
-  return parseInt(rows?.[0]?.anio_activo || new Date().getFullYear(), 10);
+  const raw = parseInt(rows?.[0]?.anio_activo || new Date().getFullYear(), 10);
+  return isAnioValido(raw) ? raw : new Date().getFullYear();
 }
 
 async function assertConfigOwned(configId, cid) {
@@ -78,34 +100,64 @@ router.get('/meta', async (req, res) => {
 
     let anios = [];
     try {
+      // Solo años lectivos reales (en grupos a veces hay basura: IDs, typos)
       const fromGrupos = await query(
-        `SELECT DISTINCT anio AS anio FROM grupos WHERE anio IS NOT NULL ORDER BY anio DESC`
+        `SELECT DISTINCT anio AS anio
+         FROM grupos
+         WHERE anio IS NOT NULL AND anio BETWEEN 2000 AND 2100
+         ORDER BY anio DESC`
       );
-      anios = (fromGrupos || []).map((r) => Number(r.anio)).filter((n) => Number.isFinite(n));
+      anios = (fromGrupos || []).map((r) => Number(r.anio)).filter(isAnioValido);
     } catch {
       anios = [];
     }
 
     try {
       const fromCfg = await query(
-        `SELECT DISTINCT anio FROM horario_gen_config WHERE colegio_id = ? ORDER BY anio DESC`,
+        `SELECT DISTINCT anio FROM horario_gen_config
+         WHERE colegio_id = ? AND anio BETWEEN 2000 AND 2100
+         ORDER BY anio DESC`,
         [cid]
       );
       for (const r of fromCfg || []) {
         const a = Number(r.anio);
-        if (Number.isFinite(a) && !anios.includes(a)) anios.push(a);
+        if (isAnioValido(a) && !anios.includes(a)) anios.push(a);
       }
     } catch {
       /* tablas aún no creadas */
     }
 
-    if (!anios.includes(anioActivo)) anios.unshift(anioActivo);
-    anios = [...new Set(anios)].sort((a, b) => b - a);
+    const anioOk = isAnioValido(anioActivo) ? anioActivo : new Date().getFullYear();
+    if (!anios.includes(anioOk)) anios.unshift(anioOk);
+    anios = [...new Set(anios.filter(isAnioValido))].sort((a, b) => b - a);
+
+    let docentes = [];
+    try {
+      docentes = await query(
+        `SELECT p.id,
+                TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS nombre
+         FROM personal p
+         INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'DOCENTE'
+         ORDER BY p.apellidos, p.nombres`,
+        [cid]
+      );
+    } catch {
+      docentes = [];
+    }
 
     res.json({
-      anio_activo: anioActivo,
+      anio_activo: anioOk,
       anios,
       niveles: niveles || [],
+      docentes: docentes || [],
+      dias_semana: DIAS_SEMANA,
+      estados_disponibilidad: [
+        { value: 'AVAILABLE', label: 'Disponible' },
+        { value: 'UNAVAILABLE', label: 'No disponible' },
+        { value: 'AVAILABLE_UNTIL', label: 'Disponible hasta' },
+        { value: 'AVAILABLE_FROM', label: 'Disponible desde' },
+        { value: 'CUSTOM_INTERVAL', label: 'Intervalo' },
+      ],
       modulo: 'horario_gen',
       aviso: 'Módulo piloto aislado. No modifica grupos_horarios ni el horario actual del sistema.',
     });
@@ -413,6 +465,180 @@ router.post('/configs/:id/bloques/seed-secundaria', async (req, res) => {
     res.status(201).json({ bloques: (rows || []).map(mapActivo), message: 'Seed secundario aplicado (piloto).' });
   } catch (e) {
     res.status(500).json({ error: e.message || 'Error en seed.' });
+  }
+});
+
+// ─── Disponibilidad docente (fase 2) ────────────────────────────────────────
+
+router.get('/disponibilidad', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const anioActivo = await anioActivoColegio(cid);
+    const anio = parseAnio(req.query.anio, anioActivo);
+    const personalId = parseId(req.query.personal_id);
+
+    if (!personalId) {
+      // Resumen: docentes con al menos un registro este año
+      const rows = await query(
+        `SELECT d.personal_id,
+                TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS nombre,
+                COUNT(*) AS dias_configurados,
+                SUM(CASE WHEN d.estado = 'UNAVAILABLE' THEN 1 ELSE 0 END) AS dias_no_disponibles
+         FROM horario_gen_disponibilidad d
+         LEFT JOIN personal p ON p.id = d.personal_id
+         WHERE d.colegio_id = ? AND d.anio = ?
+         GROUP BY d.personal_id, p.apellidos, p.nombres
+         ORDER BY p.apellidos, p.nombres`,
+        [cid, anio]
+      );
+      return res.json({ anio, resumen: rows || [] });
+    }
+
+    const rows = await query(
+      `SELECT * FROM horario_gen_disponibilidad
+       WHERE colegio_id = ? AND anio = ? AND personal_id = ?
+       ORDER BY dia_semana ASC, id ASC`,
+      [cid, anio, personalId]
+    );
+
+    // Completar L-V aunque no existan filas
+    const byDia = new Map((rows || []).map((r) => [Number(r.dia_semana), r]));
+    const semana = DIAS_SEMANA.map((d) => {
+      const cur = byDia.get(d.value);
+      if (cur) return cur;
+      return {
+        id: null,
+        colegio_id: cid,
+        anio,
+        personal_id: personalId,
+        dia_semana: d.value,
+        estado: 'AVAILABLE',
+        hora_desde: '07:40:00',
+        hora_hasta: '15:00:00',
+        notas: null,
+      };
+    });
+
+    res.json({ anio, personal_id: personalId, dias: semana });
+  } catch (e) {
+    if (e.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({
+        error: 'Faltan tablas horario_gen_*. Ejecute sql/horario_gen_modulo.sql en phpMyAdmin.',
+        code: 'TABLES_MISSING',
+      });
+    }
+    res.status(500).json({ error: e.message || 'Error al cargar disponibilidad.' });
+  }
+});
+
+/**
+ * Reemplaza la semana L-V de un docente para un año.
+ * Body: { anio, personal_id, dias: [{ dia_semana, estado, hora_desde, hora_hasta, notas }] }
+ */
+router.put('/disponibilidad', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const anioActivo = await anioActivoColegio(cid);
+    const b = req.body || {};
+    const anio = parseAnio(b.anio, anioActivo);
+    const personalId = parseId(b.personal_id);
+    if (!personalId) return res.status(400).json({ error: 'personal_id obligatorio' });
+
+    const p = await query(`SELECT id FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`, [personalId, cid]);
+    if (!p?.length) return res.status(400).json({ error: 'Docente no existe en este colegio' });
+
+    const diasIn = Array.isArray(b.dias) ? b.dias : [];
+    if (!diasIn.length) return res.status(400).json({ error: 'dias[] obligatorio' });
+
+    const cleaned = [];
+    for (const d of diasIn) {
+      const dia = parseInt(d.dia_semana, 10);
+      if (!Number.isFinite(dia) || dia < 1 || dia > 5) {
+        return res.status(400).json({ error: `día inválido: ${d.dia_semana}` });
+      }
+      const estado = String(d.estado || 'AVAILABLE').toUpperCase();
+      if (!ESTADOS_DISP.has(estado)) {
+        return res.status(400).json({ error: `estado inválido: ${d.estado}` });
+      }
+      let hora_desde = normalizeTime(d.hora_desde);
+      let hora_hasta = normalizeTime(d.hora_hasta);
+
+      if (estado === 'UNAVAILABLE') {
+        hora_desde = null;
+        hora_hasta = null;
+      } else if (estado === 'AVAILABLE' || estado === 'CUSTOM_INTERVAL') {
+        if (!hora_desde || !hora_hasta) {
+          return res.status(400).json({ error: `${DIAS_SEMANA.find((x) => x.value === dia)?.label || dia}: indique desde y hasta` });
+        }
+        if (hora_hasta <= hora_desde) {
+          return res.status(400).json({ error: `${DIAS_SEMANA.find((x) => x.value === dia)?.label || dia}: hasta debe ser mayor que desde` });
+        }
+      } else if (estado === 'AVAILABLE_UNTIL') {
+        if (!hora_hasta) return res.status(400).json({ error: 'AVAILABLE_UNTIL requiere hora_hasta' });
+        hora_desde = null;
+      } else if (estado === 'AVAILABLE_FROM') {
+        if (!hora_desde) return res.status(400).json({ error: 'AVAILABLE_FROM requiere hora_desde' });
+        hora_hasta = null;
+      }
+
+      cleaned.push({
+        dia_semana: dia,
+        estado,
+        hora_desde,
+        hora_hasta,
+        notas: d.notas != null ? String(d.notas).slice(0, 255) : null,
+      });
+    }
+
+    // Reemplazo L-V (no borra sábado/domingo si existieran)
+    await execute(
+      `DELETE FROM horario_gen_disponibilidad
+       WHERE colegio_id = ? AND anio = ? AND personal_id = ? AND dia_semana BETWEEN 1 AND 5`,
+      [cid, anio, personalId]
+    );
+
+    for (const d of cleaned) {
+      await execute(
+        `INSERT INTO horario_gen_disponibilidad
+          (colegio_id, anio, personal_id, dia_semana, estado, hora_desde, hora_hasta, notas)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [cid, anio, personalId, d.dia_semana, d.estado, d.hora_desde, d.hora_hasta, d.notas]
+      );
+    }
+
+    const rows = await query(
+      `SELECT * FROM horario_gen_disponibilidad
+       WHERE colegio_id = ? AND anio = ? AND personal_id = ?
+       ORDER BY dia_semana ASC`,
+      [cid, anio, personalId]
+    );
+    res.json({ message: 'Disponibilidad guardada', anio, personal_id: personalId, dias: rows || [] });
+  } catch (e) {
+    if (e.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({
+        error: 'Faltan tablas horario_gen_*. Ejecute sql/horario_gen_modulo.sql en phpMyAdmin.',
+        code: 'TABLES_MISSING',
+      });
+    }
+    res.status(500).json({ error: e.message || 'Error al guardar disponibilidad.' });
+  }
+});
+
+router.delete('/disponibilidad', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const anioActivo = await anioActivoColegio(cid);
+    const anio = parseAnio(req.query.anio, anioActivo);
+    const personalId = parseId(req.query.personal_id);
+    if (!personalId) return res.status(400).json({ error: 'personal_id obligatorio' });
+
+    await execute(
+      `DELETE FROM horario_gen_disponibilidad WHERE colegio_id = ? AND anio = ? AND personal_id = ?`,
+      [cid, anio, personalId]
+    );
+    res.json({ message: 'Disponibilidad eliminada (solo piloto).' });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al eliminar disponibilidad.' });
   }
 });
 
