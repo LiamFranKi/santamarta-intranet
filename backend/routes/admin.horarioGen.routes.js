@@ -1528,6 +1528,63 @@ router.get('/solver/runs/:id', async (req, res) => {
   }
 });
 
+/** Eliminar una generación: borra el run y el borrador asociado (si no está publicado). */
+router.delete('/solver/runs/:id', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+
+    const rows = await query(
+      `SELECT * FROM horario_gen_runs WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [id, cid]
+    );
+    if (!rows?.length) return res.status(404).json({ error: 'Ejecución no encontrada' });
+    const run = rows[0];
+
+    let versionBorrada = false;
+    const versionIds = new Set();
+    if (run.version_id) versionIds.add(Number(run.version_id));
+    try {
+      const diag = run.diagnostico_json ? JSON.parse(run.diagnostico_json) : null;
+      for (const a of diag?.alternativas || []) {
+        if (a?.version_id) versionIds.add(Number(a.version_id));
+      }
+      if (diag?.mejor?.version_id) versionIds.add(Number(diag.mejor.version_id));
+    } catch {
+      /* ignore */
+    }
+
+    for (const versionId of versionIds) {
+      const ver = await assertVersionOwned(versionId, cid);
+      if (!ver) continue;
+      if (ver.estado === 'PUBLISHED') {
+        return res.status(409).json({
+          error:
+            'Hay un borrador de esta generación ya publicado como principal. No se puede borrar desde aquí.',
+        });
+      }
+      await execute(`DELETE FROM horario_gen_versiones WHERE id = ? AND colegio_id = ?`, [
+        versionId,
+        cid,
+      ]);
+      versionBorrada = true;
+    }
+
+    await execute(`DELETE FROM horario_gen_runs WHERE id = ? AND colegio_id = ?`, [id, cid]);
+
+    res.json({
+      message: versionBorrada
+        ? 'Generación y borrador(es) eliminados.'
+        : 'Ejecución eliminada.',
+      version_borrada: versionBorrada,
+      versiones_eliminadas: [...versionIds],
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al eliminar generación.' });
+  }
+});
+
 // ─── Vista final / resultado (fase 6 — preview antes de vincular) ───────────
 
 router.get('/vista-final', async (req, res) => {

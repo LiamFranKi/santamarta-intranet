@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import Swal from 'sweetalert2';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
+import { exportarHorarioGenPDFMultiple } from '../../utils/horarioGenPdf';
 import './AdminHorarioGen.css';
 
 const API = '/admin/horario-gen';
@@ -733,11 +734,76 @@ function ResultadoPanel({ anio, niveles }) {
             <button
               type="button"
               className="hg-btn hg-btn-primary hg-btn-sm"
-              disabled={!vista}
-              onClick={() => window.print()}
+              disabled={!vista || !(itemsFiltrados?.length > 0)}
+              onClick={() => {
+                try {
+                  exportarHorarioGenPDFMultiple({
+                    anio: vista.version?.anio || anio,
+                    bloques: vista.bloques || [],
+                    items: itemsFiltrados,
+                    modo,
+                  });
+                  Swal.fire({
+                    icon: 'success',
+                    title: 'PDF generado',
+                    text: 'Se descargó con el formato de horarios del sistema.',
+                    timer: 1800,
+                    showConfirmButton: false,
+                    ...swalOpts,
+                  });
+                } catch (e) {
+                  Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: e.message || 'No se pudo generar el PDF',
+                    ...swalOpts,
+                  });
+                }
+              }}
             >
-              Imprimir / PDF
+              Descargar PDF
             </button>
+            {versionId && vista?.version?.estado !== 'PUBLISHED' && (
+              <button
+                type="button"
+                className="hg-btn hg-btn-danger hg-btn-sm"
+                onClick={async () => {
+                  const conf = await Swal.fire({
+                    icon: 'warning',
+                    title: '¿Eliminar este borrador?',
+                    text: 'Se borra la generación/borrador. No toca el horario principal si aún no lo publicaste.',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sí, eliminar',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#b91c1c',
+                    ...swalOpts,
+                  });
+                  if (!conf.isConfirmed) return;
+                  try {
+                    await api.delete(`${API}/versiones/${versionId}`);
+                    setVersionId('');
+                    setVista(null);
+                    await cargarVersiones();
+                    Swal.fire({
+                      icon: 'success',
+                      title: 'Eliminado',
+                      timer: 1200,
+                      showConfirmButton: false,
+                      ...swalOpts,
+                    });
+                  } catch (e) {
+                    Swal.fire({
+                      icon: 'error',
+                      title: 'Error',
+                      text: e.response?.data?.error || 'No se pudo eliminar',
+                      ...swalOpts,
+                    });
+                  }
+                }}
+              >
+                Eliminar borrador
+              </button>
+            )}
           </div>
         </div>
         <p className="hg-muted" style={{ marginTop: 0 }}>
@@ -1069,6 +1135,41 @@ function SolverPanel({ anio, niveles, onOpenEditor, onOpenResultado }) {
     }
   };
 
+  const eliminarRun = async (run) => {
+    const conf = await Swal.fire({
+      icon: 'warning',
+      title: '¿Eliminar esta generación?',
+      html: `Se borrará la ejecución #${run.id}${
+        run.version_id ? ` y el borrador/versión #${run.version_id}` : ''
+      }.<br/>Puedes volver a generar después.`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b91c1c',
+      ...swalOpts,
+    });
+    if (!conf.isConfirmed) return;
+    try {
+      const { data } = await api.delete(`${API}/solver/runs/${run.id}`);
+      await cargarRuns();
+      Swal.fire({
+        icon: 'success',
+        title: 'Eliminado',
+        text: data.message || 'Listo',
+        timer: 1400,
+        showConfirmButton: false,
+        ...swalOpts,
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo eliminar',
+        text: e.response?.data?.error || 'Error',
+        ...swalOpts,
+      });
+    }
+  };
+
   return (
     <div>
       <section className="hg-panel" style={{ marginBottom: '1rem' }}>
@@ -1172,6 +1273,7 @@ function SolverPanel({ anio, niveles, onOpenEditor, onOpenResultado }) {
                   <th>Estado</th>
                   <th>Mensaje</th>
                   <th>Versión</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -1183,6 +1285,16 @@ function SolverPanel({ anio, niveles, onOpenEditor, onOpenResultado }) {
                     </td>
                     <td>{r.mensaje || '—'}</td>
                     <td>{r.version_id || '—'}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="hg-btn hg-btn-sm hg-btn-danger"
+                        title="Eliminar generación"
+                        onClick={() => eliminarRun(r)}
+                      >
+                        ✕
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
