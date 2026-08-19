@@ -312,6 +312,25 @@
   font-size: 0.9rem;
 }
 
+.hg-grupo-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 1rem 1.15rem;
+  border-radius: 14px;
+  border: 1px solid #99f6e4;
+  background: linear-gradient(135deg, #f0fdfa 0%, #ecfeff 100%);
+}
+
+.hg-grupo-banner h3 {
+  margin: 0;
+  font-size: 1.35rem;
+  color: #0f766e;
+}
+
 .hg-horario-sheet {
   margin-bottom: 1rem;
   break-inside: avoid;

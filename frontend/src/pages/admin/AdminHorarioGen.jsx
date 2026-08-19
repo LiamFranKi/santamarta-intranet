@@ -58,6 +58,31 @@ function fmtTime(t) {
   return s.length >= 5 ? s.slice(0, 5) : s;
 }
 
+/** Nunca mostrar BREAK/LUNCH en UI: Recreo / Almuerzo / Clase */
+function labelTipoBloque(tipo) {
+  const t = String(tipo || '').toUpperCase();
+  if (t === 'BREAK') return 'Recreo';
+  if (t === 'LUNCH') return 'Almuerzo';
+  if (t === 'CLASS') return 'Clase';
+  if (t === 'ACTIVITY') return 'Actividad';
+  const found = TIPOS.find((x) => x.value === t);
+  return found?.label || tipo || '';
+}
+
+/** Inicial → "3 Años"; otros → "3º" */
+function labelGrado(nivelNombre, grado) {
+  if (grado === null || grado === undefined || grado === '') return '';
+  if (Number(grado) === -1) return 'Avanzada';
+  if (/inicial/i.test(String(nivelNombre || ''))) return `${grado} Años`;
+  return `${grado}º`;
+}
+
+function labelGrupo(g) {
+  if (!g) return '';
+  if (g.label) return g.label;
+  return [g.nivel_nombre, labelGrado(g.nivel_nombre, g.grado), g.seccion].filter(Boolean).join(' · ');
+}
+
 function Overlay({ title, onClose, children, footer }) {
   return createPortal(
     <div className="hg-overlay" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -276,7 +301,8 @@ export default function AdminHorarioGen() {
         </header>
 
         <div className="hg-banner">
-          🧪 Piloto: tablas <code>horario_gen_*</code>. El horario que ven docentes/alumnos hoy no se toca.
+          🧪 Generar Horarios: trabaja en borrador; solo al <strong>publicar como principal</strong> se actualiza el
+          horario de docentes/alumnos.
         </div>
 
         <nav className="hg-tabs" aria-label="Fases del módulo">
@@ -433,7 +459,7 @@ export default function AdminHorarioGen() {
                     <div key={b.id} className={`hg-block hg-block--${String(b.tipo || 'CLASS').toLowerCase()}`}>
                       <div>
                         <strong>{b.nombre}</strong>
-                        <span className="hg-block-type">{b.tipo}</span>
+                        <span className="hg-block-type">{labelTipoBloque(b.tipo)}</span>
                       </div>
                       <div className="hg-block-time">
                         {fmtTime(b.hora_inicio)} – {fmtTime(b.hora_fin)}
@@ -467,7 +493,7 @@ export default function AdminHorarioGen() {
             <li>✅ Editor (colocar clases en grilla)</li>
             <li>✅ Solver automático</li>
             <li>✅ Vista resultado (preview antes de vincular)</li>
-            <li>Pendiente → sincronizar a `grupos_horarios` (opt-in)</li>
+            <li>✅ Publicar → horario principal (`grupos_horarios`)</li>
           </ol>
         </section>
       </div>
@@ -633,6 +659,58 @@ function ResultadoPanel({ anio, niveles }) {
       ? vista?.grupos || []
       : vista?.docentes || [];
 
+  const publicarPrincipal = async (grupoIdOpt) => {
+    if (!versionId) return;
+    const filtroLabel =
+      grupoIdOpt && modo === 'grupos'
+        ? items.find((it) => String(it.grupo_id) === String(grupoIdOpt))?.label
+        : null;
+    const conf = await Swal.fire({
+      icon: 'warning',
+      title: '¿Publicar como horario principal?',
+      html: filtroLabel
+        ? `<p>Se reemplazará el horario del sistema para <strong>${filtroLabel}</strong>.</p>
+           <p style="color:#b45309">Escribe <b>PUBLICAR</b> para confirmar.</p>`
+        : `<p>Se reemplazará el horario del sistema para <strong>todos los grupos</strong> de este borrador.</p>
+           <p style="color:#b45309">Escribe <b>PUBLICAR</b> para confirmar.</p>`,
+      input: 'text',
+      inputPlaceholder: 'PUBLICAR',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, hacer principal',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0f766e',
+      ...swalOpts,
+    });
+    if (!conf.isConfirmed) return;
+    if (String(conf.value || '').trim().toUpperCase() !== 'PUBLICAR') {
+      Swal.fire({ icon: 'info', title: 'Cancelado', text: 'Debes escribir PUBLICAR exactamente.', ...swalOpts });
+      return;
+    }
+    try {
+      setSavingEstado(true);
+      const body = { confirmar: 'PUBLICAR' };
+      if (grupoIdOpt) body.grupo_id = Number(grupoIdOpt);
+      const { data } = await api.post(`${API}/versiones/${versionId}/vincular`, body);
+      await cargarVersiones();
+      await cargarVista();
+      await Swal.fire({
+        icon: 'success',
+        title: 'Horario principal actualizado',
+        text: data.message || 'Publicado',
+        ...swalOpts,
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo publicar',
+        text: e.response?.data?.error || 'Error',
+        ...swalOpts,
+      });
+    } finally {
+      setSavingEstado(false);
+    }
+  };
+
   const itemsFiltrados = filtroId
     ? items.filter((it) =>
         modo === 'grupos'
@@ -663,8 +741,8 @@ function ResultadoPanel({ anio, niveles }) {
           </div>
         </div>
         <p className="hg-muted" style={{ marginTop: 0 }}>
-          Vista previa del horario generado. Aquí revisas cómo queda <strong>antes</strong> de vincularlo al sistema
-          (`grupos_horarios`). Todavía no afecta a docentes ni alumnos.
+          Revisa cómo queda el horario. Cada grilla muestra el <strong>grupo concreto</strong> (ej. Inicial · 3 Años).
+          Cuando esté bien, publícalo como <strong>horario principal</strong> para que lo vean docentes y alumnos.
         </p>
         <div className="hg-filters">
           <label>
@@ -742,8 +820,12 @@ function ResultadoPanel({ anio, niveles }) {
                   · {vista.version?.nivel_nombre || ''} · {vista.version?.anio}
                 </span>
               </h2>
-              <span className={`hg-badge ${vista.version?.estado === 'APPROVED' ? 'ok' : 'off'}`}>
-                {vista.version?.estado}
+              <span
+                className={`hg-badge ${
+                  vista.version?.estado === 'PUBLISHED' || vista.version?.estado === 'APPROVED' ? 'ok' : 'off'
+                }`}
+              >
+                {vista.version?.estado === 'PUBLISHED' ? 'PRINCIPAL' : vista.version?.estado}
               </span>
             </div>
             <div className="hg-stats">
@@ -766,7 +848,11 @@ function ResultadoPanel({ anio, niveles }) {
                 <span>Docentes</span>
               </div>
             </div>
-            <p className="hg-aviso-final">{vista.aviso}</p>
+            <p className="hg-aviso-final">
+              {vista.version?.estado === 'PUBLISHED'
+                ? 'Este borrador ya fue publicado como horario principal del sistema.'
+                : 'Aún es borrador/revisión. Al publicar se escribe en el horario que ven docentes y alumnos.'}
+            </p>
             <div className="hg-actions hg-no-print" style={{ marginTop: '0.75rem' }}>
               <button
                 type="button"
@@ -778,11 +864,23 @@ function ResultadoPanel({ anio, niveles }) {
               </button>
               <button
                 type="button"
-                className="hg-btn hg-btn-sm hg-btn-primary"
+                className="hg-btn hg-btn-sm"
                 disabled={savingEstado}
                 onClick={() => cambiarEstado('APPROVED')}
               >
-                Aprobar (listo para vincular)
+                Aprobar borrador
+              </button>
+              <button
+                type="button"
+                className="hg-btn hg-btn-sm hg-btn-primary"
+                disabled={savingEstado || !(r?.total_entradas > 0)}
+                onClick={() =>
+                  publicarPrincipal(modo === 'grupos' && filtroId ? Number(filtroId) : undefined)
+                }
+              >
+                {modo === 'grupos' && filtroId
+                  ? 'Hacer principal este grupo'
+                  : 'Hacer horario principal (todos)'}
               </button>
               <button
                 type="button"
@@ -857,7 +955,9 @@ function ResultadoPanel({ anio, niveles }) {
                                   className={`hg-cell${isBreak ? ' hg-cell--break' : ''}${e ? ' hg-cell--filled' : ''}`}
                                 >
                                   {isBreak ? (
-                                    <span className="hg-cell-muted">{b.tipo === 'LUNCH' ? 'Almuerzo' : 'Recreo'}</span>
+                                    <span className="hg-cell-muted">
+                                      {b.tipo === 'LUNCH' ? 'Almuerzo' : 'Recreo'}
+                                    </span>
                                   ) : e ? (
                                     <div
                                       className="hg-cell-card"
@@ -1316,6 +1416,53 @@ function EditorPanel({ anio, niveles }) {
 
   const pendientes = (board?.cargas || []).filter((c) => c.faltan > 0);
   const completos = (board?.cargas || []).filter((c) => c.faltan <= 0);
+  const grupoSel = grupos.find((g) => String(g.id) === String(grupoId));
+  const nivelSel = niveles.find((n) => String(n.id) === String(nivelId));
+
+  const publicarEsteGrupo = async () => {
+    if (!versionId || !grupoId || !grupoSel) return;
+    const conf = await Swal.fire({
+      icon: 'warning',
+      title: '¿Publicar como horario principal?',
+      html: `
+        <p>Se reemplazará el horario actual del sistema para:</p>
+        <p><strong>${labelGrupo(grupoSel)}</strong></p>
+        <p style="margin-top:0.75rem;color:#b45309">Docentes y alumnos verán este horario. Escribe <b>PUBLICAR</b> para confirmar.</p>
+      `,
+      input: 'text',
+      inputPlaceholder: 'PUBLICAR',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, hacer principal',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0f766e',
+      ...swalOpts,
+    });
+    if (!conf.isConfirmed) return;
+    if (String(conf.value || '').trim().toUpperCase() !== 'PUBLICAR') {
+      Swal.fire({ icon: 'info', title: 'Cancelado', text: 'Debes escribir PUBLICAR exactamente.', ...swalOpts });
+      return;
+    }
+    try {
+      const { data } = await api.post(`${API}/versiones/${versionId}/vincular`, {
+        confirmar: 'PUBLICAR',
+        grupo_id: Number(grupoId),
+      });
+      await cargarVersiones();
+      await Swal.fire({
+        icon: 'success',
+        title: 'Ya es horario principal',
+        text: data.message || 'Publicado',
+        ...swalOpts,
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo publicar',
+        text: e.response?.data?.error || 'Error',
+        ...swalOpts,
+      });
+    }
+  };
 
   return (
     <div>
@@ -1334,8 +1481,8 @@ function EditorPanel({ anio, niveles }) {
           </div>
         </div>
         <p className="hg-muted" style={{ marginTop: 0 }}>
-          Crea un borrador por nivel, elige el grupo y coloca cursos (clic o arrastrar). Sigue siendo piloto: no escribe en{' '}
-          <code>grupos_horarios</code>.
+          El <strong>borrador</strong> es del nivel completo (ej. todo Inicial). El <strong>grupo</strong> indica qué aula
+          estás editando ahora (ej. 3 Años). Hasta publicar, no cambia el horario de docentes/alumnos.
         </p>
         <div className="hg-filters">
           <label>
@@ -1350,24 +1497,23 @@ function EditorPanel({ anio, niveles }) {
             </select>
           </label>
           <label>
-            Borrador / versión
+            Borrador del nivel
             <select value={versionId} onChange={(e) => setVersionId(e.target.value)}>
               <option value="">— Elegir —</option>
               {versiones.map((v) => (
                 <option key={v.id} value={v.id}>
-                  {v.nombre} ({v.estado}) · {v.total_entradas || 0} clases
+                  {v.nombre} · {v.nivel_nombre || ''} ({v.estado}) · {v.total_entradas || 0} clases
                 </option>
               ))}
             </select>
           </label>
           <label>
-            Grupo / aula
+            Grupo que estoy editando
             <select value={grupoId} onChange={(e) => setGrupoId(e.target.value)} disabled={!nivelId}>
               <option value="">— Elegir —</option>
               {grupos.map((g) => (
                 <option key={g.id} value={g.id}>
-                  {g.nivel_nombre} {g.grado}
-                  {g.seccion ? ` ${g.seccion}` : ''}
+                  {labelGrupo(g)}
                 </option>
               ))}
             </select>
@@ -1376,16 +1522,34 @@ function EditorPanel({ anio, niveles }) {
         {msg && <p className="hg-error">{msg}</p>}
       </section>
 
+      {versionId && grupoSel && (
+        <div className="hg-grupo-banner">
+          <div>
+            <p className="hg-eyebrow">Estás editando el horario de</p>
+            <h3>{labelGrupo(grupoSel)}</h3>
+            <p className="hg-muted" style={{ margin: '0.25rem 0 0' }}>
+              Borrador: {nivelSel?.nombre || 'Nivel'} {anio}
+              {versiones.find((v) => String(v.id) === String(versionId))?.estado
+                ? ` · ${versiones.find((v) => String(v.id) === String(versionId)).estado}`
+                : ''}
+            </p>
+          </div>
+          <button type="button" className="hg-btn hg-btn-primary" onClick={publicarEsteGrupo}>
+            Hacer horario principal de este grupo
+          </button>
+        </div>
+      )}
+
       {!versionId || !grupoId ? (
-        <p className="hg-muted">Elige nivel, crea/elige un borrador y un grupo para ver la grilla.</p>
+        <p className="hg-muted">Elige nivel, crea/elige un borrador y un grupo (ej. Inicial · 3 Años) para ver la grilla.</p>
       ) : loading ? (
         <p className="hg-muted">Cargando grilla…</p>
       ) : !board ? null : (
         <div className="hg-editor">
           <aside className="hg-panel hg-sidebar-carga">
-            <h3>Pendientes</h3>
+            <h3>Pendientes · {labelGrupo(grupoSel)}</h3>
             <p className="hg-muted" style={{ fontSize: '0.82rem' }}>
-              Clic para seleccionar, luego clic en una celda CLASS. O arrastra a la celda.
+              Clic para seleccionar, luego clic en una celda de clase. O arrastra a la celda.
             </p>
             {pendientes.length === 0 ? (
               <p className="hg-muted">Todas las cargas de este grupo están colocadas.</p>
@@ -1440,7 +1604,7 @@ function EditorPanel({ anio, niveles }) {
                     <span>
                       {fmtTime(b.hora_inicio)}–{fmtTime(b.hora_fin)}
                     </span>
-                    <em>{b.tipo}</em>
+                    <em>{labelTipoBloque(b.tipo)}</em>
                   </div>
                   {DIAS.map((d) => {
                     const ent = entradaEn(d.value, b.id);
@@ -1462,7 +1626,7 @@ function EditorPanel({ anio, niveles }) {
                         }}
                       >
                         {isBreak ? (
-                          <span className="hg-cell-muted">{b.tipo}</span>
+                          <span className="hg-cell-muted">{labelTipoBloque(b.tipo)}</span>
                         ) : ent ? (
                           <div className="hg-cell-card">
                             <strong>{ent.curso_nombre || 'Clase'}</strong>
@@ -1718,8 +1882,7 @@ function CargaPanel({ anio, niveles, docentes }) {
               <option value="">Todos</option>
               {grupos.map((g) => (
                 <option key={g.id} value={g.id}>
-                  {g.nivel_nombre} {g.grado}
-                  {g.seccion ? ` ${g.seccion}` : ''}
+                  {labelGrupo(g)}
                 </option>
               ))}
             </select>

@@ -1,7 +1,7 @@
 /**
  * Módulo PILOTO — Generación de horarios (aislado).
  * Prefijo tablas: horario_gen_*
- * NO lee/escribe grupos_horarios (horario legacy del sistema).
+ * Solo escribe en grupos_horarios al publicar (opt-in: POST /versiones/:id/vincular).
  */
 const express = require('express');
 const router = express.Router();
@@ -63,6 +63,46 @@ function toBool01(v, fallback = 1) {
 function mapActivo(row) {
   if (!row) return row;
   return { ...row, activo: toBool01(row.activo, 0) };
+}
+
+/** Inicial: "3 Años"; Primaria/Secundaria: "3º" (paridad con legacy Grupo::getGrado). */
+function formatGradoLabel(nivelNombre, grado) {
+  if (grado === null || grado === undefined || grado === '') return '';
+  if (Number(grado) === -1) return 'Avanzada';
+  if (/inicial/i.test(String(nivelNombre || ''))) return `${grado} Años`;
+  return `${grado}º`;
+}
+
+function formatGrupoLabel(nivelNombre, grado, seccion) {
+  return [nivelNombre, formatGradoLabel(nivelNombre, grado), seccion]
+    .filter((x) => x !== null && x !== undefined && String(x).trim() !== '')
+    .join(' · ');
+}
+
+const DIA_NOMBRE = {
+  1: 'Lunes',
+  2: 'Martes',
+  3: 'Miercoles',
+  4: 'Jueves',
+  5: 'Viernes',
+};
+
+function toAmPmTime(t) {
+  const m = String(t || '')
+    .trim()
+    .match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return String(t || '').slice(0, 8);
+  let h = Number(m[1]);
+  const min = m[2];
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${min} ${ampm}`;
+}
+
+function toHhMm(t) {
+  const s = String(t || '').trim();
+  if (/^\d{1,2}:\d{2}/.test(s)) return s.slice(0, 5);
+  return s;
 }
 
 function normalizeTime(v) {
@@ -665,7 +705,14 @@ router.get('/grupos', async (req, res) => {
     }
     sql += ' ORDER BY n.nombre, g.grado, g.seccion';
     const rows = await query(sql, params);
-    res.json({ anio, grupos: rows || [] });
+    res.json({
+      anio,
+      grupos: (rows || []).map((g) => ({
+        ...g,
+        grado_label: formatGradoLabel(g.nivel_nombre, g.grado),
+        label: formatGrupoLabel(g.nivel_nombre, g.grado, g.seccion),
+      })),
+    });
   } catch (e) {
     res.status(500).json({ error: e.message || 'Error al listar grupos.' });
   }
@@ -706,7 +753,7 @@ router.get('/carga', async (req, res) => {
     const rows = await query(sql, params);
     const mapped = (rows || []).map((r) => ({
       ...mapActivo(r),
-      grupo_label: `${r.nivel_nombre || ''} ${r.grado ?? ''}${r.seccion ? ` ${r.seccion}` : ''}`.trim(),
+      grupo_label: formatGrupoLabel(r.nivel_nombre, r.grado, r.seccion),
     }));
     res.json({ anio, cargas: mapped });
   } catch (e) {
@@ -1525,7 +1572,7 @@ router.get('/vista-final', async (req, res) => {
       if (!byGrupo.has(gid)) {
         byGrupo.set(gid, {
           grupo_id: gid,
-          label: `${e.nivel_nombre || ''} ${e.grado ?? ''}${e.seccion ? ` ${e.seccion}` : ''}`.trim(),
+          label: formatGrupoLabel(e.nivel_nombre, e.grado, e.seccion),
           grado: e.grado,
           seccion: e.seccion,
           nivel_nombre: e.nivel_nombre,
@@ -1549,7 +1596,7 @@ router.get('/vista-final', async (req, res) => {
       byDocente.get(dkey).entradas.push({
         ...e,
         locked: toBool01(e.locked, 0),
-        grupo_label: `${e.nivel_nombre || ''} ${e.grado ?? ''}${e.seccion ? ` ${e.seccion}` : ''}`.trim(),
+        grupo_label: formatGrupoLabel(e.nivel_nombre, e.grado, e.seccion),
       });
     }
 
@@ -1582,7 +1629,7 @@ router.get('/vista-final', async (req, res) => {
         pendientes.push({
           carga_id: c.id,
           curso: c.curso_nombre,
-          grupo: `${c.nivel_nombre || ''} ${c.grado ?? ''}${c.seccion ? ` ${c.seccion}` : ''}`.trim(),
+          grupo: formatGrupoLabel(c.nivel_nombre, c.grado, c.seccion),
           colocados: n,
           necesarios: need,
           faltan: need - n,
@@ -1636,7 +1683,7 @@ router.patch('/versiones/:id/estado', async (req, res) => {
     const estado = String(req.body?.estado || '').toUpperCase();
     if (!ESTADOS_VERSION.has(estado)) {
       return res.status(400).json({
-        error: 'Estado inválido. Use DRAFT, REVIEW, APPROVED o ARCHIVED (PUBLISHED = vincular, fase posterior).',
+        error: 'Estado inválido. Use DRAFT, REVIEW, APPROVED o ARCHIVED. Para horario principal use Publicar.',
       });
     }
 
@@ -1649,11 +1696,172 @@ router.patch('/versiones/:id/estado', async (req, res) => {
       version: rows[0],
       message:
         estado === 'APPROVED'
-          ? 'Marcada como aprobada (piloto). Todavía no se vinculó al horario del sistema.'
+          ? 'Aprobada. Ya puedes publicarla como horario principal (docentes/alumnos).'
           : `Estado actualizado a ${estado}`,
     });
   } catch (e) {
     res.status(500).json({ error: e.message || 'Error al cambiar estado.' });
+  }
+});
+
+/**
+ * Publicar borrador → horario principal del sistema (grupos_horarios).
+ * Opt-in explícito: requiere confirmar = "PUBLICAR".
+ * Opcional: grupo_id para publicar solo un aula (ej. Inicial 3 Años).
+ */
+router.post('/versiones/:id/vincular', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const ver = await assertVersionOwned(id, cid);
+    if (!ver) return res.status(404).json({ error: 'Versión no encontrada' });
+
+    const confirmar = String(req.body?.confirmar || '').trim().toUpperCase();
+    if (confirmar !== 'PUBLICAR') {
+      return res.status(400).json({
+        error: 'Para publicar como horario principal envíe confirmar: "PUBLICAR".',
+      });
+    }
+
+    const onlyGrupoId = parseId(req.body?.grupo_id);
+
+    const entradas = await query(
+      `SELECT e.*,
+              b.hora_inicio, b.hora_fin, b.tipo AS bloque_tipo, b.nombre AS bloque_nombre,
+              cur.nombre AS curso_nombre,
+              g.grado, g.seccion, n.nombre AS nivel_nombre
+       FROM horario_gen_entradas e
+       INNER JOIN horario_gen_bloques b ON b.id = e.bloque_id
+       INNER JOIN grupos g ON g.id = e.grupo_id
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       LEFT JOIN cursos cur ON cur.id = e.curso_id
+       WHERE e.version_id = ?
+         ${onlyGrupoId ? 'AND e.grupo_id = ?' : ''}`,
+      onlyGrupoId ? [id, onlyGrupoId] : [id]
+    );
+
+    if (!entradas?.length) {
+      return res.status(400).json({
+        error: onlyGrupoId
+          ? 'Ese grupo no tiene clases en este borrador. Colócalas en el Editor primero.'
+          : 'El borrador no tiene clases. Completa el Editor o genera con el Solver.',
+      });
+    }
+
+    const grupoIds = [...new Set(entradas.map((e) => Number(e.grupo_id)))];
+
+    // Formato legacy según datos ya existentes del año
+    const samples = await query(
+      `SELECT dia, hora_inicio FROM grupos_horarios WHERE anio = ? LIMIT 40`,
+      [ver.anio]
+    );
+    const useDayNames = (samples || []).some((s) => /lunes|martes|miercoles|miércoles|jueves|viernes/i.test(String(s.dia || '')));
+    const useAmPm = (samples || []).some((s) => /AM|PM/i.test(String(s.hora_inicio || '')));
+
+    const formatDia = (n) => {
+      const d = Number(n);
+      if (useDayNames) return DIA_NOMBRE[d] || String(d);
+      return d;
+    };
+    const formatHora = (t) => (useAmPm ? toAmPmTime(t) : toHhMm(t));
+
+    // Reemplazar horario actual de esos grupos en el año
+    const ph = grupoIds.map(() => '?').join(',');
+    await execute(
+      `DELETE gh FROM grupos_horarios gh
+       LEFT JOIN asignaturas a ON a.id = gh.asignatura_id
+       WHERE gh.anio = ?
+         AND (gh.grupo_id IN (${ph}) OR a.grupo_id IN (${ph}))`,
+      [ver.anio, ...grupoIds, ...grupoIds]
+    );
+
+    let insertados = 0;
+
+    // Clases
+    for (const e of entradas) {
+      const dia = formatDia(e.dia_semana);
+      const hora_inicio = formatHora(e.hora_inicio);
+      const hora_final = formatHora(e.hora_fin);
+      const descripcion = e.curso_nombre || e.bloque_nombre || 'Clase';
+      await execute(
+        `INSERT INTO grupos_horarios
+           (grupo_id, asignatura_id, personal_id, dia, hora_inicio, hora_final, descripcion, tipo, anio)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'GRUPO', ?)`,
+        [
+          Number(e.grupo_id),
+          e.asignatura_id ? Number(e.asignatura_id) : 0,
+          e.personal_id ? Number(e.personal_id) : 0,
+          dia,
+          hora_inicio,
+          hora_final,
+          descripcion,
+          ver.anio,
+        ]
+      );
+      insertados += 1;
+    }
+
+    // Recreos / almuerzos de la config (para que se vean en el horario publicado)
+    if (ver.config_id) {
+      const bloquesBreak = await query(
+        `SELECT * FROM horario_gen_bloques
+         WHERE config_id = ? AND activo = 1 AND tipo IN ('BREAK','LUNCH')
+         ORDER BY orden ASC, id ASC`,
+        [ver.config_id]
+      );
+      for (const gid of grupoIds) {
+        for (const b of bloquesBreak || []) {
+          const desc = b.tipo === 'LUNCH' ? 'Almuerzo' : 'Recreo';
+          for (const d of [1, 2, 3, 4, 5]) {
+            await execute(
+              `INSERT INTO grupos_horarios
+                 (grupo_id, asignatura_id, personal_id, dia, hora_inicio, hora_final, descripcion, tipo, anio)
+               VALUES (?, 0, 0, ?, ?, ?, ?, 'GRUPO', ?)`,
+              [gid, formatDia(d), formatHora(b.hora_inicio), formatHora(b.hora_fin), desc, ver.anio]
+            );
+            insertados += 1;
+          }
+        }
+      }
+    }
+
+    // Otras versiones PUBLISHED del mismo nivel/año → ARCHIVED
+    await execute(
+      `UPDATE horario_gen_versiones
+       SET estado = 'ARCHIVED', updated_at = CURRENT_TIMESTAMP
+       WHERE colegio_id = ? AND anio = ? AND nivel_id = ? AND id <> ? AND estado = 'PUBLISHED'`,
+      [cid, ver.anio, ver.nivel_id, id]
+    );
+
+    await execute(
+      `UPDATE horario_gen_versiones
+       SET estado = 'PUBLISHED', published_at = NOW(), updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND colegio_id = ?`,
+      [id, cid]
+    );
+
+    const gruposLabels = [
+      ...new Map(
+        entradas.map((e) => [
+          Number(e.grupo_id),
+          formatGrupoLabel(e.nivel_nombre, e.grado, e.seccion),
+        ])
+      ).values(),
+    ];
+
+    res.json({
+      ok: true,
+      version_id: id,
+      estado: 'PUBLISHED',
+      grupos: gruposLabels,
+      filas_insertadas: insertados,
+      message: onlyGrupoId
+        ? `Horario principal actualizado para ${gruposLabels[0] || 'el grupo'}. Ya lo ven docentes/alumnos.`
+        : `Horario principal publicado (${gruposLabels.length} grupo(s)). Ya lo ven docentes/alumnos.`,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al publicar horario principal.' });
   }
 });
 
