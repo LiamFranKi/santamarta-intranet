@@ -8,6 +8,14 @@ const { timeToSec } = require('./horarioGenValidation');
 
 const DIAS = [1, 2, 3, 4, 5];
 
+function toBool01(v, fallback = 1) {
+  if (Buffer.isBuffer(v)) return v.length && v[0] ? 1 : 0;
+  if (v && typeof v === 'object' && Array.isArray(v.data)) return v.data[0] ? 1 : 0;
+  if (v === true || v === 1 || v === '1' || v === 'true') return 1;
+  if (v === false || v === 0 || v === '0' || v === 'false') return 0;
+  return fallback;
+}
+
 function shuffle(arr, rng) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i -= 1) {
@@ -306,11 +314,23 @@ async function loadSolverContext({ colegioId, anio, nivelId, grupoIds = null }) 
   }
   const config = cfg[0];
 
-  const bloques = await query(
-    `SELECT * FROM horario_gen_bloques WHERE config_id = ? AND activo = 1 ORDER BY orden ASC, id ASC`,
+  const bloquesRaw = await query(
+    `SELECT * FROM horario_gen_bloques WHERE config_id = ? ORDER BY orden ASC, id ASC`,
     [config.id]
   );
-  const classBlocks = (bloques || []).filter((b) => b.tipo === 'CLASS' || b.tipo === 'ACTIVITY');
+  let bloques = (bloquesRaw || []).filter((b) => toBool01(b.activo, 0) === 1);
+  if (!bloques.length && (bloquesRaw || []).length > 0) {
+    await execute(`UPDATE horario_gen_bloques SET activo = 1 WHERE config_id = ?`, [config.id]);
+    bloques = bloquesRaw;
+  }
+  if (!bloques.length) {
+    const err = new Error(
+      'Ese nivel no tiene bloques horarios activos. Configúralos en la pestaña 1. Configuración.'
+    );
+    err.code = 'NO_BLOQUES';
+    throw err;
+  }
+  const classBlocks = bloques.filter((b) => b.tipo === 'CLASS' || b.tipo === 'ACTIVITY');
 
   let cargaSql = `
     SELECT c.*, cur.nombre AS curso_nombre

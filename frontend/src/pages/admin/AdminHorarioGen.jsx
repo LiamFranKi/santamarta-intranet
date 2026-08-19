@@ -1061,6 +1061,8 @@ function ResultadoPanel({ anio, niveles }) {
 
 function SolverPanel({ anio, niveles, onOpenEditor, onOpenResultado }) {
   const [nivelId, setNivelId] = useState('');
+  const [grupoId, setGrupoId] = useState('');
+  const [grupos, setGrupos] = useState([]);
   const [maxAlt, setMaxAlt] = useState(1);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
@@ -1076,19 +1078,47 @@ function SolverPanel({ anio, niveles, onOpenEditor, onOpenResultado }) {
     }
   }, [anio]);
 
+  const cargarGrupos = useCallback(async () => {
+    if (!anio || !nivelId) {
+      setGrupos([]);
+      return;
+    }
+    try {
+      const { data } = await api.get(`${API}/grupos`, { params: { anio, nivel_id: nivelId } });
+      setGrupos(data.grupos || []);
+    } catch {
+      setGrupos([]);
+    }
+  }, [anio, nivelId]);
+
   useEffect(() => {
     cargarRuns();
   }, [cargarRuns]);
+
+  useEffect(() => {
+    setGrupoId('');
+    cargarGrupos();
+  }, [nivelId, cargarGrupos]);
 
   const generar = async () => {
     if (!nivelId) {
       Swal.fire({ icon: 'info', title: 'Elige un nivel', ...swalOpts });
       return;
     }
+    if (!grupoId) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Elige un grado / grupo',
+        text: 'Para no generar todo el nivel, selecciona el aula (ej. Primaria · 1º · A).',
+        ...swalOpts,
+      });
+      return;
+    }
+    const gSel = grupos.find((g) => String(g.id) === String(grupoId));
     const conf = await Swal.fire({
       icon: 'question',
-      title: '¿Generar horarios?',
-      html: `Nivel seleccionado + carga + disponibilidad + bloques CLASS.<br/>Crea borrador(es) en <code>horario_gen_*</code> (no toca el horario actual).`,
+      title: '¿Generar horario?',
+      html: `Se generará solo para:<br/><strong>${labelGrupo(gSel) || 'grupo elegido'}</strong><br/><br/>Usa bloques, disponibilidad y carga de ese grupo.`,
       showCancelButton: true,
       confirmButtonText: 'Generar',
       cancelButtonText: 'Cancelar',
@@ -1102,6 +1132,7 @@ function SolverPanel({ anio, niveles, onOpenEditor, onOpenResultado }) {
       const { data } = await api.post(`${API}/solver/generar`, {
         anio,
         nivel_id: Number(nivelId),
+        grupo_ids: [Number(grupoId)],
         max_alternatives: Number(maxAlt) || 1,
       });
       setResult(data);
@@ -1180,17 +1211,37 @@ function SolverPanel({ anio, niveles, onOpenEditor, onOpenResultado }) {
           </button>
         </div>
         <p className="hg-muted" style={{ marginTop: 0 }}>
-          Usa la configuración de bloques, la disponibilidad docente y la carga semanal. Respeta restricciones duras
-          (docente, grupo, recreo, disponibilidad). Soft score orientativo.
+          Elige el <strong>grado/aula</strong> (ej. Primaria · 1º · A). No genera todo el nivel: solo ese grupo.
+          Usa bloques de Configuración, disponibilidad y carga semanal.
         </p>
         <div className="hg-filters">
           <label>
             Nivel *
-            <select value={nivelId} onChange={(e) => setNivelId(e.target.value)}>
+            <select
+              value={nivelId}
+              onChange={(e) => {
+                setNivelId(e.target.value);
+              }}
+            >
               <option value="">— Elegir —</option>
               {niveles.map((n) => (
                 <option key={n.id} value={n.id}>
                   {n.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Grado / grupo *
+            <select
+              value={grupoId}
+              onChange={(e) => setGrupoId(e.target.value)}
+              disabled={!nivelId}
+            >
+              <option value="">— Elegir aula —</option>
+              {grupos.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {labelGrupo(g)}
                 </option>
               ))}
             </select>

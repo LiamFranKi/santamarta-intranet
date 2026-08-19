@@ -999,12 +999,24 @@ router.post('/versiones', async (req, res) => {
       });
     }
 
-    const bloques = await query(
-      `SELECT COUNT(*) AS n FROM horario_gen_bloques WHERE config_id = ? AND activo = 1`,
+    const allBloques = await query(
+      `SELECT id, nombre, activo, tipo FROM horario_gen_bloques WHERE config_id = ?`,
       [config_id]
     );
-    if (Number(bloques?.[0]?.n || 0) === 0) {
-      return res.status(400).json({ error: 'La configuración no tiene bloques activos.' });
+    let activos = (allBloques || []).filter((b) => toBool01(b.activo, 0) === 1);
+    if (!activos.length && (allBloques || []).length > 0) {
+      // Bloques existen pero marcados inactivos (a veces por BIT/TINYINT) → reactivar
+      await execute(`UPDATE horario_gen_bloques SET activo = 1 WHERE config_id = ?`, [config_id]);
+      activos = allBloques;
+    }
+    if (!activos.length) {
+      const nvName = (
+        await query(`SELECT nombre FROM niveles WHERE id = ? LIMIT 1`, [nivel_id])
+      )?.[0]?.nombre;
+      return res.status(400).json({
+        error: `El nivel ${nvName || ''} no tiene bloques horarios (1ª hora, recreo, etc.). Ve a «1. Configuración», elige ese nivel y agrega bloques (o Seed ejemplo). La pestaña Carga semanal no crea bloques de hora.`,
+        code: 'NO_BLOQUES',
+      });
     }
 
     const nv = await query(`SELECT nombre FROM niveles WHERE id = ? AND colegio_id = ?`, [nivel_id, cid]);
@@ -1340,6 +1352,40 @@ router.post('/solver/generar', async (req, res) => {
     const nv = await query(`SELECT nombre FROM niveles WHERE id = ?`, [nivel_id]);
     const nivelNombre = nv?.[0]?.nombre || `Nivel ${nivel_id}`;
 
+    let alcanceLabel = nivelNombre;
+    if (grupoIds?.length) {
+      const gs = await query(
+        `SELECT g.grado, g.seccion, n.nombre AS nivel_nombre
+         FROM grupos g
+         LEFT JOIN niveles n ON n.id = g.nivel_id
+         WHERE g.id IN (${grupoIds.map(() => '?').join(',')})`,
+        grupoIds
+      );
+      if (gs?.length) {
+        alcanceLabel = gs
+          .map((g) => formatGrupoLabel(g.nivel_nombre, g.grado, g.seccion))
+          .join(', ');
+      }
+    }
+
+    if (!(ctx.cargas || []).length) {
+      await execute(
+        `UPDATE horario_gen_runs SET estado = 'FAILED', progreso = 100, mensaje = ?, finished_at = NOW() WHERE id = ?`,
+        [
+          grupoIds?.length
+            ? 'Ese grupo no tiene carga semanal. Impórtala en la pestaña 3.'
+            : 'No hay carga semanal para ese nivel. Impórtala en la pestaña 3.',
+          runId,
+        ]
+      );
+      return res.status(400).json({
+        error: grupoIds?.length
+          ? 'Ese grupo/grado no tiene carga semanal activa. Ve a «3. Carga semanal», filtra el grupo e importa asignaturas.'
+          : 'No hay carga semanal para ese nivel. Ve a «3. Carga semanal» e importa asignaturas.',
+        code: 'NO_CARGA',
+      });
+    }
+
     const alternatives = [];
     const seedsTried = [];
 
@@ -1358,8 +1404,8 @@ router.post('/solver/generar', async (req, res) => {
           nivel_id,
           ctx.config.id,
           maxAlt > 1
-            ? `Alternativa ${i + 1} · ${nivelNombre} ${anio}`
-            : `Generado · ${nivelNombre} ${anio}`,
+            ? `Alternativa ${i + 1} · ${alcanceLabel} ${anio}`
+            : `Generado · ${alcanceLabel} ${anio}`,
           req.user?.id || null,
         ]
       );
@@ -1467,7 +1513,7 @@ router.post('/solver/generar', async (req, res) => {
         /* ignore */
       }
     }
-    if (e.code === 'NO_CONFIG' || e.code === 'ER_NO_SUCH_TABLE') {
+    if (e.code === 'NO_CONFIG' || e.code === 'NO_BLOQUES' || e.code === 'ER_NO_SUCH_TABLE') {
       return res.status(400).json({ error: e.message, code: e.code });
     }
     res.status(500).json({ error: e.message || 'Error en el solver.' });
