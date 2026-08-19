@@ -1,0 +1,181 @@
+/**
+ * Validación de colocación — módulo piloto horario_gen_*.
+ * No toca grupos_horarios.
+ */
+const { query } = require('../utils/mysql');
+
+function timeToSec(t) {
+  if (!t) return null;
+  const s = String(t).trim();
+  const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!m) return null;
+  return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3] || 0);
+}
+
+function overlaps(aStart, aEnd, bStart, bEnd) {
+  if (aStart == null || aEnd == null || bStart == null || bEnd == null) return false;
+  return aStart < bEnd && bStart < aEnd;
+}
+
+/**
+ * @returns {{ valid: boolean, errors: string[], warnings: string[] }}
+ */
+async function validatePlacement({
+  colegioId,
+  versionId,
+  diaSemana,
+  bloqueId,
+  grupoId,
+  cargaId,
+  excludeEntradaId = null,
+}) {
+  const errors = [];
+  const warnings = [];
+
+  if (!versionId || !diaSemana || !bloqueId || !grupoId || !cargaId) {
+    return { valid: false, errors: ['Faltan datos de colocación'], warnings };
+  }
+
+  const ver = await query(
+    `SELECT * FROM horario_gen_versiones WHERE id = ? AND colegio_id = ? LIMIT 1`,
+    [versionId, colegioId]
+  );
+  if (!ver?.length) return { valid: false, errors: ['Versión no encontrada'], warnings };
+
+  const bloqueRows = await query(
+    `SELECT b.* FROM horario_gen_bloques b
+     INNER JOIN horario_gen_config c ON c.id = b.config_id
+     WHERE b.id = ? AND c.colegio_id = ? LIMIT 1`,
+    [bloqueId, colegioId]
+  );
+  if (!bloqueRows?.length) return { valid: false, errors: ['Bloque no encontrado'], warnings };
+  const bloque = bloqueRows[0];
+
+  if (bloque.tipo === 'BREAK' || bloque.tipo === 'LUNCH') {
+    errors.push(`No se pueden colocar clases en ${bloque.tipo === 'BREAK' ? 'recreo' : 'almuerzo'} (${bloque.nombre}).`);
+  }
+
+  const cargaRows = await query(
+    `SELECT * FROM horario_gen_carga WHERE id = ? AND colegio_id = ? LIMIT 1`,
+    [cargaId, colegioId]
+  );
+  if (!cargaRows?.length) return { valid: false, errors: ['Carga no encontrada'], warnings };
+  const carga = cargaRows[0];
+
+  if (Number(carga.grupo_id) !== Number(grupoId)) {
+    errors.push('La carga no pertenece a este grupo.');
+  }
+
+  if (!carga.activo || Number(carga.activo) === 0) {
+    errors.push('La carga está inactiva.');
+  }
+
+  // Slot ocupado por el grupo
+  let slotSql = `
+    SELECT e.id, cur.nombre AS curso_nombre
+    FROM horario_gen_entradas e
+    LEFT JOIN cursos cur ON cur.id = e.curso_id
+    WHERE e.version_id = ? AND e.dia_semana = ? AND e.bloque_id = ? AND e.grupo_id = ?
+  `;
+  const slotParams = [versionId, diaSemana, bloqueId, grupoId];
+  if (excludeEntradaId) {
+    slotSql += ' AND e.id <> ?';
+    slotParams.push(excludeEntradaId);
+  }
+  const slot = await query(slotSql, slotParams);
+  if (slot?.length) {
+    errors.push(
+      `Este grupo ya tiene clase en ese bloque (${slot[0].curso_nombre || 'otra asignatura'}).`
+    );
+  }
+
+  const personalId = carga.personal_id ? Number(carga.personal_id) : null;
+
+  // Docente en dos aulas
+  if (personalId) {
+    let docSql = `
+      SELECT e.id, g.grado, g.seccion, cur.nombre AS curso_nombre
+      FROM horario_gen_entradas e
+      INNER JOIN grupos g ON g.id = e.grupo_id
+      LEFT JOIN cursos cur ON cur.id = e.curso_id
+      WHERE e.version_id = ? AND e.dia_semana = ? AND e.bloque_id = ? AND e.personal_id = ?
+    `;
+    const docParams = [versionId, diaSemana, bloqueId, personalId];
+    if (excludeEntradaId) {
+      docSql += ' AND e.id <> ?';
+      docParams.push(excludeEntradaId);
+    }
+    const docClash = await query(docSql, docParams);
+    if (docClash?.length) {
+      const c = docClash[0];
+      errors.push(
+        `El docente ya tiene clase en ${c.grado ?? ''}${c.seccion ? ` ${c.seccion}` : ''} (${c.curso_nombre || 'curso'}) en ese bloque.`
+      );
+    }
+
+    // Disponibilidad
+    const disp = await query(
+      `SELECT * FROM horario_gen_disponibilidad
+       WHERE colegio_id = ? AND anio = ? AND personal_id = ? AND dia_semana = ?
+       LIMIT 1`,
+      [colegioId, ver[0].anio, personalId, diaSemana]
+    );
+    if (disp?.length) {
+      const d = disp[0];
+      const bStart = timeToSec(bloque.hora_inicio);
+      const bEnd = timeToSec(bloque.hora_fin);
+      if (d.estado === 'UNAVAILABLE') {
+        errors.push('El docente no está disponible ese día.');
+      } else if (d.estado === 'AVAILABLE' || d.estado === 'CUSTOM_INTERVAL') {
+        const from = timeToSec(d.hora_desde);
+        const until = timeToSec(d.hora_hasta);
+        if (from != null && until != null && (bStart < from || bEnd > until)) {
+          errors.push(
+            `El docente solo está disponible de ${String(d.hora_desde).slice(0, 5)} a ${String(d.hora_hasta).slice(0, 5)}.`
+          );
+        }
+      } else if (d.estado === 'AVAILABLE_UNTIL') {
+        const until = timeToSec(d.hora_hasta);
+        if (until != null && bEnd > until) {
+          errors.push(`El docente solo está disponible hasta las ${String(d.hora_hasta).slice(0, 5)}.`);
+        }
+      } else if (d.estado === 'AVAILABLE_FROM') {
+        const from = timeToSec(d.hora_desde);
+        if (from != null && bStart < from) {
+          errors.push(`El docente solo está disponible desde las ${String(d.hora_desde).slice(0, 5)}.`);
+        }
+      }
+    } else {
+      warnings.push('El docente no tiene disponibilidad configurada; se asume disponible.');
+    }
+  } else {
+    warnings.push('La carga no tiene docente asignado.');
+  }
+
+  // Tope semanal
+  let countSql = `
+    SELECT COUNT(*) AS n FROM horario_gen_entradas
+    WHERE version_id = ? AND carga_id = ?
+  `;
+  const countParams = [versionId, cargaId];
+  if (excludeEntradaId) {
+    countSql += ' AND id <> ?';
+    countParams.push(excludeEntradaId);
+  }
+  const cnt = await query(countSql, countParams);
+  const placed = Number(cnt?.[0]?.n || 0);
+  const need = Number(carga.bloques_semanales || 0);
+  if (placed >= need) {
+    errors.push(`Ya están colocados ${placed}/${need} bloques semanales de esta carga.`);
+  } else if (placed + 1 === need) {
+    warnings.push(`Con esta colocación se completa la carga (${need} bloques).`);
+  }
+
+  return { valid: errors.length === 0, errors, warnings };
+}
+
+module.exports = {
+  validatePlacement,
+  timeToSec,
+  overlaps,
+};

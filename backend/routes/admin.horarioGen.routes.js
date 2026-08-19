@@ -884,4 +884,777 @@ router.post('/carga/importar-asignaturas', async (req, res) => {
   }
 });
 
+// ─── Editor / versiones (fase 4) ────────────────────────────────────────────
+
+const { validatePlacement } = require('../utils/horarioGenValidation');
+
+async function assertVersionOwned(versionId, cid) {
+  const rows = await query(
+    `SELECT * FROM horario_gen_versiones WHERE id = ? AND colegio_id = ? LIMIT 1`,
+    [versionId, cid]
+  );
+  return rows?.[0] || null;
+}
+
+router.get('/versiones', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const anioActivo = await anioActivoColegio(cid);
+    const anio = parseAnio(req.query.anio, anioActivo);
+    const nivelId = parseId(req.query.nivel_id);
+
+    let sql = `
+      SELECT v.*, n.nombre AS nivel_nombre,
+             (SELECT COUNT(*) FROM horario_gen_entradas e WHERE e.version_id = v.id) AS total_entradas
+      FROM horario_gen_versiones v
+      LEFT JOIN niveles n ON n.id = v.nivel_id
+      WHERE v.colegio_id = ? AND v.anio = ?
+    `;
+    const params = [cid, anio];
+    if (nivelId) {
+      sql += ' AND v.nivel_id = ?';
+      params.push(nivelId);
+    }
+    sql += ' ORDER BY v.updated_at DESC, v.id DESC';
+    const rows = await query(sql, params);
+    res.json({ anio, versiones: rows || [] });
+  } catch (e) {
+    if (e.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({
+        error: 'Faltan tablas horario_gen_*. Ejecute sql/horario_gen_modulo.sql en phpMyAdmin.',
+        code: 'TABLES_MISSING',
+      });
+    }
+    res.status(500).json({ error: e.message || 'Error al listar versiones.' });
+  }
+});
+
+router.post('/versiones', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const anioActivo = await anioActivoColegio(cid);
+    const b = req.body || {};
+    const anio = parseAnio(b.anio, anioActivo);
+    const nivel_id = parseId(b.nivel_id);
+    if (!nivel_id) return res.status(400).json({ error: 'nivel_id obligatorio' });
+
+    let config_id = parseId(b.config_id);
+    if (!config_id) {
+      const cfg = await query(
+        `SELECT id FROM horario_gen_config WHERE colegio_id = ? AND anio = ? AND nivel_id = ? LIMIT 1`,
+        [cid, anio, nivel_id]
+      );
+      config_id = cfg?.[0]?.id || null;
+    }
+    if (!config_id) {
+      return res.status(400).json({
+        error: 'No hay configuración de bloques para ese nivel/año. Créalos en la pestaña Configuración.',
+      });
+    }
+
+    const bloques = await query(
+      `SELECT COUNT(*) AS n FROM horario_gen_bloques WHERE config_id = ? AND activo = 1`,
+      [config_id]
+    );
+    if (Number(bloques?.[0]?.n || 0) === 0) {
+      return res.status(400).json({ error: 'La configuración no tiene bloques activos.' });
+    }
+
+    const nv = await query(`SELECT nombre FROM niveles WHERE id = ? AND colegio_id = ?`, [nivel_id, cid]);
+    const nombre =
+      String(b.nombre || '').trim() ||
+      `Borrador ${nv?.[0]?.nombre || nivel_id} ${anio}`;
+
+    const r = await execute(
+      `INSERT INTO horario_gen_versiones
+        (colegio_id, anio, nivel_id, config_id, nombre, estado, created_by)
+       VALUES (?, ?, ?, ?, ?, 'DRAFT', ?)`,
+      [cid, anio, nivel_id, config_id, nombre, req.user?.id || null]
+    );
+    const rows = await query(`SELECT * FROM horario_gen_versiones WHERE id = ?`, [r.insertId]);
+    res.status(201).json({ version: rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al crear versión.' });
+  }
+});
+
+router.delete('/versiones/:id', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const ver = await assertVersionOwned(id, cid);
+    if (!ver) return res.status(404).json({ error: 'Versión no encontrada' });
+    if (ver.estado === 'PUBLISHED') {
+      return res.status(409).json({ error: 'No se puede borrar una versión publicada (piloto). Archívela primero.' });
+    }
+    await execute(`DELETE FROM horario_gen_versiones WHERE id = ? AND colegio_id = ?`, [id, cid]);
+    res.json({ message: 'Versión eliminada (entradas en cascada). No tocó grupos_horarios.' });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al eliminar versión.' });
+  }
+});
+
+/** Tablero del editor para un grupo */
+router.get('/editor', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const versionId = parseId(req.query.version_id);
+    const grupoId = parseId(req.query.grupo_id);
+    if (!versionId || !grupoId) {
+      return res.status(400).json({ error: 'version_id y grupo_id obligatorios' });
+    }
+
+    const ver = await assertVersionOwned(versionId, cid);
+    if (!ver) return res.status(404).json({ error: 'Versión no encontrada' });
+
+    const grupoRows = await query(
+      `SELECT g.id, g.grado, g.seccion, g.nivel_id, g.anio, n.nombre AS nivel_nombre
+       FROM grupos g
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       WHERE g.id = ? AND g.colegio_id = ? LIMIT 1`,
+      [grupoId, cid]
+    );
+    if (!grupoRows?.length) return res.status(404).json({ error: 'Grupo no encontrado' });
+    const grupo = grupoRows[0];
+
+    if (ver.nivel_id && Number(ver.nivel_id) !== Number(grupo.nivel_id)) {
+      return res.status(400).json({ error: 'El grupo no pertenece al nivel de esta versión.' });
+    }
+
+    const bloques = await query(
+      `SELECT * FROM horario_gen_bloques
+       WHERE config_id = ? AND activo = 1
+       ORDER BY orden ASC, id ASC`,
+      [ver.config_id]
+    );
+
+    const entradas = await query(
+      `SELECT e.*,
+              cur.nombre AS curso_nombre,
+              TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS docente_nombre,
+              cg.bloques_semanales, cg.color AS carga_color
+       FROM horario_gen_entradas e
+       LEFT JOIN cursos cur ON cur.id = e.curso_id
+       LEFT JOIN personal p ON p.id = e.personal_id
+       LEFT JOIN horario_gen_carga cg ON cg.id = e.carga_id
+       WHERE e.version_id = ? AND e.grupo_id = ?
+       ORDER BY e.dia_semana, e.bloque_id`,
+      [versionId, grupoId]
+    );
+
+    const cargas = await query(
+      `SELECT c.*,
+              cur.nombre AS curso_nombre,
+              TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS docente_nombre,
+              (SELECT COUNT(*) FROM horario_gen_entradas e
+               WHERE e.version_id = ? AND e.carga_id = c.id) AS colocados
+       FROM horario_gen_carga c
+       LEFT JOIN cursos cur ON cur.id = c.curso_id
+       LEFT JOIN personal p ON p.id = c.personal_id
+       WHERE c.colegio_id = ? AND c.anio = ? AND c.grupo_id = ? AND c.activo = 1
+       ORDER BY cur.nombre`,
+      [versionId, cid, ver.anio, grupoId]
+    );
+
+    const pendientes = (cargas || []).map((c) => ({
+      ...mapActivo(c),
+      colocados: Number(c.colocados || 0),
+      faltan: Math.max(0, Number(c.bloques_semanales || 0) - Number(c.colocados || 0)),
+    }));
+
+    res.json({
+      version: ver,
+      grupo,
+      bloques: (bloques || []).map(mapActivo),
+      entradas: (entradas || []).map((e) => ({ ...e, locked: toBool01(e.locked, 0) })),
+      cargas: pendientes,
+      dias: DIAS_SEMANA,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al cargar editor.' });
+  }
+});
+
+router.post('/validate-placement', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const b = req.body || {};
+    const result = await validatePlacement({
+      colegioId: cid,
+      versionId: parseId(b.version_id),
+      diaSemana: parseInt(b.dia_semana, 10),
+      bloqueId: parseId(b.bloque_id),
+      grupoId: parseId(b.grupo_id),
+      cargaId: parseId(b.carga_id),
+      excludeEntradaId: parseId(b.exclude_entrada_id),
+    });
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al validar.' });
+  }
+});
+
+router.post('/entradas', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const b = req.body || {};
+    const versionId = parseId(b.version_id);
+    const dia = parseInt(b.dia_semana, 10);
+    const bloqueId = parseId(b.bloque_id);
+    const grupoId = parseId(b.grupo_id);
+    const cargaId = parseId(b.carga_id);
+
+    const result = await validatePlacement({
+      colegioId: cid,
+      versionId,
+      diaSemana: dia,
+      bloqueId,
+      grupoId,
+      cargaId,
+    });
+    if (!result.valid) {
+      return res.status(409).json({ error: result.errors.join(' '), ...result });
+    }
+
+    const cargaRows = await query(`SELECT * FROM horario_gen_carga WHERE id = ? AND colegio_id = ?`, [
+      cargaId,
+      cid,
+    ]);
+    const carga = cargaRows[0];
+
+    const r = await execute(
+      `INSERT INTO horario_gen_entradas
+        (version_id, bloque_id, dia_semana, grupo_id, curso_id, asignatura_id, personal_id, carga_id, locked)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+      [
+        versionId,
+        bloqueId,
+        dia,
+        grupoId,
+        carga.curso_id || null,
+        carga.asignatura_id || null,
+        carga.personal_id || null,
+        cargaId,
+      ]
+    );
+    const rows = await query(`SELECT * FROM horario_gen_entradas WHERE id = ?`, [r.insertId]);
+    res.status(201).json({ entrada: rows[0], warnings: result.warnings });
+  } catch (e) {
+    if (e.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'Ese bloque ya está ocupado para el grupo.' });
+    }
+    res.status(500).json({ error: e.message || 'Error al colocar clase.' });
+  }
+});
+
+router.put('/entradas/:id', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+
+    const curRows = await query(
+      `SELECT e.*, v.colegio_id
+       FROM horario_gen_entradas e
+       INNER JOIN horario_gen_versiones v ON v.id = e.version_id
+       WHERE e.id = ? LIMIT 1`,
+      [id]
+    );
+    if (!curRows?.length || Number(curRows[0].colegio_id) !== Number(cid)) {
+      return res.status(404).json({ error: 'Entrada no encontrada' });
+    }
+    const cur = curRows[0];
+    if (toBool01(cur.locked, 0)) {
+      return res.status(409).json({ error: 'La clase está bloqueada. Desbloquéela para moverla.' });
+    }
+
+    const b = req.body || {};
+    const dia = parseInt(b.dia_semana != null ? b.dia_semana : cur.dia_semana, 10);
+    const bloqueId = parseId(b.bloque_id) || cur.bloque_id;
+    const cargaId = cur.carga_id;
+
+    const result = await validatePlacement({
+      colegioId: cid,
+      versionId: cur.version_id,
+      diaSemana: dia,
+      bloqueId,
+      grupoId: cur.grupo_id,
+      cargaId,
+      excludeEntradaId: id,
+    });
+    if (!result.valid) {
+      return res.status(409).json({ error: result.errors.join(' '), ...result });
+    }
+
+    await execute(
+      `UPDATE horario_gen_entradas SET dia_semana = ?, bloque_id = ? WHERE id = ?`,
+      [dia, bloqueId, id]
+    );
+    const updated = await query(`SELECT * FROM horario_gen_entradas WHERE id = ?`, [id]);
+    res.json({ entrada: updated[0], warnings: result.warnings });
+  } catch (e) {
+    if (e.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'Ese bloque ya está ocupado para el grupo.' });
+    }
+    res.status(500).json({ error: e.message || 'Error al mover clase.' });
+  }
+});
+
+router.patch('/entradas/:id/lock', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const curRows = await query(
+      `SELECT e.id, v.colegio_id FROM horario_gen_entradas e
+       INNER JOIN horario_gen_versiones v ON v.id = e.version_id WHERE e.id = ? LIMIT 1`,
+      [id]
+    );
+    if (!curRows?.length || Number(curRows[0].colegio_id) !== Number(cid)) {
+      return res.status(404).json({ error: 'Entrada no encontrada' });
+    }
+    const locked = toBool01(req.body?.locked, 1);
+    await execute(`UPDATE horario_gen_entradas SET locked = ? WHERE id = ?`, [locked, id]);
+    res.json({ message: locked ? 'Bloqueada' : 'Desbloqueada', locked });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al bloquear.' });
+  }
+});
+
+router.delete('/entradas/:id', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const curRows = await query(
+      `SELECT e.*, v.colegio_id FROM horario_gen_entradas e
+       INNER JOIN horario_gen_versiones v ON v.id = e.version_id WHERE e.id = ? LIMIT 1`,
+      [id]
+    );
+    if (!curRows?.length || Number(curRows[0].colegio_id) !== Number(cid)) {
+      return res.status(404).json({ error: 'Entrada no encontrada' });
+    }
+    if (toBool01(curRows[0].locked, 0)) {
+      return res.status(409).json({ error: 'La clase está bloqueada.' });
+    }
+    await execute(`DELETE FROM horario_gen_entradas WHERE id = ?`, [id]);
+    res.json({ message: 'Clase quitada del horario piloto.' });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al eliminar entrada.' });
+  }
+});
+
+// ─── Solver automático (fase 5) ─────────────────────────────────────────────
+
+const {
+  solveInMemory,
+  loadSolverContext,
+  persistPlacements,
+} = require('../utils/horarioGenSolver');
+
+router.post('/solver/generar', async (req, res) => {
+  const cid = colegio(req);
+  let runId = null;
+  try {
+    const anioActivo = await anioActivoColegio(cid);
+    const b = req.body || {};
+    const anio = parseAnio(b.anio, anioActivo);
+    const nivel_id = parseId(b.nivel_id);
+    if (!nivel_id) return res.status(400).json({ error: 'nivel_id obligatorio' });
+
+    const maxAlt = Math.min(3, Math.max(1, parseInt(b.max_alternatives, 10) || 1));
+    const seedBase = Number.isFinite(Number(b.seed)) ? Number(b.seed) : Date.now() % 100000;
+    let grupoIds = null;
+    if (Array.isArray(b.grupo_ids) && b.grupo_ids.length) {
+      grupoIds = b.grupo_ids.map((x) => parseId(x)).filter(Boolean);
+    }
+
+    const runIns = await execute(
+      `INSERT INTO horario_gen_runs
+        (colegio_id, anio, version_id, estado, progreso, mensaje, created_by, started_at)
+       VALUES (?, ?, NULL, 'ANALYZING', 5, 'Analizando carga y disponibilidad…', ?, NOW())`,
+      [cid, anio, req.user?.id || null]
+    );
+    runId = runIns.insertId;
+
+    const ctx = await loadSolverContext({
+      colegioId: cid,
+      anio,
+      nivelId: nivel_id,
+      grupoIds,
+    });
+
+    await execute(
+      `UPDATE horario_gen_runs SET estado = 'SOLVING', progreso = 25, mensaje = ? WHERE id = ?`,
+      [`Resolviendo ${ctx.cargas.length} cargas…`, runId]
+    );
+
+    const nv = await query(`SELECT nombre FROM niveles WHERE id = ?`, [nivel_id]);
+    const nivelNombre = nv?.[0]?.nombre || `Nivel ${nivel_id}`;
+
+    const alternatives = [];
+    const seedsTried = [];
+
+    for (let i = 0; i < maxAlt; i += 1) {
+      const seed = seedBase + i * 97;
+      seedsTried.push(seed);
+
+      // Nueva versión por alternativa
+      const verIns = await execute(
+        `INSERT INTO horario_gen_versiones
+          (colegio_id, anio, nivel_id, config_id, nombre, estado, created_by)
+         VALUES (?, ?, ?, ?, ?, 'DRAFT', ?)`,
+        [
+          cid,
+          anio,
+          nivel_id,
+          ctx.config.id,
+          maxAlt > 1
+            ? `Alternativa ${i + 1} · ${nivelNombre} ${anio}`
+            : `Generado · ${nivelNombre} ${anio}`,
+          req.user?.id || null,
+        ]
+      );
+      const versionId = verIns.insertId;
+
+      const result = solveInMemory({
+        cargas: ctx.cargas,
+        classBlocks: ctx.classBlocks,
+        dispByTeacherDay: ctx.dispByTeacherDay,
+        lockedPlacements: [],
+        seed,
+        docentesNombres: ctx.docentesNombres,
+      });
+
+      const inserted = await persistPlacements(versionId, result.placements);
+      await execute(`UPDATE horario_gen_versiones SET score = ? WHERE id = ?`, [
+        result.score,
+        versionId,
+      ]);
+
+      alternatives.push({
+        version_id: versionId,
+        nombre: maxAlt > 1 ? `Alternativa ${i + 1}` : `Generado`,
+        ok: result.ok,
+        score: result.score,
+        placed: result.placed,
+        total: result.total,
+        inserted,
+        nodes: result.nodes,
+        unplaced: result.unplaced,
+        diagnostico: result.diagnostico,
+        seed,
+      });
+
+      // Si la primera sale completa y solo pidieron 1, basta
+      if (maxAlt === 1) break;
+      // Si falló la primera, igual intentamos más semillas
+    }
+
+    alternatives.sort((a, b) => {
+      if (a.ok !== b.ok) return a.ok ? -1 : 1;
+      return (b.score || 0) - (a.score || 0);
+    });
+
+    const best = alternatives[0];
+    const allFailed = alternatives.every((a) => !a.ok);
+    const diagnostico = {
+      semillas: seedsTried,
+      mejor: best
+        ? {
+            version_id: best.version_id,
+            score: best.score,
+            placed: best.placed,
+            total: best.total,
+            ok: best.ok,
+          }
+        : null,
+      causas: best?.diagnostico?.causas || [],
+      sugerencias: best?.diagnostico?.sugerencias || [],
+      unplaced: best?.unplaced || [],
+      alternativas: alternatives.map((a) => ({
+        version_id: a.version_id,
+        score: a.score,
+        ok: a.ok,
+        placed: a.placed,
+        total: a.total,
+      })),
+    };
+
+    await execute(
+      `UPDATE horario_gen_runs
+       SET version_id = ?, estado = ?, progreso = 100, mensaje = ?, diagnostico_json = ?, finished_at = NOW()
+       WHERE id = ?`,
+      [
+        best?.version_id || null,
+        allFailed ? 'FAILED' : 'COMPLETE',
+        allFailed
+          ? `Sin solución completa (${best?.placed || 0}/${best?.total || 0}). Revise diagnóstico.`
+          : `Listo: ${best.placed}/${best.total} bloques · score ${best.score}%`,
+        JSON.stringify(diagnostico),
+        runId,
+      ]
+    );
+
+    res.json({
+      run_id: runId,
+      anio,
+      nivel_id,
+      estado: allFailed ? 'FAILED' : 'COMPLETE',
+      best,
+      alternatives,
+      diagnostico,
+      aviso: 'Resultados solo en horario_gen_*. No se modificó grupos_horarios.',
+    });
+  } catch (e) {
+    if (runId) {
+      try {
+        await execute(
+          `UPDATE horario_gen_runs
+           SET estado = 'FAILED', progreso = 100, mensaje = ?, finished_at = NOW()
+           WHERE id = ?`,
+          [String(e.message || 'Error').slice(0, 500), runId]
+        );
+      } catch {
+        /* ignore */
+      }
+    }
+    if (e.code === 'NO_CONFIG' || e.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(400).json({ error: e.message, code: e.code });
+    }
+    res.status(500).json({ error: e.message || 'Error en el solver.' });
+  }
+});
+
+router.get('/solver/runs', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const anioActivo = await anioActivoColegio(cid);
+    const anio = parseAnio(req.query.anio, anioActivo);
+    const rows = await query(
+      `SELECT * FROM horario_gen_runs
+       WHERE colegio_id = ? AND anio = ?
+       ORDER BY id DESC LIMIT 20`,
+      [cid, anio]
+    );
+    res.json({
+      anio,
+      runs: (rows || []).map((r) => ({
+        ...r,
+        diagnostico: r.diagnostico_json
+          ? (() => {
+              try {
+                return JSON.parse(r.diagnostico_json);
+              } catch {
+                return null;
+              }
+            })()
+          : null,
+      })),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al listar runs.' });
+  }
+});
+
+router.get('/solver/runs/:id', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const rows = await query(
+      `SELECT * FROM horario_gen_runs WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [id, cid]
+    );
+    if (!rows?.length) return res.status(404).json({ error: 'Run no encontrado' });
+    const r = rows[0];
+    let diagnostico = null;
+    try {
+      diagnostico = r.diagnostico_json ? JSON.parse(r.diagnostico_json) : null;
+    } catch {
+      diagnostico = null;
+    }
+    res.json({ run: { ...r, diagnostico } });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al obtener run.' });
+  }
+});
+
+// ─── Vista final / resultado (fase 6 — preview antes de vincular) ───────────
+
+router.get('/vista-final', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const versionId = parseId(req.query.version_id);
+    if (!versionId) return res.status(400).json({ error: 'version_id obligatorio' });
+
+    const ver = await assertVersionOwned(versionId, cid);
+    if (!ver) return res.status(404).json({ error: 'Versión no encontrada' });
+
+    const bloques = await query(
+      `SELECT * FROM horario_gen_bloques
+       WHERE config_id = ? AND activo = 1
+       ORDER BY orden ASC, id ASC`,
+      [ver.config_id]
+    );
+
+    const entradas = await query(
+      `SELECT e.*,
+              cur.nombre AS curso_nombre,
+              g.grado, g.seccion, g.nivel_id,
+              n.nombre AS nivel_nombre,
+              TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS docente_nombre,
+              cg.color AS carga_color, cg.bloques_semanales
+       FROM horario_gen_entradas e
+       INNER JOIN grupos g ON g.id = e.grupo_id
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       LEFT JOIN cursos cur ON cur.id = e.curso_id
+       LEFT JOIN personal p ON p.id = e.personal_id
+       LEFT JOIN horario_gen_carga cg ON cg.id = e.carga_id
+       WHERE e.version_id = ?
+       ORDER BY n.nombre, g.grado, g.seccion, e.dia_semana, e.bloque_id`,
+      [versionId]
+    );
+
+    const byGrupo = new Map();
+    const byDocente = new Map();
+
+    for (const e of entradas || []) {
+      const gid = Number(e.grupo_id);
+      if (!byGrupo.has(gid)) {
+        byGrupo.set(gid, {
+          grupo_id: gid,
+          label: `${e.nivel_nombre || ''} ${e.grado ?? ''}${e.seccion ? ` ${e.seccion}` : ''}`.trim(),
+          grado: e.grado,
+          seccion: e.seccion,
+          nivel_nombre: e.nivel_nombre,
+          entradas: [],
+        });
+      }
+      byGrupo.get(gid).entradas.push({
+        ...e,
+        locked: toBool01(e.locked, 0),
+      });
+
+      const pid = e.personal_id ? Number(e.personal_id) : 0;
+      const dkey = pid || `sin-${e.id}`;
+      if (!byDocente.has(dkey)) {
+        byDocente.set(dkey, {
+          personal_id: pid || null,
+          nombre: e.docente_nombre || 'Sin docente',
+          entradas: [],
+        });
+      }
+      byDocente.get(dkey).entradas.push({
+        ...e,
+        locked: toBool01(e.locked, 0),
+        grupo_label: `${e.nivel_nombre || ''} ${e.grado ?? ''}${e.seccion ? ` ${e.seccion}` : ''}`.trim(),
+      });
+    }
+
+    // Carga esperada vs colocada
+    let cargaSql = `
+      SELECT c.id, c.grupo_id, c.bloques_semanales, c.personal_id,
+             cur.nombre AS curso_nombre,
+             g.grado, g.seccion, n.nombre AS nivel_nombre
+      FROM horario_gen_carga c
+      INNER JOIN grupos g ON g.id = c.grupo_id
+      LEFT JOIN niveles n ON n.id = g.nivel_id
+      LEFT JOIN cursos cur ON cur.id = c.curso_id
+      WHERE c.colegio_id = ? AND c.anio = ? AND c.activo = 1
+    `;
+    const cargaParams = [cid, ver.anio];
+    if (ver.nivel_id) {
+      cargaSql += ' AND g.nivel_id = ?';
+      cargaParams.push(ver.nivel_id);
+    }
+    const cargas = await query(cargaSql, cargaParams);
+    let totalEsperado = 0;
+    let totalColocado = 0;
+    const pendientes = [];
+    for (const c of cargas || []) {
+      const need = Number(c.bloques_semanales || 0);
+      totalEsperado += need;
+      const n = (entradas || []).filter((e) => Number(e.carga_id) === Number(c.id)).length;
+      totalColocado += n;
+      if (n < need) {
+        pendientes.push({
+          carga_id: c.id,
+          curso: c.curso_nombre,
+          grupo: `${c.nivel_nombre || ''} ${c.grado ?? ''}${c.seccion ? ` ${c.seccion}` : ''}`.trim(),
+          colocados: n,
+          necesarios: need,
+          faltan: need - n,
+        });
+      }
+    }
+
+    const nivelRows = ver.nivel_id
+      ? await query(`SELECT nombre FROM niveles WHERE id = ? LIMIT 1`, [ver.nivel_id])
+      : [];
+
+    res.json({
+      version: {
+        ...ver,
+        nivel_nombre: nivelRows?.[0]?.nombre || null,
+      },
+      bloques: (bloques || []).map(mapActivo),
+      dias: DIAS_SEMANA,
+      grupos: [...byGrupo.values()],
+      docentes: [...byDocente.values()].sort((a, b) =>
+        String(a.nombre).localeCompare(String(b.nombre), 'es')
+      ),
+      resumen: {
+        total_entradas: (entradas || []).length,
+        total_grupos: byGrupo.size,
+        total_docentes: [...byDocente.keys()].filter((k) => !String(k).startsWith('sin-')).length,
+        bloques_esperados: totalEsperado,
+        bloques_colocados: totalColocado,
+        completitud_pct:
+          totalEsperado > 0 ? Math.round((totalColocado / totalEsperado) * 100) : 0,
+        pendientes,
+      },
+      aviso:
+        'Vista previa del piloto. Aún NO está vinculado a grupos_horarios (docentes/alumnos del sistema).',
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al cargar vista final.' });
+  }
+});
+
+const ESTADOS_VERSION = new Set(['DRAFT', 'REVIEW', 'APPROVED', 'ARCHIVED']);
+
+router.patch('/versiones/:id/estado', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const ver = await assertVersionOwned(id, cid);
+    if (!ver) return res.status(404).json({ error: 'Versión no encontrada' });
+
+    const estado = String(req.body?.estado || '').toUpperCase();
+    if (!ESTADOS_VERSION.has(estado)) {
+      return res.status(400).json({
+        error: 'Estado inválido. Use DRAFT, REVIEW, APPROVED o ARCHIVED (PUBLISHED = vincular, fase posterior).',
+      });
+    }
+
+    await execute(
+      `UPDATE horario_gen_versiones SET estado = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND colegio_id = ?`,
+      [estado, id, cid]
+    );
+    const rows = await query(`SELECT * FROM horario_gen_versiones WHERE id = ?`, [id]);
+    res.json({
+      version: rows[0],
+      message:
+        estado === 'APPROVED'
+          ? 'Marcada como aprobada (piloto). Todavía no se vinculó al horario del sistema.'
+          : `Estado actualizado a ${estado}`,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al cambiar estado.' });
+  }
+});
+
 module.exports = router;

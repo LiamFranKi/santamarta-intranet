@@ -34,6 +34,9 @@ const TABS = [
   { id: 'config', label: '1. Configuración', icon: '⚙️', tone: 'blue' },
   { id: 'disponibilidad', label: '2. Disponibilidad', icon: '👤', tone: 'green' },
   { id: 'carga', label: '3. Carga semanal', icon: '📚', tone: 'amber' },
+  { id: 'editor', label: '4. Editor', icon: '🗓️', tone: 'violet' },
+  { id: 'solver', label: '5. Generar', icon: '✨', tone: 'rose' },
+  { id: 'resultado', label: '6. Resultado', icon: '👁️', tone: 'teal' },
 ];
 
 const swalOpts = {
@@ -306,6 +309,17 @@ export default function AdminHorarioGen() {
           <DisponibilidadPanel anio={anio} docentes={meta.docentes || []} />
         ) : tab === 'carga' ? (
           <CargaPanel anio={anio} niveles={meta.niveles || []} docentes={meta.docentes || []} />
+        ) : tab === 'editor' ? (
+          <EditorPanel anio={anio} niveles={meta.niveles || []} />
+        ) : tab === 'solver' ? (
+          <SolverPanel
+            anio={anio}
+            niveles={meta.niveles || []}
+            onOpenEditor={() => setTab('editor')}
+            onOpenResultado={() => setTab('resultado')}
+          />
+        ) : tab === 'resultado' ? (
+          <ResultadoPanel anio={anio} niveles={meta.niveles || []} />
         ) : (
           <div className="hg-layout">
             <section className="hg-panel">
@@ -450,9 +464,10 @@ export default function AdminHorarioGen() {
             <li>✅ Configuración de bloques por año/nivel</li>
             <li>✅ Disponibilidad docente</li>
             <li>✅ Carga semanal (horas por curso/grupo)</li>
-            <li>Editor drag &amp; drop</li>
-            <li>Solver automático</li>
-            <li>Cuando funcione → sincronizar a `grupos_horarios` (opt-in)</li>
+            <li>✅ Editor (colocar clases en grilla)</li>
+            <li>✅ Solver automático</li>
+            <li>✅ Vista resultado (preview antes de vincular)</li>
+            <li>Pendiente → sincronizar a `grupos_horarios` (opt-in)</li>
           </ol>
         </section>
       </div>
@@ -520,6 +535,977 @@ export default function AdminHorarioGen() {
         />
       )}
     </DashboardLayout>
+  );
+}
+
+function ResultadoPanel({ anio, niveles }) {
+  const [nivelId, setNivelId] = useState('');
+  const [versiones, setVersiones] = useState([]);
+  const [versionId, setVersionId] = useState('');
+  const [vista, setVista] = useState(null);
+  const [modo, setModo] = useState('grupos'); // grupos | docentes
+  const [filtroId, setFiltroId] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [savingEstado, setSavingEstado] = useState(false);
+
+  const cargarVersiones = useCallback(async () => {
+    if (!anio) return;
+    try {
+      const params = { anio };
+      if (nivelId) params.nivel_id = nivelId;
+      const { data } = await api.get(`${API}/versiones`, { params });
+      setVersiones(data.versiones || []);
+    } catch {
+      setVersiones([]);
+    }
+  }, [anio, nivelId]);
+
+  const cargarVista = useCallback(async () => {
+    if (!versionId) {
+      setVista(null);
+      return;
+    }
+    try {
+      setLoading(true);
+      const { data } = await api.get(`${API}/vista-final`, { params: { version_id: versionId } });
+      setVista(data);
+      setFiltroId('');
+    } catch (e) {
+      setVista(null);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo cargar el resultado',
+        ...swalOpts,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [versionId]);
+
+  useEffect(() => {
+    cargarVersiones();
+  }, [cargarVersiones]);
+
+  useEffect(() => {
+    setVersionId('');
+    setVista(null);
+  }, [nivelId]);
+
+  useEffect(() => {
+    cargarVista();
+  }, [cargarVista]);
+
+  const cambiarEstado = async (estado) => {
+    if (!versionId) return;
+    try {
+      setSavingEstado(true);
+      const { data } = await api.patch(`${API}/versiones/${versionId}/estado`, { estado });
+      await Swal.fire({
+        icon: 'success',
+        title: 'Estado actualizado',
+        text: data.message || estado,
+        timer: 1800,
+        showConfirmButton: false,
+        ...swalOpts,
+      });
+      await cargarVersiones();
+      await cargarVista();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo cambiar el estado',
+        ...swalOpts,
+      });
+    } finally {
+      setSavingEstado(false);
+    }
+  };
+
+  const entradaEn = (entradas, dia, bloqueId) =>
+    (entradas || []).find(
+      (e) => Number(e.dia_semana) === Number(dia) && Number(e.bloque_id) === Number(bloqueId)
+    );
+
+  const items =
+    modo === 'grupos'
+      ? vista?.grupos || []
+      : vista?.docentes || [];
+
+  const itemsFiltrados = filtroId
+    ? items.filter((it) =>
+        modo === 'grupos'
+          ? String(it.grupo_id) === String(filtroId)
+          : String(it.personal_id || '') === String(filtroId)
+      )
+    : items;
+
+  const r = vista?.resumen;
+
+  return (
+    <div className="hg-resultado">
+      <section className="hg-panel hg-no-print" style={{ marginBottom: '1rem' }}>
+        <div className="hg-panel-head">
+          <h2>Resultado final · {anio}</h2>
+          <div className="hg-actions">
+            <button type="button" className="hg-btn hg-btn-light hg-btn-sm" onClick={cargarVista} disabled={!versionId}>
+              Actualizar
+            </button>
+            <button
+              type="button"
+              className="hg-btn hg-btn-primary hg-btn-sm"
+              disabled={!vista}
+              onClick={() => window.print()}
+            >
+              Imprimir / PDF
+            </button>
+          </div>
+        </div>
+        <p className="hg-muted" style={{ marginTop: 0 }}>
+          Vista previa del horario generado. Aquí revisas cómo queda <strong>antes</strong> de vincularlo al sistema
+          (`grupos_horarios`). Todavía no afecta a docentes ni alumnos.
+        </p>
+        <div className="hg-filters">
+          <label>
+            Nivel
+            <select value={nivelId} onChange={(e) => setNivelId(e.target.value)}>
+              <option value="">— Todos —</option>
+              {niveles.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Versión / borrador *
+            <select value={versionId} onChange={(e) => setVersionId(e.target.value)}>
+              <option value="">— Elegir —</option>
+              {versiones.map((v) => (
+                <option key={v.id} value={v.id}>
+                  #{v.id} · {v.nombre || v.nivel_nombre || 'Borrador'} · {v.estado} · {v.total_entradas || 0} clases
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Ver por
+            <select
+              value={modo}
+              onChange={(e) => {
+                setModo(e.target.value);
+                setFiltroId('');
+              }}
+            >
+              <option value="grupos">Grupos</option>
+              <option value="docentes">Docentes</option>
+            </select>
+          </label>
+          {vista && (
+            <label>
+              Filtrar
+              <select value={filtroId} onChange={(e) => setFiltroId(e.target.value)}>
+                <option value="">— Todos —</option>
+                {items.map((it) =>
+                  modo === 'grupos' ? (
+                    <option key={it.grupo_id} value={it.grupo_id}>
+                      {it.label}
+                    </option>
+                  ) : (
+                    <option key={it.personal_id || it.nombre} value={it.personal_id || ''}>
+                      {it.nombre}
+                    </option>
+                  )
+                )}
+              </select>
+            </label>
+          )}
+        </div>
+      </section>
+
+      {loading ? (
+        <p className="hg-muted">Cargando resultado…</p>
+      ) : !versionId ? (
+        <section className="hg-panel">
+          <p className="hg-muted" style={{ margin: 0 }}>
+            Elige un borrador generado (fase 5) o editado (fase 4) para ver el horario completo.
+          </p>
+        </section>
+      ) : vista ? (
+        <>
+          <section className="hg-panel hg-resumen-final" style={{ marginBottom: '1rem' }}>
+            <div className="hg-panel-head">
+              <h2>
+                {vista.version?.nombre || 'Borrador'}{' '}
+                <span className="hg-muted">
+                  · {vista.version?.nivel_nombre || ''} · {vista.version?.anio}
+                </span>
+              </h2>
+              <span className={`hg-badge ${vista.version?.estado === 'APPROVED' ? 'ok' : 'off'}`}>
+                {vista.version?.estado}
+              </span>
+            </div>
+            <div className="hg-stats">
+              <div>
+                <strong>{r?.completitud_pct ?? 0}%</strong>
+                <span>Completitud</span>
+              </div>
+              <div>
+                <strong>
+                  {r?.bloques_colocados ?? 0}/{r?.bloques_esperados ?? 0}
+                </strong>
+                <span>Bloques</span>
+              </div>
+              <div>
+                <strong>{r?.total_grupos ?? 0}</strong>
+                <span>Grupos</span>
+              </div>
+              <div>
+                <strong>{r?.total_docentes ?? 0}</strong>
+                <span>Docentes</span>
+              </div>
+            </div>
+            <p className="hg-aviso-final">{vista.aviso}</p>
+            <div className="hg-actions hg-no-print" style={{ marginTop: '0.75rem' }}>
+              <button
+                type="button"
+                className="hg-btn hg-btn-sm hg-btn-ghost"
+                disabled={savingEstado}
+                onClick={() => cambiarEstado('REVIEW')}
+              >
+                Marcar en revisión
+              </button>
+              <button
+                type="button"
+                className="hg-btn hg-btn-sm hg-btn-primary"
+                disabled={savingEstado}
+                onClick={() => cambiarEstado('APPROVED')}
+              >
+                Aprobar (listo para vincular)
+              </button>
+              <button
+                type="button"
+                className="hg-btn hg-btn-sm"
+                disabled={savingEstado}
+                onClick={() => cambiarEstado('DRAFT')}
+              >
+                Volver a borrador
+              </button>
+            </div>
+            {r?.pendientes?.length > 0 && (
+              <div className="hg-diag" style={{ marginTop: '1rem' }}>
+                <h4>Pendientes ({r.pendientes.length})</h4>
+                <ul>
+                  {r.pendientes.slice(0, 12).map((p) => (
+                    <li key={p.carga_id}>
+                      {p.curso} · {p.grupo}: faltan {p.faltan} ({p.colocados}/{p.necesarios})
+                    </li>
+                  ))}
+                  {r.pendientes.length > 12 && <li>… y {r.pendientes.length - 12} más</li>}
+                </ul>
+              </div>
+            )}
+          </section>
+
+          <div className="hg-print-area">
+            {itemsFiltrados.length === 0 ? (
+              <section className="hg-panel">
+                <p className="hg-muted" style={{ margin: 0 }}>
+                  Esta versión no tiene clases colocadas todavía.
+                </p>
+              </section>
+            ) : (
+              itemsFiltrados.map((it) => {
+                const key = modo === 'grupos' ? `g-${it.grupo_id}` : `d-${it.personal_id || it.nombre}`;
+                const titulo = modo === 'grupos' ? it.label : it.nombre;
+                return (
+                  <section key={key} className="hg-panel hg-horario-sheet">
+                    <div className="hg-panel-head">
+                      <h2>
+                        {modo === 'grupos' ? 'Grupo' : 'Docente'}: {titulo}
+                      </h2>
+                      <span className="hg-muted">{(it.entradas || []).length} clases</span>
+                    </div>
+                    <div className="hg-grid-wrap">
+                      <div
+                        className="hg-grid"
+                        style={{
+                          gridTemplateColumns: `minmax(110px, 1.1fr) repeat(${(vista.dias || DIAS).length}, minmax(90px, 1fr))`,
+                        }}
+                      >
+                        <div className="hg-grid-corner">Hora</div>
+                        {(vista.dias || DIAS).map((d) => (
+                          <div key={d.value} className="hg-grid-day">
+                            {d.label}
+                          </div>
+                        ))}
+                        {(vista.bloques || []).map((b) => (
+                          <React.Fragment key={b.id}>
+                            <div className="hg-grid-block-label">
+                              <strong>{b.nombre}</strong>
+                              <em>
+                                {fmtTime(b.hora_inicio)}–{fmtTime(b.hora_fin)}
+                              </em>
+                            </div>
+                            {(vista.dias || DIAS).map((d) => {
+                              const isBreak = b.tipo === 'BREAK' || b.tipo === 'LUNCH';
+                              const e = entradaEn(it.entradas, d.value, b.id);
+                              return (
+                                <div
+                                  key={`${b.id}-${d.value}`}
+                                  className={`hg-cell${isBreak ? ' hg-cell--break' : ''}${e ? ' hg-cell--filled' : ''}`}
+                                >
+                                  {isBreak ? (
+                                    <span className="hg-cell-muted">{b.tipo === 'LUNCH' ? 'Almuerzo' : 'Recreo'}</span>
+                                  ) : e ? (
+                                    <div
+                                      className="hg-cell-card"
+                                      style={
+                                        e.carga_color
+                                          ? { borderLeft: `3px solid ${e.carga_color}` }
+                                          : undefined
+                                      }
+                                    >
+                                      <strong>{e.curso_nombre || 'Curso'}</strong>
+                                      <small>
+                                        {modo === 'grupos'
+                                          ? e.docente_nombre || 'Sin docente'
+                                          : e.grupo_label || 'Grupo'}
+                                      </small>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+                );
+              })
+            )}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function SolverPanel({ anio, niveles, onOpenEditor, onOpenResultado }) {
+  const [nivelId, setNivelId] = useState('');
+  const [maxAlt, setMaxAlt] = useState(1);
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState(null);
+  const [runs, setRuns] = useState([]);
+
+  const cargarRuns = useCallback(async () => {
+    if (!anio) return;
+    try {
+      const { data } = await api.get(`${API}/solver/runs`, { params: { anio } });
+      setRuns(data.runs || []);
+    } catch {
+      setRuns([]);
+    }
+  }, [anio]);
+
+  useEffect(() => {
+    cargarRuns();
+  }, [cargarRuns]);
+
+  const generar = async () => {
+    if (!nivelId) {
+      Swal.fire({ icon: 'info', title: 'Elige un nivel', ...swalOpts });
+      return;
+    }
+    const conf = await Swal.fire({
+      icon: 'question',
+      title: '¿Generar horarios?',
+      html: `Nivel seleccionado + carga + disponibilidad + bloques CLASS.<br/>Crea borrador(es) en <code>horario_gen_*</code> (no toca el horario actual).`,
+      showCancelButton: true,
+      confirmButtonText: 'Generar',
+      cancelButtonText: 'Cancelar',
+      ...swalOpts,
+    });
+    if (!conf.isConfirmed) return;
+
+    try {
+      setRunning(true);
+      setResult(null);
+      const { data } = await api.post(`${API}/solver/generar`, {
+        anio,
+        nivel_id: Number(nivelId),
+        max_alternatives: Number(maxAlt) || 1,
+      });
+      setResult(data);
+      await cargarRuns();
+      if (data.estado === 'COMPLETE') {
+        Swal.fire({
+          icon: 'success',
+          title: 'Horario generado',
+          text: data.best
+            ? `${data.best.placed}/${data.best.total} bloques · score ${data.best.score}%`
+            : 'Listo',
+          ...swalOpts,
+        });
+      } else {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Sin solución completa',
+          text: 'Revise el diagnóstico. Puede completar en el Editor.',
+          ...swalOpts,
+        });
+      }
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'Falló el solver',
+        ...swalOpts,
+      });
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div>
+      <section className="hg-panel" style={{ marginBottom: '1rem' }}>
+        <div className="hg-panel-head">
+          <h2>Generar automáticamente · {anio}</h2>
+          <button type="button" className="hg-btn hg-btn-primary" disabled={running} onClick={generar}>
+            {running ? 'Generando…' : '✨ Generar horarios'}
+          </button>
+        </div>
+        <p className="hg-muted" style={{ marginTop: 0 }}>
+          Usa la configuración de bloques, la disponibilidad docente y la carga semanal. Respeta restricciones duras
+          (docente, grupo, recreo, disponibilidad). Soft score orientativo.
+        </p>
+        <div className="hg-filters">
+          <label>
+            Nivel *
+            <select value={nivelId} onChange={(e) => setNivelId(e.target.value)}>
+              <option value="">— Elegir —</option>
+              {niveles.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Alternativas
+            <select value={maxAlt} onChange={(e) => setMaxAlt(e.target.value)}>
+              <option value={1}>1</option>
+              <option value={2}>2</option>
+              <option value={3}>3</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      {result && (
+        <section className="hg-panel" style={{ marginBottom: '1rem' }}>
+          <h3 style={{ marginTop: 0 }}>
+            Resultado:{' '}
+            <span className={`hg-badge ${result.estado === 'COMPLETE' ? 'ok' : 'off'}`}>{result.estado}</span>
+          </h3>
+          {(result.alternatives || []).map((a) => (
+            <div key={a.version_id} className="hg-alt-card">
+              <div>
+                <strong>
+                  {a.nombre} · score {a.score}%
+                </strong>
+                <p className="hg-muted" style={{ margin: '0.25rem 0 0' }}>
+                  {a.placed}/{a.total} bloques · versión #{a.version_id} · {a.ok ? 'completo' : 'parcial'}
+                </p>
+              </div>
+              <div className="hg-actions">
+                <button type="button" className="hg-btn hg-btn-sm" onClick={() => onOpenEditor?.()}>
+                  Ver en Editor
+                </button>
+                <button type="button" className="hg-btn hg-btn-sm hg-btn-primary" onClick={() => onOpenResultado?.()}>
+                  Ver resultado
+                </button>
+              </div>
+            </div>
+          ))}
+          {result.diagnostico?.causas?.length > 0 && (
+            <div className="hg-diag">
+              <h4>Diagnóstico</h4>
+              <ul>
+                {result.diagnostico.causas.map((c, i) => (
+                  <li key={`c-${i}`}>{c}</li>
+                ))}
+              </ul>
+              {result.diagnostico.sugerencias?.length > 0 && (
+                <>
+                  <h4>Sugerencias</h4>
+                  <ul>
+                    {result.diagnostico.sugerencias.map((s, i) => (
+                      <li key={`s-${i}`}>{s}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      <section className="hg-panel">
+        <div className="hg-panel-head">
+          <h2>Últimas ejecuciones</h2>
+          <button type="button" className="hg-btn hg-btn-light hg-btn-sm" onClick={cargarRuns}>
+            Actualizar
+          </button>
+        </div>
+        {runs.length === 0 ? (
+          <p className="hg-muted">Aún no hay ejecuciones este año.</p>
+        ) : (
+          <div className="hg-table-wrap">
+            <table className="hg-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Estado</th>
+                  <th>Mensaje</th>
+                  <th>Versión</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.id}</td>
+                    <td>
+                      <span className={`hg-badge ${r.estado === 'COMPLETE' ? 'ok' : 'off'}`}>{r.estado}</span>
+                    </td>
+                    <td>{r.mensaje || '—'}</td>
+                    <td>{r.version_id || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function EditorPanel({ anio, niveles }) {
+  const [nivelId, setNivelId] = useState('');
+  const [versiones, setVersiones] = useState([]);
+  const [versionId, setVersionId] = useState('');
+  const [grupos, setGrupos] = useState([]);
+  const [grupoId, setGrupoId] = useState('');
+  const [board, setBoard] = useState(null);
+  const [selectedCargaId, setSelectedCargaId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const cargarVersiones = useCallback(async () => {
+    if (!anio) return;
+    try {
+      const params = { anio };
+      if (nivelId) params.nivel_id = nivelId;
+      const { data } = await api.get(`${API}/versiones`, { params });
+      setVersiones(data.versiones || []);
+    } catch {
+      setVersiones([]);
+    }
+  }, [anio, nivelId]);
+
+  const cargarGrupos = useCallback(async () => {
+    if (!anio || !nivelId) {
+      setGrupos([]);
+      return;
+    }
+    try {
+      const { data } = await api.get(`${API}/grupos`, { params: { anio, nivel_id: nivelId } });
+      setGrupos(data.grupos || []);
+    } catch {
+      setGrupos([]);
+    }
+  }, [anio, nivelId]);
+
+  const cargarBoard = useCallback(async () => {
+    if (!versionId || !grupoId) {
+      setBoard(null);
+      return;
+    }
+    try {
+      setLoading(true);
+      setMsg('');
+      const { data } = await api.get(`${API}/editor`, {
+        params: { version_id: versionId, grupo_id: grupoId },
+      });
+      setBoard(data);
+    } catch (e) {
+      setBoard(null);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo cargar el editor',
+        ...swalOpts,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [versionId, grupoId]);
+
+  useEffect(() => {
+    cargarVersiones();
+  }, [cargarVersiones]);
+
+  useEffect(() => {
+    setVersionId('');
+    setGrupoId('');
+    setBoard(null);
+    cargarGrupos();
+  }, [nivelId, cargarGrupos]);
+
+  useEffect(() => {
+    cargarBoard();
+  }, [cargarBoard]);
+
+  const crearVersion = async () => {
+    if (!nivelId) {
+      Swal.fire({ icon: 'info', title: 'Elige un nivel', ...swalOpts });
+      return;
+    }
+    try {
+      const { data } = await api.post(`${API}/versiones`, { anio, nivel_id: Number(nivelId) });
+      await cargarVersiones();
+      setVersionId(String(data.version.id));
+      Swal.fire({
+        icon: 'success',
+        title: 'Borrador creado',
+        text: 'Ahora elige un grupo y coloca cursos en la grilla.',
+        timer: 1800,
+        showConfirmButton: false,
+        ...swalOpts,
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo crear',
+        ...swalOpts,
+      });
+    }
+  };
+
+  const eliminarVersion = async () => {
+    if (!versionId) return;
+    const conf = await Swal.fire({
+      icon: 'warning',
+      title: '¿Eliminar borrador?',
+      text: 'Se borran todas las clases de esta versión piloto.',
+      showCancelButton: true,
+      confirmButtonText: 'Sí',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b91c1c',
+      ...swalOpts,
+    });
+    if (!conf.isConfirmed) return;
+    try {
+      await api.delete(`${API}/versiones/${versionId}`);
+      setVersionId('');
+      setBoard(null);
+      await cargarVersiones();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo eliminar',
+        ...swalOpts,
+      });
+    }
+  };
+
+  const entradaEn = (dia, bloqueId) =>
+    (board?.entradas || []).find(
+      (e) => Number(e.dia_semana) === Number(dia) && Number(e.bloque_id) === Number(bloqueId)
+    );
+
+  const colocar = async (dia, bloque) => {
+    if (!selectedCargaId || !versionId || !grupoId) {
+      setMsg('Selecciona un curso pendiente en el panel izquierdo.');
+      return;
+    }
+    if (bloque.tipo === 'BREAK' || bloque.tipo === 'LUNCH') {
+      setMsg('No se puede colocar en recreo/almuerzo.');
+      return;
+    }
+    try {
+      await api.post(`${API}/entradas`, {
+        version_id: Number(versionId),
+        dia_semana: dia,
+        bloque_id: bloque.id,
+        grupo_id: Number(grupoId),
+        carga_id: Number(selectedCargaId),
+      });
+      setMsg('');
+      await cargarBoard();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo colocar',
+        text: e.response?.data?.error || 'Conflicto de horario',
+        ...swalOpts,
+      });
+    }
+  };
+
+  const onDropCelda = async (e, dia, bloque) => {
+    e.preventDefault();
+    const cargaId = e.dataTransfer.getData('carga_id') || selectedCargaId;
+    if (!cargaId) return;
+    setSelectedCargaId(Number(cargaId));
+    // temporary set then place
+    try {
+      await api.post(`${API}/entradas`, {
+        version_id: Number(versionId),
+        dia_semana: dia,
+        bloque_id: bloque.id,
+        grupo_id: Number(grupoId),
+        carga_id: Number(cargaId),
+      });
+      await cargarBoard();
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo colocar',
+        text: err.response?.data?.error || 'Conflicto',
+        ...swalOpts,
+      });
+    }
+  };
+
+  const quitar = async (entrada) => {
+    try {
+      await api.delete(`${API}/entradas/${entrada.id}`);
+      await cargarBoard();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo quitar',
+        ...swalOpts,
+      });
+    }
+  };
+
+  const toggleLock = async (entrada) => {
+    try {
+      await api.patch(`${API}/entradas/${entrada.id}/lock`, {
+        locked: esActivo(entrada.locked) ? 0 : 1,
+      });
+      await cargarBoard();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo bloquear',
+        ...swalOpts,
+      });
+    }
+  };
+
+  const pendientes = (board?.cargas || []).filter((c) => c.faltan > 0);
+  const completos = (board?.cargas || []).filter((c) => c.faltan <= 0);
+
+  return (
+    <div>
+      <section className="hg-panel" style={{ marginBottom: '1rem' }}>
+        <div className="hg-panel-head">
+          <h2>Editor de horario · {anio}</h2>
+          <div className="hg-actions">
+            <button type="button" className="hg-btn hg-btn-primary" onClick={crearVersion}>
+              + Nuevo borrador
+            </button>
+            {versionId && (
+              <button type="button" className="hg-btn hg-btn-danger hg-btn-sm" onClick={eliminarVersion}>
+                Eliminar borrador
+              </button>
+            )}
+          </div>
+        </div>
+        <p className="hg-muted" style={{ marginTop: 0 }}>
+          Crea un borrador por nivel, elige el grupo y coloca cursos (clic o arrastrar). Sigue siendo piloto: no escribe en{' '}
+          <code>grupos_horarios</code>.
+        </p>
+        <div className="hg-filters">
+          <label>
+            Nivel *
+            <select value={nivelId} onChange={(e) => setNivelId(e.target.value)}>
+              <option value="">— Elegir —</option>
+              {niveles.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Borrador / versión
+            <select value={versionId} onChange={(e) => setVersionId(e.target.value)}>
+              <option value="">— Elegir —</option>
+              {versiones.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.nombre} ({v.estado}) · {v.total_entradas || 0} clases
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Grupo / aula
+            <select value={grupoId} onChange={(e) => setGrupoId(e.target.value)} disabled={!nivelId}>
+              <option value="">— Elegir —</option>
+              {grupos.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.nivel_nombre} {g.grado}
+                  {g.seccion ? ` ${g.seccion}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {msg && <p className="hg-error">{msg}</p>}
+      </section>
+
+      {!versionId || !grupoId ? (
+        <p className="hg-muted">Elige nivel, crea/elige un borrador y un grupo para ver la grilla.</p>
+      ) : loading ? (
+        <p className="hg-muted">Cargando grilla…</p>
+      ) : !board ? null : (
+        <div className="hg-editor">
+          <aside className="hg-panel hg-sidebar-carga">
+            <h3>Pendientes</h3>
+            <p className="hg-muted" style={{ fontSize: '0.82rem' }}>
+              Clic para seleccionar, luego clic en una celda CLASS. O arrastra a la celda.
+            </p>
+            {pendientes.length === 0 ? (
+              <p className="hg-muted">Todas las cargas de este grupo están colocadas.</p>
+            ) : (
+              pendientes.map((c) => (
+                <div
+                  key={c.id}
+                  className={`hg-carga-chip${Number(selectedCargaId) === Number(c.id) ? ' hg-carga-chip--sel' : ''}`}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('carga_id', String(c.id));
+                    setSelectedCargaId(c.id);
+                  }}
+                  onClick={() => setSelectedCargaId(c.id)}
+                  style={c.color ? { borderLeftColor: c.color } : undefined}
+                >
+                  <strong>{c.curso_nombre || 'Curso'}</strong>
+                  <span>
+                    {c.colocados}/{c.bloques_semanales} · faltan {c.faltan}
+                  </span>
+                  <small>{c.docente_nombre || 'Sin docente'}</small>
+                </div>
+              ))
+            )}
+            {completos.length > 0 && (
+              <>
+                <h3 style={{ marginTop: '1rem' }}>Completos</h3>
+                {completos.map((c) => (
+                  <div key={c.id} className="hg-carga-chip hg-carga-chip--done">
+                    <strong>{c.curso_nombre}</strong>
+                    <span>
+                      {c.colocados}/{c.bloques_semanales}
+                    </span>
+                  </div>
+                ))}
+              </>
+            )}
+          </aside>
+
+          <div className="hg-panel hg-grid-wrap">
+            <div className="hg-grid" style={{ ['--hg-cols']: DIAS.length }}>
+              <div className="hg-grid-corner">Bloque</div>
+              {DIAS.map((d) => (
+                <div key={d.value} className="hg-grid-day">
+                  {d.label}
+                </div>
+              ))}
+              {(board.bloques || []).map((b) => (
+                <React.Fragment key={b.id}>
+                  <div className={`hg-grid-block-label hg-block--${String(b.tipo).toLowerCase()}`}>
+                    <strong>{b.nombre}</strong>
+                    <span>
+                      {fmtTime(b.hora_inicio)}–{fmtTime(b.hora_fin)}
+                    </span>
+                    <em>{b.tipo}</em>
+                  </div>
+                  {DIAS.map((d) => {
+                    const ent = entradaEn(d.value, b.id);
+                    const isBreak = b.tipo === 'BREAK' || b.tipo === 'LUNCH';
+                    return (
+                      <div
+                        key={`${d.value}-${b.id}`}
+                        className={`hg-cell${isBreak ? ' hg-cell--break' : ''}${ent ? ' hg-cell--filled' : ''}`}
+                        onDragOver={(e) => {
+                          if (!isBreak) e.preventDefault();
+                        }}
+                        onDrop={(e) => {
+                          if (!isBreak) onDropCelda(e, d.value, b);
+                        }}
+                        onClick={() => {
+                          if (isBreak) return;
+                          if (ent) return;
+                          colocar(d.value, b);
+                        }}
+                      >
+                        {isBreak ? (
+                          <span className="hg-cell-muted">{b.tipo}</span>
+                        ) : ent ? (
+                          <div className="hg-cell-card">
+                            <strong>{ent.curso_nombre || 'Clase'}</strong>
+                            <small>{ent.docente_nombre || ''}</small>
+                            <div className="hg-actions">
+                              <button
+                                type="button"
+                                className="hg-btn hg-btn-sm hg-btn-ghost"
+                                title={esActivo(ent.locked) ? 'Desbloquear' : 'Bloquear'}
+                                onClick={(ev) => {
+                                  ev.stopPropagation();
+                                  toggleLock(ent);
+                                }}
+                              >
+                                {esActivo(ent.locked) ? '🔒' : '🔓'}
+                              </button>
+                              {!esActivo(ent.locked) && (
+                                <button
+                                  type="button"
+                                  className="hg-btn hg-btn-sm hg-btn-danger"
+                                  onClick={(ev) => {
+                                    ev.stopPropagation();
+                                    quitar(ent);
+                                  }}
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="hg-cell-muted">+</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
