@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS `horario_gen_carga` (
   `asignatura_id` INT NULL COMMENT 'asignaturas.id si ya existe la carga docente',
   `personal_id` INT NULL COMMENT 'docente preferido/asignado',
   `bloques_semanales` INT NOT NULL DEFAULT 1,
-  `bloques_consecutivos_min` INT NOT NULL DEFAULT 1,
+  `bloques_consecutivos_min` INT NOT NULL DEFAULT 2,
   `bloques_consecutivos_max` INT NOT NULL DEFAULT 2,
   `color` VARCHAR(20) NULL DEFAULT NULL,
   `activo` TINYINT(1) NOT NULL DEFAULT 1,

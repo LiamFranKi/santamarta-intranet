@@ -1979,7 +1979,7 @@ function CargaPanel({ anio, niveles, docentes }) {
       setSaving(true);
       await api.put(`${API}/carga/${editId}`, {
         bloques_semanales: Number(editForm.bloques_semanales) || 1,
-        bloques_consecutivos_min: Number(editForm.bloques_consecutivos_min) || 1,
+        bloques_consecutivos_min: Number(editForm.bloques_consecutivos_min) || 2,
         bloques_consecutivos_max: Number(editForm.bloques_consecutivos_max) || 2,
         personal_id: editForm.personal_id ? Number(editForm.personal_id) : null,
         color: editForm.color || null,
@@ -2099,8 +2099,8 @@ function CargaPanel({ anio, niveles, docentes }) {
                   <th>Grupo</th>
                   <th>Curso</th>
                   <th>Docente</th>
-                  <th>Horas</th>
-                  <th>Horas seguidas</th>
+                  <th className="hg-col-center">Horas</th>
+                  <th className="hg-col-center">Horas seguidas</th>
                   <th>Estado</th>
                   <th />
                 </tr>
@@ -2124,7 +2124,7 @@ function CargaPanel({ anio, niveles, docentes }) {
                           ))}
                         </select>
                       </td>
-                      <td>
+                      <td className="hg-col-center">
                         <input
                           type="number"
                           min={1}
@@ -2133,8 +2133,8 @@ function CargaPanel({ anio, niveles, docentes }) {
                           onChange={(e) => setEditForm((f) => ({ ...f, bloques_semanales: e.target.value }))}
                         />
                       </td>
-                      <td>
-                        <div className="hg-actions">
+                      <td className="hg-col-center">
+                        <div className="hg-actions" style={{ justifyContent: 'center' }}>
                           <input
                             type="number"
                             min={1}
@@ -2144,6 +2144,7 @@ function CargaPanel({ anio, niveles, docentes }) {
                               setEditForm((f) => ({ ...f, bloques_consecutivos_min: e.target.value }))
                             }
                           />
+                          /
                           <input
                             type="number"
                             min={1}
@@ -2184,10 +2185,10 @@ function CargaPanel({ anio, niveles, docentes }) {
                         ) : null}
                       </td>
                       <td>{c.docente_nombre || '—'}</td>
-                      <td>
+                      <td className="hg-col-center">
                         <strong>{c.bloques_semanales}</strong>
                       </td>
-                      <td>
+                      <td className="hg-col-center">
                         {c.bloques_consecutivos_min}/{c.bloques_consecutivos_max}
                       </td>
                       <td>

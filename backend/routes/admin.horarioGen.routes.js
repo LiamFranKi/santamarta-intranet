@@ -787,7 +787,7 @@ router.post('/carga', async (req, res) => {
     const asignatura_id = parseId(b.asignatura_id);
     const personal_id = parseId(b.personal_id);
     const bloques = Math.max(1, parseInt(b.bloques_semanales, 10) || 1);
-    const minC = Math.max(1, parseInt(b.bloques_consecutivos_min, 10) || 1);
+    const minC = Math.max(1, parseInt(b.bloques_consecutivos_min, 10) || 2);
     const maxC = Math.max(minC, parseInt(b.bloques_consecutivos_max, 10) || 2);
     const color = b.color != null ? String(b.color).slice(0, 20) : null;
     const activo = toBool01(b.activo, 1);
@@ -906,7 +906,7 @@ router.post('/carga/importar-asignaturas', async (req, res) => {
         `INSERT INTO horario_gen_carga
           (colegio_id, anio, grupo_id, curso_id, asignatura_id, personal_id,
            bloques_semanales, bloques_consecutivos_min, bloques_consecutivos_max, activo)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 1, 2, 1)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, 2, 2, 1)`,
         [cid, anio, a.grupo_id, a.curso_id, a.asignatura_id, a.personal_id, bloquesDefault]
       );
       creadas += 1;
