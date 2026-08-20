@@ -1090,7 +1090,7 @@ router.get('/editor', async (req, res) => {
 
     const entradas = await query(
       `SELECT e.*,
-              cur.nombre AS curso_nombre,
+              COALESCE(cur.nombre, e.texto_libre) AS curso_nombre,
               TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS docente_nombre,
               cg.bloques_semanales, cg.color AS carga_color
        FROM horario_gen_entradas e
@@ -1163,6 +1163,7 @@ router.post('/entradas', async (req, res) => {
     const bloqueId = parseId(b.bloque_id);
     const grupoId = parseId(b.grupo_id);
     const cargaId = parseId(b.carga_id);
+    const textoLibre = String(b.texto_libre || '').trim() || null;
 
     const result = await validatePlacement({
       colegioId: cid,
@@ -1171,37 +1172,50 @@ router.post('/entradas', async (req, res) => {
       bloqueId,
       grupoId,
       cargaId,
+      textoLibre,
     });
     if (!result.valid) {
       return res.status(409).json({ error: result.errors.join(' '), ...result });
     }
 
-    const cargaRows = await query(`SELECT * FROM horario_gen_carga WHERE id = ? AND colegio_id = ?`, [
-      cargaId,
-      cid,
-    ]);
-    const carga = cargaRows[0];
+    let curso_id = null;
+    let asignatura_id = null;
+    let personal_id = null;
+    let carga_id = null;
+    let texto_libre = null;
+
+    if (textoLibre && !cargaId) {
+      texto_libre = textoLibre.slice(0, 120);
+    } else {
+      const cargaRows = await query(`SELECT * FROM horario_gen_carga WHERE id = ? AND colegio_id = ?`, [
+        cargaId,
+        cid,
+      ]);
+      const carga = cargaRows[0];
+      curso_id = carga.curso_id || null;
+      asignatura_id = carga.asignatura_id || null;
+      personal_id = carga.personal_id || null;
+      carga_id = cargaId;
+    }
 
     const r = await execute(
       `INSERT INTO horario_gen_entradas
-        (version_id, bloque_id, dia_semana, grupo_id, curso_id, asignatura_id, personal_id, carga_id, locked)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
-      [
-        versionId,
-        bloqueId,
-        dia,
-        grupoId,
-        carga.curso_id || null,
-        carga.asignatura_id || null,
-        carga.personal_id || null,
-        cargaId,
-      ]
+        (version_id, bloque_id, dia_semana, grupo_id, curso_id, asignatura_id, personal_id, carga_id, texto_libre, locked)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+      [versionId, bloqueId, dia, grupoId, curso_id, asignatura_id, personal_id, carga_id, texto_libre]
     );
     const rows = await query(`SELECT * FROM horario_gen_entradas WHERE id = ?`, [r.insertId]);
     res.status(201).json({ entrada: rows[0], warnings: result.warnings });
   } catch (e) {
     if (e.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ error: 'Ese bloque ya está ocupado para el grupo.' });
+    }
+    if (e.code === 'ER_BAD_FIELD_ERROR' || String(e.message || '').includes('texto_libre')) {
+      return res.status(503).json({
+        error:
+          'Falta la columna texto_libre. En phpMyAdmin ejecute el ALTER al final de sql/horario_gen_modulo.sql',
+        code: 'MIGRATION_REQUIRED',
+      });
     }
     res.status(500).json({ error: e.message || 'Error al colocar clase.' });
   }
@@ -1651,7 +1665,7 @@ router.get('/vista-final', async (req, res) => {
 
     const entradas = await query(
       `SELECT e.*,
-              cur.nombre AS curso_nombre,
+              COALESCE(cur.nombre, e.texto_libre) AS curso_nombre,
               g.grado, g.seccion, g.nivel_id,
               n.nombre AS nivel_nombre,
               TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS docente_nombre,
@@ -1832,7 +1846,7 @@ router.post('/versiones/:id/vincular', async (req, res) => {
     const entradas = await query(
       `SELECT e.*,
               b.hora_inicio, b.hora_fin, b.tipo AS bloque_tipo, b.nombre AS bloque_nombre,
-              cur.nombre AS curso_nombre,
+              COALESCE(cur.nombre, e.texto_libre) AS curso_nombre,
               g.grado, g.seccion, n.nombre AS nivel_nombre
        FROM horario_gen_entradas e
        INNER JOIN horario_gen_bloques b ON b.id = e.bloque_id
@@ -1886,14 +1900,14 @@ router.post('/versiones/:id/vincular', async (req, res) => {
       const dia = formatDia(e.dia_semana);
       const hora_inicio = formatHora(e.hora_inicio);
       const hora_final = formatHora(e.hora_fin);
-      const descripcion = e.curso_nombre || e.bloque_nombre || 'Clase';
+      const descripcion = e.texto_libre || e.curso_nombre || e.bloque_nombre || 'Clase';
       await execute(
         `INSERT INTO grupos_horarios
            (grupo_id, asignatura_id, personal_id, dia, hora_inicio, hora_final, descripcion, tipo, anio)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'GRUPO', ?)`,
         [
           Number(e.grupo_id),
-          e.asignatura_id ? Number(e.asignatura_id) : 0,
+          e.texto_libre ? 0 : e.asignatura_id ? Number(e.asignatura_id) : 0,
           e.personal_id ? Number(e.personal_id) : 0,
           dia,
           hora_inicio,

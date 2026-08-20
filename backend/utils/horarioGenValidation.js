@@ -26,14 +26,26 @@ async function validatePlacement({
   diaSemana,
   bloqueId,
   grupoId,
-  cargaId,
+  cargaId = null,
+  textoLibre = null,
   excludeEntradaId = null,
 }) {
   const errors = [];
   const warnings = [];
+  const texto = String(textoLibre || '').trim();
+  const isLibre = Boolean(texto) && !cargaId;
 
-  if (!versionId || !diaSemana || !bloqueId || !grupoId || !cargaId) {
+  if (!versionId || !diaSemana || !bloqueId || !grupoId) {
     return { valid: false, errors: ['Faltan datos de colocación'], warnings };
+  }
+  if (!isLibre && !cargaId) {
+    return { valid: false, errors: ['Indique un curso de carga o un texto libre'], warnings };
+  }
+  if (isLibre && texto.length < 2) {
+    return { valid: false, errors: ['El texto libre debe tener al menos 2 caracteres'], warnings };
+  }
+  if (isLibre && texto.length > 120) {
+    return { valid: false, errors: ['El texto libre admite máximo 120 caracteres'], warnings };
   }
 
   const ver = await query(
@@ -52,7 +64,33 @@ async function validatePlacement({
   const bloque = bloqueRows[0];
 
   if (bloque.tipo === 'BREAK' || bloque.tipo === 'LUNCH') {
-    errors.push(`No se pueden colocar clases en ${bloque.tipo === 'BREAK' ? 'recreo' : 'almuerzo'} (${bloque.nombre}).`);
+    errors.push(
+      `No se pueden colocar clases en ${bloque.tipo === 'BREAK' ? 'recreo' : 'almuerzo'} (${bloque.nombre}).`
+    );
+  }
+
+  // Slot ocupado por el grupo
+  let slotSql = `
+    SELECT e.id, cur.nombre AS curso_nombre, e.texto_libre
+    FROM horario_gen_entradas e
+    LEFT JOIN cursos cur ON cur.id = e.curso_id
+    WHERE e.version_id = ? AND e.dia_semana = ? AND e.bloque_id = ? AND e.grupo_id = ?
+  `;
+  const slotParams = [versionId, diaSemana, bloqueId, grupoId];
+  if (excludeEntradaId) {
+    slotSql += ' AND e.id <> ?';
+    slotParams.push(excludeEntradaId);
+  }
+  const slot = await query(slotSql, slotParams);
+  if (slot?.length) {
+    errors.push(
+      `Este grupo ya tiene clase en ese bloque (${slot[0].curso_nombre || slot[0].texto_libre || 'otra asignatura'}).`
+    );
+  }
+
+  // Texto libre: no usa curso/carga/docente → no afecta libreta
+  if (isLibre) {
+    return { valid: errors.length === 0, errors, warnings };
   }
 
   const cargaRows = await query(
@@ -70,31 +108,12 @@ async function validatePlacement({
     errors.push('La carga está inactiva.');
   }
 
-  // Slot ocupado por el grupo
-  let slotSql = `
-    SELECT e.id, cur.nombre AS curso_nombre
-    FROM horario_gen_entradas e
-    LEFT JOIN cursos cur ON cur.id = e.curso_id
-    WHERE e.version_id = ? AND e.dia_semana = ? AND e.bloque_id = ? AND e.grupo_id = ?
-  `;
-  const slotParams = [versionId, diaSemana, bloqueId, grupoId];
-  if (excludeEntradaId) {
-    slotSql += ' AND e.id <> ?';
-    slotParams.push(excludeEntradaId);
-  }
-  const slot = await query(slotSql, slotParams);
-  if (slot?.length) {
-    errors.push(
-      `Este grupo ya tiene clase en ese bloque (${slot[0].curso_nombre || 'otra asignatura'}).`
-    );
-  }
-
   const personalId = carga.personal_id ? Number(carga.personal_id) : null;
 
   // Docente en dos aulas
   if (personalId) {
     let docSql = `
-      SELECT e.id, g.grado, g.seccion, cur.nombre AS curso_nombre
+      SELECT e.id, g.grado, g.seccion, cur.nombre AS curso_nombre, e.texto_libre
       FROM horario_gen_entradas e
       INNER JOIN grupos g ON g.id = e.grupo_id
       LEFT JOIN cursos cur ON cur.id = e.curso_id
@@ -109,7 +128,7 @@ async function validatePlacement({
     if (docClash?.length) {
       const c = docClash[0];
       errors.push(
-        `El docente ya tiene clase en ${c.grado ?? ''}${c.seccion ? ` ${c.seccion}` : ''} (${c.curso_nombre || 'curso'}) en ese bloque.`
+        `El docente ya tiene clase en ${c.grado ?? ''}${c.seccion ? ` ${c.seccion}` : ''} (${c.curso_nombre || c.texto_libre || 'curso'}) en ese bloque.`
       );
     }
 

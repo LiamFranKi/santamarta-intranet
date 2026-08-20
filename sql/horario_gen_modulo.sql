@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS `horario_gen_entradas` (
   `asignatura_id` INT NULL,
   `personal_id` INT NULL,
   `carga_id` INT UNSIGNED NULL,
+  `texto_libre` VARCHAR(120) NULL COMMENT 'Etiqueta manual (Tutoría, etc). NO es curso/libreta.',
   `aula_label` VARCHAR(80) NULL COMMENT 'aula física texto libre (piloto)',
   `locked` TINYINT(1) NOT NULL DEFAULT 0,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -184,3 +185,11 @@ CREATE TABLE IF NOT EXISTS `horario_gen_runs` (
 -- Verificación rápida (opcional):
 -- SHOW TABLES LIKE 'horario_gen_%';
 -- SELECT COUNT(*) FROM grupos_horarios; -- debe seguir igual; este SQL no la toca.
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Migración (si ya tenías las tablas creadas): ejecutar solo esto en phpMyAdmin
+-- ─────────────────────────────────────────────────────────────────────────────
+-- ALTER TABLE `horario_gen_entradas`
+--   ADD COLUMN `texto_libre` VARCHAR(120) NULL
+--     COMMENT 'Etiqueta manual (Tutoría, etc). NO es curso/libreta.'
+--     AFTER `aula_label`;

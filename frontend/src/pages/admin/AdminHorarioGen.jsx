@@ -1365,6 +1365,8 @@ function EditorPanel({ anio, niveles }) {
   const [grupoId, setGrupoId] = useState('');
   const [board, setBoard] = useState(null);
   const [selectedCargaId, setSelectedCargaId] = useState(null);
+  const [textoLibrePendiente, setTextoLibrePendiente] = useState('');
+  const [modoTextoLibre, setModoTextoLibre] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
 
@@ -1494,22 +1496,31 @@ function EditorPanel({ anio, niveles }) {
     );
 
   const colocar = async (dia, bloque) => {
-    if (!selectedCargaId || !versionId || !grupoId) {
-      setMsg('Selecciona un curso pendiente en el panel izquierdo.');
-      return;
-    }
+    if (!versionId || !grupoId) return;
     if (bloque.tipo === 'BREAK' || bloque.tipo === 'LUNCH') {
       setMsg('No se puede colocar en recreo/almuerzo.');
       return;
     }
+
+    const usarLibre = modoTextoLibre && String(textoLibrePendiente || '').trim();
+    if (!usarLibre && !selectedCargaId) {
+      setMsg('Selecciona un curso pendiente o activa Texto libre.');
+      return;
+    }
+
     try {
-      await api.post(`${API}/entradas`, {
+      const payload = {
         version_id: Number(versionId),
         dia_semana: dia,
         bloque_id: bloque.id,
         grupo_id: Number(grupoId),
-        carga_id: Number(selectedCargaId),
-      });
+      };
+      if (usarLibre) {
+        payload.texto_libre = String(textoLibrePendiente).trim().slice(0, 120);
+      } else {
+        payload.carga_id = Number(selectedCargaId);
+      }
+      await api.post(`${API}/entradas`, payload);
       setMsg('');
       await cargarBoard();
     } catch (e) {
@@ -1524,10 +1535,11 @@ function EditorPanel({ anio, niveles }) {
 
   const onDropCelda = async (e, dia, bloque) => {
     e.preventDefault();
+    if (bloque.tipo === 'BREAK' || bloque.tipo === 'LUNCH') return;
     const cargaId = e.dataTransfer.getData('carga_id') || selectedCargaId;
-    if (!cargaId) return;
+    if (!cargaId || !versionId || !grupoId) return;
+    setModoTextoLibre(false);
     setSelectedCargaId(Number(cargaId));
-    // temporary set then place
     try {
       await api.post(`${API}/entradas`, {
         version_id: Number(versionId),
@@ -1545,6 +1557,30 @@ function EditorPanel({ anio, niveles }) {
         ...swalOpts,
       });
     }
+  };
+
+  const activarTextoLibre = async () => {
+    const conf = await Swal.fire({
+      icon: 'question',
+      title: 'Texto libre',
+      html: 'Ejemplos: <b>Tutoría</b>, Asamblea, Orientación…<br/>No crea curso ni aparece en libreta.',
+      input: 'text',
+      inputValue: textoLibrePendiente || 'Tutoría',
+      inputPlaceholder: 'Tutoría',
+      showCancelButton: true,
+      confirmButtonText: 'Usar este texto',
+      cancelButtonText: 'Cancelar',
+      ...swalOpts,
+      inputValidator: (v) => {
+        if (!String(v || '').trim() || String(v).trim().length < 2) return 'Escribe al menos 2 caracteres';
+        return null;
+      },
+    });
+    if (!conf.isConfirmed) return;
+    setTextoLibrePendiente(String(conf.value).trim().slice(0, 120));
+    setModoTextoLibre(true);
+    setSelectedCargaId(null);
+    setMsg('Texto libre listo: haz clic en una celda vacía de clase.');
   };
 
   const quitar = async (entrada) => {
@@ -1714,19 +1750,51 @@ function EditorPanel({ anio, niveles }) {
             <p className="hg-muted" style={{ fontSize: '0.82rem' }}>
               Clic para seleccionar, luego clic en una celda de clase. O arrastra a la celda.
             </p>
+            <div className="hg-actions" style={{ marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className={`hg-btn hg-btn-sm${modoTextoLibre ? ' hg-btn-primary' : ''}`}
+                onClick={activarTextoLibre}
+              >
+                ✎ Texto libre
+              </button>
+              {modoTextoLibre && (
+                <button
+                  type="button"
+                  className="hg-btn hg-btn-sm hg-btn-ghost"
+                  onClick={() => {
+                    setModoTextoLibre(false);
+                    setMsg('');
+                  }}
+                >
+                  Cancelar texto
+                </button>
+              )}
+            </div>
+            {modoTextoLibre && (
+              <div className="hg-carga-chip hg-carga-chip--sel" style={{ borderLeftColor: '#0f766e' }}>
+                <strong>{textoLibrePendiente}</strong>
+                <span>Texto libre · no va a libreta</span>
+                <small>Clic en una celda vacía para colocar</small>
+              </div>
+            )}
             {pendientes.length === 0 ? (
               <p className="hg-muted">Todas las cargas de este grupo están colocadas.</p>
             ) : (
               pendientes.map((c) => (
                 <div
                   key={c.id}
-                  className={`hg-carga-chip${Number(selectedCargaId) === Number(c.id) ? ' hg-carga-chip--sel' : ''}`}
+                  className={`hg-carga-chip${Number(selectedCargaId) === Number(c.id) && !modoTextoLibre ? ' hg-carga-chip--sel' : ''}`}
                   draggable
                   onDragStart={(e) => {
                     e.dataTransfer.setData('carga_id', String(c.id));
                     setSelectedCargaId(c.id);
+                    setModoTextoLibre(false);
                   }}
-                  onClick={() => setSelectedCargaId(c.id)}
+                  onClick={() => {
+                    setSelectedCargaId(c.id);
+                    setModoTextoLibre(false);
+                  }}
                   style={c.color ? { borderLeftColor: c.color } : undefined}
                 >
                   <strong>{c.curso_nombre || 'Curso'}</strong>
@@ -1792,8 +1860,12 @@ function EditorPanel({ anio, niveles }) {
                           <span className="hg-cell-muted">{labelTipoBloque(b.tipo)}</span>
                         ) : ent ? (
                           <div className="hg-cell-card">
-                            <strong>{ent.curso_nombre || 'Clase'}</strong>
-                            <small>{ent.docente_nombre || ''}</small>
+                            <strong>{ent.curso_nombre || ent.texto_libre || 'Clase'}</strong>
+                            <small>
+                              {ent.texto_libre && !ent.carga_id
+                                ? 'Texto libre'
+                                : ent.docente_nombre || ''}
+                            </small>
                             <div className="hg-actions">
                               <button
                                 type="button"
