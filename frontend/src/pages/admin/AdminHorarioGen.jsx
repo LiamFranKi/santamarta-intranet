@@ -215,7 +215,7 @@ export default function AdminHorarioGen() {
   const eliminarBloque = async (row) => {
     const conf = await Swal.fire({
       icon: 'warning',
-      title: '¿Eliminar bloque?',
+      title: '¿Eliminar hora?',
       text: row.nombre,
       showCancelButton: true,
       confirmButtonText: 'Sí',
@@ -242,8 +242,8 @@ export default function AdminHorarioGen() {
     if (!selectedConfig) return;
     const conf = await Swal.fire({
       icon: 'question',
-      title: 'Cargar bloques ejemplo (Secundaria)',
-      text: 'Solo si la config aún no tiene bloques. No afecta grupos_horarios.',
+      title: 'Cargar horas de ejemplo (Secundaria)',
+      text: 'Solo si la config aún no tiene horas.',
       showCancelButton: true,
       confirmButtonText: 'Cargar seed',
       cancelButtonText: 'Cancelar',
@@ -270,11 +270,7 @@ export default function AdminHorarioGen() {
       <div className="hg-page">
         <header className="hg-hero">
           <div>
-            <p className="hg-eyebrow">Módulo piloto · aislado</p>
             <h1>Generar Horarios</h1>
-            <p className="hg-sub">
-              Configuración por año y nivel. No modifica el horario actual del sistema (`grupos_horarios`).
-            </p>
           </div>
           <div className="hg-hero-actions">
             <label className="hg-anio">
@@ -300,11 +296,6 @@ export default function AdminHorarioGen() {
             </button>
           </div>
         </header>
-
-        <div className="hg-banner">
-          🧪 Generar Horarios: trabaja en borrador; solo al <strong>publicar como principal</strong> se actualiza el
-          horario de docentes/alumnos.
-        </div>
 
         <nav className="hg-tabs" aria-label="Fases del módulo">
           {TABS.map((t) => (
@@ -371,7 +362,7 @@ export default function AdminHorarioGen() {
                         <th>Nivel</th>
                         <th>Ingreso</th>
                         <th>Salida</th>
-                        <th>Bloques</th>
+                        <th>Horas</th>
                         <th>Estado</th>
                         <th />
                       </tr>
@@ -392,7 +383,7 @@ export default function AdminHorarioGen() {
                           </td>
                           <td className="hg-actions">
                             <button type="button" className="hg-btn hg-btn-sm" onClick={() => abrirConfig(c)}>
-                              Bloques
+                              Horas
                             </button>
                             <button
                               type="button"
@@ -416,7 +407,7 @@ export default function AdminHorarioGen() {
             <section className="hg-panel">
               <div className="hg-panel-head">
                 <h2>
-                  Bloques{' '}
+                  Horas{' '}
                   {selectedConfig ? (
                     <span className="hg-muted">· {selectedConfig.nivel_nombre || selectedConfig.nombre}</span>
                   ) : null}
@@ -444,16 +435,16 @@ export default function AdminHorarioGen() {
                         })
                       }
                     >
-                      + Bloque
+                      + Hora
                     </button>
                   </div>
                 )}
               </div>
 
               {!selectedConfig ? (
-                <p className="hg-muted">Selecciona un nivel (botón Bloques) para editar su estructura horaria.</p>
+                <p className="hg-muted">Selecciona un nivel (botón Horas) para editar su estructura horaria.</p>
               ) : bloques.length === 0 ? (
-                <p className="hg-muted">Sin bloques. Agrega manualmente o usa “Seed ejemplo”.</p>
+                <p className="hg-muted">Sin horas. Agrega manualmente o usa “Seed ejemplo”.</p>
               ) : (
                 <div className="hg-blocks">
                   {bloques.map((b) => (
@@ -485,18 +476,6 @@ export default function AdminHorarioGen() {
           </div>
         )}
 
-        <section className="hg-roadmap">
-          <h3>Fases del módulo (piloto)</h3>
-          <ol>
-            <li>✅ Configuración de bloques por año/nivel</li>
-            <li>✅ Disponibilidad docente</li>
-            <li>✅ Carga semanal (horas por curso/grupo)</li>
-            <li>✅ Editor (colocar clases en grilla)</li>
-            <li>✅ Solver automático</li>
-            <li>✅ Vista resultado (preview antes de vincular)</li>
-            <li>✅ Publicar → horario principal (`grupos_horarios`)</li>
-          </ol>
-        </section>
       </div>
 
       {modalConfig.open && (
@@ -806,10 +785,6 @@ function ResultadoPanel({ anio, niveles }) {
             )}
           </div>
         </div>
-        <p className="hg-muted" style={{ marginTop: 0 }}>
-          Revisa cómo queda el horario. Cada grilla muestra el <strong>grupo concreto</strong> (ej. Inicial · 3 Años).
-          Cuando esté bien, publícalo como <strong>horario principal</strong> para que lo vean docentes y alumnos.
-        </p>
         <div className="hg-filters">
           <label>
             Nivel
@@ -903,7 +878,7 @@ function ResultadoPanel({ anio, niveles }) {
                 <strong>
                   {r?.bloques_colocados ?? 0}/{r?.bloques_esperados ?? 0}
                 </strong>
-                <span>Bloques</span>
+                <span>Horas</span>
               </div>
               <div>
                 <strong>{r?.total_grupos ?? 0}</strong>
@@ -914,11 +889,6 @@ function ResultadoPanel({ anio, niveles }) {
                 <span>Docentes</span>
               </div>
             </div>
-            <p className="hg-aviso-final">
-              {vista.version?.estado === 'PUBLISHED'
-                ? 'Este borrador ya fue publicado como horario principal del sistema.'
-                : 'Aún es borrador/revisión. Al publicar se escribe en el horario que ven docentes y alumnos.'}
-            </p>
             <div className="hg-actions hg-no-print" style={{ marginTop: '0.75rem' }}>
               <button
                 type="button"
@@ -1118,7 +1088,7 @@ function SolverPanel({ anio, niveles, onOpenEditor, onOpenResultado }) {
     const conf = await Swal.fire({
       icon: 'question',
       title: '¿Generar horario?',
-      html: `Se generará solo para:<br/><strong>${labelGrupo(gSel) || 'grupo elegido'}</strong><br/><br/>Usa bloques, disponibilidad y carga de ese grupo.`,
+      html: `Se generará solo para:<br/><strong>${labelGrupo(gSel) || 'grupo elegido'}</strong>.`,
       showCancelButton: true,
       confirmButtonText: 'Generar',
       cancelButtonText: 'Cancelar',
@@ -1142,7 +1112,7 @@ function SolverPanel({ anio, niveles, onOpenEditor, onOpenResultado }) {
           icon: 'success',
           title: 'Horario generado',
           text: data.best
-            ? `${data.best.placed}/${data.best.total} bloques · score ${data.best.score}%`
+            ? `${data.best.placed}/${data.best.total} horas · score ${data.best.score}%`
             : 'Listo',
           ...swalOpts,
         });
@@ -1210,10 +1180,6 @@ function SolverPanel({ anio, niveles, onOpenEditor, onOpenResultado }) {
             {running ? 'Generando…' : '✨ Generar horarios'}
           </button>
         </div>
-        <p className="hg-muted" style={{ marginTop: 0 }}>
-          Elige el <strong>grado/aula</strong> (ej. Primaria · 1º · A). No genera todo el nivel: solo ese grupo.
-          Usa bloques de Configuración, disponibilidad y carga semanal.
-        </p>
         <div className="hg-filters">
           <label>
             Nivel *
@@ -1270,7 +1236,7 @@ function SolverPanel({ anio, niveles, onOpenEditor, onOpenResultado }) {
                   {a.nombre} · score {a.score}%
                 </strong>
                 <p className="hg-muted" style={{ margin: '0.25rem 0 0' }}>
-                  {a.placed}/{a.total} bloques · versión #{a.version_id} · {a.ok ? 'completo' : 'parcial'}
+                  {a.placed}/{a.total} horas · versión #{a.version_id} · {a.ok ? 'completo' : 'parcial'}
                 </p>
               </div>
               <div className="hg-actions">
@@ -1679,10 +1645,6 @@ function EditorPanel({ anio, niveles }) {
             )}
           </div>
         </div>
-        <p className="hg-muted" style={{ marginTop: 0 }}>
-          El <strong>borrador</strong> es del nivel completo (ej. todo Inicial). El <strong>grupo</strong> indica qué aula
-          estás editando ahora (ej. 3 Años). Hasta publicar, no cambia el horario de docentes/alumnos.
-        </p>
         <div className="hg-filters">
           <label>
             Nivel *
@@ -1747,9 +1709,6 @@ function EditorPanel({ anio, niveles }) {
         <div className="hg-editor">
           <aside className="hg-panel hg-sidebar-carga">
             <h3>Pendientes · {labelGrupo(grupoSel)}</h3>
-            <p className="hg-muted" style={{ fontSize: '0.82rem' }}>
-              Clic para seleccionar, luego clic en una celda de clase. O arrastra a la celda.
-            </p>
             <div className="hg-actions" style={{ marginBottom: '0.75rem', flexWrap: 'wrap' }}>
               <button
                 type="button"
@@ -1822,7 +1781,7 @@ function EditorPanel({ anio, niveles }) {
 
           <div className="hg-panel hg-grid-wrap">
             <div className="hg-grid" style={{ ['--hg-cols']: DIAS.length }}>
-              <div className="hg-grid-corner">Bloque</div>
+              <div className="hg-grid-corner">Hora</div>
               {DIAS.map((d) => (
                 <div key={d.value} className="hg-grid-day">
                   {d.label}
@@ -1971,7 +1930,7 @@ function CargaPanel({ anio, niveles, docentes }) {
     const conf = await Swal.fire({
       icon: 'question',
       title: 'Importar desde Asignaturas',
-      html: `Trae docente + curso + grupo del catálogo académico del año <b>${anio}</b>.<br/>Bloques por defecto: <b>${bloquesDefault}</b>. No duplica si ya existe.`,
+      html: `Trae docente + curso + grupo del catálogo académico del año <b>${anio}</b>.<br/>Horas por defecto: <b>${bloquesDefault}</b>.`,
       showCancelButton: true,
       confirmButtonText: 'Importar',
       cancelButtonText: 'Cancelar',
@@ -2074,7 +2033,7 @@ function CargaPanel({ anio, niveles, docentes }) {
           <h2>Carga semanal · {anio}</h2>
           <div className="hg-actions">
             <label className="hg-inline-field">
-              Bloques def.
+              Horas def.
               <input
                 type="number"
                 min={1}
@@ -2092,10 +2051,6 @@ function CargaPanel({ anio, niveles, docentes }) {
             </button>
           </div>
         </div>
-        <p className="hg-muted" style={{ marginTop: 0 }}>
-          Cuántos bloques semanales necesita cada curso en cada aula. Se importa desde{' '}
-          <strong>Asignaturas</strong> del sistema (no modifica esas tablas).
-        </p>
         <div className="hg-filters">
           <label>
             Nivel
@@ -2124,7 +2079,7 @@ function CargaPanel({ anio, niveles, docentes }) {
           </label>
           <div className="hg-stat">
             <span>{cargas.length} cargas</span>
-            <strong>{totalBloques} bloques/semana</strong>
+            <strong>{totalBloques} horas/semana</strong>
           </div>
         </div>
       </section>
@@ -2144,8 +2099,8 @@ function CargaPanel({ anio, niveles, docentes }) {
                   <th>Grupo</th>
                   <th>Curso</th>
                   <th>Docente</th>
-                  <th>Bloques</th>
-                  <th>Consec. min/max</th>
+                  <th>Horas</th>
+                  <th>Horas seguidas</th>
                   <th>Estado</th>
                   <th />
                 </tr>
@@ -2405,9 +2360,6 @@ function DisponibilidadPanel({ anio, docentes }) {
         <div className="hg-panel-head">
           <h2>Disponibilidad docente · {anio}</h2>
         </div>
-        <p className="hg-muted" style={{ marginTop: 0 }}>
-          Define en qué días/horas puede dictar cada docente. Se usa después en el solver (no afecta el horario actual).
-        </p>
         <label className="hg-field">
           Docente
           <select value={personalId} onChange={(e) => setPersonalId(e.target.value)}>
@@ -2638,7 +2590,7 @@ function BloqueModal({ mode, item, saving, onClose, onSave }) {
 
   return (
     <Overlay
-      title={mode === 'edit' ? 'Editar bloque' : 'Nuevo bloque'}
+      title={mode === 'edit' ? 'Editar hora' : 'Nueva hora'}
       onClose={onClose}
       footer={
         <>
@@ -2668,7 +2620,7 @@ function BloqueModal({ mode, item, saving, onClose, onSave }) {
       <div className="hg-form">
         <label className="hg-full">
           Nombre *
-          <input value={form.nombre} onChange={(e) => set('nombre', e.target.value)} placeholder="Bloque 1" />
+          <input value={form.nombre} onChange={(e) => set('nombre', e.target.value)} placeholder="Primera Hora" />
         </label>
         <label>
           Inicio *
