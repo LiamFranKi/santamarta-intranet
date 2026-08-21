@@ -85,10 +85,15 @@ function labelGrupo(g) {
   return [g.nivel_nombre, labelGrado(g.nivel_nombre, g.grado), g.seccion].filter(Boolean).join(' · ');
 }
 
-function Overlay({ title, onClose, children, footer }) {
+function Overlay({ title, onClose, children, footer, size = 'md' }) {
   return createPortal(
     <div className="hg-overlay" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="hg-modal" role="dialog" aria-modal="true" onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        className={`hg-modal${size === 'lg' ? ' hg-modal--lg' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="hg-modal-header">
           <h2>{title}</h2>
           <button type="button" className="hg-modal-close" onClick={onClose} aria-label="Cerrar">
@@ -549,6 +554,20 @@ function EditorPanel({ anio, niveles }) {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
   const [generando, setGenerando] = useState(false);
+  const [genProgress, setGenProgress] = useState(0);
+
+  useEffect(() => {
+    if (!generando) return undefined;
+    setGenProgress(3);
+    const timer = setInterval(() => {
+      setGenProgress((p) => {
+        if (p >= 90) return p;
+        const step = p < 25 ? 4 : p < 55 ? 2.5 : p < 75 ? 1.2 : 0.45;
+        return Math.min(90, Math.round((p + step) * 10) / 10);
+      });
+    }, 320);
+    return () => clearInterval(timer);
+  }, [generando]);
 
   const cargarVersiones = useCallback(async () => {
     if (!anio) return;
@@ -929,15 +948,19 @@ function EditorPanel({ anio, niveles }) {
     if (!conf.isConfirmed) return;
     try {
       setGenerando(true);
+      setGenProgress(3);
       const { data } = await api.post(`${API}/solver/generar`, {
         anio,
         nivel_id: Number(nivelId),
         grupo_ids: [Number(grupoId)],
         max_alternatives: 1,
       });
+      setGenProgress(100);
       await cargarVersiones();
       const bestId = data.best?.version_id || data.alternatives?.[0]?.version_id;
       if (bestId) setVersionId(String(bestId));
+      await new Promise((r) => setTimeout(r, 280));
+      setGenerando(false);
       if (data.estado === 'COMPLETE') {
         Swal.fire({
           icon: 'success',
@@ -956,14 +979,13 @@ function EditorPanel({ anio, niveles }) {
         });
       }
     } catch (e) {
+      setGenerando(false);
       Swal.fire({
         icon: 'error',
         title: 'No se pudo generar',
         text: e.response?.data?.error || 'Error del solver',
         ...swalOpts,
       });
-    } finally {
-      setGenerando(false);
     }
   };
 
@@ -997,6 +1019,33 @@ function EditorPanel({ anio, niveles }) {
 
   return (
     <div>
+      {generando &&
+        createPortal(
+          <div className="hg-gen-overlay" role="status" aria-live="polite" aria-busy="true">
+            <div className="hg-gen-card">
+              <div className="hg-gen-spinner" aria-hidden />
+              <p className="hg-gen-kicker">Generando horario</p>
+              <h3>{labelGrupo(grupoSel) || 'Grupo'}</h3>
+              <div className="hg-gen-pct">{Math.min(100, Math.round(genProgress))}%</div>
+              <div className="hg-gen-bar" aria-hidden>
+                <div className="hg-gen-bar-fill" style={{ width: `${Math.min(100, genProgress)}%` }} />
+              </div>
+              <p className="hg-gen-step">
+                {genProgress < 30
+                  ? 'Analizando carga y disponibilidad…'
+                  : genProgress < 60
+                    ? 'Colocando horas seguidas (dobles)…'
+                    : genProgress < 90
+                      ? 'Ajustando conflictos de docentes…'
+                      : genProgress >= 100
+                        ? '¡Listo!'
+                        : 'Casi terminamos…'}
+              </p>
+              <p className="hg-gen-hint">No cierres ni recargues la página</p>
+            </div>
+          </div>,
+          document.body
+        )}
       <section className="hg-panel" style={{ marginBottom: '1rem' }}>
         <div className="hg-panel-head">
           <h2>Horario · {anio}</h2>
@@ -1782,9 +1831,14 @@ function CargaPanel({ anio, niveles, docentes }) {
       {modalCopiar && (
         <Overlay
           title="Copiar horas (sin docentes)"
+          size="lg"
           onClose={() => !copiando && setModalCopiar(false)}
           footer={
             <>
+              <span className="hg-copiar-footer-meta">
+                {copiarDestinos.filter((id) => id !== String(copiarOrigen)).length} destino
+                {copiarDestinos.filter((id) => id !== String(copiarOrigen)).length === 1 ? '' : 's'}
+              </span>
               <button type="button" className="hg-btn hg-btn-ghost" disabled={copiando} onClick={() => setModalCopiar(false)}>
                 Cancelar
               </button>
@@ -1794,13 +1848,15 @@ function CargaPanel({ anio, niveles, docentes }) {
             </>
           }
         >
-          <div className="hg-form">
-            <p className="hg-muted" style={{ marginTop: 0 }}>
-              Copia solo <strong>Horas</strong> y <strong>Horas seguidas</strong> emparejando el mismo curso
-              (ej. 1º A → 1º B, o 1º → 2º/3º en Secundaria). Los docentes de cada aula no cambian.
-            </p>
-            <label>
-              Grupo origen (de dónde se copian las horas) *
+          <div className="hg-copiar">
+            <div className="hg-copiar-banner">
+              <strong>Qué se copia:</strong> solo Horas y Horas seguidas del mismo curso.
+              <br />
+              <strong>Qué no:</strong> los docentes de cada aula se mantienen.
+            </div>
+
+            <label className="hg-copiar-field">
+              <span>Grupo origen</span>
               <select
                 value={copiarOrigen}
                 onChange={(e) => {
@@ -1809,7 +1865,7 @@ function CargaPanel({ anio, niveles, docentes }) {
                   setCopiarDestinos((prev) => prev.filter((id) => id !== v));
                 }}
               >
-                <option value="">— Elegir —</option>
+                <option value="">— Elegir aula de donde se copian las horas —</option>
                 {grupos.map((g) => (
                   <option key={g.id} value={g.id}>
                     {labelGrupo(g)}
@@ -1817,36 +1873,37 @@ function CargaPanel({ anio, niveles, docentes }) {
                 ))}
               </select>
             </label>
-            <div>
-              <div className="hg-actions" style={{ justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                <strong style={{ fontSize: '0.85rem' }}>Grupos destino *</strong>
-                <button
-                  type="button"
-                  className="hg-btn hg-btn-sm hg-btn-ghost"
-                  disabled={!destinosDisponibles.length}
-                  onClick={() =>
-                    setCopiarDestinos(destinosDisponibles.map((g) => String(g.id)))
-                  }
-                >
-                  Marcar todos
-                </button>
-                <button
-                  type="button"
-                  className="hg-btn hg-btn-sm hg-btn-ghost"
-                  onClick={() => setCopiarDestinos([])}
-                >
-                  Ninguno
-                </button>
+
+            <div className="hg-copiar-destinos">
+              <div className="hg-copiar-destinos-head">
+                <div>
+                  <strong>Grupos destino</strong>
+                  <p className="hg-muted">Marca las aulas/grados que recibirán el formato de horas.</p>
+                </div>
+                <div className="hg-actions">
+                  <button
+                    type="button"
+                    className="hg-btn hg-btn-sm"
+                    disabled={!destinosDisponibles.length}
+                    onClick={() => setCopiarDestinos(destinosDisponibles.map((g) => String(g.id)))}
+                  >
+                    Marcar todos
+                  </button>
+                  <button type="button" className="hg-btn hg-btn-sm hg-btn-ghost" onClick={() => setCopiarDestinos([])}>
+                    Ninguno
+                  </button>
+                </div>
               </div>
+
               <div className="hg-destino-list">
                 {destinosDisponibles.length === 0 ? (
-                  <p className="hg-muted">Elige un origen; aquí saldrán las demás aulas del filtro.</p>
+                  <p className="hg-destino-empty">Elige un origen para ver las demás aulas del nivel filtrado.</p>
                 ) : (
                   destinosDisponibles.map((g) => {
                     const id = String(g.id);
                     const checked = copiarDestinos.includes(id);
                     return (
-                      <label key={g.id} className="hg-check hg-destino-item">
+                      <label key={g.id} className={`hg-destino-item${checked ? ' hg-destino-item--on' : ''}`}>
                         <input
                           type="checkbox"
                           checked={checked}
@@ -1856,17 +1913,18 @@ function CargaPanel({ anio, niveles, docentes }) {
                             )
                           }
                         />
-                        {labelGrupo(g)}
+                        <span>{labelGrupo(g)}</span>
                       </label>
                     );
                   })
                 )}
               </div>
-              <p className="hg-muted" style={{ marginTop: '0.5rem', marginBottom: 0 }}>
-                Tip: filtra por <strong>Nivel</strong> (Primaria/Secundaria) para ver solo esas aulas. Si estás en 1º B,
-                márcalo como destino y elige 1º A como origen.
-              </p>
             </div>
+
+            <p className="hg-copiar-tip">
+              Tip: filtra por <strong>Nivel</strong> arriba para listar solo Primaria o Secundaria. Ejemplo: origen 1º A →
+              destino 1º B (o varios grados a la vez).
+            </p>
           </div>
         </Overlay>
       )}

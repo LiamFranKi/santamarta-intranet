@@ -250,7 +250,7 @@ function solveInMemory({
   dispByTeacherDay,
   lockedPlacements = [],
   seed = 1,
-  maxNodes = 400000,
+  maxNodes = 500000,
   docentesNombres = new Map(),
 }) {
   const rng = mulberry32(seed);
@@ -267,35 +267,8 @@ function solveInMemory({
     docentesNombres,
   });
 
-  const grupoBusy = new Set();
-  const teacherBusy = new Set();
-  const placements = [];
   const cargasById = new Map(cargas.map((c) => [Number(c.id), c]));
-
-  for (const p of lockedPlacements) {
-    grupoBusy.add(grupoSlotKey(p.grupo_id, p.dia, p.bloque_id));
-    if (p.personal_id) teacherBusy.add(teacherSlotKey(p.personal_id, p.dia, p.bloque_id));
-    placements.push({ ...p, _locked: true });
-  }
-
-  // Unidades = trozos (ej. dobles), no horas sueltas
-  const units = [];
-  for (const c of cargas) {
-    const already = placements.filter((p) => Number(p.carga_id) === Number(c.id)).length;
-    const need = Math.max(0, Number(c.bloques_semanales || 0) - already);
-    if (need <= 0) continue;
-    const tempCarga = { ...c, bloques_semanales: need };
-    const sizes = buildChunkSizes(tempCarga);
-    for (const size of sizes) {
-      units.push({
-        carga: c,
-        size,
-        personal_id: c.personal_id ? Number(c.personal_id) : null,
-        grupo_id: Number(c.grupo_id),
-        carga_id: Number(c.id),
-      });
-    }
-  }
+  const lockedBase = (lockedPlacements || []).map((p) => ({ ...p, _locked: true }));
 
   const windowCache = new Map();
   function windowsOf(size) {
@@ -306,100 +279,181 @@ function solveInMemory({
   }
   const acrossBreakWins = buildAcrossBreakWindows(timeline);
 
-  function slotFree(unit, dia, b) {
-    if (!isTeacherAvailable(dispByTeacherDay, unit.personal_id, dia, b)) return false;
-    if (grupoBusy.has(grupoSlotKey(unit.grupo_id, dia, b.id))) return false;
-    if (unit.personal_id && teacherBusy.has(teacherSlotKey(unit.personal_id, dia, b.id))) {
+  function buildUnits(forceSingles) {
+    const units = [];
+    for (const c of cargas) {
+      const already = lockedBase.filter((p) => Number(p.carga_id) === Number(c.id)).length;
+      const need = Math.max(0, Number(c.bloques_semanales || 0) - already);
+      if (need <= 0) continue;
+      if (forceSingles) {
+        for (let i = 0; i < need; i += 1) {
+          units.push({
+            carga: c,
+            size: 1,
+            personal_id: c.personal_id ? Number(c.personal_id) : null,
+            grupo_id: Number(c.grupo_id),
+            carga_id: Number(c.id),
+          });
+        }
+      } else {
+        const sizes = buildChunkSizes({ ...c, bloques_semanales: need });
+        for (const size of sizes) {
+          units.push({
+            carga: c,
+            size,
+            personal_id: c.personal_id ? Number(c.personal_id) : null,
+            grupo_id: Number(c.grupo_id),
+            carga_id: Number(c.id),
+          });
+        }
+      }
+    }
+    return units;
+  }
+
+  function runSearch(units, nodesBudget) {
+    const grupoBusy = new Set();
+    const teacherBusy = new Set();
+    const placements = [];
+
+    for (const p of lockedBase) {
+      grupoBusy.add(grupoSlotKey(p.grupo_id, p.dia, p.bloque_id));
+      if (p.personal_id) teacherBusy.add(teacherSlotKey(p.personal_id, p.dia, p.bloque_id));
+      placements.push({ ...p });
+    }
+
+    function slotFree(unit, dia, b) {
+      if (!isTeacherAvailable(dispByTeacherDay, unit.personal_id, dia, b)) return false;
+      if (grupoBusy.has(grupoSlotKey(unit.grupo_id, dia, b.id))) return false;
+      if (unit.personal_id && teacherBusy.has(teacherSlotKey(unit.personal_id, dia, b.id))) {
+        return false;
+      }
+      return true;
+    }
+
+    function candidatesFor(unit) {
+      const out = [];
+      let wins = windowsOf(unit.size).map((w) => ({ blocks: w, softExtra: 0 }));
+      if (!wins.length && unit.size === 1) {
+        wins = classBlocks.map((b) => ({ blocks: [b], softExtra: 0 }));
+      }
+      if (unit.size === 2 && acrossBreakWins.length) {
+        for (const w of acrossBreakWins) {
+          wins.push({ blocks: w, softExtra: 80 });
+        }
+      }
+      // Último recurso para un doble sin hueco: dos sueltas no se arman aquí;
+      // el reintento forceSingles cubre ese caso.
+      for (const dia of shuffle(DIAS, rng)) {
+        const hoursSameDay = placements.filter(
+          (p) => Number(p.carga_id) === unit.carga_id && Number(p.dia) === dia
+        ).length;
+        for (const { blocks: win, softExtra } of shuffle(wins, rng)) {
+          if (!win.every((b) => slotFree(unit, dia, b))) continue;
+          const firstOrden = Number(win[0].orden) || 0;
+          out.push({
+            dia,
+            blocks: win,
+            soft: hoursSameDay * 20 + firstOrden * 0.05 + softExtra,
+          });
+        }
+      }
+      out.sort((a, b) => a.soft - b.soft);
+      return out;
+    }
+
+    const unitsOrdered = [...units].sort((a, b) => {
+      if (b.size !== a.size) return b.size - a.size;
+      return candidatesFor(a).length - candidatesFor(b).length;
+    });
+
+    let nodes = 0;
+    let bestPlacements = placements.map(({ _locked, ...rest }) => rest);
+    let bestCount = bestPlacements.length;
+
+    function snapshotBest() {
+      if (placements.length > bestCount) {
+        bestCount = placements.length;
+        bestPlacements = placements.map(({ _locked, ...rest }) => rest);
+      }
+    }
+
+    function dfs(ui) {
+      nodes += 1;
+      if (nodes > nodesBudget) return false;
+      if (ui >= unitsOrdered.length) {
+        snapshotBest();
+        return true;
+      }
+
+      const unit = unitsOrdered[ui];
+      const already = placements.filter((p) => Number(p.carga_id) === unit.carga_id).length;
+      if (already >= Number(unit.carga.bloques_semanales || 0)) return dfs(ui + 1);
+
+      const cands = candidatesFor(unit);
+      if (!cands.length) {
+        snapshotBest();
+        return false;
+      }
+
+      for (const cand of cands) {
+        const added = [];
+        for (const b of cand.blocks) {
+          const p = {
+            dia: cand.dia,
+            bloque_id: b.id,
+            bloque_orden: b.orden,
+            grupo_id: unit.grupo_id,
+            carga_id: unit.carga_id,
+            personal_id: unit.personal_id,
+            curso_id: unit.carga.curso_id || null,
+            asignatura_id: unit.carga.asignatura_id || null,
+            locked: 0,
+          };
+          grupoBusy.add(grupoSlotKey(p.grupo_id, p.dia, p.bloque_id));
+          if (p.personal_id) teacherBusy.add(teacherSlotKey(p.personal_id, p.dia, p.bloque_id));
+          placements.push(p);
+          added.push(p);
+        }
+        snapshotBest();
+
+        if (dfs(ui + 1)) return true;
+
+        for (let i = 0; i < added.length; i += 1) {
+          const p = placements.pop();
+          grupoBusy.delete(grupoSlotKey(p.grupo_id, p.dia, p.bloque_id));
+          if (p.personal_id) teacherBusy.delete(teacherSlotKey(p.personal_id, p.dia, p.bloque_id));
+        }
+      }
+      snapshotBest();
       return false;
     }
-    return true;
+
+    const ok = dfs(0);
+    // Si no completó, devolver el mejor parcial (no dejar vacío)
+    const finalPlacements = ok
+      ? placements.map(({ _locked, ...rest }) => rest)
+      : bestPlacements;
+    return { ok, placements: finalPlacements, nodes };
   }
 
-  function candidatesFor(unit) {
-    const out = [];
-    let wins = windowsOf(unit.size).map((w) => ({ blocks: w, softExtra: 0 }));
-    if (!wins.length && unit.size === 1) {
-      wins = classBlocks.map((b) => ({ blocks: [b], softExtra: 0 }));
-    }
-    // Fallback: doble partido por recreo (penalizado; solo si size === 2)
-    if (unit.size === 2 && acrossBreakWins.length) {
-      for (const w of acrossBreakWins) {
-        wins.push({ blocks: w, softExtra: 80 });
-      }
-    }
-    for (const dia of shuffle(DIAS, rng)) {
-      const hoursSameDay = placements.filter(
-        (p) => Number(p.carga_id) === unit.carga_id && Number(p.dia) === dia
-      ).length;
-      for (const { blocks: win, softExtra } of shuffle(wins, rng)) {
-        if (!win.every((b) => slotFree(unit, dia, b))) continue;
-        const firstOrden = Number(win[0].orden) || 0;
-        out.push({
-          dia,
-          blocks: win,
-          soft: hoursSameDay * 20 + firstOrden * 0.05 + softExtra,
-        });
-      }
-    }
-    out.sort((a, b) => a.soft - b.soft);
-    return out;
-  }
-
-  const unitsOrdered = [...units].sort((a, b) => {
-    // Primero trozos más grandes (dobles), luego MRV
-    if (b.size !== a.size) return b.size - a.size;
-    return candidatesFor(a).length - candidatesFor(b).length;
-  });
-
-  let nodes = 0;
-
-  function dfs(ui) {
-    nodes += 1;
-    if (nodes > maxNodes) return false;
-    if (ui >= unitsOrdered.length) return true;
-
-    const unit = unitsOrdered[ui];
-    const already = placements.filter((p) => Number(p.carga_id) === unit.carga_id).length;
-    if (already >= Number(unit.carga.bloques_semanales || 0)) return dfs(ui + 1);
-
-    const cands = candidatesFor(unit);
-    if (!cands.length) return false;
-
-    for (const cand of cands) {
-      const added = [];
-      for (const b of cand.blocks) {
-        const p = {
-          dia: cand.dia,
-          bloque_id: b.id,
-          bloque_orden: b.orden,
-          grupo_id: unit.grupo_id,
-          carga_id: unit.carga_id,
-          personal_id: unit.personal_id,
-          curso_id: unit.carga.curso_id || null,
-          asignatura_id: unit.carga.asignatura_id || null,
-          locked: 0,
-        };
-        grupoBusy.add(grupoSlotKey(p.grupo_id, p.dia, p.bloque_id));
-        if (p.personal_id) teacherBusy.add(teacherSlotKey(p.personal_id, p.dia, p.bloque_id));
-        placements.push(p);
-        added.push(p);
-      }
-
-      if (dfs(ui + 1)) return true;
-
-      for (let i = 0; i < added.length; i += 1) {
-        const p = placements.pop();
-        grupoBusy.delete(grupoSlotKey(p.grupo_id, p.dia, p.bloque_id));
-        if (p.personal_id) teacherBusy.delete(teacherSlotKey(p.personal_id, p.dia, p.bloque_id));
-      }
-    }
-    return false;
-  }
-
-  const ok = dfs(0);
-  const finalPlacements = placements.map(({ _locked, ...rest }) => rest);
+  // 1) Intento respetando horas seguidas (dobles)
+  let search = runSearch(buildUnits(false), maxNodes);
+  // 2) Si quedó vacío o muy incompleto, reintentar en sueltas (mejor algo que nada)
   const totalNeed = cargas.reduce((s, c) => s + Number(c.bloques_semanales || 0), 0);
+  if (!search.ok && search.placements.length < Math.max(1, Math.floor(totalNeed * 0.4))) {
+    const retry = runSearch(buildUnits(true), maxNodes);
+    if (retry.placements.length > search.placements.length) {
+      search = retry;
+      diagnostico.sugerencias.push(
+        'No cupieron todos los dobles (2/2); se colocó lo posible también en horas sueltas. Revise disponibilidad o complete a mano.'
+      );
+    }
+  }
+
+  const finalPlacements = search.placements;
   const placed = finalPlacements.length;
+  const ok = search.ok && placed >= totalNeed;
 
   const unplaced = [];
   for (const c of cargas) {
@@ -419,7 +473,7 @@ function solveInMemory({
   }
 
   if (!ok) {
-    diagnostico.causas.push(`No se completó: ${placed}/${totalNeed} horas (nodos ${nodes}).`);
+    diagnostico.causas.push(`No se completó: ${placed}/${totalNeed} horas (nodos ${search.nodes}).`);
     if (unplaced.length) {
       diagnostico.causas.push(
         `Pendientes: ${unplaced
@@ -430,9 +484,8 @@ function solveInMemory({
     }
     if (!diagnostico.sugerencias.length) {
       diagnostico.sugerencias.push(
-        'Con Horas seguidas 2/2 el sistema coloca dobles. Verifique que haya franjas CLASS consecutivas (sin recreo en medio).'
+        'Con Horas seguidas 2/2 el sistema prioriza dobles. Si no caben, intenta ampliar disponibilidad del docente o complete a mano.'
       );
-      diagnostico.sugerencias.push('Ajuste disponibilidad o complete a mano en el Editor.');
     }
   }
 
@@ -444,7 +497,7 @@ function solveInMemory({
     total: totalNeed,
     unplaced,
     diagnostico,
-    nodes,
+    nodes: search.nodes,
   };
 }
 
