@@ -936,11 +936,11 @@ function EditorPanel({ anio, niveles }) {
   };
 
   const generarAutomatico = async () => {
-    if (!nivelId || !grupoId) {
+    if (!nivelId) {
       Swal.fire({
         icon: 'info',
-        title: 'Elige nivel y grupo',
-        text: 'Selecciona el aula (ej. Primaria · 1º · A) para generar su horario.',
+        title: 'Elige un nivel',
+        text: 'Selecciona Primaria, Secundaria, etc. Se generarán todos los grados juntos para no chocar docentes.',
         ...swalOpts,
       });
       return;
@@ -948,9 +948,13 @@ function EditorPanel({ anio, niveles }) {
     const conf = await Swal.fire({
       icon: 'question',
       title: '¿Generar horario automático?',
-      html: `Se creará un borrador para <strong>${labelGrupo(grupoSel)}</strong> respetando horas seguidas (2/2 = dobles).`,
+      html: `
+        <p>Se arma el horario de <strong>todo el nivel</strong> (${nivelSel?.nombre || 'nivel'}) de una vez.</p>
+        <p style="margin-top:0.5rem">Así un docente (ej. Natación) <b>no puede</b> quedar a la misma hora en 1ºA y 3ºB.</p>
+        <p style="margin-top:0.5rem;color:#64748b;font-size:0.9rem">Respetará horas seguidas (2/2) y celdas bloqueadas 🔒.</p>
+      `,
       showCancelButton: true,
-      confirmButtonText: 'Generar',
+      confirmButtonText: 'Generar todo el nivel',
       cancelButtonText: 'Cancelar',
       ...swalOpts,
     });
@@ -958,12 +962,13 @@ function EditorPanel({ anio, niveles }) {
     try {
       setGenerando(true);
       setGenProgress(3);
-      const { data } = await api.post(`${API}/solver/generar`, {
+      const payload = {
         anio,
         nivel_id: Number(nivelId),
-        grupo_ids: [Number(grupoId)],
         max_alternatives: 1,
-      });
+      };
+      if (versionId) payload.version_id = Number(versionId);
+      const { data } = await api.post(`${API}/solver/generar`, payload);
       setGenProgress(100);
       await cargarVersiones();
       const bestId = data.best?.version_id || data.alternatives?.[0]?.version_id;
@@ -987,6 +992,7 @@ function EditorPanel({ anio, niveles }) {
           ...swalOpts,
         });
       }
+      await cargarBoard();
     } catch (e) {
       setGenerando(false);
       Swal.fire({
@@ -1155,7 +1161,7 @@ function EditorPanel({ anio, niveles }) {
             <button
               type="button"
               className="hg-btn hg-btn-primary"
-              disabled={generando || !nivelId || !grupoId}
+              disabled={generando || !nivelId}
               onClick={generarAutomatico}
             >
               {generando ? 'Generando…' : '✨ Generar automático'}

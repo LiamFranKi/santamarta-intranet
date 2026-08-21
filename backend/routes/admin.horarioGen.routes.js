@@ -1235,11 +1235,12 @@ router.get('/editor', async (req, res) => {
       `SELECT e.*,
               COALESCE(cur.nombre, e.texto_libre) AS curso_nombre,
               TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS docente_nombre,
-              cg.bloques_semanales, cg.color AS carga_color
+              cg.bloques_semanales, cg.color AS carga_color,
+              COALESCE(e.personal_id, cg.personal_id) AS personal_id_efectivo
        FROM horario_gen_entradas e
        LEFT JOIN cursos cur ON cur.id = e.curso_id
-       LEFT JOIN personal p ON p.id = e.personal_id
        LEFT JOIN horario_gen_carga cg ON cg.id = e.carga_id
+       LEFT JOIN personal p ON p.id = COALESCE(e.personal_id, cg.personal_id)
        WHERE e.version_id = ? AND e.grupo_id = ?
        ORDER BY e.dia_semana, e.bloque_id`,
       [versionId, grupoId]
@@ -1483,10 +1484,13 @@ router.post('/solver/generar', async (req, res) => {
 
     const maxAlt = Math.min(3, Math.max(1, parseInt(b.max_alternatives, 10) || 1));
     const seedBase = Number.isFinite(Number(b.seed)) ? Number(b.seed) : Date.now() % 100000;
+    // Si envían grupo_ids, igual resolvemos TODO el nivel (docentes compartidos entre grados).
+    // El filtro por grupo solo se usaba antes y provocaba choques (mismo docente a la misma hora).
     let grupoIds = null;
     if (Array.isArray(b.grupo_ids) && b.grupo_ids.length) {
       grupoIds = b.grupo_ids.map((x) => parseId(x)).filter(Boolean);
     }
+    const reuseVersionId = parseId(b.version_id);
 
     const runIns = await execute(
       `INSERT INTO horario_gen_runs
@@ -1496,11 +1500,12 @@ router.post('/solver/generar', async (req, res) => {
     );
     runId = runIns.insertId;
 
+    // Siempre todo el nivel: un docente no puede estar en 1ºA y 3ºB a la misma hora
     const ctx = await loadSolverContext({
       colegioId: cid,
       anio,
       nivelId: nivel_id,
-      grupoIds,
+      grupoIds: null,
     });
 
     await execute(
@@ -1513,36 +1518,54 @@ router.post('/solver/generar', async (req, res) => {
 
     let alcanceLabel = nivelNombre;
     if (grupoIds?.length) {
-      const gs = await query(
-        `SELECT g.grado, g.seccion, n.nombre AS nivel_nombre
-         FROM grupos g
-         LEFT JOIN niveles n ON n.id = g.nivel_id
-         WHERE g.id IN (${grupoIds.map(() => '?').join(',')})`,
-        grupoIds
-      );
-      if (gs?.length) {
-        alcanceLabel = gs
-          .map((g) => formatGrupoLabel(g.nivel_nombre, g.grado, g.seccion))
-          .join(', ');
-      }
+      alcanceLabel = `${nivelNombre} (todos los grados; foco ${grupoIds.length} grupo(s))`;
     }
 
     if (!(ctx.cargas || []).length) {
       await execute(
         `UPDATE horario_gen_runs SET estado = 'FAILED', progreso = 100, mensaje = ?, finished_at = NOW() WHERE id = ?`,
         [
-          grupoIds?.length
-            ? 'Ese grupo no tiene carga semanal. Impórtala en «3. Carga semanal».'
-            : 'No hay carga semanal para ese nivel. Impórtala en «3. Carga semanal».',
+          'No hay carga semanal para ese nivel. Impórtala en «3. Carga semanal».',
           runId,
         ]
       );
       return res.status(400).json({
-        error: grupoIds?.length
-          ? 'Ese grupo/grado no tiene carga semanal activa. Ve a «3. Carga semanal», filtra el grupo e importa asignaturas.'
-          : 'No hay carga semanal para ese nivel. Ve a «3. Carga semanal» e importa asignaturas.',
+        error:
+          'No hay carga semanal para ese nivel. Ve a «3. Carga semanal» e importa asignaturas.',
         code: 'NO_CARGA',
       });
+    }
+
+    let lockedPlacements = [];
+    let targetVersionId = null;
+    if (reuseVersionId) {
+      const ver = await assertVersionOwned(reuseVersionId, cid);
+      if (!ver) {
+        return res.status(404).json({ error: 'Versión a reutilizar no encontrada' });
+      }
+      if (Number(ver.nivel_id) !== Number(nivel_id) || Number(ver.anio) !== Number(anio)) {
+        return res.status(400).json({
+          error: 'El borrador no pertenece a este nivel/año.',
+        });
+      }
+      targetVersionId = reuseVersionId;
+      const lockedRows = await query(
+        `SELECT e.dia_semana AS dia, e.bloque_id, e.grupo_id, e.curso_id, e.asignatura_id,
+                COALESCE(e.personal_id, cg.personal_id) AS personal_id, e.carga_id
+         FROM horario_gen_entradas e
+         LEFT JOIN horario_gen_carga cg ON cg.id = e.carga_id
+         WHERE e.version_id = ? AND e.locked = 1`,
+        [reuseVersionId]
+      );
+      lockedPlacements = (lockedRows || []).map((p) => ({
+        dia: Number(p.dia),
+        bloque_id: Number(p.bloque_id),
+        grupo_id: Number(p.grupo_id),
+        curso_id: p.curso_id || null,
+        asignatura_id: p.asignatura_id || null,
+        personal_id: p.personal_id ? Number(p.personal_id) : null,
+        carga_id: p.carga_id ? Number(p.carga_id) : null,
+      }));
     }
 
     const alternatives = [];
@@ -1552,30 +1575,32 @@ router.post('/solver/generar', async (req, res) => {
       const seed = seedBase + i * 97;
       seedsTried.push(seed);
 
-      // Nueva versión por alternativa
-      const verIns = await execute(
-        `INSERT INTO horario_gen_versiones
-          (colegio_id, anio, nivel_id, config_id, nombre, estado, created_by)
-         VALUES (?, ?, ?, ?, ?, 'DRAFT', ?)`,
-        [
-          cid,
-          anio,
-          nivel_id,
-          ctx.config.id,
-          maxAlt > 1
-            ? `Alternativa ${i + 1} · ${alcanceLabel} ${anio}`
-            : `Generado · ${alcanceLabel} ${anio}`,
-          req.user?.id || null,
-        ]
-      );
-      const versionId = verIns.insertId;
+      let versionId = targetVersionId;
+      if (!versionId) {
+        const verIns = await execute(
+          `INSERT INTO horario_gen_versiones
+            (colegio_id, anio, nivel_id, config_id, nombre, estado, created_by)
+           VALUES (?, ?, ?, ?, ?, 'DRAFT', ?)`,
+          [
+            cid,
+            anio,
+            nivel_id,
+            ctx.config.id,
+            maxAlt > 1
+              ? `Alternativa ${i + 1} · ${alcanceLabel} ${anio}`
+              : `Generado · ${alcanceLabel} ${anio}`,
+            req.user?.id || null,
+          ]
+        );
+        versionId = verIns.insertId;
+      }
 
       const result = solveInMemory({
         cargas: ctx.cargas,
         classBlocks: ctx.classBlocks,
         allBlocksSorted: ctx.allBlocksSorted,
         dispByTeacherDay: ctx.dispByTeacherDay,
-        lockedPlacements: [],
+        lockedPlacements,
         seed,
         docentesNombres: ctx.docentesNombres,
       });
@@ -1600,9 +1625,8 @@ router.post('/solver/generar', async (req, res) => {
         seed,
       });
 
-      // Si la primera sale completa y solo pidieron 1, basta
-      if (maxAlt === 1) break;
-      // Si falló la primera, igual intentamos más semillas
+      // Si reutilizan el mismo borrador, solo una corrida
+      if (targetVersionId || maxAlt === 1) break;
     }
 
     alternatives.sort((a, b) => {
