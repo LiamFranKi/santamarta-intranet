@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import { colorForCurso, hexToRgb } from './horarioGenColors';
 
 const DIAS = [
   { id: 1, nombre: 'Lunes', abrev: 'LUNES' },
@@ -7,36 +8,6 @@ const DIAS = [
   { id: 4, nombre: 'Jueves', abrev: 'JUEVES' },
   { id: 5, nombre: 'Viernes', abrev: 'VIERNES' },
 ];
-
-const PALETTE = [
-  '#FFF9C4', '#BBDEFB', '#F3E5F5', '#C8E6C9', '#E0F7FA', '#FFF3E0', '#FCE4EC', '#E1F5FE', '#F1F8E9', '#FFEBEE',
-  '#E8EAF6', '#E0F2F1', '#E1BEE7', '#FFE0B2', '#FFCCBC', '#D1C4E9', '#F8BBD0', '#B2DFDB', '#C5E1A5', '#FFE082',
-];
-
-function hashString(str) {
-  let h = 0;
-  const s = String(str || '').trim().toLowerCase();
-  for (let i = 0; i < s.length; i += 1) {
-    h = (h << 5) - h + s.charCodeAt(i);
-    h += h << 10;
-    h ^= h >> 6;
-    h += h << 3;
-    h ^= h >> 11;
-    h += h << 15;
-  }
-  return Math.abs(h);
-}
-
-function colorFor(titulo) {
-  return titulo && String(titulo).trim()
-    ? PALETTE[hashString(titulo) % PALETTE.length]
-    : '#ffffff';
-}
-
-function hexToRgb(hex) {
-  const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return r ? { r: parseInt(r[1], 16), g: parseInt(r[2], 16), b: parseInt(r[3], 16) } : null;
-}
 
 function fmtHora(t) {
   if (!t) return '';
@@ -167,7 +138,7 @@ export function exportarHorarioGenPDF({
       const tituloCelda = e.curso_nombre || 'Clase';
       const secundario =
         modo === 'docente' ? e.grupo_label || '' : e.docente_nombre || '';
-      const hex = e.carga_color || colorFor(tituloCelda);
+      const hex = e.carga_color || colorForCurso(tituloCelda);
       const rgb = hexToRgb(hex);
       if (rgb) {
         doc.setFillColor(rgb.r, rgb.g, rgb.b);
@@ -312,7 +283,7 @@ export function exportarHorarioGenPDFMultiple({ anio, bloques, items, modo = 'gr
         if (!e) return;
         const tituloCelda = e.curso_nombre || 'Clase';
         const secundario = modo === 'docente' ? e.grupo_label || '' : e.docente_nombre || '';
-        const rgb = hexToRgb(e.carga_color || colorFor(tituloCelda));
+        const rgb = hexToRgb(e.carga_color || colorForCurso(tituloCelda));
         if (rgb) {
           doc.setFillColor(rgb.r, rgb.g, rgb.b);
           doc.rect(x + 0.5, y + 0.5, colWidth - 1, rowHeight - 1, 'F');

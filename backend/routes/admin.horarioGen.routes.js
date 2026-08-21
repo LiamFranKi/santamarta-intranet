@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const { query, execute } = require('../utils/mysql');
+const { colorForCurso } = require('../utils/horarioGenColors');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -1012,9 +1013,11 @@ router.post('/carga/importar-asignaturas', async (req, res) => {
     const bloquesDefault = Math.max(1, parseInt(b.bloques_default, 10) || 2);
 
     let sql = `
-      SELECT a.id AS asignatura_id, a.grupo_id, a.curso_id, a.personal_id
+      SELECT a.id AS asignatura_id, a.grupo_id, a.curso_id, a.personal_id,
+             cur.nombre AS curso_nombre
       FROM asignaturas a
       INNER JOIN grupos g ON g.id = a.grupo_id
+      LEFT JOIN cursos cur ON cur.id = a.curso_id
       WHERE a.colegio_id = ? AND g.anio = ?
     `;
     const params = [cid, anio];
@@ -1041,12 +1044,13 @@ router.post('/carga/importar-asignaturas', async (req, res) => {
         omitidas += 1;
         continue;
       }
+      const color = colorForCurso(a.curso_nombre);
       await execute(
         `INSERT INTO horario_gen_carga
           (colegio_id, anio, grupo_id, curso_id, asignatura_id, personal_id,
-           bloques_semanales, bloques_consecutivos_min, bloques_consecutivos_max, no_partir, activo)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 2, 2, 0, 1)`,
-        [cid, anio, a.grupo_id, a.curso_id, a.asignatura_id, a.personal_id, bloquesDefault]
+           bloques_semanales, bloques_consecutivos_min, bloques_consecutivos_max, no_partir, color, activo)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 2, 2, 0, ?, 1)`,
+        [cid, anio, a.grupo_id, a.curso_id, a.asignatura_id, a.personal_id, bloquesDefault, color]
       );
       creadas += 1;
     }

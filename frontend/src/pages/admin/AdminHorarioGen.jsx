@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import Swal from 'sweetalert2';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
-import { exportarHorarioGenPDF } from '../../utils/horarioGenPdf';
+import { exportarHorarioGenPDF, exportarHorarioGenPDFMultiple } from '../../utils/horarioGenPdf';
+import { resolveCursoColor } from '../../utils/horarioGenColors';
 import './AdminHorarioGen.css';
 
 const API = '/admin/horario-gen';
@@ -558,6 +559,11 @@ function EditorPanel({ anio, niveles }) {
   const [msg, setMsg] = useState('');
   const [generando, setGenerando] = useState(false);
   const [genProgress, setGenProgress] = useState(0);
+  const [pdfDocenteOpen, setPdfDocenteOpen] = useState(false);
+  const [pdfDocenteLoading, setPdfDocenteLoading] = useState(false);
+  const [pdfDocenteExporting, setPdfDocenteExporting] = useState(false);
+  const [pdfDocenteData, setPdfDocenteData] = useState(null);
+  const [pdfDocenteSel, setPdfDocenteSel] = useState('all');
 
   useEffect(() => {
     if (!generando) return undefined;
@@ -1020,6 +1026,97 @@ function EditorPanel({ anio, niveles }) {
     }
   };
 
+  const abrirPdfDocente = async () => {
+    if (!versionId) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Elige un borrador',
+        text: 'Necesitas un borrador con clases para exportar por docente.',
+        ...swalOpts,
+      });
+      return;
+    }
+    setPdfDocenteOpen(true);
+    setPdfDocenteLoading(true);
+    setPdfDocenteData(null);
+    setPdfDocenteSel('all');
+    try {
+      const { data } = await api.get(`${API}/vista-final`, {
+        params: { version_id: Number(versionId) },
+      });
+      const docentes = (data.docentes || []).filter((d) => d.personal_id);
+      setPdfDocenteData({
+        bloques: data.bloques || [],
+        docentes,
+      });
+      if (docentes.length === 1) {
+        setPdfDocenteSel(String(docentes[0].personal_id));
+      }
+    } catch (e) {
+      setPdfDocenteOpen(false);
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo cargar',
+        text: e.response?.data?.error || 'Error al obtener docentes del borrador',
+        ...swalOpts,
+      });
+    } finally {
+      setPdfDocenteLoading(false);
+    }
+  };
+
+  const exportarPdfDocente = async () => {
+    if (!pdfDocenteData?.docentes?.length) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Sin docentes',
+        text: 'Este borrador no tiene clases con docente asignado.',
+        ...swalOpts,
+      });
+      return;
+    }
+    try {
+      setPdfDocenteExporting(true);
+      const { bloques, docentes } = pdfDocenteData;
+      if (pdfDocenteSel === 'all') {
+        exportarHorarioGenPDFMultiple({
+          anio,
+          bloques,
+          items: docentes,
+          modo: 'docente',
+        });
+      } else {
+        const docu = docentes.find((d) => String(d.personal_id) === String(pdfDocenteSel));
+        if (!docu) throw new Error('Docente no encontrado');
+        exportarHorarioGenPDF({
+          titulo: docu.nombre,
+          anio,
+          subtituloExtra: 'Docente',
+          bloques,
+          entradas: docu.entradas || [],
+          modo: 'docente',
+        });
+      }
+      setPdfDocenteOpen(false);
+      Swal.fire({
+        icon: 'success',
+        title: 'PDF generado',
+        timer: 1400,
+        showConfirmButton: false,
+        ...swalOpts,
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.message || 'No se pudo generar el PDF',
+        ...swalOpts,
+      });
+    } finally {
+      setPdfDocenteExporting(false);
+    }
+  };
+
   return (
     <div>
       {generando &&
@@ -1070,8 +1167,29 @@ function EditorPanel({ anio, niveles }) {
               </button>
             )}
             {board && (
-              <button type="button" className="hg-btn hg-btn-sm" onClick={descargarPdf}>
-                Descargar PDF
+              <>
+                <button type="button" className="hg-btn hg-btn-sm" onClick={descargarPdf}>
+                  Descargar PDF
+                </button>
+                <button
+                  type="button"
+                  className="hg-btn hg-btn-sm"
+                  disabled={!versionId}
+                  onClick={abrirPdfDocente}
+                  title="Exportar horario de un docente o de todos (versión/nivel actual)"
+                >
+                  PDF por docente
+                </button>
+              </>
+            )}
+            {!board && versionId && (
+              <button
+                type="button"
+                className="hg-btn hg-btn-sm"
+                onClick={abrirPdfDocente}
+                title="Exportar horario de un docente o de todos (versión/nivel actual)"
+              >
+                PDF por docente
               </button>
             )}
           </div>
@@ -1178,7 +1296,9 @@ function EditorPanel({ anio, niveles }) {
             {pendientes.length === 0 ? (
               <p className="hg-muted">Todas las cargas de este grupo están colocadas.</p>
             ) : (
-              pendientes.map((c) => (
+              pendientes.map((c) => {
+                const chipColor = resolveCursoColor(c.color, c.curso_nombre);
+                return (
                 <div
                   key={c.id}
                   className={`hg-carga-chip${Number(selectedCargaId) === Number(c.id) && !modoTextoLibre ? ' hg-carga-chip--sel' : ''}`}
@@ -1192,7 +1312,10 @@ function EditorPanel({ anio, niveles }) {
                     setSelectedCargaId(c.id);
                     setModoTextoLibre(false);
                   }}
-                  style={c.color ? { borderLeftColor: c.color } : undefined}
+                  style={{
+                    background: chipColor,
+                    borderLeftColor: chipColor,
+                  }}
                 >
                   <strong>{c.curso_nombre || 'Curso'}</strong>
                   <span>
@@ -1200,19 +1323,30 @@ function EditorPanel({ anio, niveles }) {
                   </span>
                   <small>{c.docente_nombre || 'Sin docente'}</small>
                 </div>
-              ))
+                );
+              })
             )}
             {completos.length > 0 && (
               <>
                 <h3 style={{ marginTop: '1rem' }}>Completos</h3>
-                {completos.map((c) => (
-                  <div key={c.id} className="hg-carga-chip hg-carga-chip--done">
+                {completos.map((c) => {
+                  const chipColor = resolveCursoColor(c.color, c.curso_nombre);
+                  return (
+                  <div
+                    key={c.id}
+                    className="hg-carga-chip hg-carga-chip--done"
+                    style={{
+                      background: chipColor,
+                      borderLeftColor: chipColor,
+                    }}
+                  >
                     <strong>{c.curso_nombre}</strong>
                     <span>
                       {c.colocados}/{c.bloques_semanales}
                     </span>
                   </div>
-                ))}
+                  );
+                })}
               </>
             )}
           </aside>
@@ -1240,6 +1374,12 @@ function EditorPanel({ anio, niveles }) {
                   {DIAS.map((d) => {
                     const ent = entradaEn(d.value, b.id);
                     const isBreak = b.tipo === 'BREAK' || b.tipo === 'LUNCH';
+                    const cellColor = ent
+                      ? resolveCursoColor(
+                          ent.carga_color,
+                          ent.curso_nombre || ent.texto_libre
+                        )
+                      : null;
                     return (
                       <div
                         key={`${d.value}-${b.id}`}
@@ -1261,6 +1401,7 @@ function EditorPanel({ anio, niveles }) {
                         ) : ent ? (
                           <div
                             className="hg-cell-card"
+                            style={cellColor ? { background: cellColor } : undefined}
                             draggable={!esActivo(ent.locked)}
                             title={
                               esActivo(ent.locked)
@@ -1328,6 +1469,68 @@ function EditorPanel({ anio, niveles }) {
             </div>
           </div>
         </div>
+      )}
+
+      {pdfDocenteOpen && (
+        <Overlay
+          title="PDF por docente"
+          onClose={() => !pdfDocenteExporting && setPdfDocenteOpen(false)}
+          footer={
+            <>
+              <button
+                type="button"
+                className="hg-btn"
+                disabled={pdfDocenteExporting}
+                onClick={() => setPdfDocenteOpen(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="hg-btn hg-btn-primary"
+                disabled={
+                  pdfDocenteLoading ||
+                  pdfDocenteExporting ||
+                  !pdfDocenteData?.docentes?.length
+                }
+                onClick={exportarPdfDocente}
+              >
+                {pdfDocenteExporting ? 'Generando…' : 'Descargar PDF'}
+              </button>
+            </>
+          }
+        >
+          {pdfDocenteLoading ? (
+            <p className="hg-muted">Cargando docentes del borrador…</p>
+          ) : !pdfDocenteData?.docentes?.length ? (
+            <p className="hg-muted">
+              Este borrador no tiene clases con docente. Genera o coloca clases primero.
+            </p>
+          ) : (
+            <div className="hg-field">
+              <label>
+                Docente
+                <select
+                  value={pdfDocenteSel}
+                  onChange={(e) => setPdfDocenteSel(e.target.value)}
+                >
+                  <option value="all">
+                    Todos los docentes ({pdfDocenteData.docentes.length} hojas)
+                  </option>
+                  {pdfDocenteData.docentes.map((d) => (
+                    <option key={d.personal_id} value={String(d.personal_id)}>
+                      {d.nombre} · {(d.entradas || []).length} clases
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="hg-muted" style={{ marginTop: '0.75rem' }}>
+                Cada celda muestra el curso y el aula/grado. Solo incluye docentes de este
+                borrador (nivel actual).
+              </p>
+            </div>
+          )}
+        </Overlay>
       )}
     </div>
   );
