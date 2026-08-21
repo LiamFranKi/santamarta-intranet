@@ -724,6 +724,29 @@
   font-size: 0.9rem;
 }
 
+.hg-destino-list {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.5rem 0.65rem;
+  background: #f8fafc;
+}
+
+.hg-destino-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.15rem;
+  margin: 0;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.hg-destino-item + .hg-destino-item {
+  border-top: 1px solid #e2e8f0;
+}
+
 .hg-row-dirty {
   background: #fffbeb;
 }

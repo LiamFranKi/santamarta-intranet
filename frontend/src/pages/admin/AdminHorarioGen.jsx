@@ -1290,6 +1290,10 @@ function CargaPanel({ anio, niveles, docentes }) {
   const [loading, setLoading] = useState(false);
   const [bloquesDefault, setBloquesDefault] = useState(2);
   const [saving, setSaving] = useState(false);
+  const [modalCopiar, setModalCopiar] = useState(false);
+  const [copiarOrigen, setCopiarOrigen] = useState('');
+  const [copiarDestinos, setCopiarDestinos] = useState([]);
+  const [copiando, setCopiando] = useState(false);
 
   const toDraftRow = (c) => ({
     id: c.id,
@@ -1490,8 +1494,104 @@ function CargaPanel({ anio, niveles, docentes }) {
     }
   };
 
+  const abrirCopiarHoras = async () => {
+    if (!grupos.length) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Sin grupos',
+        text: 'Elige un nivel para ver las aulas disponibles.',
+        ...swalOpts,
+      });
+      return;
+    }
+    if (dirtyRows.length) {
+      const conf = await Swal.fire({
+        icon: 'warning',
+        title: 'Hay cambios sin guardar',
+        text: 'Guarda o descarta antes de copiar horas entre grupos.',
+        showCancelButton: true,
+        confirmButtonText: 'Descartar y continuar',
+        cancelButtonText: 'Cancelar',
+        ...swalOpts,
+      });
+      if (!conf.isConfirmed) return;
+      descartarCambios();
+    }
+    setCopiarOrigen('');
+    setCopiarDestinos(grupoId ? [String(grupoId)] : []);
+    setModalCopiar(true);
+  };
+
+  const ejecutarCopiarHoras = async () => {
+    if (!copiarOrigen) {
+      Swal.fire({ icon: 'info', title: 'Elige el grupo origen', ...swalOpts });
+      return;
+    }
+    const destinos = copiarDestinos
+      .map((id) => Number(id))
+      .filter((id) => id && id !== Number(copiarOrigen));
+    if (!destinos.length) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Elige al menos un destino',
+        text: 'Marca las aulas/grados que recibirán Horas y Horas seguidas (sin docentes).',
+        ...swalOpts,
+      });
+      return;
+    }
+    const origenLabel = labelGrupo(grupos.find((g) => String(g.id) === String(copiarOrigen)));
+    const destLabels = destinos
+      .map((id) => labelGrupo(grupos.find((g) => Number(g.id) === id)))
+      .filter(Boolean);
+    const conf = await Swal.fire({
+      icon: 'question',
+      title: '¿Copiar horas?',
+      html: `
+        <p>Se copiarán solo <b>Horas</b> y <b>Horas seguidas</b> (mismo curso).</p>
+        <p><b>Origen:</b> ${origenLabel || copiarOrigen}</p>
+        <p><b>Destinos (${destLabels.length}):</b> ${destLabels.slice(0, 8).join(', ')}${
+          destLabels.length > 8 ? '…' : ''
+        }</p>
+        <p style="color:#b45309;margin-top:0.5rem">Los docentes de cada aula <b>no</b> se modifican.</p>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, copiar',
+      cancelButtonText: 'Cancelar',
+      ...swalOpts,
+    });
+    if (!conf.isConfirmed) return;
+    try {
+      setCopiando(true);
+      const { data } = await api.post(`${API}/carga/copiar-horas`, {
+        anio,
+        grupo_origen_id: Number(copiarOrigen),
+        grupo_destino_ids: destinos,
+      });
+      setModalCopiar(false);
+      await cargarCargas();
+      Swal.fire({
+        icon: 'success',
+        title: 'Horas copiadas',
+        text: `Actualizadas: ${data.actualizadas}${
+          data.sin_match ? ` · Sin match de curso: ${data.sin_match}` : ''
+        }`,
+        ...swalOpts,
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo copiar',
+        ...swalOpts,
+      });
+    } finally {
+      setCopiando(false);
+    }
+  };
+
   const totalBloques = draft.reduce((sum, c) => sum + (Number(c.bloques_semanales) || 0), 0);
   const dirtyCount = dirtyRows.length;
+  const destinosDisponibles = grupos.filter((g) => String(g.id) !== String(copiarOrigen));
 
   return (
     <div>
@@ -1512,6 +1612,9 @@ function CargaPanel({ anio, niveles, docentes }) {
             </label>
             <button type="button" className="hg-btn hg-btn-primary" onClick={importar}>
               Importar asignaturas
+            </button>
+            <button type="button" className="hg-btn" onClick={abrirCopiarHoras} title="Copia Horas y Horas seguidas entre aulas/grados. No toca docentes.">
+              Copiar horas…
             </button>
             <button type="button" className="hg-btn hg-btn-light" onClick={cargarCargas}>
               Actualizar
@@ -1675,6 +1778,98 @@ function CargaPanel({ anio, niveles, docentes }) {
           </div>
         )}
       </section>
+
+      {modalCopiar && (
+        <Overlay
+          title="Copiar horas (sin docentes)"
+          onClose={() => !copiando && setModalCopiar(false)}
+          footer={
+            <>
+              <button type="button" className="hg-btn hg-btn-ghost" disabled={copiando} onClick={() => setModalCopiar(false)}>
+                Cancelar
+              </button>
+              <button type="button" className="hg-btn hg-btn-primary" disabled={copiando} onClick={ejecutarCopiarHoras}>
+                {copiando ? 'Copiando…' : 'Copiar horas'}
+              </button>
+            </>
+          }
+        >
+          <div className="hg-form">
+            <p className="hg-muted" style={{ marginTop: 0 }}>
+              Copia solo <strong>Horas</strong> y <strong>Horas seguidas</strong> emparejando el mismo curso
+              (ej. 1º A → 1º B, o 1º → 2º/3º en Secundaria). Los docentes de cada aula no cambian.
+            </p>
+            <label>
+              Grupo origen (de dónde se copian las horas) *
+              <select
+                value={copiarOrigen}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setCopiarOrigen(v);
+                  setCopiarDestinos((prev) => prev.filter((id) => id !== v));
+                }}
+              >
+                <option value="">— Elegir —</option>
+                {grupos.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {labelGrupo(g)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div>
+              <div className="hg-actions" style={{ justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                <strong style={{ fontSize: '0.85rem' }}>Grupos destino *</strong>
+                <button
+                  type="button"
+                  className="hg-btn hg-btn-sm hg-btn-ghost"
+                  disabled={!destinosDisponibles.length}
+                  onClick={() =>
+                    setCopiarDestinos(destinosDisponibles.map((g) => String(g.id)))
+                  }
+                >
+                  Marcar todos
+                </button>
+                <button
+                  type="button"
+                  className="hg-btn hg-btn-sm hg-btn-ghost"
+                  onClick={() => setCopiarDestinos([])}
+                >
+                  Ninguno
+                </button>
+              </div>
+              <div className="hg-destino-list">
+                {destinosDisponibles.length === 0 ? (
+                  <p className="hg-muted">Elige un origen; aquí saldrán las demás aulas del filtro.</p>
+                ) : (
+                  destinosDisponibles.map((g) => {
+                    const id = String(g.id);
+                    const checked = copiarDestinos.includes(id);
+                    return (
+                      <label key={g.id} className="hg-check hg-destino-item">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() =>
+                            setCopiarDestinos((prev) =>
+                              checked ? prev.filter((x) => x !== id) : [...prev, id]
+                            )
+                          }
+                        />
+                        {labelGrupo(g)}
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+              <p className="hg-muted" style={{ marginTop: '0.5rem', marginBottom: 0 }}>
+                Tip: filtra por <strong>Nivel</strong> (Primaria/Secundaria) para ver solo esas aulas. Si estás en 1º B,
+                márcalo como destino y elige 1º A como origen.
+              </p>
+            </div>
+          </div>
+        </Overlay>
+      )}
     </div>
   );
 }

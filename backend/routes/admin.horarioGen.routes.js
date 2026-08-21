@@ -879,6 +879,112 @@ router.delete('/carga/:id', async (req, res) => {
 });
 
 /**
+ * Copia solo Horas + Horas seguidas entre grupos (NO docentes).
+ * Empareja por curso_id; si falta, por nombre de curso (normalizado).
+ * Body: { anio, grupo_origen_id, grupo_destino_ids: number[] }
+ */
+router.post('/carga/copiar-horas', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const anioActivo = await anioActivoColegio(cid);
+    const b = req.body || {};
+    const anio = parseAnio(b.anio, anioActivo);
+    const origenId = parseId(b.grupo_origen_id);
+    let destinos = [];
+    if (Array.isArray(b.grupo_destino_ids)) {
+      destinos = b.grupo_destino_ids.map((x) => parseId(x)).filter(Boolean);
+    } else if (parseId(b.grupo_destino_id)) {
+      destinos = [parseId(b.grupo_destino_id)];
+    }
+    destinos = [...new Set(destinos)].filter((id) => id && id !== origenId);
+
+    if (!origenId) return res.status(400).json({ error: 'grupo_origen_id obligatorio' });
+    if (!destinos.length) {
+      return res.status(400).json({ error: 'Indique al menos un grupo destino distinto al origen.' });
+    }
+
+    const origenRows = await query(
+      `SELECT c.id, c.curso_id, c.bloques_semanales, c.bloques_consecutivos_min, c.bloques_consecutivos_max,
+              LOWER(TRIM(COALESCE(cur.nombre, ''))) AS curso_key
+       FROM horario_gen_carga c
+       LEFT JOIN cursos cur ON cur.id = c.curso_id
+       WHERE c.colegio_id = ? AND c.anio = ? AND c.grupo_id = ? AND c.activo = 1`,
+      [cid, anio, origenId]
+    );
+    if (!origenRows?.length) {
+      return res.status(400).json({
+        error: 'El grupo origen no tiene carga activa para copiar.',
+      });
+    }
+
+    const byCursoId = new Map();
+    const byNombre = new Map();
+    for (const o of origenRows) {
+      if (o.curso_id) byCursoId.set(Number(o.curso_id), o);
+      if (o.curso_key) byNombre.set(o.curso_key, o);
+    }
+
+    let actualizadas = 0;
+    let sinMatch = 0;
+    const porDestino = [];
+
+    for (const destId of destinos) {
+      const destRows = await query(
+        `SELECT c.id, c.curso_id, c.bloques_semanales, c.bloques_consecutivos_min, c.bloques_consecutivos_max,
+                LOWER(TRIM(COALESCE(cur.nombre, ''))) AS curso_key,
+                cur.nombre AS curso_nombre
+         FROM horario_gen_carga c
+         LEFT JOIN cursos cur ON cur.id = c.curso_id
+         WHERE c.colegio_id = ? AND c.anio = ? AND c.grupo_id = ?`,
+        [cid, anio, destId]
+      );
+      let upd = 0;
+      let miss = 0;
+      for (const d of destRows || []) {
+        const src =
+          (d.curso_id && byCursoId.get(Number(d.curso_id))) ||
+          (d.curso_key && byNombre.get(d.curso_key)) ||
+          null;
+        if (!src) {
+          miss += 1;
+          continue;
+        }
+        const minC = Math.max(1, Number(src.bloques_consecutivos_min) || 1);
+        const maxC = Math.max(minC, Number(src.bloques_consecutivos_max) || minC);
+        const horas = Math.max(1, Number(src.bloques_semanales) || 1);
+        await execute(
+          `UPDATE horario_gen_carga
+           SET bloques_semanales = ?, bloques_consecutivos_min = ?, bloques_consecutivos_max = ?
+           WHERE id = ? AND colegio_id = ?`,
+          [horas, minC, maxC, d.id, cid]
+        );
+        upd += 1;
+      }
+      actualizadas += upd;
+      sinMatch += miss;
+      porDestino.push({ grupo_id: destId, actualizadas: upd, sin_match: miss });
+    }
+
+    res.json({
+      message: 'Horas copiadas (docentes sin cambios)',
+      anio,
+      grupo_origen_id: origenId,
+      actualizadas,
+      sin_match: sinMatch,
+      destinos: porDestino,
+    });
+  } catch (e) {
+    if (e.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({
+        error: 'Faltan tablas horario_gen_*. Ejecute sql/horario_gen_modulo.sql en phpMyAdmin.',
+        code: 'TABLES_MISSING',
+      });
+    }
+    res.status(500).json({ error: e.message || 'Error al copiar horas.' });
+  }
+});
+
+/**
  * Importa desde asignaturas del año (docente+curso+grupo ya existentes).
  * No duplica si ya hay fila con mismo asignatura_id.
  * Body: { anio, nivel_id?, grupo_id?, bloques_default? }
