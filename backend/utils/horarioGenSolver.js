@@ -392,8 +392,50 @@ function solveInMemory({
 
       const cands = candidatesFor(unit);
       if (!cands.length) {
+        // Doble sin hueco: intentar como horas sueltas (ej. 3ª hora huérfana / alrededor del recreo)
+        if (unit.size > 1) {
+          const addedSingles = [];
+          let placedSingles = 0;
+          for (let i = 0; i < unit.size; i += 1) {
+            const singleCands = candidatesFor({ ...unit, size: 1 });
+            if (!singleCands.length) break;
+            const cand = singleCands[0];
+            const b = cand.blocks[0];
+            const p = {
+              dia: cand.dia,
+              bloque_id: b.id,
+              bloque_orden: b.orden,
+              grupo_id: unit.grupo_id,
+              carga_id: unit.carga_id,
+              personal_id: unit.personal_id,
+              curso_id: unit.carga.curso_id || null,
+              asignatura_id: unit.carga.asignatura_id || null,
+              locked: 0,
+            };
+            grupoBusy.add(grupoSlotKey(p.grupo_id, p.dia, p.bloque_id));
+            if (p.personal_id) teacherBusy.add(teacherSlotKey(p.personal_id, p.dia, p.bloque_id));
+            placements.push(p);
+            addedSingles.push(p);
+            placedSingles += 1;
+          }
+          snapshotBest();
+          if (placedSingles > 0) {
+            if (dfs(ui + 1)) return true;
+            for (let i = 0; i < addedSingles.length; i += 1) {
+              const p = placements.pop();
+              grupoBusy.delete(grupoSlotKey(p.grupo_id, p.dia, p.bloque_id));
+              if (p.personal_id) {
+                teacherBusy.delete(teacherSlotKey(p.personal_id, p.dia, p.bloque_id));
+              }
+            }
+          }
+          // Seguir con el resto (no tumbar toda la solución por un doble imposible)
+          snapshotBest();
+          return dfs(ui + 1);
+        }
         snapshotBest();
-        return false;
+        // Hora suelta sin hueco: continuar, el pase de relleno intentará después
+        return dfs(ui + 1);
       }
 
       for (const cand of cands) {
@@ -426,7 +468,8 @@ function solveInMemory({
         }
       }
       snapshotBest();
-      return false;
+      // Agotar candidatos no debe vaciar lo ya bueno: continuar sin esta unidad
+      return dfs(ui + 1);
     }
 
     const ok = dfs(0);
@@ -437,23 +480,119 @@ function solveInMemory({
     return { ok, placements: finalPlacements, nodes };
   }
 
+  /**
+   * Rellena huecos libres con horas sueltas pendientes
+   * (ej. 3ª hora antes del recreo, o cualquier CLASS vacía).
+   */
+  function fillRemainingSingles(basePlacements) {
+    const out = basePlacements.map((p) => ({ ...p }));
+    const grupoBusy = new Set();
+    const teacherBusy = new Set();
+    for (const p of out) {
+      grupoBusy.add(grupoSlotKey(p.grupo_id, p.dia, p.bloque_id));
+      if (p.personal_id) teacherBusy.add(teacherSlotKey(p.personal_id, p.dia, p.bloque_id));
+    }
+
+    function isOrphanClass(bloque) {
+      const idx = timeline.findIndex((b) => Number(b.id) === Number(bloque.id));
+      if (idx < 0) return false;
+      const prev = timeline[idx - 1];
+      const next = timeline[idx + 1];
+      const prevClass = prev && isClassTipo(prev.tipo);
+      const nextClass = next && isClassTipo(next.tipo);
+      // Huérfana: recreo/almuerzo o borde a un lado (típica 3ª hora)
+      return !prevClass || !nextClass;
+    }
+
+    // Primero cursos con pocas horas pendientes (1h), luego el resto
+    const pendientes = cargas
+      .map((c) => {
+        const have = out.filter((p) => Number(p.carga_id) === Number(c.id)).length;
+        const need = Number(c.bloques_semanales || 0);
+        return { c, faltan: Math.max(0, need - have) };
+      })
+      .filter((x) => x.faltan > 0)
+      .sort((a, b) => a.faltan - b.faltan || a.c.id - b.c.id);
+
+    let filled = 0;
+    for (const { c, faltan } of pendientes) {
+      const pid = c.personal_id ? Number(c.personal_id) : null;
+      const gid = Number(c.grupo_id);
+      for (let n = 0; n < faltan; n += 1) {
+        const options = [];
+        for (const dia of DIAS) {
+          const hoursSameDay = out.filter(
+            (p) => Number(p.carga_id) === Number(c.id) && Number(p.dia) === dia
+          ).length;
+          for (const b of classBlocks) {
+            if (!isTeacherAvailable(dispByTeacherDay, pid, dia, b)) continue;
+            if (grupoBusy.has(grupoSlotKey(gid, dia, b.id))) continue;
+            if (pid && teacherBusy.has(teacherSlotKey(pid, dia, b.id))) continue;
+            const orphan = isOrphanClass(b) ? 0 : 8;
+            options.push({
+              dia,
+              b,
+              soft: orphan + hoursSameDay * 15 + (Number(b.orden) || 0) * 0.05,
+            });
+          }
+        }
+        if (!options.length) break;
+        options.sort((a, b) => a.soft - b.soft);
+        const pick = options[0];
+        const p = {
+          dia: pick.dia,
+          bloque_id: pick.b.id,
+          bloque_orden: pick.b.orden,
+          grupo_id: gid,
+          carga_id: Number(c.id),
+          personal_id: pid,
+          curso_id: c.curso_id || null,
+          asignatura_id: c.asignatura_id || null,
+          locked: 0,
+        };
+        out.push(p);
+        grupoBusy.add(grupoSlotKey(p.grupo_id, p.dia, p.bloque_id));
+        if (p.personal_id) teacherBusy.add(teacherSlotKey(p.personal_id, p.dia, p.bloque_id));
+        filled += 1;
+      }
+    }
+    return { placements: out, filled };
+  }
+
   // 1) Intento respetando horas seguidas (dobles)
   let search = runSearch(buildUnits(false), maxNodes);
-  // 2) Si quedó vacío o muy incompleto, reintentar en sueltas (mejor algo que nada)
   const totalNeed = cargas.reduce((s, c) => s + Number(c.bloques_semanales || 0), 0);
+
+  // 2) Si quedó muy incompleto, reintentar todo en sueltas
   if (!search.ok && search.placements.length < Math.max(1, Math.floor(totalNeed * 0.4))) {
     const retry = runSearch(buildUnits(true), maxNodes);
     if (retry.placements.length > search.placements.length) {
       search = retry;
       diagnostico.sugerencias.push(
-        'No cupieron todos los dobles (2/2); se colocó lo posible también en horas sueltas. Revise disponibilidad o complete a mano.'
+        'No cupieron todos los dobles (2/2); se usó un plan alterno con más horas sueltas.'
+      );
+    }
+  }
+
+  // 3) Siempre: rellenar huecos libres (3ª hora, etc.) con lo pendiente en sueltas
+  const beforeFill = search.placements.length;
+  const filled = fillRemainingSingles(search.placements);
+  if (filled.filled > 0) {
+    search = {
+      ...search,
+      ok: filled.placements.length >= totalNeed,
+      placements: filled.placements,
+    };
+    if (filled.placements.length > beforeFill) {
+      diagnostico.sugerencias.push(
+        `Se rellenaron ${filled.filled} hora(s) suelta(s) en huecos libres (p. ej. antes/después del recreo).`
       );
     }
   }
 
   const finalPlacements = search.placements;
   const placed = finalPlacements.length;
-  const ok = search.ok && placed >= totalNeed;
+  const ok = placed >= totalNeed;
 
   const unplaced = [];
   for (const c of cargas) {
