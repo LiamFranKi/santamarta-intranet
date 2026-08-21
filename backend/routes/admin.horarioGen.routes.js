@@ -1793,6 +1793,188 @@ router.delete('/solver/runs/:id', async (req, res) => {
 
 // ─── Vista final / resultado (fase 6 — preview antes de vincular) ───────────
 
+/**
+ * PDF docentes del año completo (mezcla Inicial/Primaria/Secundaria).
+ * Por cada nivel toma la mejor versión (PUBLISHED > APPROVED > REVIEW > DRAFT).
+ * Unifica franjas por hora_inicio/hora_fin/tipo para una sola grilla.
+ */
+router.get('/pdf-docentes', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const anioActivo = await anioActivoColegio(cid);
+    const anio = parseAnio(req.query.anio, anioActivo);
+
+    const versiones = await query(
+      `SELECT v.*, n.nombre AS nivel_nombre,
+              (SELECT COUNT(*) FROM horario_gen_entradas e WHERE e.version_id = v.id) AS total_entradas
+       FROM horario_gen_versiones v
+       LEFT JOIN niveles n ON n.id = v.nivel_id
+       WHERE v.colegio_id = ? AND v.anio = ? AND v.estado <> 'ARCHIVED'
+       ORDER BY v.updated_at DESC, v.id DESC`,
+      [cid, anio]
+    );
+
+    const rankEstado = (est) => {
+      const e = String(est || '').toUpperCase();
+      if (e === 'PUBLISHED') return 4;
+      if (e === 'APPROVED') return 3;
+      if (e === 'REVIEW') return 2;
+      if (e === 'DRAFT') return 1;
+      return 0;
+    };
+
+    const bestByNivel = new Map();
+    for (const v of versiones || []) {
+      if (!Number(v.total_entradas || 0)) continue;
+      const key = v.nivel_id != null ? Number(v.nivel_id) : `cfg-${v.config_id}`;
+      const prev = bestByNivel.get(key);
+      if (!prev) {
+        bestByNivel.set(key, v);
+        continue;
+      }
+      const rNew = rankEstado(v.estado);
+      const rOld = rankEstado(prev.estado);
+      if (rNew > rOld) bestByNivel.set(key, v);
+      else if (rNew === rOld && Number(v.total_entradas) > Number(prev.total_entradas)) {
+        bestByNivel.set(key, v);
+      }
+    }
+
+    const chosen = [...bestByNivel.values()];
+    if (!chosen.length) {
+      return res.json({
+        anio,
+        bloques: [],
+        docentes: [],
+        versiones_usadas: [],
+        aviso: 'No hay versiones con clases para este año.',
+      });
+    }
+
+    const versionIds = chosen.map((v) => Number(v.id));
+    const placeholders = versionIds.map(() => '?').join(',');
+
+    const bloquesRaw = await query(
+      `SELECT b.*, v.id AS version_id, v.nivel_id, v.config_id
+       FROM horario_gen_bloques b
+       INNER JOIN horario_gen_versiones v ON v.config_id = b.config_id
+       WHERE v.id IN (${placeholders}) AND b.activo = 1
+       ORDER BY b.hora_inicio ASC, b.orden ASC, b.id ASC`,
+      versionIds
+    );
+
+    const slotMap = new Map();
+    for (const b of bloquesRaw || []) {
+      const hi = toHhMm(b.hora_inicio);
+      const hf = toHhMm(b.hora_fin);
+      const key = `${hi}|${hf}|${String(b.tipo || 'CLASS').toUpperCase()}`;
+      if (!slotMap.has(key)) {
+        slotMap.set(key, {
+          key,
+          hora_inicio: hi || b.hora_inicio,
+          hora_fin: hf || b.hora_fin,
+          tipo: String(b.tipo || 'CLASS').toUpperCase(),
+          nombre: b.nombre || hi,
+          orden: Number(b.orden) || 0,
+          source_ids: [Number(b.id)],
+        });
+      } else {
+        slotMap.get(key).source_ids.push(Number(b.id));
+      }
+    }
+
+    const bloquesUnificados = [...slotMap.values()]
+      .sort((a, b) => {
+        const ta = String(a.hora_inicio || '');
+        const tb = String(b.hora_inicio || '');
+        if (ta !== tb) return ta.localeCompare(tb);
+        return (a.orden || 0) - (b.orden || 0);
+      })
+      .map((slot, idx) => ({
+        id: idx + 1,
+        nombre: slot.nombre,
+        hora_inicio: slot.hora_inicio,
+        hora_fin: slot.hora_fin,
+        tipo: slot.tipo,
+        orden: idx + 1,
+        activo: 1,
+        source_ids: slot.source_ids,
+      }));
+
+    const bloqueIdBySource = new Map();
+    for (const u of bloquesUnificados) {
+      for (const sid of u.source_ids) bloqueIdBySource.set(sid, u.id);
+    }
+
+    const entradas = await query(
+      `SELECT e.*,
+              COALESCE(cur.nombre, e.texto_libre) AS curso_nombre,
+              g.grado, g.seccion, g.nivel_id,
+              n.nombre AS nivel_nombre,
+              TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS docente_nombre,
+              cg.color AS carga_color, cg.bloques_semanales,
+              e.version_id
+       FROM horario_gen_entradas e
+       INNER JOIN grupos g ON g.id = e.grupo_id
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       LEFT JOIN cursos cur ON cur.id = e.curso_id
+       LEFT JOIN personal p ON p.id = e.personal_id
+       LEFT JOIN horario_gen_carga cg ON cg.id = e.carga_id
+       WHERE e.version_id IN (${placeholders})
+       ORDER BY n.nombre, g.grado, g.seccion, e.dia_semana, e.bloque_id`,
+      versionIds
+    );
+
+    const byDocente = new Map();
+    for (const e of entradas || []) {
+      const pid = e.personal_id ? Number(e.personal_id) : 0;
+      if (!pid) continue;
+      const mappedBloque = bloqueIdBySource.get(Number(e.bloque_id));
+      if (!mappedBloque) continue;
+      if (!byDocente.has(pid)) {
+        byDocente.set(pid, {
+          personal_id: pid,
+          nombre: e.docente_nombre || 'Sin docente',
+          entradas: [],
+        });
+      }
+      byDocente.get(pid).entradas.push({
+        ...e,
+        bloque_id: mappedBloque,
+        locked: toBool01(e.locked, 0),
+        grupo_label: formatGrupoLabel(e.nivel_nombre, e.grado, e.seccion),
+        carga_color: e.carga_color || null,
+      });
+    }
+
+    res.json({
+      anio,
+      bloques: bloquesUnificados,
+      docentes: [...byDocente.values()].sort((a, b) =>
+        String(a.nombre).localeCompare(String(b.nombre), 'es')
+      ),
+      versiones_usadas: chosen.map((v) => ({
+        id: v.id,
+        nivel_id: v.nivel_id,
+        nivel_nombre: v.nivel_nombre,
+        estado: v.estado,
+        nombre: v.nombre,
+        total_entradas: Number(v.total_entradas || 0),
+      })),
+      aviso:
+        'Incluye la mejor versión de cada nivel del año (Inicial, Primaria, Secundaria, etc.).',
+    });
+  } catch (e) {
+    if (e.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({
+        error: 'Faltan tablas horario_gen_*. Ejecute sql/horario_gen_modulo.sql en phpMyAdmin.',
+        code: 'TABLES_MISSING',
+      });
+    }
+    res.status(500).json({ error: e.message || 'Error al cargar PDF docentes.' });
+  }
+});
+
 router.get('/vista-final', async (req, res) => {
   try {
     const cid = colegio(req);

@@ -54,11 +54,6 @@ export function exportarHorarioGenPDF({
   const colorText = [30, 41, 59];
   const colorBreak = [255, 237, 213];
 
-  const entradaEn = (dia, bloqueId) =>
-    (entradas || []).find(
-      (e) => Number(e.dia_semana) === Number(dia) && Number(e.bloque_id) === Number(bloqueId)
-    );
-
   // Encabezado
   doc.setFillColor(...colorHeader);
   doc.rect(margin, y, contentWidth, 25, 'F');
@@ -132,13 +127,26 @@ export function exportarHorarioGenPDF({
         return;
       }
 
-      const e = entradaEn(dia.id, b.id);
-      if (!e) return;
+      const eList = (entradas || []).filter(
+        (en) => Number(en.dia_semana) === Number(dia.id) && Number(en.bloque_id) === Number(b.id)
+      );
+      if (!eList.length) return;
 
-      const tituloCelda = e.curso_nombre || 'Clase';
+      const tituloCelda = eList
+        .map((en) => en.curso_nombre || 'Clase')
+        .filter(Boolean)
+        .join(' / ');
       const secundario =
-        modo === 'docente' ? e.grupo_label || '' : e.docente_nombre || '';
-      const hex = e.carga_color || colorForCurso(tituloCelda);
+        modo === 'docente'
+          ? eList
+              .map((en) => en.grupo_label || '')
+              .filter(Boolean)
+              .join(' · ')
+          : eList
+              .map((en) => en.docente_nombre || '')
+              .filter(Boolean)
+              .join(' · ');
+      const hex = eList[0].carga_color || colorForCurso(eList[0].curso_nombre || tituloCelda);
       const rgb = hexToRgb(hex);
       if (rgb) {
         doc.setFillColor(rgb.r, rgb.g, rgb.b);
@@ -277,13 +285,25 @@ export function exportarHorarioGenPDFMultiple({ anio, bloques, items, modo = 'gr
           doc.text(breakLabel, x + colWidth / 2, y + rowHeight / 2 + 2, { align: 'center' });
           return;
         }
-        const e = (entradas || []).find(
+        const eList = (entradas || []).filter(
           (en) => Number(en.dia_semana) === Number(dia.id) && Number(en.bloque_id) === Number(b.id)
         );
-        if (!e) return;
-        const tituloCelda = e.curso_nombre || 'Clase';
-        const secundario = modo === 'docente' ? e.grupo_label || '' : e.docente_nombre || '';
-        const rgb = hexToRgb(e.carga_color || colorForCurso(tituloCelda));
+        if (!eList.length) return;
+        const tituloCelda = eList
+          .map((en) => en.curso_nombre || 'Clase')
+          .filter(Boolean)
+          .join(' / ');
+        const secundario =
+          modo === 'docente'
+            ? eList
+                .map((en) => en.grupo_label || '')
+                .filter(Boolean)
+                .join(' · ')
+            : eList
+                .map((en) => en.docente_nombre || '')
+                .filter(Boolean)
+                .join(' · ');
+        const rgb = hexToRgb(eList[0].carga_color || colorForCurso(eList[0].curso_nombre || tituloCelda));
         if (rgb) {
           doc.setFillColor(rgb.r, rgb.g, rgb.b);
           doc.rect(x + 0.5, y + 0.5, colWidth - 1, rowHeight - 1, 'F');

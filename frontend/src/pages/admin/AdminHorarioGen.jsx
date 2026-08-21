@@ -1027,11 +1027,11 @@ function EditorPanel({ anio, niveles }) {
   };
 
   const abrirPdfDocente = async () => {
-    if (!versionId) {
+    if (!anio) {
       Swal.fire({
         icon: 'info',
-        title: 'Elige un borrador',
-        text: 'Necesitas un borrador con clases para exportar por docente.',
+        title: 'Elige un año',
+        text: 'Selecciona el año arriba para exportar horarios por docente.',
         ...swalOpts,
       });
       return;
@@ -1041,13 +1041,15 @@ function EditorPanel({ anio, niveles }) {
     setPdfDocenteData(null);
     setPdfDocenteSel('all');
     try {
-      const { data } = await api.get(`${API}/vista-final`, {
-        params: { version_id: Number(versionId) },
+      const { data } = await api.get(`${API}/pdf-docentes`, {
+        params: { anio },
       });
       const docentes = (data.docentes || []).filter((d) => d.personal_id);
       setPdfDocenteData({
         bloques: data.bloques || [],
         docentes,
+        versiones_usadas: data.versiones_usadas || [],
+        aviso: data.aviso || '',
       });
       if (docentes.length === 1) {
         setPdfDocenteSel(String(docentes[0].personal_id));
@@ -1057,7 +1059,7 @@ function EditorPanel({ anio, niveles }) {
       Swal.fire({
         icon: 'error',
         title: 'No se pudo cargar',
-        text: e.response?.data?.error || 'Error al obtener docentes del borrador',
+        text: e.response?.data?.error || 'Error al obtener docentes del año',
         ...swalOpts,
       });
     } finally {
@@ -1070,7 +1072,7 @@ function EditorPanel({ anio, niveles }) {
       Swal.fire({
         icon: 'info',
         title: 'Sin docentes',
-        text: 'Este borrador no tiene clases con docente asignado.',
+        text: 'No hay clases con docente en las versiones del año.',
         ...swalOpts,
       });
       return;
@@ -1174,20 +1176,19 @@ function EditorPanel({ anio, niveles }) {
                 <button
                   type="button"
                   className="hg-btn hg-btn-sm"
-                  disabled={!versionId}
                   onClick={abrirPdfDocente}
-                  title="Exportar horario de un docente o de todos (versión/nivel actual)"
+                  title="Exporta el horario del docente en todos los niveles del año (Inicial, Primaria, Secundaria…)"
                 >
                   PDF por docente
                 </button>
               </>
             )}
-            {!board && versionId && (
+            {!board && (
               <button
                 type="button"
                 className="hg-btn hg-btn-sm"
                 onClick={abrirPdfDocente}
-                title="Exportar horario de un docente o de todos (versión/nivel actual)"
+                title="Exporta el horario del docente en todos los niveles del año (Inicial, Primaria, Secundaria…)"
               >
                 PDF por docente
               </button>
@@ -1501,10 +1502,11 @@ function EditorPanel({ anio, niveles }) {
           }
         >
           {pdfDocenteLoading ? (
-            <p className="hg-muted">Cargando docentes del borrador…</p>
+            <p className="hg-muted">Cargando docentes del año (todos los niveles)…</p>
           ) : !pdfDocenteData?.docentes?.length ? (
             <p className="hg-muted">
-              Este borrador no tiene clases con docente. Genera o coloca clases primero.
+              No hay clases con docente en ninguna versión del año {anio}. Genera horarios en
+              Inicial, Primaria y/o Secundaria primero.
             </p>
           ) : (
             <div className="hg-field">
@@ -1525,9 +1527,18 @@ function EditorPanel({ anio, niveles }) {
                 </select>
               </label>
               <p className="hg-muted" style={{ marginTop: '0.75rem' }}>
-                Cada celda muestra el curso y el aula/grado. Solo incluye docentes de este
-                borrador (nivel actual).
+                Incluye <strong>todos los niveles</strong> del año (Inicial, Primaria, Secundaria…):
+                si un docente enseña en varios, salen juntos en su hoja. Cada celda muestra curso y
+                aula/grado.
               </p>
+              {pdfDocenteData.versiones_usadas?.length > 0 && (
+                <p className="hg-muted" style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+                  Versiones usadas:{' '}
+                  {pdfDocenteData.versiones_usadas
+                    .map((v) => `${v.nivel_nombre || 'Nivel'} (${v.estado})`)
+                    .join(' · ')}
+                </p>
+              )}
             </div>
           )}
         </Overlay>
