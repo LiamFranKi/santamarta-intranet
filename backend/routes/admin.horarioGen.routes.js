@@ -1601,12 +1601,11 @@ router.post('/solver/generar', async (req, res) => {
 
     const maxAlt = Math.min(3, Math.max(1, parseInt(b.max_alternatives, 10) || 1));
     const seedBase = Number.isFinite(Number(b.seed)) ? Number(b.seed) : Date.now() % 100000;
-    // Si envían grupo_ids, igual resolvemos TODO el nivel (docentes compartidos entre grados).
-    // El filtro por grupo solo se usaba antes y provocaba choques (mismo docente a la misma hora).
     let grupoIds = null;
     if (Array.isArray(b.grupo_ids) && b.grupo_ids.length) {
-      grupoIds = b.grupo_ids.map((x) => parseId(x)).filter(Boolean);
+      grupoIds = [...new Set(b.grupo_ids.map((x) => parseId(x)).filter(Boolean))];
     }
+    const soloGrupos = Boolean(grupoIds?.length);
     const reuseVersionId = parseId(b.version_id);
 
     const runIns = await execute(
@@ -1617,38 +1616,53 @@ router.post('/solver/generar', async (req, res) => {
     );
     runId = runIns.insertId;
 
-    // Siempre todo el nivel: un docente no puede estar en 1ºA y 3ºB a la misma hora
-    const ctx = await loadSolverContext({
+    // Contexto completo del nivel (bloques); las cargas se filtran si es solo un grupo
+    const ctxAll = await loadSolverContext({
       colegioId: cid,
       anio,
       nivelId: nivel_id,
       grupoIds: null,
     });
+    const cargasSolve = soloGrupos
+      ? (ctxAll.cargas || []).filter((c) => grupoIds.includes(Number(c.grupo_id)))
+      : ctxAll.cargas || [];
 
     await execute(
       `UPDATE horario_gen_runs SET estado = 'SOLVING', progreso = 25, mensaje = ? WHERE id = ?`,
-      [`Resolviendo ${ctx.cargas.length} cargas…`, runId]
+      [`Resolviendo ${cargasSolve.length} cargas…`, runId]
     );
 
     const nv = await query(`SELECT nombre FROM niveles WHERE id = ?`, [nivel_id]);
     const nivelNombre = nv?.[0]?.nombre || `Nivel ${nivel_id}`;
 
     let alcanceLabel = nivelNombre;
-    if (grupoIds?.length) {
-      alcanceLabel = `${nivelNombre} (todos los grados; foco ${grupoIds.length} grupo(s))`;
+    if (soloGrupos) {
+      const gs = await query(
+        `SELECT g.grado, g.seccion, n.nombre AS nivel_nombre
+         FROM grupos g
+         LEFT JOIN niveles n ON n.id = g.nivel_id
+         WHERE g.id IN (${grupoIds.map(() => '?').join(',')})`,
+        grupoIds
+      );
+      alcanceLabel = (gs || [])
+        .map((g) => formatGrupoLabel(g.nivel_nombre, g.grado, g.seccion))
+        .join(', ') || `${nivelNombre} (grupos)`;
     }
 
-    if (!(ctx.cargas || []).length) {
+    if (!cargasSolve.length) {
       await execute(
         `UPDATE horario_gen_runs SET estado = 'FAILED', progreso = 100, mensaje = ?, finished_at = NOW() WHERE id = ?`,
         [
-          'No hay carga semanal para ese nivel. Impórtala en «3. Carga semanal».',
+          soloGrupos
+            ? 'Ese grupo no tiene carga semanal. Impórtala en «3. Carga semanal».'
+            : 'No hay carga semanal para ese nivel. Impórtala en «3. Carga semanal».',
           runId,
         ]
       );
       return res.status(400).json({
-        error:
-          'No hay carga semanal para ese nivel. Ve a «3. Carga semanal» e importa asignaturas.',
+        error: soloGrupos
+          ? 'Ese grupo no tiene carga semanal activa. Ve a «3. Carga semanal» e importa asignaturas.'
+          : 'No hay carga semanal para ese nivel. Ve a «3. Carga semanal» e importa asignaturas.',
         code: 'NO_CARGA',
       });
     }
@@ -1662,18 +1676,27 @@ router.post('/solver/generar', async (req, res) => {
       }
       if (Number(ver.nivel_id) !== Number(nivel_id) || Number(ver.anio) !== Number(anio)) {
         return res.status(400).json({
-          error: 'El borrador no pertenece a este nivel/año.',
+          error: 'El horario no pertenece a este nivel/año.',
         });
       }
       targetVersionId = reuseVersionId;
-      const lockedRows = await query(
-        `SELECT e.dia_semana AS dia, e.bloque_id, e.grupo_id, e.curso_id, e.asignatura_id,
-                COALESCE(e.personal_id, cg.personal_id) AS personal_id, e.carga_id
-         FROM horario_gen_entradas e
-         LEFT JOIN horario_gen_carga cg ON cg.id = e.carga_id
-         WHERE e.version_id = ? AND e.locked = 1`,
-        [reuseVersionId]
-      );
+
+      // Celdas 🔒 + (si solo un grupo) el resto de aulas ya armadas → no chocar docentes
+      let lockSql = `
+        SELECT e.dia_semana AS dia, e.bloque_id, e.grupo_id, e.curso_id, e.asignatura_id,
+               COALESCE(e.personal_id, cg.personal_id) AS personal_id, e.carga_id, e.locked
+        FROM horario_gen_entradas e
+        LEFT JOIN horario_gen_carga cg ON cg.id = e.carga_id
+        WHERE e.version_id = ?
+      `;
+      const lockParams = [reuseVersionId];
+      if (soloGrupos) {
+        lockSql += ` AND (e.locked = 1 OR e.grupo_id NOT IN (${grupoIds.map(() => '?').join(',')}))`;
+        lockParams.push(...grupoIds);
+      } else {
+        lockSql += ' AND e.locked = 1';
+      }
+      const lockedRows = await query(lockSql, lockParams);
       lockedPlacements = (lockedRows || []).map((p) => ({
         dia: Number(p.dia),
         bloque_id: Number(p.bloque_id),
@@ -1709,10 +1732,8 @@ router.post('/solver/generar', async (req, res) => {
             cid,
             anio,
             nivel_id,
-            ctx.config.id,
-            maxAlt > 1
-              ? `Alternativa ${i + 1} · ${alcanceLabel} ${anio}`
-              : `Generado · ${alcanceLabel} ${anio}`,
+            ctxAll.config.id,
+            `Horario · ${alcanceLabel} · ${anio}`,
             req.user?.id || null,
           ]
         );
@@ -1720,17 +1741,19 @@ router.post('/solver/generar', async (req, res) => {
       }
 
       const result = solveInMemory({
-        cargas: ctx.cargas,
-        classBlocks: ctx.classBlocks,
-        allBlocksSorted: ctx.allBlocksSorted,
-        dispByTeacherDay: ctx.dispByTeacherDay,
+        cargas: cargasSolve,
+        classBlocks: ctxAll.classBlocks,
+        allBlocksSorted: ctxAll.allBlocksSorted,
+        dispByTeacherDay: ctxAll.dispByTeacherDay,
         lockedPlacements,
         externalTeacherIntervals,
         seed,
-        docentesNombres: ctx.docentesNombres,
+        docentesNombres: ctxAll.docentesNombres,
       });
 
-      const inserted = await persistPlacements(versionId, result.placements);
+      const inserted = await persistPlacements(versionId, result.placements, {
+        onlyGrupoIds: soloGrupos ? grupoIds : null,
+      });
       await execute(`UPDATE horario_gen_versiones SET score = ? WHERE id = ?`, [
         result.score,
         versionId,
@@ -1738,7 +1761,7 @@ router.post('/solver/generar', async (req, res) => {
 
       alternatives.push({
         version_id: versionId,
-        nombre: maxAlt > 1 ? `Alternativa ${i + 1}` : `Generado`,
+        nombre: soloGrupos ? `Generado · ${alcanceLabel}` : 'Generado · nivel',
         ok: result.ok,
         score: result.score,
         placed: result.placed,
@@ -1748,9 +1771,9 @@ router.post('/solver/generar', async (req, res) => {
         unplaced: result.unplaced,
         diagnostico: result.diagnostico,
         seed,
+        alcance: soloGrupos ? 'grupo' : 'nivel',
       });
 
-      // Si reutilizan el mismo borrador, solo una corrida
       if (targetVersionId || maxAlt === 1) break;
     }
 

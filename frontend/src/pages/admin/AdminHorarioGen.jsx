@@ -937,45 +937,64 @@ function EditorPanel({ anio, niveles }) {
       Swal.fire({
         icon: 'info',
         title: 'Elige un nivel',
-        text: 'Selecciona Primaria, Secundaria, etc. Se generarán todos los grados juntos para no chocar docentes.',
+        text: 'Selecciona Primaria, Secundaria, etc.',
         ...swalOpts,
       });
       return;
     }
+    const puedeSoloGrupo = Boolean(grupoId && grupoSel);
     const conf = await Swal.fire({
       icon: 'question',
-      title: '¿Generar horario automático?',
+      title: '¿Qué quieres generar?',
       html: `
-        <p>Se arma el horario de <strong>todo el nivel</strong> (${nivelSel?.nombre || 'nivel'}) de una vez.</p>
-        <p style="margin-top:0.5rem">Respeta docentes ya ocupados en <b>Inicial, Primaria y Secundaria</b> a la misma hora.</p>
-        <p style="margin-top:0.5rem;color:#64748b;font-size:0.9rem">También horas seguidas (2/2) y celdas bloqueadas 🔒.</p>
+        <p><b>Todo el nivel</b> (${nivelSel?.nombre || 'nivel'}): arma todos los grados a la vez.</p>
+        ${
+          puedeSoloGrupo
+            ? `<p style="margin-top:0.5rem"><b>Solo este grupo</b> (${labelGrupo(grupoSel)}): regenera solo este aula y respeta lo ya puesto en los demás.</p>`
+            : `<p style="margin-top:0.5rem;color:#64748b">Elige un grupo/aula si quieres generar solo uno.</p>`
+        }
+        <p style="margin-top:0.5rem;color:#64748b;font-size:0.9rem">En ambos casos no choca docentes con otros niveles ni con aulas ya armadas.</p>
       `,
+      showDenyButton: puedeSoloGrupo,
       showCancelButton: true,
-      confirmButtonText: 'Generar todo el nivel',
+      confirmButtonText: 'Todo el nivel',
+      denyButtonText: 'Solo este grupo',
       cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#2563eb',
+      denyButtonColor: '#0f766e',
       ...swalOpts,
     });
-    if (!conf.isConfirmed) return;
+    if (conf.isDismissed) return;
+    const soloEsteGrupo = conf.isDenied;
+    if (soloEsteGrupo && !grupoId) return;
     try {
       setGenerando(true);
       setGenProgress(3);
+      let vid = versionId;
+      if (!vid) {
+        vid = await asegurarHorarioNivel(nivelId);
+        if (!vid) {
+          setGenerando(false);
+          return;
+        }
+      }
       const payload = {
         anio,
         nivel_id: Number(nivelId),
         max_alternatives: 1,
+        version_id: Number(vid),
       };
-      if (versionId) payload.version_id = Number(versionId);
+      if (soloEsteGrupo) payload.grupo_ids = [Number(grupoId)];
       const { data } = await api.post(`${API}/solver/generar`, payload);
       setGenProgress(100);
       const bestId = data.best?.version_id || data.alternatives?.[0]?.version_id;
       if (bestId) setVersionId(String(bestId));
-      else if (nivelId) await asegurarHorarioNivel(nivelId);
       await new Promise((r) => setTimeout(r, 280));
       setGenerando(false);
       if (data.estado === 'COMPLETE') {
         Swal.fire({
           icon: 'success',
-          title: 'Horario generado',
+          title: soloEsteGrupo ? 'Grupo generado' : 'Nivel generado',
           text: data.best
             ? `${data.best.placed}/${data.best.total} horas · score ${data.best.score}%`
             : 'Listo. Ya puedes editar o descargar PDF.',

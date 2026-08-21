@@ -754,8 +754,21 @@ async function loadSolverContext({ colegioId, anio, nivelId, grupoIds = null }) 
   };
 }
 
-async function persistPlacements(versionId, placements) {
-  await execute(`DELETE FROM horario_gen_entradas WHERE version_id = ? AND locked = 0`, [versionId]);
+async function persistPlacements(versionId, placements, opts = {}) {
+  const onlyGrupoIds = Array.isArray(opts.onlyGrupoIds)
+    ? opts.onlyGrupoIds.map((x) => Number(x)).filter(Boolean)
+    : null;
+
+  if (onlyGrupoIds?.length) {
+    await execute(
+      `DELETE FROM horario_gen_entradas
+       WHERE version_id = ? AND locked = 0 AND grupo_id IN (${onlyGrupoIds.map(() => '?').join(',')})`,
+      [versionId, ...onlyGrupoIds]
+    );
+  } else {
+    await execute(`DELETE FROM horario_gen_entradas WHERE version_id = ? AND locked = 0`, [versionId]);
+  }
+
   const locked = await query(
     `SELECT dia_semana, bloque_id, grupo_id FROM horario_gen_entradas WHERE version_id = ? AND locked = 1`,
     [versionId]
@@ -766,6 +779,7 @@ async function persistPlacements(versionId, placements) {
 
   let inserted = 0;
   for (const p of placements) {
+    if (onlyGrupoIds?.length && !onlyGrupoIds.includes(Number(p.grupo_id))) continue;
     const k = `${p.grupo_id}:${p.dia}:${p.bloque_id}`;
     if (lockedSet.has(k)) continue;
     await execute(
