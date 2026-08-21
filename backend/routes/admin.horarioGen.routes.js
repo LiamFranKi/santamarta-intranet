@@ -1165,7 +1165,7 @@ router.post('/versiones', async (req, res) => {
     const nv = await query(`SELECT nombre FROM niveles WHERE id = ? AND colegio_id = ?`, [nivel_id, cid]);
     const nombre =
       String(b.nombre || '').trim() ||
-      `Borrador ${nv?.[0]?.nombre || nivel_id} ${anio}`;
+      `Horario · ${nv?.[0]?.nombre || nivel_id} · ${anio}`;
 
     const r = await execute(
       `INSERT INTO horario_gen_versiones
@@ -1177,6 +1177,123 @@ router.post('/versiones', async (req, res) => {
     res.status(201).json({ version: rows[0] });
   } catch (e) {
     res.status(500).json({ error: e.message || 'Error al crear versión.' });
+  }
+});
+
+/**
+ * Un solo horario de trabajo por nivel/año (sin elegir borradores).
+ * Reutiliza el mejor existente o crea uno vacío con el esqueleto de bloques.
+ */
+router.post('/versiones/asegurar', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const anioActivo = await anioActivoColegio(cid);
+    const b = req.body || {};
+    const anio = parseAnio(b.anio, anioActivo);
+    const nivel_id = parseId(b.nivel_id);
+    if (!nivel_id) return res.status(400).json({ error: 'nivel_id obligatorio' });
+
+    const { rankEstadoVersion } = require('../utils/horarioGenTeacherBusy');
+    const rows = await query(
+      `SELECT v.*, n.nombre AS nivel_nombre,
+              (SELECT COUNT(*) FROM horario_gen_entradas e WHERE e.version_id = v.id) AS total_entradas
+       FROM horario_gen_versiones v
+       LEFT JOIN niveles n ON n.id = v.nivel_id
+       WHERE v.colegio_id = ? AND v.anio = ? AND v.nivel_id = ? AND v.estado <> 'ARCHIVED'
+       ORDER BY v.updated_at DESC, v.id DESC`,
+      [cid, anio, nivel_id]
+    );
+
+    let best = null;
+    for (const v of rows || []) {
+      if (!best) {
+        best = v;
+        continue;
+      }
+      const rNew = rankEstadoVersion(v.estado);
+      const rOld = rankEstadoVersion(best.estado);
+      if (rNew > rOld) best = v;
+      else if (rNew === rOld && Number(v.total_entradas) > Number(best.total_entradas)) best = v;
+    }
+
+    if (best) {
+      // Archivar otros borradores del mismo nivel para no acumular
+      for (const v of rows || []) {
+        if (Number(v.id) === Number(best.id)) continue;
+        if (String(v.estado).toUpperCase() === 'PUBLISHED') continue;
+        await execute(
+          `UPDATE horario_gen_versiones SET estado = 'ARCHIVED', updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND colegio_id = ? AND estado <> 'PUBLISHED'`,
+          [v.id, cid]
+        );
+      }
+      return res.json({ version: best, created: false });
+    }
+
+    // Crear usando la misma lógica de POST /versiones
+    const cfg = await query(
+      `SELECT id FROM horario_gen_config WHERE colegio_id = ? AND anio = ? AND nivel_id = ? LIMIT 1`,
+      [cid, anio, nivel_id]
+    );
+    const config_id = cfg?.[0]?.id || null;
+    if (!config_id) {
+      return res.status(400).json({
+        error: 'No hay configuración de bloques para ese nivel/año. Créalos en la pestaña Configuración.',
+        code: 'NO_CONFIG',
+      });
+    }
+    const allBloques = await query(
+      `SELECT id, nombre, activo, tipo FROM horario_gen_bloques WHERE config_id = ?`,
+      [config_id]
+    );
+    let activos = (allBloques || []).filter((x) => toBool01(x.activo, 0) === 1);
+    if (!activos.length && (allBloques || []).length > 0) {
+      await execute(`UPDATE horario_gen_bloques SET activo = 1 WHERE config_id = ?`, [config_id]);
+      activos = allBloques;
+    }
+    if (!activos.length) {
+      return res.status(400).json({
+        error: 'El nivel no tiene bloques horarios. Ve a «1. Configuración» y agrega horas.',
+        code: 'NO_BLOQUES',
+      });
+    }
+    const nv = await query(`SELECT nombre FROM niveles WHERE id = ? AND colegio_id = ?`, [nivel_id, cid]);
+    const nombre = `Horario · ${nv?.[0]?.nombre || nivel_id} · ${anio}`;
+    const r = await execute(
+      `INSERT INTO horario_gen_versiones
+        (colegio_id, anio, nivel_id, config_id, nombre, estado, created_by)
+       VALUES (?, ?, ?, ?, ?, 'DRAFT', ?)`,
+      [cid, anio, nivel_id, config_id, nombre, req.user?.id || null]
+    );
+    const created = await query(`SELECT * FROM horario_gen_versiones WHERE id = ?`, [r.insertId]);
+    res.status(201).json({ version: created[0], created: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al asegurar horario.' });
+  }
+});
+
+/** Limpia solo las clases de un grupo en el horario del nivel (no borra el esqueleto). */
+router.delete('/entradas/grupo', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const versionId = parseId(req.query.version_id);
+    const grupoId = parseId(req.query.grupo_id);
+    if (!versionId || !grupoId) {
+      return res.status(400).json({ error: 'version_id y grupo_id obligatorios' });
+    }
+    const ver = await assertVersionOwned(versionId, cid);
+    if (!ver) return res.status(404).json({ error: 'Horario no encontrado' });
+    const r = await execute(
+      `DELETE FROM horario_gen_entradas
+       WHERE version_id = ? AND grupo_id = ? AND locked = 0`,
+      [versionId, grupoId]
+    );
+    res.json({
+      message: 'Horario del grupo limpiado (celdas bloqueadas se mantienen).',
+      eliminadas: r.affectedRows || 0,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al limpiar grupo.' });
   }
 });
 

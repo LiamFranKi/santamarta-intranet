@@ -547,7 +547,6 @@ export default function AdminHorarioGen() {
 
 function EditorPanel({ anio, niveles }) {
   const [nivelId, setNivelId] = useState('');
-  const [versiones, setVersiones] = useState([]);
   const [versionId, setVersionId] = useState('');
   const [grupos, setGrupos] = useState([]);
   const [grupoId, setGrupoId] = useState('');
@@ -556,6 +555,7 @@ function EditorPanel({ anio, niveles }) {
   const [textoLibrePendiente, setTextoLibrePendiente] = useState('');
   const [modoTextoLibre, setModoTextoLibre] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [asegurando, setAsegurando] = useState(false);
   const [msg, setMsg] = useState('');
   const [generando, setGenerando] = useState(false);
   const [genProgress, setGenProgress] = useState(0);
@@ -578,17 +578,37 @@ function EditorPanel({ anio, niveles }) {
     return () => clearInterval(timer);
   }, [generando]);
 
-  const cargarVersiones = useCallback(async () => {
-    if (!anio) return;
-    try {
-      const params = { anio };
-      if (nivelId) params.nivel_id = nivelId;
-      const { data } = await api.get(`${API}/versiones`, { params });
-      setVersiones(data.versiones || []);
-    } catch {
-      setVersiones([]);
+  const asegurarHorarioNivel = useCallback(async (nivel) => {
+    if (!anio || !nivel) {
+      setVersionId('');
+      return null;
     }
-  }, [anio, nivelId]);
+    try {
+      setAsegurando(true);
+      setMsg('');
+      const { data } = await api.post(`${API}/versiones/asegurar`, {
+        anio,
+        nivel_id: Number(nivel),
+      });
+      const vid = data.version?.id ? String(data.version.id) : '';
+      setVersionId(vid);
+      return vid;
+    } catch (e) {
+      setVersionId('');
+      setBoard(null);
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo abrir el horario',
+        text:
+          e.response?.data?.error ||
+          'Revisa la pestaña Configuración (bloques de hora del nivel).',
+        ...swalOpts,
+      });
+      return null;
+    } finally {
+      setAsegurando(false);
+    }
+  }, [anio]);
 
   const cargarGrupos = useCallback(async () => {
     if (!anio || !nivelId) {
@@ -629,34 +649,39 @@ function EditorPanel({ anio, niveles }) {
   }, [versionId, grupoId]);
 
   useEffect(() => {
-    cargarVersiones();
-  }, [cargarVersiones]);
-
-  useEffect(() => {
-    setVersionId('');
     setGrupoId('');
     setBoard(null);
+    setVersionId('');
     cargarGrupos();
-  }, [nivelId, cargarGrupos]);
+    if (nivelId) asegurarHorarioNivel(nivelId);
+  }, [nivelId, cargarGrupos, asegurarHorarioNivel]);
 
   useEffect(() => {
     cargarBoard();
   }, [cargarBoard]);
 
-  const crearVersion = async () => {
-    if (!nivelId) {
-      Swal.fire({ icon: 'info', title: 'Elige un nivel', ...swalOpts });
-      return;
-    }
+  const limpiarGrupo = async () => {
+    if (!versionId || !grupoId) return;
+    const conf = await Swal.fire({
+      icon: 'warning',
+      title: '¿Limpiar horario de este grupo?',
+      text: 'Se quitan las clases de este aula. El esqueleto de horas se mantiene.',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, limpiar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b91c1c',
+      ...swalOpts,
+    });
+    if (!conf.isConfirmed) return;
     try {
-      const { data } = await api.post(`${API}/versiones`, { anio, nivel_id: Number(nivelId) });
-      await cargarVersiones();
-      setVersionId(String(data.version.id));
+      await api.delete(`${API}/entradas/grupo`, {
+        params: { version_id: Number(versionId), grupo_id: Number(grupoId) },
+      });
+      await cargarBoard();
       Swal.fire({
         icon: 'success',
-        title: 'Borrador creado',
-        text: 'Ahora elige un grupo y coloca cursos en la grilla.',
-        timer: 1800,
+        title: 'Grupo limpio',
+        timer: 1400,
         showConfirmButton: false,
         ...swalOpts,
       });
@@ -664,35 +689,7 @@ function EditorPanel({ anio, niveles }) {
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: e.response?.data?.error || 'No se pudo crear',
-        ...swalOpts,
-      });
-    }
-  };
-
-  const eliminarVersion = async () => {
-    if (!versionId) return;
-    const conf = await Swal.fire({
-      icon: 'warning',
-      title: '¿Eliminar borrador?',
-      text: 'Se borran todas las clases de esta versión piloto.',
-      showCancelButton: true,
-      confirmButtonText: 'Sí',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#b91c1c',
-      ...swalOpts,
-    });
-    if (!conf.isConfirmed) return;
-    try {
-      await api.delete(`${API}/versiones/${versionId}`);
-      setVersionId('');
-      setBoard(null);
-      await cargarVersiones();
-    } catch (e) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: e.response?.data?.error || 'No se pudo eliminar',
+        text: e.response?.data?.error || 'No se pudo limpiar',
         ...swalOpts,
       });
     }
@@ -918,7 +915,7 @@ function EditorPanel({ anio, niveles }) {
         confirmar: 'PUBLICAR',
         grupo_id: Number(grupoId),
       });
-      await cargarVersiones();
+      await cargarBoard();
       await Swal.fire({
         icon: 'success',
         title: 'Ya es horario principal',
@@ -970,9 +967,9 @@ function EditorPanel({ anio, niveles }) {
       if (versionId) payload.version_id = Number(versionId);
       const { data } = await api.post(`${API}/solver/generar`, payload);
       setGenProgress(100);
-      await cargarVersiones();
       const bestId = data.best?.version_id || data.alternatives?.[0]?.version_id;
       if (bestId) setVersionId(String(bestId));
+      else if (nivelId) await asegurarHorarioNivel(nivelId);
       await new Promise((r) => setTimeout(r, 280));
       setGenerando(false);
       if (data.estado === 'COMPLETE') {
@@ -1166,12 +1163,9 @@ function EditorPanel({ anio, niveles }) {
             >
               {generando ? 'Generando…' : '✨ Generar automático'}
             </button>
-            <button type="button" className="hg-btn" onClick={crearVersion}>
-              + Borrador vacío
-            </button>
-            {versionId && (
-              <button type="button" className="hg-btn hg-btn-danger hg-btn-sm" onClick={eliminarVersion}>
-                Eliminar generado
+            {versionId && grupoId && (
+              <button type="button" className="hg-btn hg-btn-danger hg-btn-sm" onClick={limpiarGrupo}>
+                Limpiar este grupo
               </button>
             )}
             {board && (
@@ -1224,20 +1218,10 @@ function EditorPanel({ anio, niveles }) {
               ))}
             </select>
           </label>
-          <label>
-            Borrador
-            <select value={versionId} onChange={(e) => setVersionId(e.target.value)}>
-              <option value="">— Elegir o generar —</option>
-              {versiones.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.nombre} · {v.nivel_nombre || ''} ({v.estado}) · {v.total_entradas || 0} clases
-                </option>
-              ))}
-            </select>
-          </label>
         </div>
         <p className="hg-muted" style={{ margin: '0.5rem 0 0' }}>
-          Aquí generas, editas, descargas PDF y publicas. Si no te gusta el resultado, usa «Eliminar generado» y vuelve a generar.
+          Elige nivel y grupo: se abre el horario automáticamente. Genera todo el nivel o edita a mano
+          celda por celda.
         </p>
         {msg && <p className="hg-error">{msg}</p>}
       </section>
@@ -1248,10 +1232,7 @@ function EditorPanel({ anio, niveles }) {
             <p className="hg-eyebrow">Estás editando el horario de</p>
             <h3>{labelGrupo(grupoSel)}</h3>
             <p className="hg-muted" style={{ margin: '0.25rem 0 0' }}>
-              Borrador: {nivelSel?.nombre || 'Nivel'} {anio}
-              {versiones.find((v) => String(v.id) === String(versionId))?.estado
-                ? ` · ${versiones.find((v) => String(v.id) === String(versionId)).estado}`
-                : ''}
+              {nivelSel?.nombre || 'Nivel'} · {anio}
             </p>
           </div>
           <button type="button" className="hg-btn hg-btn-primary" onClick={publicarEsteGrupo}>
@@ -1260,11 +1241,15 @@ function EditorPanel({ anio, niveles }) {
         </div>
       )}
 
-      {!grupoId ? (
-        <p className="hg-muted">Elige nivel y grupo. Luego «Generar automático» o crea un borrador vacío para editar a mano.</p>
+      {!nivelId ? (
+        <p className="hg-muted">Elige un nivel para abrir su horario.</p>
+      ) : asegurando ? (
+        <p className="hg-muted">Preparando horario del nivel…</p>
+      ) : !grupoId ? (
+        <p className="hg-muted">Elige el grupo/aula para ver la grilla de horas.</p>
       ) : !versionId ? (
         <p className="hg-muted">
-          Sin borrador aún. Pulsa <strong>Generar automático</strong> o <strong>+ Borrador vacío</strong>.
+          No se pudo abrir el horario. Revisa <strong>1. Configuración</strong> (bloques del nivel).
         </p>
       ) : loading ? (
         <p className="hg-muted">Cargando grilla…</p>
