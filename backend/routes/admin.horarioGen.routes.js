@@ -1568,6 +1568,13 @@ router.post('/solver/generar', async (req, res) => {
       }));
     }
 
+    const { loadExternalTeacherIntervals } = require('../utils/horarioGenTeacherBusy');
+    const externalTeacherIntervals = await loadExternalTeacherIntervals({
+      colegioId: cid,
+      anio,
+      excludeNivelId: nivel_id,
+    });
+
     const alternatives = [];
     const seedsTried = [];
 
@@ -1601,6 +1608,7 @@ router.post('/solver/generar', async (req, res) => {
         allBlocksSorted: ctx.allBlocksSorted,
         dispByTeacherDay: ctx.dispByTeacherDay,
         lockedPlacements,
+        externalTeacherIntervals,
         seed,
         docentesNombres: ctx.docentesNombres,
       });

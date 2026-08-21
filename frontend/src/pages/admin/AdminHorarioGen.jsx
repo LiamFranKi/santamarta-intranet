@@ -950,8 +950,8 @@ function EditorPanel({ anio, niveles }) {
       title: '¿Generar horario automático?',
       html: `
         <p>Se arma el horario de <strong>todo el nivel</strong> (${nivelSel?.nombre || 'nivel'}) de una vez.</p>
-        <p style="margin-top:0.5rem">Así un docente (ej. Natación) <b>no puede</b> quedar a la misma hora en 1ºA y 3ºB.</p>
-        <p style="margin-top:0.5rem;color:#64748b;font-size:0.9rem">Respetará horas seguidas (2/2) y celdas bloqueadas 🔒.</p>
+        <p style="margin-top:0.5rem">Respeta docentes ya ocupados en <b>Inicial, Primaria y Secundaria</b> a la misma hora.</p>
+        <p style="margin-top:0.5rem;color:#64748b;font-size:0.9rem">También horas seguidas (2/2) y celdas bloqueadas 🔒.</p>
       `,
       showCancelButton: true,
       confirmButtonText: 'Generar todo el nivel',

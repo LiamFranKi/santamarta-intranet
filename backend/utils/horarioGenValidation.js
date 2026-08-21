@@ -110,43 +110,24 @@ async function validatePlacement({
 
   const personalId = carga.personal_id ? Number(carga.personal_id) : null;
 
-  // Docente en dos aulas (mismo bloque o mismo horario solapado)
+  // Docente ocupado en CUALQUIER nivel del año (Inicial/Primaria/Secundaria)
   if (personalId) {
-    let docSql = `
-      SELECT e.id, g.grado, g.seccion, n.nombre AS nivel_nombre,
-             cur.nombre AS curso_nombre, e.texto_libre,
-             b.nombre AS bloque_nombre, b.hora_inicio, b.hora_fin
-      FROM horario_gen_entradas e
-      INNER JOIN grupos g ON g.id = e.grupo_id
-      LEFT JOIN niveles n ON n.id = g.nivel_id
-      LEFT JOIN cursos cur ON cur.id = e.curso_id
-      LEFT JOIN horario_gen_carga cg ON cg.id = e.carga_id
-      INNER JOIN horario_gen_bloques b ON b.id = e.bloque_id
-      WHERE e.version_id = ?
-        AND e.dia_semana = ?
-        AND COALESCE(e.personal_id, cg.personal_id) = ?
-        AND (
-          e.bloque_id = ?
-          OR (
-            b.hora_inicio < ? AND b.hora_fin > ?
-          )
-        )
-    `;
-    const bStart = bloque.hora_inicio;
-    const bEnd = bloque.hora_fin;
-    const docParams = [versionId, diaSemana, personalId, bloqueId, bEnd, bStart];
-    if (excludeEntradaId) {
-      docSql += ' AND e.id <> ?';
-      docParams.push(excludeEntradaId);
-    }
-    const docClash = await query(docSql, docParams);
-    if (docClash?.length) {
-      const c = docClash[0];
-      const aula = [c.nivel_nombre, c.grado != null ? `${c.grado}` : null, c.seccion]
+    const { findTeacherClashAcrossYear } = require('./horarioGenTeacherBusy');
+    const clash = await findTeacherClashAcrossYear({
+      colegioId,
+      anio: ver[0].anio,
+      personalId,
+      diaSemana,
+      horaInicio: bloque.hora_inicio,
+      horaFin: bloque.hora_fin,
+      excludeEntradaId,
+    });
+    if (clash) {
+      const aula = [clash.nivel_nombre, clash.grado != null ? `${clash.grado}` : null, clash.seccion]
         .filter((x) => x !== null && x !== undefined && String(x).trim() !== '')
         .join(' ');
       errors.push(
-        `El docente ya está ocupado en ${aula || 'otro grupo'} (${c.curso_nombre || c.texto_libre || 'curso'}) a esa hora.`
+        `El docente ya está ocupado en ${aula || 'otro grupo'} (${clash.curso_nombre || clash.texto_libre || 'curso'}) a esa hora.`
       );
     }
 

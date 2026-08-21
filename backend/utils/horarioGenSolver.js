@@ -6,6 +6,7 @@
  */
 const { query, execute } = require('./mysql');
 const { timeToSec } = require('./horarioGenValidation');
+const { isExternalTeacherBusy } = require('./horarioGenTeacherBusy');
 
 const DIAS = [1, 2, 3, 4, 5];
 
@@ -265,6 +266,7 @@ function solveInMemory({
   allBlocksSorted = null,
   dispByTeacherDay,
   lockedPlacements = [],
+  externalTeacherIntervals = [],
   seed = 1,
   maxNodes = 500000,
   docentesNombres = new Map(),
@@ -274,6 +276,7 @@ function solveInMemory({
     ? allBlocksSorted
     : [...classBlocks]
   ).sort((a, b) => (a.orden || 0) - (b.orden || 0));
+  const externalBusy = externalTeacherIntervals || [];
 
   const diagnostico = buildPreDiagnostico({
     cargas,
@@ -344,6 +347,7 @@ function solveInMemory({
       if (unit.personal_id && teacherBusy.has(teacherSlotKey(unit.personal_id, dia, b.id))) {
         return false;
       }
+      if (isExternalTeacherBusy(externalBusy, unit.personal_id, dia, b)) return false;
       return true;
     }
 
@@ -492,6 +496,7 @@ function solveInMemory({
     if (!isTeacherAvailable(dispByTeacherDay, pid, dia, b)) return false;
     if (grupoBusy.has(grupoSlotKey(gid, dia, b.id))) return false;
     if (pid && teacherBusy.has(teacherSlotKey(pid, dia, b.id))) return false;
+    if (isExternalTeacherBusy(externalBusy, pid, dia, b)) return false;
     return true;
   }
 
