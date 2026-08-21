@@ -812,13 +812,14 @@ router.post('/carga', async (req, res) => {
     const maxC = Math.max(minC, parseInt(b.bloques_consecutivos_max, 10) || 2);
     const color = b.color != null ? String(b.color).slice(0, 20) : null;
     const activo = toBool01(b.activo, 1);
+    const no_partir = toBool01(b.no_partir, 0);
 
     const r = await execute(
       `INSERT INTO horario_gen_carga
         (colegio_id, anio, grupo_id, curso_id, asignatura_id, personal_id,
-         bloques_semanales, bloques_consecutivos_min, bloques_consecutivos_max, color, activo)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [cid, anio, grupo_id, curso_id, asignatura_id, personal_id, bloques, minC, maxC, color, activo]
+         bloques_semanales, bloques_consecutivos_min, bloques_consecutivos_max, no_partir, color, activo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [cid, anio, grupo_id, curso_id, asignatura_id, personal_id, bloques, minC, maxC, no_partir, color, activo]
     );
     const rows = await query(`SELECT * FROM horario_gen_carga WHERE id = ?`, [r.insertId]);
     res.status(201).json({ carga: mapActivo(rows[0]) });
@@ -850,17 +851,26 @@ router.put('/carga/:id', async (req, res) => {
       b.personal_id !== undefined ? parseId(b.personal_id) : cur.personal_id;
     const color = b.color !== undefined ? (b.color ? String(b.color).slice(0, 20) : null) : cur.color;
     const activo = b.activo !== undefined ? toBool01(b.activo, 1) : toBool01(cur.activo, 1);
+    const no_partir =
+      b.no_partir !== undefined ? toBool01(b.no_partir, 0) : toBool01(cur.no_partir, 0);
 
     await execute(
       `UPDATE horario_gen_carga
        SET personal_id = ?, bloques_semanales = ?, bloques_consecutivos_min = ?,
-           bloques_consecutivos_max = ?, color = ?, activo = ?
+           bloques_consecutivos_max = ?, no_partir = ?, color = ?, activo = ?
        WHERE id = ? AND colegio_id = ?`,
-      [personal_id, bloques, minC, maxC, color, activo, id, cid]
+      [personal_id, bloques, minC, maxC, no_partir, color, activo, id, cid]
     );
     const updated = await query(`SELECT * FROM horario_gen_carga WHERE id = ?`, [id]);
     res.json({ carga: mapActivo(updated[0]) });
   } catch (e) {
+    if (e.code === 'ER_BAD_FIELD_ERROR' || String(e.message || '').includes('no_partir')) {
+      return res.status(503).json({
+        error:
+          'Falta la columna no_partir. En phpMyAdmin ejecute sql/horario_gen_carga_no_partir.sql',
+        code: 'MIGRATION_REQUIRED',
+      });
+    }
     res.status(500).json({ error: e.message || 'Error al actualizar carga.' });
   }
 });
@@ -905,6 +915,7 @@ router.post('/carga/copiar-horas', async (req, res) => {
 
     const origenRows = await query(
       `SELECT c.id, c.curso_id, c.bloques_semanales, c.bloques_consecutivos_min, c.bloques_consecutivos_max,
+              COALESCE(c.no_partir, 0) AS no_partir,
               LOWER(TRIM(COALESCE(cur.nombre, ''))) AS curso_key
        FROM horario_gen_carga c
        LEFT JOIN cursos cur ON cur.id = c.curso_id
@@ -952,11 +963,12 @@ router.post('/carga/copiar-horas', async (req, res) => {
         const minC = Math.max(1, Number(src.bloques_consecutivos_min) || 1);
         const maxC = Math.max(minC, Number(src.bloques_consecutivos_max) || minC);
         const horas = Math.max(1, Number(src.bloques_semanales) || 1);
+        const noPartir = toBool01(src.no_partir, 0);
         await execute(
           `UPDATE horario_gen_carga
-           SET bloques_semanales = ?, bloques_consecutivos_min = ?, bloques_consecutivos_max = ?
+           SET bloques_semanales = ?, bloques_consecutivos_min = ?, bloques_consecutivos_max = ?, no_partir = ?
            WHERE id = ? AND colegio_id = ?`,
-          [horas, minC, maxC, d.id, cid]
+          [horas, minC, maxC, noPartir, d.id, cid]
         );
         upd += 1;
       }
@@ -1032,8 +1044,8 @@ router.post('/carga/importar-asignaturas', async (req, res) => {
       await execute(
         `INSERT INTO horario_gen_carga
           (colegio_id, anio, grupo_id, curso_id, asignatura_id, personal_id,
-           bloques_semanales, bloques_consecutivos_min, bloques_consecutivos_max, activo)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 2, 2, 1)`,
+           bloques_semanales, bloques_consecutivos_min, bloques_consecutivos_max, no_partir, activo)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 2, 2, 0, 1)`,
         [cid, anio, a.grupo_id, a.curso_id, a.asignatura_id, a.personal_id, bloquesDefault]
       );
       creadas += 1;

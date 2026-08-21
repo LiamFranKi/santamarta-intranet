@@ -146,6 +146,22 @@ function buildChunkSizes(carga) {
   return chunks;
 }
 
+/**
+ * Cursos marcados no_partir en Carga semanal:
+ * nunca partir por recreo ni en días distintos.
+ */
+function isBloqueIndivisible(carga) {
+  return (
+    carga?.no_partir === true ||
+    carga?.no_partir === 1 ||
+    carga?.no_partir === '1'
+  );
+}
+
+function wantsPairedBlocks(carga) {
+  return Math.max(1, Number(carga?.bloques_consecutivos_min || 1)) >= 2;
+}
+
 function scoreSolution(placements, classBlocks, cargasById) {
   let distributionPenalty = 0;
   let latePenalty = 0;
@@ -285,7 +301,7 @@ function solveInMemory({
       const already = lockedBase.filter((p) => Number(p.carga_id) === Number(c.id)).length;
       const need = Math.max(0, Number(c.bloques_semanales || 0) - already);
       if (need <= 0) continue;
-      if (forceSingles) {
+      if (forceSingles && !(isBloqueIndivisible(c) && wantsPairedBlocks(c))) {
         for (let i = 0; i < need; i += 1) {
           units.push({
             carga: c,
@@ -337,7 +353,12 @@ function solveInMemory({
       if (!wins.length && unit.size === 1) {
         wins = classBlocks.map((b) => ({ blocks: [b], softExtra: 0 }));
       }
-      if (unit.size === 2 && acrossBreakWins.length) {
+      // Mismo día partido por recreo: OK en general; NO para Robótica/Natación
+      if (
+        unit.size === 2 &&
+        acrossBreakWins.length &&
+        !isBloqueIndivisible(unit.carga)
+      ) {
         for (const w of acrossBreakWins) {
           wins.push({ blocks: w, softExtra: 80 });
         }
@@ -392,49 +413,10 @@ function solveInMemory({
 
       const cands = candidatesFor(unit);
       if (!cands.length) {
-        // Doble sin hueco: intentar como horas sueltas (ej. 3ª hora huérfana / alrededor del recreo)
-        if (unit.size > 1) {
-          const addedSingles = [];
-          let placedSingles = 0;
-          for (let i = 0; i < unit.size; i += 1) {
-            const singleCands = candidatesFor({ ...unit, size: 1 });
-            if (!singleCands.length) break;
-            const cand = singleCands[0];
-            const b = cand.blocks[0];
-            const p = {
-              dia: cand.dia,
-              bloque_id: b.id,
-              bloque_orden: b.orden,
-              grupo_id: unit.grupo_id,
-              carga_id: unit.carga_id,
-              personal_id: unit.personal_id,
-              curso_id: unit.carga.curso_id || null,
-              asignatura_id: unit.carga.asignatura_id || null,
-              locked: 0,
-            };
-            grupoBusy.add(grupoSlotKey(p.grupo_id, p.dia, p.bloque_id));
-            if (p.personal_id) teacherBusy.add(teacherSlotKey(p.personal_id, p.dia, p.bloque_id));
-            placements.push(p);
-            addedSingles.push(p);
-            placedSingles += 1;
-          }
-          snapshotBest();
-          if (placedSingles > 0) {
-            if (dfs(ui + 1)) return true;
-            for (let i = 0; i < addedSingles.length; i += 1) {
-              const p = placements.pop();
-              grupoBusy.delete(grupoSlotKey(p.grupo_id, p.dia, p.bloque_id));
-              if (p.personal_id) {
-                teacherBusy.delete(teacherSlotKey(p.personal_id, p.dia, p.bloque_id));
-              }
-            }
-          }
-          // Seguir con el resto (no tumbar toda la solución por un doble imposible)
-          snapshotBest();
-          return dfs(ui + 1);
-        }
+        // Doble sin hueco estricto:
+        // - Robótica/Natación: no partir (seguir sin colocar este trozo)
+        // - Otros 2/2: el across-break ya estaba en candidatos; no esparcir en días distintos
         snapshotBest();
-        // Hora suelta sin hueco: continuar, el pase de relleno intentará después
         return dfs(ui + 1);
       }
 
@@ -480,9 +462,43 @@ function solveInMemory({
     return { ok, placements: finalPlacements, nodes };
   }
 
+  function placePair(out, grupoBusy, teacherBusy, c, dia, blocks) {
+    const pid = c.personal_id ? Number(c.personal_id) : null;
+    const gid = Number(c.grupo_id);
+    const added = [];
+    for (const b of blocks) {
+      const p = {
+        dia,
+        bloque_id: b.id,
+        bloque_orden: b.orden,
+        grupo_id: gid,
+        carga_id: Number(c.id),
+        personal_id: pid,
+        curso_id: c.curso_id || null,
+        asignatura_id: c.asignatura_id || null,
+        locked: 0,
+      };
+      out.push(p);
+      grupoBusy.add(grupoSlotKey(p.grupo_id, p.dia, p.bloque_id));
+      if (p.personal_id) teacherBusy.add(teacherSlotKey(p.personal_id, p.dia, p.bloque_id));
+      added.push(p);
+    }
+    return added.length;
+  }
+
+  function slotFreeFor(c, dia, b, grupoBusy, teacherBusy) {
+    const pid = c.personal_id ? Number(c.personal_id) : null;
+    const gid = Number(c.grupo_id);
+    if (!isTeacherAvailable(dispByTeacherDay, pid, dia, b)) return false;
+    if (grupoBusy.has(grupoSlotKey(gid, dia, b.id))) return false;
+    if (pid && teacherBusy.has(teacherSlotKey(pid, dia, b.id))) return false;
+    return true;
+  }
+
   /**
-   * Rellena huecos libres con horas sueltas pendientes
-   * (ej. 3ª hora antes del recreo, o cualquier CLASS vacía).
+   * Rellena pendientes:
+   * - 2/2: solo pares mismo día (seguidas; o partidas por recreo si NO es Robótica/Natación)
+   * - 1h: cualquier CLASS libre
    */
   function fillRemainingSingles(basePlacements) {
     const out = basePlacements.map((p) => ({ ...p }));
@@ -500,24 +516,56 @@ function solveInMemory({
       const next = timeline[idx + 1];
       const prevClass = prev && isClassTipo(prev.tipo);
       const nextClass = next && isClassTipo(next.tipo);
-      // Huérfana: recreo/almuerzo o borde a un lado (típica 3ª hora)
       return !prevClass || !nextClass;
     }
 
-    // Primero cursos con pocas horas pendientes (1h), luego el resto
-    const pendientes = cargas
-      .map((c) => {
-        const have = out.filter((p) => Number(p.carga_id) === Number(c.id)).length;
-        const need = Number(c.bloques_semanales || 0);
-        return { c, faltan: Math.max(0, need - have) };
-      })
-      .filter((x) => x.faltan > 0)
-      .sort((a, b) => a.faltan - b.faltan || a.c.id - b.c.id);
+    const pendientes = () =>
+      cargas
+        .map((c) => {
+          const have = out.filter((p) => Number(p.carga_id) === Number(c.id)).length;
+          const need = Number(c.bloques_semanales || 0);
+          return { c, faltan: Math.max(0, need - have) };
+        })
+        .filter((x) => x.faltan > 0);
 
     let filled = 0;
-    for (const { c, faltan } of pendientes) {
-      const pid = c.personal_id ? Number(c.personal_id) : null;
-      const gid = Number(c.grupo_id);
+
+    // Fase A: pares 2/2 (Robótica/Natación solo seguidas estrictas)
+    for (const { c, faltan } of pendientes().filter((x) => wantsPairedBlocks(x.c) && x.faltan >= 2)) {
+      let left = faltan;
+      const allowAcross = !isBloqueIndivisible(c);
+      while (left >= 2) {
+        const options = [];
+        const hardWins = windowsOf(2);
+        for (const dia of DIAS) {
+          for (const win of hardWins) {
+            if (!win.every((b) => slotFreeFor(c, dia, b, grupoBusy, teacherBusy))) continue;
+            options.push({ dia, blocks: win, soft: Number(win[0].orden) || 0 });
+          }
+          if (allowAcross) {
+            for (const win of acrossBreakWins) {
+              if (!win.every((b) => slotFreeFor(c, dia, b, grupoBusy, teacherBusy))) continue;
+              options.push({ dia, blocks: win, soft: 80 + (Number(win[0].orden) || 0) });
+            }
+          }
+        }
+        if (!options.length) break;
+        options.sort((a, b) => a.soft - b.soft);
+        const pick = options[0];
+        filled += placePair(out, grupoBusy, teacherBusy, c, pick.dia, pick.blocks);
+        left -= 2;
+      }
+    }
+
+    // Fase B: horas sueltas (cursos 1h, o resto impar). Nunca partir Robótica/Natación en sueltas.
+    for (const { c, faltan } of pendientes().sort((a, b) => a.faltan - b.faltan || a.c.id - b.c.id)) {
+      if (isBloqueIndivisible(c) && wantsPairedBlocks(c)) {
+        // Solo se colocan en fase A como dobles estrictos
+        continue;
+      }
+      // Si aún pide par y faltan 2+, no esparcir en días distintos
+      if (wantsPairedBlocks(c) && faltan >= 2) continue;
+
       for (let n = 0; n < faltan; n += 1) {
         const options = [];
         for (const dia of DIAS) {
@@ -525,9 +573,7 @@ function solveInMemory({
             (p) => Number(p.carga_id) === Number(c.id) && Number(p.dia) === dia
           ).length;
           for (const b of classBlocks) {
-            if (!isTeacherAvailable(dispByTeacherDay, pid, dia, b)) continue;
-            if (grupoBusy.has(grupoSlotKey(gid, dia, b.id))) continue;
-            if (pid && teacherBusy.has(teacherSlotKey(pid, dia, b.id))) continue;
+            if (!slotFreeFor(c, dia, b, grupoBusy, teacherBusy)) continue;
             const orphan = isOrphanClass(b) ? 0 : 8;
             options.push({
               dia,
@@ -539,23 +585,10 @@ function solveInMemory({
         if (!options.length) break;
         options.sort((a, b) => a.soft - b.soft);
         const pick = options[0];
-        const p = {
-          dia: pick.dia,
-          bloque_id: pick.b.id,
-          bloque_orden: pick.b.orden,
-          grupo_id: gid,
-          carga_id: Number(c.id),
-          personal_id: pid,
-          curso_id: c.curso_id || null,
-          asignatura_id: c.asignatura_id || null,
-          locked: 0,
-        };
-        out.push(p);
-        grupoBusy.add(grupoSlotKey(p.grupo_id, p.dia, p.bloque_id));
-        if (p.personal_id) teacherBusy.add(teacherSlotKey(p.personal_id, p.dia, p.bloque_id));
-        filled += 1;
+        filled += placePair(out, grupoBusy, teacherBusy, c, pick.dia, [pick.b]);
       }
     }
+
     return { placements: out, filled };
   }
 
@@ -563,7 +596,7 @@ function solveInMemory({
   let search = runSearch(buildUnits(false), maxNodes);
   const totalNeed = cargas.reduce((s, c) => s + Number(c.bloques_semanales || 0), 0);
 
-  // 2) Si quedó muy incompleto, reintentar todo en sueltas
+  // 2) Si quedó muy incompleto, reintentar todo en sueltas (excepto indivisibles siguen en chunks en buildUnits false only)
   if (!search.ok && search.placements.length < Math.max(1, Math.floor(totalNeed * 0.4))) {
     const retry = runSearch(buildUnits(true), maxNodes);
     if (retry.placements.length > search.placements.length) {
@@ -574,7 +607,7 @@ function solveInMemory({
     }
   }
 
-  // 3) Siempre: rellenar huecos libres (3ª hora, etc.) con lo pendiente en sueltas
+  // 3) Rellenar: pares correctos + 1h en huecos (3ª hora, etc.)
   const beforeFill = search.placements.length;
   const filled = fillRemainingSingles(search.placements);
   if (filled.filled > 0) {
@@ -585,7 +618,7 @@ function solveInMemory({
     };
     if (filled.placements.length > beforeFill) {
       diagnostico.sugerencias.push(
-        `Se rellenaron ${filled.filled} hora(s) suelta(s) en huecos libres (p. ej. antes/después del recreo).`
+        `Se rellenaron ${filled.filled} hora(s) en huecos libres respetando 2/2 (Robótica/Natación sin partir por recreo).`
       );
     }
   }
@@ -759,5 +792,6 @@ module.exports = {
   buildChunkSizes,
   buildConsecutiveWindows,
   buildAcrossBreakWindows,
+  isBloqueIndivisible,
   DIAS,
 };

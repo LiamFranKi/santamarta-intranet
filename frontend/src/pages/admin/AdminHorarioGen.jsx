@@ -39,7 +39,10 @@ const TABS = [
 ];
 
 const TIP_HORAS_SEGUIDAS =
-  'Cuántas horas juntas el mismo día. Ej.: 2/2 = siempre de a dos seguidas (Inglés 6 h → tres dobles en días distintos). 1/2 = puede ir 1 o hasta 2. 1/1 = solo sueltas. Si no hay hueco seguido, el generador puede partir un doble con el recreo en medio.';
+  'Cuántas horas juntas el mismo día. Ej.: 2/2 = siempre de a dos seguidas (Inglés 6 h → tres dobles en días distintos). 1/2 = puede ir 1 o hasta 2. 1/1 = solo sueltas. Si no hay hueco seguido, el generador puede partir un doble con el recreo en medio (salvo cursos marcados «No partir»).';
+
+const TIP_NO_PARTIR =
+  'Si está marcado, esas horas jamás se separan: van juntas el mismo día y nunca una antes y otra después del recreo (ej. Robótica, Natación).';
 
 const swalOpts = {
   target: document.body,
@@ -1353,6 +1356,7 @@ function CargaPanel({ anio, niveles, docentes }) {
     bloques_semanales: Number(c.bloques_semanales) || 1,
     bloques_consecutivos_min: Number(c.bloques_consecutivos_min) || 1,
     bloques_consecutivos_max: Number(c.bloques_consecutivos_max) || 2,
+    no_partir: esActivo(c.no_partir),
     activo: esActivo(c.activo),
   });
 
@@ -1362,6 +1366,7 @@ function CargaPanel({ anio, niveles, docentes }) {
       Number(r.bloques_semanales) || 0,
       Number(r.bloques_consecutivos_min) || 0,
       Number(r.bloques_consecutivos_max) || 0,
+      r.no_partir ? 1 : 0,
       r.activo ? 1 : 0,
     ].join('|');
 
@@ -1493,6 +1498,7 @@ function CargaPanel({ anio, niveles, docentes }) {
             bloques_consecutivos_min: minC,
             bloques_consecutivos_max: maxC,
             personal_id: row.personal_id ? Number(row.personal_id) : null,
+            no_partir: row.no_partir ? 1 : 0,
             activo: row.activo ? 1 : 0,
           });
         })
@@ -1737,6 +1743,11 @@ function CargaPanel({ anio, niveles, docentes }) {
                       Horas seguidas <em aria-hidden>?</em>
                     </span>
                   </th>
+                  <th className="hg-col-center">
+                    <span className="hg-th-tip" title={TIP_NO_PARTIR}>
+                      No partir <em aria-hidden>?</em>
+                    </span>
+                  </th>
                   <th className="hg-col-center">Activo</th>
                   <th />
                 </tr>
@@ -1795,6 +1806,15 @@ function CargaPanel({ anio, niveles, docentes }) {
                             onChange={(e) => updateDraft(c.id, { bloques_consecutivos_max: e.target.value })}
                           />
                         </div>
+                      </td>
+                      <td className="hg-col-center">
+                        <input
+                          type="checkbox"
+                          checked={!!c.no_partir}
+                          onChange={(e) => updateDraft(c.id, { no_partir: e.target.checked })}
+                          aria-label="No partir"
+                          title={TIP_NO_PARTIR}
+                        />
                       </td>
                       <td className="hg-col-center">
                         <input
