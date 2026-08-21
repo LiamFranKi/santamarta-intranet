@@ -1387,8 +1387,8 @@ router.post('/solver/generar', async (req, res) => {
         `UPDATE horario_gen_runs SET estado = 'FAILED', progreso = 100, mensaje = ?, finished_at = NOW() WHERE id = ?`,
         [
           grupoIds?.length
-            ? 'Ese grupo no tiene carga semanal. Impórtala en la pestaña 3.'
-            : 'No hay carga semanal para ese nivel. Impórtala en la pestaña 3.',
+            ? 'Ese grupo no tiene carga semanal. Impórtala en «3. Carga semanal».'
+            : 'No hay carga semanal para ese nivel. Impórtala en «3. Carga semanal».',
           runId,
         ]
       );
@@ -1428,6 +1428,7 @@ router.post('/solver/generar', async (req, res) => {
       const result = solveInMemory({
         cargas: ctx.cargas,
         classBlocks: ctx.classBlocks,
+        allBlocksSorted: ctx.allBlocksSorted,
         dispByTeacherDay: ctx.dispByTeacherDay,
         lockedPlacements: [],
         seed,

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import Swal from 'sweetalert2';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
-import { exportarHorarioGenPDFMultiple } from '../../utils/horarioGenPdf';
+import { exportarHorarioGenPDF } from '../../utils/horarioGenPdf';
 import './AdminHorarioGen.css';
 
 const API = '/admin/horario-gen';
@@ -35,10 +35,11 @@ const TABS = [
   { id: 'config', label: '1. Configuración', icon: '⚙️', tone: 'blue' },
   { id: 'disponibilidad', label: '2. Disponibilidad', icon: '👤', tone: 'green' },
   { id: 'carga', label: '3. Carga semanal', icon: '📚', tone: 'amber' },
-  { id: 'editor', label: '4. Editor', icon: '🗓️', tone: 'violet' },
-  { id: 'solver', label: '5. Generar', icon: '✨', tone: 'rose' },
-  { id: 'resultado', label: '6. Resultado', icon: '👁️', tone: 'teal' },
+  { id: 'editor', label: '4. Horario', icon: '🗓️', tone: 'violet' },
 ];
+
+const TIP_HORAS_SEGUIDAS =
+  'Cuántas horas juntas el mismo día. Ej.: 2/2 = siempre de a dos seguidas (Inglés 6 h → tres dobles en días distintos). 1/2 = puede ir 1 o hasta 2. 1/1 = solo sueltas. Si no hay hueco seguido, el generador puede partir un doble con el recreo en medio.';
 
 const swalOpts = {
   target: document.body,
@@ -329,15 +330,6 @@ export default function AdminHorarioGen() {
           <CargaPanel anio={anio} niveles={meta.niveles || []} docentes={meta.docentes || []} />
         ) : tab === 'editor' ? (
           <EditorPanel anio={anio} niveles={meta.niveles || []} />
-        ) : tab === 'solver' ? (
-          <SolverPanel
-            anio={anio}
-            niveles={meta.niveles || []}
-            onOpenEditor={() => setTab('editor')}
-            onOpenResultado={() => setTab('resultado')}
-          />
-        ) : tab === 'resultado' ? (
-          <ResultadoPanel anio={anio} niveles={meta.niveles || []} />
         ) : (
           <div className="hg-layout">
             <section className="hg-panel">
@@ -544,785 +536,6 @@ export default function AdminHorarioGen() {
   );
 }
 
-function ResultadoPanel({ anio, niveles }) {
-  const [nivelId, setNivelId] = useState('');
-  const [versiones, setVersiones] = useState([]);
-  const [versionId, setVersionId] = useState('');
-  const [vista, setVista] = useState(null);
-  const [modo, setModo] = useState('grupos'); // grupos | docentes
-  const [filtroId, setFiltroId] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [savingEstado, setSavingEstado] = useState(false);
-
-  const cargarVersiones = useCallback(async () => {
-    if (!anio) return;
-    try {
-      const params = { anio };
-      if (nivelId) params.nivel_id = nivelId;
-      const { data } = await api.get(`${API}/versiones`, { params });
-      setVersiones(data.versiones || []);
-    } catch {
-      setVersiones([]);
-    }
-  }, [anio, nivelId]);
-
-  const cargarVista = useCallback(async () => {
-    if (!versionId) {
-      setVista(null);
-      return;
-    }
-    try {
-      setLoading(true);
-      const { data } = await api.get(`${API}/vista-final`, { params: { version_id: versionId } });
-      setVista(data);
-      setFiltroId('');
-    } catch (e) {
-      setVista(null);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: e.response?.data?.error || 'No se pudo cargar el resultado',
-        ...swalOpts,
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [versionId]);
-
-  useEffect(() => {
-    cargarVersiones();
-  }, [cargarVersiones]);
-
-  useEffect(() => {
-    setVersionId('');
-    setVista(null);
-  }, [nivelId]);
-
-  useEffect(() => {
-    cargarVista();
-  }, [cargarVista]);
-
-  const cambiarEstado = async (estado) => {
-    if (!versionId) return;
-    try {
-      setSavingEstado(true);
-      const { data } = await api.patch(`${API}/versiones/${versionId}/estado`, { estado });
-      await Swal.fire({
-        icon: 'success',
-        title: 'Estado actualizado',
-        text: data.message || estado,
-        timer: 1800,
-        showConfirmButton: false,
-        ...swalOpts,
-      });
-      await cargarVersiones();
-      await cargarVista();
-    } catch (e) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: e.response?.data?.error || 'No se pudo cambiar el estado',
-        ...swalOpts,
-      });
-    } finally {
-      setSavingEstado(false);
-    }
-  };
-
-  const entradaEn = (entradas, dia, bloqueId) =>
-    (entradas || []).find(
-      (e) => Number(e.dia_semana) === Number(dia) && Number(e.bloque_id) === Number(bloqueId)
-    );
-
-  const items =
-    modo === 'grupos'
-      ? vista?.grupos || []
-      : vista?.docentes || [];
-
-  const publicarPrincipal = async (grupoIdOpt) => {
-    if (!versionId) return;
-    const filtroLabel =
-      grupoIdOpt && modo === 'grupos'
-        ? items.find((it) => String(it.grupo_id) === String(grupoIdOpt))?.label
-        : null;
-    const conf = await Swal.fire({
-      icon: 'warning',
-      title: '¿Publicar como horario principal?',
-      html: filtroLabel
-        ? `<p>Se reemplazará el horario del sistema para <strong>${filtroLabel}</strong>.</p>
-           <p style="color:#b45309">Escribe <b>PUBLICAR</b> para confirmar.</p>`
-        : `<p>Se reemplazará el horario del sistema para <strong>todos los grupos</strong> de este borrador.</p>
-           <p style="color:#b45309">Escribe <b>PUBLICAR</b> para confirmar.</p>`,
-      input: 'text',
-      inputPlaceholder: 'PUBLICAR',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, hacer principal',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#0f766e',
-      ...swalOpts,
-    });
-    if (!conf.isConfirmed) return;
-    if (String(conf.value || '').trim().toUpperCase() !== 'PUBLICAR') {
-      Swal.fire({ icon: 'info', title: 'Cancelado', text: 'Debes escribir PUBLICAR exactamente.', ...swalOpts });
-      return;
-    }
-    try {
-      setSavingEstado(true);
-      const body = { confirmar: 'PUBLICAR' };
-      if (grupoIdOpt) body.grupo_id = Number(grupoIdOpt);
-      const { data } = await api.post(`${API}/versiones/${versionId}/vincular`, body);
-      await cargarVersiones();
-      await cargarVista();
-      await Swal.fire({
-        icon: 'success',
-        title: 'Horario principal actualizado',
-        text: data.message || 'Publicado',
-        ...swalOpts,
-      });
-    } catch (e) {
-      Swal.fire({
-        icon: 'error',
-        title: 'No se pudo publicar',
-        text: e.response?.data?.error || 'Error',
-        ...swalOpts,
-      });
-    } finally {
-      setSavingEstado(false);
-    }
-  };
-
-  const itemsFiltrados = filtroId
-    ? items.filter((it) =>
-        modo === 'grupos'
-          ? String(it.grupo_id) === String(filtroId)
-          : String(it.personal_id || '') === String(filtroId)
-      )
-    : items;
-
-  const r = vista?.resumen;
-
-  return (
-    <div className="hg-resultado">
-      <section className="hg-panel hg-no-print" style={{ marginBottom: '1rem' }}>
-        <div className="hg-panel-head">
-          <h2>Resultado final · {anio}</h2>
-          <div className="hg-actions">
-            <button type="button" className="hg-btn hg-btn-light hg-btn-sm" onClick={cargarVista} disabled={!versionId}>
-              Actualizar
-            </button>
-            <button
-              type="button"
-              className="hg-btn hg-btn-primary hg-btn-sm"
-              disabled={!vista || !(itemsFiltrados?.length > 0)}
-              onClick={() => {
-                try {
-                  exportarHorarioGenPDFMultiple({
-                    anio: vista.version?.anio || anio,
-                    bloques: vista.bloques || [],
-                    items: itemsFiltrados,
-                    modo,
-                  });
-                  Swal.fire({
-                    icon: 'success',
-                    title: 'PDF generado',
-                    text: 'Se descargó con el formato de horarios del sistema.',
-                    timer: 1800,
-                    showConfirmButton: false,
-                    ...swalOpts,
-                  });
-                } catch (e) {
-                  Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: e.message || 'No se pudo generar el PDF',
-                    ...swalOpts,
-                  });
-                }
-              }}
-            >
-              Descargar PDF
-            </button>
-            {versionId && vista?.version?.estado !== 'PUBLISHED' && (
-              <button
-                type="button"
-                className="hg-btn hg-btn-danger hg-btn-sm"
-                onClick={async () => {
-                  const conf = await Swal.fire({
-                    icon: 'warning',
-                    title: '¿Eliminar este borrador?',
-                    text: 'Se borra la generación/borrador. No toca el horario principal si aún no lo publicaste.',
-                    showCancelButton: true,
-                    confirmButtonText: 'Sí, eliminar',
-                    cancelButtonText: 'Cancelar',
-                    confirmButtonColor: '#b91c1c',
-                    ...swalOpts,
-                  });
-                  if (!conf.isConfirmed) return;
-                  try {
-                    await api.delete(`${API}/versiones/${versionId}`);
-                    setVersionId('');
-                    setVista(null);
-                    await cargarVersiones();
-                    Swal.fire({
-                      icon: 'success',
-                      title: 'Eliminado',
-                      timer: 1200,
-                      showConfirmButton: false,
-                      ...swalOpts,
-                    });
-                  } catch (e) {
-                    Swal.fire({
-                      icon: 'error',
-                      title: 'Error',
-                      text: e.response?.data?.error || 'No se pudo eliminar',
-                      ...swalOpts,
-                    });
-                  }
-                }}
-              >
-                Eliminar borrador
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="hg-filters">
-          <label>
-            Nivel
-            <select value={nivelId} onChange={(e) => setNivelId(e.target.value)}>
-              <option value="">— Todos —</option>
-              {niveles.map((n) => (
-                <option key={n.id} value={n.id}>
-                  {n.nombre}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Versión / borrador *
-            <select value={versionId} onChange={(e) => setVersionId(e.target.value)}>
-              <option value="">— Elegir —</option>
-              {versiones.map((v) => (
-                <option key={v.id} value={v.id}>
-                  #{v.id} · {v.nombre || v.nivel_nombre || 'Borrador'} · {v.estado} · {v.total_entradas || 0} clases
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Ver por
-            <select
-              value={modo}
-              onChange={(e) => {
-                setModo(e.target.value);
-                setFiltroId('');
-              }}
-            >
-              <option value="grupos">Grupos</option>
-              <option value="docentes">Docentes</option>
-            </select>
-          </label>
-          {vista && (
-            <label>
-              Filtrar
-              <select value={filtroId} onChange={(e) => setFiltroId(e.target.value)}>
-                <option value="">— Todos —</option>
-                {items.map((it) =>
-                  modo === 'grupos' ? (
-                    <option key={it.grupo_id} value={it.grupo_id}>
-                      {it.label}
-                    </option>
-                  ) : (
-                    <option key={it.personal_id || it.nombre} value={it.personal_id || ''}>
-                      {it.nombre}
-                    </option>
-                  )
-                )}
-              </select>
-            </label>
-          )}
-        </div>
-      </section>
-
-      {loading ? (
-        <p className="hg-muted">Cargando resultado…</p>
-      ) : !versionId ? (
-        <section className="hg-panel">
-          <p className="hg-muted" style={{ margin: 0 }}>
-            Elige un borrador generado (fase 5) o editado (fase 4) para ver el horario completo.
-          </p>
-        </section>
-      ) : vista ? (
-        <>
-          <section className="hg-panel hg-resumen-final" style={{ marginBottom: '1rem' }}>
-            <div className="hg-panel-head">
-              <h2>
-                {vista.version?.nombre || 'Borrador'}{' '}
-                <span className="hg-muted">
-                  · {vista.version?.nivel_nombre || ''} · {vista.version?.anio}
-                </span>
-              </h2>
-              <span
-                className={`hg-badge ${
-                  vista.version?.estado === 'PUBLISHED' || vista.version?.estado === 'APPROVED' ? 'ok' : 'off'
-                }`}
-              >
-                {vista.version?.estado === 'PUBLISHED' ? 'PRINCIPAL' : vista.version?.estado}
-              </span>
-            </div>
-            <div className="hg-stats">
-              <div>
-                <strong>{r?.completitud_pct ?? 0}%</strong>
-                <span>Completitud</span>
-              </div>
-              <div>
-                <strong>
-                  {r?.bloques_colocados ?? 0}/{r?.bloques_esperados ?? 0}
-                </strong>
-                <span>Horas</span>
-              </div>
-              <div>
-                <strong>{r?.total_grupos ?? 0}</strong>
-                <span>Grupos</span>
-              </div>
-              <div>
-                <strong>{r?.total_docentes ?? 0}</strong>
-                <span>Docentes</span>
-              </div>
-            </div>
-            <div className="hg-actions hg-no-print" style={{ marginTop: '0.75rem' }}>
-              <button
-                type="button"
-                className="hg-btn hg-btn-sm hg-btn-ghost"
-                disabled={savingEstado}
-                onClick={() => cambiarEstado('REVIEW')}
-              >
-                Marcar en revisión
-              </button>
-              <button
-                type="button"
-                className="hg-btn hg-btn-sm"
-                disabled={savingEstado}
-                onClick={() => cambiarEstado('APPROVED')}
-              >
-                Aprobar borrador
-              </button>
-              <button
-                type="button"
-                className="hg-btn hg-btn-sm hg-btn-primary"
-                disabled={savingEstado || !(r?.total_entradas > 0)}
-                onClick={() =>
-                  publicarPrincipal(modo === 'grupos' && filtroId ? Number(filtroId) : undefined)
-                }
-              >
-                {modo === 'grupos' && filtroId
-                  ? 'Hacer principal este grupo'
-                  : 'Hacer horario principal (todos)'}
-              </button>
-              <button
-                type="button"
-                className="hg-btn hg-btn-sm"
-                disabled={savingEstado}
-                onClick={() => cambiarEstado('DRAFT')}
-              >
-                Volver a borrador
-              </button>
-            </div>
-            {r?.pendientes?.length > 0 && (
-              <div className="hg-diag" style={{ marginTop: '1rem' }}>
-                <h4>Pendientes ({r.pendientes.length})</h4>
-                <ul>
-                  {r.pendientes.slice(0, 12).map((p) => (
-                    <li key={p.carga_id}>
-                      {p.curso} · {p.grupo}: faltan {p.faltan} ({p.colocados}/{p.necesarios})
-                    </li>
-                  ))}
-                  {r.pendientes.length > 12 && <li>… y {r.pendientes.length - 12} más</li>}
-                </ul>
-              </div>
-            )}
-          </section>
-
-          <div className="hg-print-area">
-            {itemsFiltrados.length === 0 ? (
-              <section className="hg-panel">
-                <p className="hg-muted" style={{ margin: 0 }}>
-                  Esta versión no tiene clases colocadas todavía.
-                </p>
-              </section>
-            ) : (
-              itemsFiltrados.map((it) => {
-                const key = modo === 'grupos' ? `g-${it.grupo_id}` : `d-${it.personal_id || it.nombre}`;
-                const titulo = modo === 'grupos' ? it.label : it.nombre;
-                return (
-                  <section key={key} className="hg-panel hg-horario-sheet">
-                    <div className="hg-panel-head">
-                      <h2>
-                        {modo === 'grupos' ? 'Grupo' : 'Docente'}: {titulo}
-                      </h2>
-                      <span className="hg-muted">{(it.entradas || []).length} clases</span>
-                    </div>
-                    <div className="hg-grid-wrap">
-                      <div
-                        className="hg-grid"
-                        style={{
-                          gridTemplateColumns: `minmax(110px, 1.1fr) repeat(${(vista.dias || DIAS).length}, minmax(90px, 1fr))`,
-                        }}
-                      >
-                        <div className="hg-grid-corner">Hora</div>
-                        {(vista.dias || DIAS).map((d) => (
-                          <div key={d.value} className="hg-grid-day">
-                            {d.label}
-                          </div>
-                        ))}
-                        {(vista.bloques || []).map((b) => (
-                          <React.Fragment key={b.id}>
-                            <div className="hg-grid-block-label">
-                              <strong>{b.nombre}</strong>
-                              <em>
-                                {fmtTime(b.hora_inicio)}–{fmtTime(b.hora_fin)}
-                              </em>
-                            </div>
-                            {(vista.dias || DIAS).map((d) => {
-                              const isBreak = b.tipo === 'BREAK' || b.tipo === 'LUNCH';
-                              const e = entradaEn(it.entradas, d.value, b.id);
-                              return (
-                                <div
-                                  key={`${b.id}-${d.value}`}
-                                  className={`hg-cell${isBreak ? ' hg-cell--break' : ''}${e ? ' hg-cell--filled' : ''}`}
-                                >
-                                  {isBreak ? (
-                                    <span className="hg-cell-muted">
-                                      {b.tipo === 'LUNCH' ? 'Almuerzo' : 'Recreo'}
-                                    </span>
-                                  ) : e ? (
-                                    <div
-                                      className="hg-cell-card"
-                                      style={
-                                        e.carga_color
-                                          ? { borderLeft: `3px solid ${e.carga_color}` }
-                                          : undefined
-                                      }
-                                    >
-                                      <strong>{e.curso_nombre || 'Curso'}</strong>
-                                      <small>
-                                        {modo === 'grupos'
-                                          ? e.docente_nombre || 'Sin docente'
-                                          : e.grupo_label || 'Grupo'}
-                                      </small>
-                                    </div>
-                                  ) : null}
-                                </div>
-                              );
-                            })}
-                          </React.Fragment>
-                        ))}
-                      </div>
-                    </div>
-                  </section>
-                );
-              })
-            )}
-          </div>
-        </>
-      ) : null}
-    </div>
-  );
-}
-
-function SolverPanel({ anio, niveles, onOpenEditor, onOpenResultado }) {
-  const [nivelId, setNivelId] = useState('');
-  const [grupoId, setGrupoId] = useState('');
-  const [grupos, setGrupos] = useState([]);
-  const [maxAlt, setMaxAlt] = useState(1);
-  const [running, setRunning] = useState(false);
-  const [result, setResult] = useState(null);
-  const [runs, setRuns] = useState([]);
-
-  const cargarRuns = useCallback(async () => {
-    if (!anio) return;
-    try {
-      const { data } = await api.get(`${API}/solver/runs`, { params: { anio } });
-      setRuns(data.runs || []);
-    } catch {
-      setRuns([]);
-    }
-  }, [anio]);
-
-  const cargarGrupos = useCallback(async () => {
-    if (!anio || !nivelId) {
-      setGrupos([]);
-      return;
-    }
-    try {
-      const { data } = await api.get(`${API}/grupos`, { params: { anio, nivel_id: nivelId } });
-      setGrupos(data.grupos || []);
-    } catch {
-      setGrupos([]);
-    }
-  }, [anio, nivelId]);
-
-  useEffect(() => {
-    cargarRuns();
-  }, [cargarRuns]);
-
-  useEffect(() => {
-    setGrupoId('');
-    cargarGrupos();
-  }, [nivelId, cargarGrupos]);
-
-  const generar = async () => {
-    if (!nivelId) {
-      Swal.fire({ icon: 'info', title: 'Elige un nivel', ...swalOpts });
-      return;
-    }
-    if (!grupoId) {
-      Swal.fire({
-        icon: 'info',
-        title: 'Elige un grado / grupo',
-        text: 'Para no generar todo el nivel, selecciona el aula (ej. Primaria · 1º · A).',
-        ...swalOpts,
-      });
-      return;
-    }
-    const gSel = grupos.find((g) => String(g.id) === String(grupoId));
-    const conf = await Swal.fire({
-      icon: 'question',
-      title: '¿Generar horario?',
-      html: `Se generará solo para:<br/><strong>${labelGrupo(gSel) || 'grupo elegido'}</strong>.`,
-      showCancelButton: true,
-      confirmButtonText: 'Generar',
-      cancelButtonText: 'Cancelar',
-      ...swalOpts,
-    });
-    if (!conf.isConfirmed) return;
-
-    try {
-      setRunning(true);
-      setResult(null);
-      const { data } = await api.post(`${API}/solver/generar`, {
-        anio,
-        nivel_id: Number(nivelId),
-        grupo_ids: [Number(grupoId)],
-        max_alternatives: Number(maxAlt) || 1,
-      });
-      setResult(data);
-      await cargarRuns();
-      if (data.estado === 'COMPLETE') {
-        Swal.fire({
-          icon: 'success',
-          title: 'Horario generado',
-          text: data.best
-            ? `${data.best.placed}/${data.best.total} horas · score ${data.best.score}%`
-            : 'Listo',
-          ...swalOpts,
-        });
-      } else {
-        Swal.fire({
-          icon: 'warning',
-          title: 'Sin solución completa',
-          text: 'Revise el diagnóstico. Puede completar en el Editor.',
-          ...swalOpts,
-        });
-      }
-    } catch (e) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: e.response?.data?.error || 'Falló el solver',
-        ...swalOpts,
-      });
-    } finally {
-      setRunning(false);
-    }
-  };
-
-  const eliminarRun = async (run) => {
-    const conf = await Swal.fire({
-      icon: 'warning',
-      title: '¿Eliminar esta generación?',
-      html: `Se borrará la ejecución #${run.id}${
-        run.version_id ? ` y el borrador/versión #${run.version_id}` : ''
-      }.<br/>Puedes volver a generar después.`,
-      showCancelButton: true,
-      confirmButtonText: 'Sí, eliminar',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#b91c1c',
-      ...swalOpts,
-    });
-    if (!conf.isConfirmed) return;
-    try {
-      const { data } = await api.delete(`${API}/solver/runs/${run.id}`);
-      await cargarRuns();
-      Swal.fire({
-        icon: 'success',
-        title: 'Eliminado',
-        text: data.message || 'Listo',
-        timer: 1400,
-        showConfirmButton: false,
-        ...swalOpts,
-      });
-    } catch (e) {
-      Swal.fire({
-        icon: 'error',
-        title: 'No se pudo eliminar',
-        text: e.response?.data?.error || 'Error',
-        ...swalOpts,
-      });
-    }
-  };
-
-  return (
-    <div>
-      <section className="hg-panel" style={{ marginBottom: '1rem' }}>
-        <div className="hg-panel-head">
-          <h2>Generar automáticamente · {anio}</h2>
-          <button type="button" className="hg-btn hg-btn-primary" disabled={running} onClick={generar}>
-            {running ? 'Generando…' : '✨ Generar horarios'}
-          </button>
-        </div>
-        <div className="hg-filters">
-          <label>
-            Nivel *
-            <select
-              value={nivelId}
-              onChange={(e) => {
-                setNivelId(e.target.value);
-              }}
-            >
-              <option value="">— Elegir —</option>
-              {niveles.map((n) => (
-                <option key={n.id} value={n.id}>
-                  {n.nombre}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Grado / grupo *
-            <select
-              value={grupoId}
-              onChange={(e) => setGrupoId(e.target.value)}
-              disabled={!nivelId}
-            >
-              <option value="">— Elegir aula —</option>
-              {grupos.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {labelGrupo(g)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Alternativas
-            <select value={maxAlt} onChange={(e) => setMaxAlt(e.target.value)}>
-              <option value={1}>1</option>
-              <option value={2}>2</option>
-              <option value={3}>3</option>
-            </select>
-          </label>
-        </div>
-      </section>
-
-      {result && (
-        <section className="hg-panel" style={{ marginBottom: '1rem' }}>
-          <h3 style={{ marginTop: 0 }}>
-            Resultado:{' '}
-            <span className={`hg-badge ${result.estado === 'COMPLETE' ? 'ok' : 'off'}`}>{result.estado}</span>
-          </h3>
-          {(result.alternatives || []).map((a) => (
-            <div key={a.version_id} className="hg-alt-card">
-              <div>
-                <strong>
-                  {a.nombre} · score {a.score}%
-                </strong>
-                <p className="hg-muted" style={{ margin: '0.25rem 0 0' }}>
-                  {a.placed}/{a.total} horas · versión #{a.version_id} · {a.ok ? 'completo' : 'parcial'}
-                </p>
-              </div>
-              <div className="hg-actions">
-                <button type="button" className="hg-btn hg-btn-sm" onClick={() => onOpenEditor?.()}>
-                  Ver en Editor
-                </button>
-                <button type="button" className="hg-btn hg-btn-sm hg-btn-primary" onClick={() => onOpenResultado?.()}>
-                  Ver resultado
-                </button>
-              </div>
-            </div>
-          ))}
-          {result.diagnostico?.causas?.length > 0 && (
-            <div className="hg-diag">
-              <h4>Diagnóstico</h4>
-              <ul>
-                {result.diagnostico.causas.map((c, i) => (
-                  <li key={`c-${i}`}>{c}</li>
-                ))}
-              </ul>
-              {result.diagnostico.sugerencias?.length > 0 && (
-                <>
-                  <h4>Sugerencias</h4>
-                  <ul>
-                    {result.diagnostico.sugerencias.map((s, i) => (
-                      <li key={`s-${i}`}>{s}</li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </div>
-          )}
-        </section>
-      )}
-
-      <section className="hg-panel">
-        <div className="hg-panel-head">
-          <h2>Últimas ejecuciones</h2>
-          <button type="button" className="hg-btn hg-btn-light hg-btn-sm" onClick={cargarRuns}>
-            Actualizar
-          </button>
-        </div>
-        {runs.length === 0 ? (
-          <p className="hg-muted">Aún no hay ejecuciones este año.</p>
-        ) : (
-          <div className="hg-table-wrap">
-            <table className="hg-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Estado</th>
-                  <th>Mensaje</th>
-                  <th>Versión</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {runs.map((r) => (
-                  <tr key={r.id}>
-                    <td>{r.id}</td>
-                    <td>
-                      <span className={`hg-badge ${r.estado === 'COMPLETE' ? 'ok' : 'off'}`}>{r.estado}</span>
-                    </td>
-                    <td>{r.mensaje || '—'}</td>
-                    <td>{r.version_id || '—'}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="hg-btn hg-btn-sm hg-btn-danger"
-                        title="Eliminar generación"
-                        onClick={() => eliminarRun(r)}
-                      >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
 function EditorPanel({ anio, niveles }) {
   const [nivelId, setNivelId] = useState('');
   const [versiones, setVersiones] = useState([]);
@@ -1335,6 +548,7 @@ function EditorPanel({ anio, niveles }) {
   const [modoTextoLibre, setModoTextoLibre] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
+  const [generando, setGenerando] = useState(false);
 
   const cargarVersiones = useCallback(async () => {
     if (!anio) return;
@@ -1629,18 +843,119 @@ function EditorPanel({ anio, niveles }) {
     }
   };
 
+  const generarAutomatico = async () => {
+    if (!nivelId || !grupoId) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Elige nivel y grupo',
+        text: 'Selecciona el aula (ej. Primaria · 1º · A) para generar su horario.',
+        ...swalOpts,
+      });
+      return;
+    }
+    const conf = await Swal.fire({
+      icon: 'question',
+      title: '¿Generar horario automático?',
+      html: `Se creará un borrador para <strong>${labelGrupo(grupoSel)}</strong> respetando horas seguidas (2/2 = dobles).`,
+      showCancelButton: true,
+      confirmButtonText: 'Generar',
+      cancelButtonText: 'Cancelar',
+      ...swalOpts,
+    });
+    if (!conf.isConfirmed) return;
+    try {
+      setGenerando(true);
+      const { data } = await api.post(`${API}/solver/generar`, {
+        anio,
+        nivel_id: Number(nivelId),
+        grupo_ids: [Number(grupoId)],
+        max_alternatives: 1,
+      });
+      await cargarVersiones();
+      const bestId = data.best?.version_id || data.alternatives?.[0]?.version_id;
+      if (bestId) setVersionId(String(bestId));
+      if (data.estado === 'COMPLETE') {
+        Swal.fire({
+          icon: 'success',
+          title: 'Horario generado',
+          text: data.best
+            ? `${data.best.placed}/${data.best.total} horas · score ${data.best.score}%`
+            : 'Listo. Ya puedes editar o descargar PDF.',
+          ...swalOpts,
+        });
+      } else {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Generación parcial',
+          text: 'Completa lo que falte a mano en la grilla.',
+          ...swalOpts,
+        });
+      }
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo generar',
+        text: e.response?.data?.error || 'Error del solver',
+        ...swalOpts,
+      });
+    } finally {
+      setGenerando(false);
+    }
+  };
+
+  const descargarPdf = () => {
+    if (!board || !grupoSel) return;
+    try {
+      exportarHorarioGenPDF({
+        titulo: labelGrupo(grupoSel),
+        anio,
+        subtituloExtra: 'Grupo',
+        bloques: board.bloques || [],
+        entradas: board.entradas || [],
+        modo: 'grupo',
+      });
+      Swal.fire({
+        icon: 'success',
+        title: 'PDF generado',
+        timer: 1400,
+        showConfirmButton: false,
+        ...swalOpts,
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.message || 'No se pudo generar el PDF',
+        ...swalOpts,
+      });
+    }
+  };
+
   return (
     <div>
       <section className="hg-panel" style={{ marginBottom: '1rem' }}>
         <div className="hg-panel-head">
-          <h2>Editor de horario · {anio}</h2>
+          <h2>Horario · {anio}</h2>
           <div className="hg-actions">
-            <button type="button" className="hg-btn hg-btn-primary" onClick={crearVersion}>
-              + Nuevo borrador
+            <button
+              type="button"
+              className="hg-btn hg-btn-primary"
+              disabled={generando || !nivelId || !grupoId}
+              onClick={generarAutomatico}
+            >
+              {generando ? 'Generando…' : '✨ Generar automático'}
+            </button>
+            <button type="button" className="hg-btn" onClick={crearVersion}>
+              + Borrador vacío
             </button>
             {versionId && (
               <button type="button" className="hg-btn hg-btn-danger hg-btn-sm" onClick={eliminarVersion}>
-                Eliminar borrador
+                Eliminar generado
+              </button>
+            )}
+            {board && (
+              <button type="button" className="hg-btn hg-btn-sm" onClick={descargarPdf}>
+                Descargar PDF
               </button>
             )}
           </div>
@@ -1658,18 +973,7 @@ function EditorPanel({ anio, niveles }) {
             </select>
           </label>
           <label>
-            Borrador del nivel
-            <select value={versionId} onChange={(e) => setVersionId(e.target.value)}>
-              <option value="">— Elegir —</option>
-              {versiones.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.nombre} · {v.nivel_nombre || ''} ({v.estado}) · {v.total_entradas || 0} clases
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Grupo que estoy editando
+            Grupo / aula *
             <select value={grupoId} onChange={(e) => setGrupoId(e.target.value)} disabled={!nivelId}>
               <option value="">— Elegir —</option>
               {grupos.map((g) => (
@@ -1679,7 +983,21 @@ function EditorPanel({ anio, niveles }) {
               ))}
             </select>
           </label>
+          <label>
+            Borrador
+            <select value={versionId} onChange={(e) => setVersionId(e.target.value)}>
+              <option value="">— Elegir o generar —</option>
+              {versiones.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.nombre} · {v.nivel_nombre || ''} ({v.estado}) · {v.total_entradas || 0} clases
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
+        <p className="hg-muted" style={{ margin: '0.5rem 0 0' }}>
+          Aquí generas, editas, descargas PDF y publicas. Si no te gusta el resultado, usa «Eliminar generado» y vuelve a generar.
+        </p>
         {msg && <p className="hg-error">{msg}</p>}
       </section>
 
@@ -1701,8 +1019,12 @@ function EditorPanel({ anio, niveles }) {
         </div>
       )}
 
-      {!versionId || !grupoId ? (
-        <p className="hg-muted">Elige nivel, crea/elige un borrador y un grupo (ej. Inicial · 3 Años) para ver la grilla.</p>
+      {!grupoId ? (
+        <p className="hg-muted">Elige nivel y grupo. Luego «Generar automático» o crea un borrador vacío para editar a mano.</p>
+      ) : !versionId ? (
+        <p className="hg-muted">
+          Sin borrador aún. Pulsa <strong>Generar automático</strong> o <strong>+ Borrador vacío</strong>.
+        </p>
       ) : loading ? (
         <p className="hg-muted">Cargando grilla…</p>
       ) : !board ? null : (
@@ -1872,11 +1194,31 @@ function CargaPanel({ anio, niveles, docentes }) {
   const [grupoId, setGrupoId] = useState('');
   const [grupos, setGrupos] = useState([]);
   const [cargas, setCargas] = useState([]);
+  const [draft, setDraft] = useState([]);
   const [loading, setLoading] = useState(false);
   const [bloquesDefault, setBloquesDefault] = useState(2);
-  const [editId, setEditId] = useState(null);
-  const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
+
+  const toDraftRow = (c) => ({
+    id: c.id,
+    grupo_label: c.grupo_label,
+    curso_nombre: c.curso_nombre,
+    color: c.color || '',
+    personal_id: c.personal_id ? String(c.personal_id) : '',
+    bloques_semanales: Number(c.bloques_semanales) || 1,
+    bloques_consecutivos_min: Number(c.bloques_consecutivos_min) || 1,
+    bloques_consecutivos_max: Number(c.bloques_consecutivos_max) || 2,
+    activo: esActivo(c.activo),
+  });
+
+  const snapshotKey = (r) =>
+    [
+      r.personal_id || '',
+      Number(r.bloques_semanales) || 0,
+      Number(r.bloques_consecutivos_min) || 0,
+      Number(r.bloques_consecutivos_max) || 0,
+      r.activo ? 1 : 0,
+    ].join('|');
 
   const cargarGrupos = useCallback(async () => {
     if (!anio) return;
@@ -1898,9 +1240,12 @@ function CargaPanel({ anio, niveles, docentes }) {
       if (nivelId) params.nivel_id = nivelId;
       if (grupoId) params.grupo_id = grupoId;
       const { data } = await api.get(`${API}/carga`, { params });
-      setCargas(data.cargas || []);
+      const list = data.cargas || [];
+      setCargas(list);
+      setDraft(list.map(toDraftRow));
     } catch (e) {
       setCargas([]);
+      setDraft([]);
       if (e.response?.status !== 503) {
         Swal.fire({
           icon: 'error',
@@ -1926,7 +1271,33 @@ function CargaPanel({ anio, niveles, docentes }) {
     cargarCargas();
   }, [cargarCargas]);
 
+  const updateDraft = (id, patch) => {
+    setDraft((rows) => rows.map((r) => (Number(r.id) === Number(id) ? { ...r, ...patch } : r)));
+  };
+
+  const dirtyRows = draft.filter((d) => {
+    const orig = cargas.find((c) => Number(c.id) === Number(d.id));
+    if (!orig) return false;
+    return snapshotKey(d) !== snapshotKey(toDraftRow(orig));
+  });
+
+  const descartarCambios = () => {
+    setDraft(cargas.map(toDraftRow));
+  };
+
   const importar = async () => {
+    if (dirtyRows.length) {
+      const confDirty = await Swal.fire({
+        icon: 'warning',
+        title: 'Hay cambios sin guardar',
+        text: 'Si importas ahora se perderán. ¿Continuar?',
+        showCancelButton: true,
+        confirmButtonText: 'Continuar',
+        cancelButtonText: 'Cancelar',
+        ...swalOpts,
+      });
+      if (!confDirty.isConfirmed) return;
+    }
     const conf = await Swal.fire({
       icon: 'question',
       title: 'Importar desde Asignaturas',
@@ -1961,32 +1332,35 @@ function CargaPanel({ anio, niveles, docentes }) {
     }
   };
 
-  const empezarEdit = (row) => {
-    setEditId(row.id);
-    setEditForm({
-      bloques_semanales: row.bloques_semanales,
-      bloques_consecutivos_min: row.bloques_consecutivos_min,
-      bloques_consecutivos_max: row.bloques_consecutivos_max,
-      personal_id: row.personal_id || '',
-      color: row.color || '',
-      activo: esActivo(row.activo),
-    });
-  };
-
-  const guardarEdit = async () => {
-    if (!editId) return;
+  const guardarTodo = async () => {
+    if (!dirtyRows.length) {
+      Swal.fire({ icon: 'info', title: 'Sin cambios', text: 'No hay nada que guardar.', ...swalOpts });
+      return;
+    }
     try {
       setSaving(true);
-      await api.put(`${API}/carga/${editId}`, {
-        bloques_semanales: Number(editForm.bloques_semanales) || 1,
-        bloques_consecutivos_min: Number(editForm.bloques_consecutivos_min) || 2,
-        bloques_consecutivos_max: Number(editForm.bloques_consecutivos_max) || 2,
-        personal_id: editForm.personal_id ? Number(editForm.personal_id) : null,
-        color: editForm.color || null,
-        activo: editForm.activo ? 1 : 0,
-      });
-      setEditId(null);
+      await Promise.all(
+        dirtyRows.map((row) => {
+          const minC = Math.max(1, Number(row.bloques_consecutivos_min) || 1);
+          const maxC = Math.max(minC, Number(row.bloques_consecutivos_max) || minC);
+          return api.put(`${API}/carga/${row.id}`, {
+            bloques_semanales: Math.max(1, Number(row.bloques_semanales) || 1),
+            bloques_consecutivos_min: minC,
+            bloques_consecutivos_max: maxC,
+            personal_id: row.personal_id ? Number(row.personal_id) : null,
+            activo: row.activo ? 1 : 0,
+          });
+        })
+      );
       await cargarCargas();
+      Swal.fire({
+        icon: 'success',
+        title: 'Guardado',
+        text: `${dirtyRows.length} fila(s) actualizada(s).`,
+        timer: 1600,
+        showConfirmButton: false,
+        ...swalOpts,
+      });
     } catch (e) {
       Swal.fire({
         icon: 'error',
@@ -2024,7 +1398,8 @@ function CargaPanel({ anio, niveles, docentes }) {
     }
   };
 
-  const totalBloques = cargas.reduce((s, c) => s + (Number(c.bloques_semanales) || 0), 0);
+  const totalBloques = draft.reduce((sum, c) => sum + (Number(c.bloques_semanales) || 0), 0);
+  const dirtyCount = dirtyRows.length;
 
   return (
     <div>
@@ -2054,10 +1429,7 @@ function CargaPanel({ anio, niveles, docentes }) {
         <div className="hg-filters">
           <label>
             Nivel
-            <select
-              value={nivelId}
-              onChange={(e) => setNivelId(e.target.value)}
-            >
+            <select value={nivelId} onChange={(e) => setNivelId(e.target.value)}>
               <option value="">Todos</option>
               {niveles.map((n) => (
                 <option key={n.id} value={n.id}>
@@ -2078,43 +1450,69 @@ function CargaPanel({ anio, niveles, docentes }) {
             </select>
           </label>
           <div className="hg-stat">
-            <span>{cargas.length} cargas</span>
+            <span>{draft.length} cargas</span>
             <strong>{totalBloques} horas/semana</strong>
           </div>
         </div>
       </section>
 
+      {dirtyCount > 0 && (
+        <div className="hg-save-bar">
+          <span>
+            <strong>{dirtyCount}</strong> cambio{dirtyCount === 1 ? '' : 's'} sin guardar
+          </span>
+          <div className="hg-actions">
+            <button type="button" className="hg-btn hg-btn-ghost hg-btn-sm" disabled={saving} onClick={descartarCambios}>
+              Descartar
+            </button>
+            <button type="button" className="hg-btn hg-btn-primary" disabled={saving} onClick={guardarTodo}>
+              {saving ? 'Guardando…' : 'Guardar todo'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <section className="hg-panel">
         {loading ? (
           <p className="hg-muted">Cargando…</p>
-        ) : cargas.length === 0 ? (
+        ) : draft.length === 0 ? (
           <p className="hg-muted">
             Sin carga todavía. Usa <strong>Importar asignaturas</strong> o filtra otro nivel/grupo.
           </p>
         ) : (
           <div className="hg-table-wrap">
-            <table className="hg-table">
+            <table className="hg-table hg-table--editable">
               <thead>
                 <tr>
                   <th>Grupo</th>
                   <th>Curso</th>
                   <th>Docente</th>
                   <th className="hg-col-center">Horas</th>
-                  <th className="hg-col-center">Horas seguidas</th>
-                  <th>Estado</th>
+                  <th className="hg-col-center">
+                    <span className="hg-th-tip" title={TIP_HORAS_SEGUIDAS}>
+                      Horas seguidas <em aria-hidden>?</em>
+                    </span>
+                  </th>
+                  <th className="hg-col-center">Activo</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {cargas.map((c) =>
-                  editId === c.id ? (
-                    <tr key={c.id} className="hg-row-active">
+                {draft.map((c) => {
+                  const dirty = dirtyRows.some((d) => Number(d.id) === Number(c.id));
+                  return (
+                    <tr key={c.id} className={dirty ? 'hg-row-dirty' : undefined}>
                       <td>{c.grupo_label}</td>
-                      <td>{c.curso_nombre || '—'}</td>
+                      <td>
+                        <strong>{c.curso_nombre || '—'}</strong>
+                        {c.color ? (
+                          <span className="hg-color-dot" style={{ background: c.color, marginLeft: 6 }} />
+                        ) : null}
+                      </td>
                       <td>
                         <select
-                          value={editForm.personal_id}
-                          onChange={(e) => setEditForm((f) => ({ ...f, personal_id: e.target.value }))}
+                          value={c.personal_id}
+                          onChange={(e) => updateDraft(c.id, { personal_id: e.target.value })}
                         >
                           <option value="">—</option>
                           {docentes.map((d) => (
@@ -2129,8 +1527,8 @@ function CargaPanel({ anio, niveles, docentes }) {
                           type="number"
                           min={1}
                           style={{ width: 64 }}
-                          value={editForm.bloques_semanales}
-                          onChange={(e) => setEditForm((f) => ({ ...f, bloques_semanales: e.target.value }))}
+                          value={c.bloques_semanales}
+                          onChange={(e) => updateDraft(c.id, { bloques_semanales: e.target.value })}
                         />
                       </td>
                       <td className="hg-col-center">
@@ -2139,76 +1537,49 @@ function CargaPanel({ anio, niveles, docentes }) {
                             type="number"
                             min={1}
                             style={{ width: 52 }}
-                            value={editForm.bloques_consecutivos_min}
-                            onChange={(e) =>
-                              setEditForm((f) => ({ ...f, bloques_consecutivos_min: e.target.value }))
-                            }
+                            value={c.bloques_consecutivos_min}
+                            title="Mínimo de horas juntas"
+                            onChange={(e) => updateDraft(c.id, { bloques_consecutivos_min: e.target.value })}
                           />
-                          /
+                          <span>/</span>
                           <input
                             type="number"
                             min={1}
                             style={{ width: 52 }}
-                            value={editForm.bloques_consecutivos_max}
-                            onChange={(e) =>
-                              setEditForm((f) => ({ ...f, bloques_consecutivos_max: e.target.value }))
-                            }
+                            value={c.bloques_consecutivos_max}
+                            title="Máximo de horas juntas"
+                            onChange={(e) => updateDraft(c.id, { bloques_consecutivos_max: e.target.value })}
                           />
                         </div>
                       </td>
-                      <td>
-                        <label className="hg-check" style={{ marginTop: 0 }}>
-                          <input
-                            type="checkbox"
-                            checked={editForm.activo}
-                            onChange={(e) => setEditForm((f) => ({ ...f, activo: e.target.checked }))}
-                          />
-                          Activo
-                        </label>
+                      <td className="hg-col-center">
+                        <input
+                          type="checkbox"
+                          checked={!!c.activo}
+                          onChange={(e) => updateDraft(c.id, { activo: e.target.checked })}
+                          aria-label="Activo"
+                        />
                       </td>
                       <td className="hg-actions">
-                        <button type="button" className="hg-btn hg-btn-sm hg-btn-primary" disabled={saving} onClick={guardarEdit}>
-                          Guardar
-                        </button>
-                        <button type="button" className="hg-btn hg-btn-sm hg-btn-ghost" onClick={() => setEditId(null)}>
-                          Cancelar
-                        </button>
-                      </td>
-                    </tr>
-                  ) : (
-                    <tr key={c.id}>
-                      <td>{c.grupo_label}</td>
-                      <td>
-                        <strong>{c.curso_nombre || '—'}</strong>
-                        {c.color ? (
-                          <span className="hg-color-dot" style={{ background: c.color, marginLeft: 6 }} />
-                        ) : null}
-                      </td>
-                      <td>{c.docente_nombre || '—'}</td>
-                      <td className="hg-col-center">
-                        <strong>{c.bloques_semanales}</strong>
-                      </td>
-                      <td className="hg-col-center">
-                        {c.bloques_consecutivos_min}/{c.bloques_consecutivos_max}
-                      </td>
-                      <td>
-                        <span className={`hg-badge ${esActivo(c.activo) ? 'ok' : 'off'}`}>
-                          {esActivo(c.activo) ? 'Activo' : 'Off'}
-                        </span>
-                      </td>
-                      <td className="hg-actions">
-                        <button type="button" className="hg-btn hg-btn-sm" onClick={() => empezarEdit(c)}>
-                          Editar
-                        </button>
                         <button type="button" className="hg-btn hg-btn-sm hg-btn-danger" onClick={() => eliminar(c)}>
                           ✕
                         </button>
                       </td>
                     </tr>
-                  )
-                )}
+                  );
+                })}
               </tbody>
             </table>
+          </div>
+        )}
+        {draft.length > 0 && (
+          <div className="hg-actions" style={{ marginTop: '1rem', justifyContent: 'flex-end' }}>
+            <button type="button" className="hg-btn hg-btn-ghost" disabled={!dirtyCount || saving} onClick={descartarCambios}>
+              Descartar
+            </button>
+            <button type="button" className="hg-btn hg-btn-primary" disabled={!dirtyCount || saving} onClick={guardarTodo}>
+              {saving ? 'Guardando…' : dirtyCount ? `Guardar todo (${dirtyCount})` : 'Guardar todo'}
+            </button>
           </div>
         )}
       </section>
