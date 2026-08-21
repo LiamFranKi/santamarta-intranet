@@ -173,16 +173,37 @@ router.get('/meta', async (req, res) => {
 
     let docentes = [];
     try {
+      // DISTINCT: un personal puede tener más de un usuario DOCENTE activo
       docentes = await query(
-        `SELECT p.id,
+        `SELECT DISTINCT p.id,
                 TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS nombre
          FROM personal p
-         INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'DOCENTE'
+         INNER JOIN usuarios u
+           ON u.personal_id = p.id
+          AND u.colegio_id = ?
+          AND u.estado = 'ACTIVO'
+          AND u.tipo = 'DOCENTE'
+         WHERE p.colegio_id = ?
          ORDER BY p.apellidos, p.nombres`,
-        [cid]
+        [cid, cid]
       );
     } catch {
-      docentes = [];
+      try {
+        docentes = await query(
+          `SELECT DISTINCT p.id,
+                  TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS nombre
+           FROM personal p
+           INNER JOIN usuarios u
+             ON u.personal_id = p.id
+            AND u.colegio_id = ?
+            AND u.estado = 'ACTIVO'
+            AND u.tipo = 'DOCENTE'
+           ORDER BY p.apellidos, p.nombres`,
+          [cid]
+        );
+      } catch {
+        docentes = [];
+      }
     }
 
     res.json({
@@ -1246,6 +1267,7 @@ router.put('/entradas/:id', async (req, res) => {
     const dia = parseInt(b.dia_semana != null ? b.dia_semana : cur.dia_semana, 10);
     const bloqueId = parseId(b.bloque_id) || cur.bloque_id;
     const cargaId = cur.carga_id;
+    const textoLibre = cur.texto_libre || null;
 
     const result = await validatePlacement({
       colegioId: cid,
@@ -1254,6 +1276,7 @@ router.put('/entradas/:id', async (req, res) => {
       bloqueId,
       grupoId: cur.grupo_id,
       cargaId,
+      textoLibre: !cargaId ? textoLibre : null,
       excludeEntradaId: id,
     });
     if (!result.valid) {

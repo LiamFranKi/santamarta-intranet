@@ -716,8 +716,72 @@ function EditorPanel({ anio, niveles }) {
   const onDropCelda = async (e, dia, bloque) => {
     e.preventDefault();
     if (bloque.tipo === 'BREAK' || bloque.tipo === 'LUNCH') return;
+    if (!versionId || !grupoId) return;
+
+    const entradaId = e.dataTransfer.getData('entrada_id');
+    const fromDia = e.dataTransfer.getData('from_dia');
+    const fromBloque = e.dataTransfer.getData('from_bloque');
+    if (
+      entradaId &&
+      String(fromDia) === String(dia) &&
+      String(fromBloque) === String(bloque.id)
+    ) {
+      return;
+    }
+
+    if (entradaId) {
+      const cargaIdDrag = e.dataTransfer.getData('carga_id');
+      const textoLibreDrag = e.dataTransfer.getData('texto_libre');
+      const conf = await Swal.fire({
+        icon: 'question',
+        title: '¿Mover o copiar?',
+        html: 'Arrastraste una clase ya colocada.<br/><b>Mover</b> la cambia de celda.<br/><b>Copiar</b> deja la original y crea otra.',
+        showDenyButton: true,
+        showCancelButton: true,
+        confirmButtonText: 'Mover',
+        denyButtonText: 'Copiar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#2563eb',
+        denyButtonColor: '#0f766e',
+        ...swalOpts,
+      });
+      if (conf.isDismissed) return;
+      try {
+        if (conf.isConfirmed) {
+          await api.put(`${API}/entradas/${entradaId}`, {
+            dia_semana: dia,
+            bloque_id: bloque.id,
+          });
+        } else if (conf.isDenied) {
+          const payload = {
+            version_id: Number(versionId),
+            dia_semana: dia,
+            bloque_id: bloque.id,
+            grupo_id: Number(grupoId),
+          };
+          if (textoLibreDrag && !cargaIdDrag) {
+            payload.texto_libre = textoLibreDrag;
+          } else if (cargaIdDrag) {
+            payload.carga_id = Number(cargaIdDrag);
+          } else {
+            throw new Error('No se puede copiar esta celda');
+          }
+          await api.post(`${API}/entradas`, payload);
+        }
+        await cargarBoard();
+      } catch (err) {
+        Swal.fire({
+          icon: 'error',
+          title: conf.isConfirmed ? 'No se pudo mover' : 'No se pudo copiar',
+          text: err.response?.data?.error || err.message || 'Conflicto',
+          ...swalOpts,
+        });
+      }
+      return;
+    }
+
     const cargaId = e.dataTransfer.getData('carga_id') || selectedCargaId;
-    if (!cargaId || !versionId || !grupoId) return;
+    if (!cargaId) return;
     setModoTextoLibre(false);
     setSelectedCargaId(Number(cargaId));
     try {
@@ -1102,6 +1166,9 @@ function EditorPanel({ anio, niveles }) {
           </aside>
 
           <div className="hg-panel hg-grid-wrap">
+            <p className="hg-muted hg-drag-hint">
+              Tip: arrastra una clase ya colocada a otra celda → elige <strong>Mover</strong> o <strong>Copiar</strong>.
+            </p>
             <div className="hg-grid" style={{ ['--hg-cols']: DIAS.length }}>
               <div className="hg-grid-corner">Hora</div>
               {DIAS.map((d) => (
@@ -1140,7 +1207,32 @@ function EditorPanel({ anio, niveles }) {
                         {isBreak ? (
                           <span className="hg-cell-muted">{labelTipoBloque(b.tipo)}</span>
                         ) : ent ? (
-                          <div className="hg-cell-card">
+                          <div
+                            className="hg-cell-card"
+                            draggable={!esActivo(ent.locked)}
+                            title={
+                              esActivo(ent.locked)
+                                ? 'Bloqueada: desbloquéala para mover'
+                                : 'Arrastra para mover o copiar a otra celda'
+                            }
+                            onDragStart={(e) => {
+                              if (esActivo(ent.locked)) {
+                                e.preventDefault();
+                                return;
+                              }
+                              e.stopPropagation();
+                              e.dataTransfer.setData('entrada_id', String(ent.id));
+                              e.dataTransfer.setData('from_dia', String(d.value));
+                              e.dataTransfer.setData('from_bloque', String(b.id));
+                              if (ent.carga_id) {
+                                e.dataTransfer.setData('carga_id', String(ent.carga_id));
+                              }
+                              if (ent.texto_libre && !ent.carga_id) {
+                                e.dataTransfer.setData('texto_libre', String(ent.texto_libre));
+                              }
+                              e.dataTransfer.effectAllowed = 'copyMove';
+                            }}
+                          >
                             <strong>{ent.curso_nombre || ent.texto_libre || 'Clase'}</strong>
                             <small>
                               {ent.texto_libre && !ent.carga_id
@@ -1594,6 +1686,28 @@ function DisponibilidadPanel({ anio, docentes }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Una sola fila por personal_id (por si meta trae duplicados)
+  const docentesUnicos = [];
+  const seenDoc = new Set();
+  for (const d of docentes || []) {
+    const id = Number(d.id);
+    if (!id || seenDoc.has(id)) continue;
+    seenDoc.add(id);
+    docentesUnicos.push(d);
+  }
+
+  const configuradosIds = new Set(
+    (resumen || []).map((r) => Number(r.personal_id)).filter(Boolean)
+  );
+  // Combobox: solo pendientes; si estás editando uno ya configurado, lo incluye
+  const docentesCombo = docentesUnicos.filter(
+    (d) => !configuradosIds.has(Number(d.id)) || String(d.id) === String(personalId)
+  );
+  const docentesPendientes = docentesUnicos.filter((d) => !configuradosIds.has(Number(d.id)));
+  const docenteActual =
+    docentesUnicos.find((d) => String(d.id) === String(personalId)) ||
+    resumen.find((r) => String(r.personal_id) === String(personalId));
+
   const cargarResumen = useCallback(async () => {
     if (!anio) return;
     try {
@@ -1703,7 +1817,7 @@ function DisponibilidadPanel({ anio, docentes }) {
     const conf = await Swal.fire({
       icon: 'warning',
       title: '¿Quitar disponibilidad de este docente?',
-      text: 'Solo borra en tablas piloto.',
+      text: 'Solo borra en tablas piloto. Volverá a aparecer en el listado pendiente.',
       showCancelButton: true,
       confirmButtonText: 'Sí',
       cancelButtonText: 'Cancelar',
@@ -1733,21 +1847,32 @@ function DisponibilidadPanel({ anio, docentes }) {
           <h2>Disponibilidad docente · {anio}</h2>
         </div>
         <label className="hg-field">
-          Docente
+          Docente pendiente
           <select value={personalId} onChange={(e) => setPersonalId(e.target.value)}>
             <option value="">— Seleccionar —</option>
-            {docentes.map((d) => (
+            {docentesCombo.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.nombre}
+                {configuradosIds.has(Number(d.id)) ? ' (editando)' : ''}
               </option>
             ))}
           </select>
         </label>
+        <p className="hg-muted" style={{ marginTop: '0.35rem' }}>
+          Solo aparecen quienes faltan por configurar ({docentesPendientes.length}). Cada docente tiene{' '}
+          <strong>una</strong> disponibilidad por año: los ya guardados se editan desde la tabla de la derecha
+          (no se crean configuraciones duplicadas).
+        </p>
+        {personalId && docenteActual && configuradosIds.has(Number(personalId)) && (
+          <p className="hg-muted" style={{ marginTop: '0.25rem' }}>
+            Editando: <strong>{docenteActual.nombre}</strong>
+          </p>
+        )}
 
         {loading ? (
           <p className="hg-muted">Cargando semana…</p>
         ) : !personalId ? (
-          <p className="hg-muted">Elige un docente para editar lunes a viernes.</p>
+          <p className="hg-muted">Elige un docente pendiente, o pulsa «Editar» en la tabla de la derecha.</p>
         ) : (
           <>
             <div className="hg-actions" style={{ marginBottom: '0.75rem' }}>
@@ -1819,7 +1944,7 @@ function DisponibilidadPanel({ anio, docentes }) {
 
       <section className="hg-panel">
         <div className="hg-panel-head">
-          <h2>Ya configurados</h2>
+          <h2>Ya configurados ({resumen.length})</h2>
         </div>
         {resumen.length === 0 ? (
           <p className="hg-muted">Ningún docente tiene disponibilidad guardada este año.</p>
@@ -1836,7 +1961,10 @@ function DisponibilidadPanel({ anio, docentes }) {
               </thead>
               <tbody>
                 {resumen.map((r) => (
-                  <tr key={r.personal_id}>
+                  <tr
+                    key={r.personal_id}
+                    className={String(r.personal_id) === String(personalId) ? 'hg-row-active' : undefined}
+                  >
                     <td className="rs-nombre">{r.nombre || r.personal_id}</td>
                     <td>{r.dias_configurados}</td>
                     <td>{r.dias_no_disponibles}</td>

@@ -552,6 +552,20 @@
   height: 100%;
 }
 
+.hg-cell-card[draggable='true'] {
+  cursor: grab;
+}
+
+.hg-cell-card[draggable='true']:active {
+  cursor: grabbing;
+  opacity: 0.85;
+}
+
+.hg-drag-hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.82rem;
+}
+
 .hg-cell-card strong {
   font-size: 0.82rem;
   color: #4c1d95;
