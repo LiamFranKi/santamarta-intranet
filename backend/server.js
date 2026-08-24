@@ -517,4 +517,24 @@ app.listen(PORT, () => {
     }
   };
   iniciarCierreExamenesPendientes();
+
+  // Clases: avisar al docente a la hora exacta de inicio (horario publicado)
+  const iniciarAvisosInicioClase = () => {
+    try {
+      const { ejecutarNotificacionesInicioClase } = require('./services/claseInicioNotificacionService');
+      const correr = async (etiqueta) => {
+        try {
+          await ejecutarNotificacionesInicioClase();
+        } catch (e) {
+          console.error(`❌ [CLASE-INICIO] Error (${etiqueta}):`, e);
+        }
+      };
+      setTimeout(() => correr('primera'), 75000);
+      setInterval(() => correr('periodica'), 60 * 1000);
+      console.log('🔔 [CLASE-INICIO] Programado: primera ~75 s, luego cada 1 min (hora exacta Lima)');
+    } catch (error) {
+      console.error('❌ [CLASE-INICIO] Error configurando:', error);
+    }
+  };
+  iniciarAvisosInicioClase();
 });
