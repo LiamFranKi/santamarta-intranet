@@ -1175,7 +1175,7 @@ router.post('/registrar', async (req, res) => {
             try {
               await asegurarIncidenciaVestimenta(query, execute, {
                 matriculaId: matriculaIdEspejo,
-                workerId: workerIdEspejo,
+              workerId: workerIdEspejo || null,
                 fechaYmd: fechaHoy,
                 hora: horaActual,
                 motivo,

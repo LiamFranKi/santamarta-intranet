@@ -42,13 +42,37 @@ function cicloQueContieneFecha(rangosParsed, anioEscolar, fechaYmd) {
 }
 
 async function contarIncidenciasMatriculaEnRango(query, matriculaId, desde, hasta) {
-  const rows = await query(
+  // Incidencias docentes/tutor (sin espejos de vestimenta)
+  const rowsInc = await query(
     `SELECT COUNT(*) AS c FROM enrollment_incidents
      WHERE enrollment_id = ? AND type = 1
-       AND DATE(created_at) BETWEEN ? AND ?`,
-    [matriculaId, desde, hasta]
+       AND DATE(created_at) BETWEEN ? AND ?
+       AND COALESCE(assignment_id, 0) <> ?
+       AND COALESCE(description, '') NOT LIKE '[VESTIMENTA]%'`,
+    [matriculaId, desde, hasta, ASSIGNMENT_ID_VESTIMENTA]
   );
-  return Math.max(0, parseInt(rows?.[0]?.c, 10) || 0);
+  const nInc = Math.max(0, parseInt(rowsInc?.[0]?.c, 10) || 0);
+
+  // Descuentos por presentación (tabla fuente QR)
+  let nPed = 0;
+  try {
+    const rowsPed = await query(
+      `SELECT COUNT(*) AS c
+       FROM presentacion_escolar_descuentos ped
+       INNER JOIN usuarios ua ON ua.id = ped.alumno_usuario_id AND ua.colegio_id = ped.colegio_id
+       INNER JOIN matriculas m ON m.id = ? AND m.alumno_id = ua.alumno_id AND m.colegio_id = ped.colegio_id AND (m.estado = 0)
+       INNER JOIN grupos g ON g.id = m.grupo_id AND g.anio = ped.anio
+       WHERE DATE(ped.fecha) BETWEEN ? AND ?`,
+      [matriculaId, desde, hasta]
+    );
+    nPed = Math.max(0, parseInt(rowsPed?.[0]?.c, 10) || 0);
+  } catch (e) {
+    if (!(String(e.message || '').includes("doesn't exist") || e.code === 'ER_NO_SUCH_TABLE')) {
+      console.warn('[conducta] contar presentacion:', e.message);
+    }
+  }
+
+  return nInc + nPed;
 }
 
 function notaDesdeCantidad(cantidad) {
@@ -125,6 +149,7 @@ async function asegurarIncidenciaVestimenta(query, execute, {
 
   const descFinal = descuentoId ? `${desc} [#ped:${descuentoId}]` : desc;
   const createdAt = `${fechaYmd} ${hora && String(hora).length >= 5 ? String(hora).slice(0, 8) : '12:00:00'}`;
+  const worker = workerId && Number(workerId) > 0 ? Number(workerId) : null;
   const r = await execute(
     `INSERT INTO enrollment_incidents
       (enrollment_id, assignment_id, worker_id, type, points, description, created_at, updated_at)
@@ -132,7 +157,7 @@ async function asegurarIncidenciaVestimenta(query, execute, {
     [
       matriculaId,
       ASSIGNMENT_ID_VESTIMENTA,
-      workerId || 0,
+      worker,
       descFinal,
       createdAt,
       createdAt,
@@ -154,14 +179,16 @@ async function backfillVestimentaAIncidenciasGrupo(query, execute, {
   let rows = [];
   try {
     rows = await query(
-      `SELECT ped.id, ped.fecha, ped.hora, ped.motivo, ped.registrado_por_usuario_id, m.id AS matricula_id, u_reg.personal_id
+      `SELECT ped.id, ped.fecha, ped.hora, ped.motivo, ped.registrado_por_usuario_id,
+              m.id AS matricula_id, u_reg.personal_id
        FROM presentacion_escolar_descuentos ped
-       INNER JOIN usuarios ua ON ua.id = ped.alumno_usuario_id AND ua.colegio_id = ?
-       INNER JOIN matriculas m ON m.alumno_id = ua.alumno_id AND m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0)
+       INNER JOIN usuarios ua ON ua.id = ped.alumno_usuario_id AND ua.colegio_id = ped.colegio_id
+       INNER JOIN matriculas m ON m.alumno_id = ua.alumno_id AND m.grupo_id = ? AND m.colegio_id = ped.colegio_id AND (m.estado = 0)
+       INNER JOIN grupos gx ON gx.id = m.grupo_id AND gx.anio = ped.anio
        LEFT JOIN usuarios u_reg ON u_reg.id = ped.registrado_por_usuario_id
        WHERE ped.colegio_id = ? AND ped.anio = ?
          AND DATE(ped.fecha) BETWEEN ? AND ?`,
-      [colegio_id, grupoId, colegio_id, colegio_id, anio, desde, hasta]
+      [grupoId, colegio_id, anio, desde, hasta]
     );
   } catch (e) {
     if (String(e.message || '').includes("doesn't exist") || e.code === 'ER_NO_SUCH_TABLE') return 0;
@@ -186,20 +213,28 @@ async function backfillVestimentaAIncidenciasGrupo(query, execute, {
 
   let created = 0;
   for (const row of rows || []) {
-    const fecha = String(row.fecha).slice(0, 10);
-    const r = await asegurarIncidenciaVestimenta(query, execute, {
-      matriculaId: row.matricula_id,
-      workerId: row.personal_id || 0,
-      fechaYmd: fecha,
-      hora: row.hora || '12:00:00',
-      motivo: row.motivo || null,
-      descuentoId: row.id || null,
-    });
-    if (r.created) created += 1;
+    try {
+      const fecha = String(row.fecha).slice(0, 10);
+      const r = await asegurarIncidenciaVestimenta(query, execute, {
+        matriculaId: row.matricula_id,
+        workerId: row.personal_id || null,
+        fechaYmd: fecha,
+        hora: row.hora || '12:00:00',
+        motivo: row.motivo || null,
+        descuentoId: row.id || null,
+      });
+      if (r.created) created += 1;
+    } catch (eOne) {
+      console.warn('[conducta] backfill ped', row.id, eOne.message);
+    }
   }
   return created;
 }
 
+/**
+ * Lista unificada: incidencias docentes + descuentos presentación (tabla QR).
+ * La presentación se toma siempre de presentacion_escolar_descuentos (fuente de verdad).
+ */
 async function listarIncidenciasUnificadasGrupo(query, {
   grupoId,
   colegio_id,
@@ -208,25 +243,21 @@ async function listarIncidenciasUnificadasGrupo(query, {
   hasta,
   matriculaId = null,
 }) {
-  const params = [ASSIGNMENT_ID_TUTORIA, ASSIGNMENT_ID_VESTIMENTA, grupoId, colegio_id, anio, desde, hasta];
-  let extra = '';
+  const paramsInc = [ASSIGNMENT_ID_TUTORIA, grupoId, colegio_id, anio, desde, hasta, ASSIGNMENT_ID_VESTIMENTA];
+  let extraInc = '';
   if (matriculaId) {
-    extra = ' AND m.id = ? ';
-    params.push(matriculaId);
+    extraInc = ' AND m.id = ? ';
+    paramsInc.push(matriculaId);
   }
 
-  const rows = await query(
+  const rowsInc = await query(
     `SELECT ei.id, ei.description, ei.created_at, ei.assignment_id, ei.enrollment_id AS matricula_id,
             CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,'')) AS docente_nombre,
             CASE
               WHEN ei.assignment_id = ? THEN 'Tutoría'
-              WHEN ei.assignment_id = ? THEN 'Presentación (QR)'
               ELSE COALESCE(c.nombre, '—')
             END AS curso_nombre,
-            CASE
-              WHEN ei.assignment_id = ${ASSIGNMENT_ID_VESTIMENTA} OR ei.description LIKE '[VESTIMENTA]%' THEN 'vestimenta'
-              ELSE 'incidencia'
-            END AS origen,
+            'incidencia' AS origen,
             m.alumno_id,
             TRIM(CONCAT(COALESCE(al.apellido_paterno,''),' ', COALESCE(al.apellido_materno,''),' ', COALESCE(al.nombres,''))) AS alumno_nombre
      FROM enrollment_incidents ei
@@ -239,40 +270,111 @@ async function listarIncidenciasUnificadasGrupo(query, {
      WHERE g.id = ? AND g.colegio_id = ?
        AND ei.type = 1 AND g.anio = ?
        AND DATE(ei.created_at) BETWEEN ? AND ?
-       ${extra}
+       AND COALESCE(ei.assignment_id, 0) <> ?
+       AND COALESCE(ei.description, '') NOT LIKE '[VESTIMENTA]%'
+       ${extraInc}
      ORDER BY alumno_nombre ASC, ei.created_at DESC`,
-    params
+    paramsInc
   );
 
+  let rowsPed = [];
+  try {
+    const paramsPed = [grupoId, colegio_id, anio, desde, hasta];
+    let extraPed = '';
+    if (matriculaId) {
+      extraPed = ' AND m.id = ? ';
+      paramsPed.push(matriculaId);
+    }
+    rowsPed = await query(
+      `SELECT ped.id, ped.fecha, ped.hora, ped.motivo, ped.puntos, m.id AS matricula_id,
+              ua.alumno_id,
+              TRIM(CONCAT(COALESCE(al.apellido_paterno,''),' ', COALESCE(al.apellido_materno,''),' ', COALESCE(al.nombres,''))) AS alumno_nombre,
+              CASE
+                WHEN rpp.id IS NOT NULL THEN TRIM(CONCAT(COALESCE(rpp.nombres,''), ' ', COALESCE(rpp.apellidos,'')))
+                WHEN alrp.id IS NOT NULL THEN TRIM(CONCAT(
+                  COALESCE(alrp.apellido_paterno,''),' ', COALESCE(alrp.apellido_materno,''),' ', COALESCE(alrp.nombres,'')))
+                ELSE 'Escaneo QR'
+              END AS docente_nombre
+       FROM presentacion_escolar_descuentos ped
+       INNER JOIN usuarios ua ON ua.id = ped.alumno_usuario_id AND ua.colegio_id = ped.colegio_id
+       INNER JOIN alumnos al ON al.id = ua.alumno_id
+       INNER JOIN matriculas m ON m.alumno_id = ua.alumno_id AND m.grupo_id = ? AND m.colegio_id = ped.colegio_id AND (m.estado = 0)
+       INNER JOIN grupos gx ON gx.id = m.grupo_id AND gx.anio = ped.anio
+       LEFT JOIN usuarios ur ON ur.id = ped.registrado_por_usuario_id
+       LEFT JOIN personal rpp ON rpp.id = ur.personal_id
+       LEFT JOIN alumnos alrp ON alrp.id = ur.alumno_id
+       WHERE ped.colegio_id = ? AND ped.anio = ?
+         AND DATE(ped.fecha) BETWEEN ? AND ?
+         ${extraPed}
+       ORDER BY alumno_nombre ASC, ped.fecha DESC, ped.hora DESC`,
+      paramsPed
+    );
+  } catch (e) {
+    if (!(String(e.message || '').includes("doesn't exist") || e.code === 'ER_NO_SUCH_TABLE')) {
+      console.warn('[conducta] listar presentacion:', e.message);
+    }
+    rowsPed = [];
+  }
+
   const porAlumno = new Map();
-  (rows || []).forEach((r) => {
-    const aid = r.alumno_id;
+  const ensureAlumno = (aid, nombre, mid) => {
     if (!porAlumno.has(aid)) {
       porAlumno.set(aid, {
         alumno_id: aid,
-        matricula_id: r.matricula_id,
-        alumno_nombre: r.alumno_nombre,
+        matricula_id: mid,
+        alumno_nombre: nombre,
         incidencias: [],
       });
     }
-    porAlumno.get(aid).incidencias.push({
-      id: r.id,
-      description: String(r.description || '')
-        .replace(/^\[VESTIMENTA\]\s*/i, '')
-        .replace(/\s*\[#ped:\d+\]\s*$/i, '')
-        .trim(),
+    return porAlumno.get(aid);
+  };
+
+  (rowsInc || []).forEach((r) => {
+    ensureAlumno(r.alumno_id, r.alumno_nombre, r.matricula_id).incidencias.push({
+      id: `inc-${r.id}`,
+      description: String(r.description || '').trim(),
       created_at: r.created_at,
       docente_nombre: r.docente_nombre,
       curso_nombre: r.curso_nombre,
-      origen: r.origen,
+      origen: 'incidencia',
     });
   });
+
+  (rowsPed || []).forEach((r) => {
+    const fecha = String(r.fecha).slice(0, 10);
+    const hora = r.hora ? String(r.hora).slice(0, 8) : '12:00:00';
+    const motivo = String(r.motivo || '').trim();
+    const desc =
+      !motivo || /^PRESENTACION$/i.test(motivo)
+        ? 'Descuento por vestimenta / presentación escolar (−1 punto)'
+        : `${motivo} (−1 punto)`;
+    ensureAlumno(r.alumno_id, r.alumno_nombre, r.matricula_id).incidencias.push({
+      id: `ped-${r.id}`,
+      description: desc,
+      created_at: `${fecha} ${hora}`,
+      docente_nombre: r.docente_nombre || 'Escaneo QR',
+      curso_nombre: 'Presentación (QR)',
+      origen: 'vestimenta',
+      puntos: r.puntos,
+    });
+  });
+
+  // Ordenar cada alumno: más reciente primero
+  for (const bloque of porAlumno.values()) {
+    bloque.incidencias.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  }
+
+  const alumnos = Array.from(porAlumno.values()).sort((a, b) =>
+    String(a.alumno_nombre || '').localeCompare(String(b.alumno_nombre || ''), 'es')
+  );
+
+  const total = alumnos.reduce((s, a) => s + (a.incidencias?.length || 0), 0);
 
   return {
     fecha_desde: desde,
     fecha_hasta: hasta,
-    total: (rows || []).length,
-    alumnos: Array.from(porAlumno.values()),
+    total,
+    alumnos,
   };
 }
 

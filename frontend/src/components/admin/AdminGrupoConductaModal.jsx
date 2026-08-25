@@ -346,8 +346,15 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
                   <h2>Detalle bimestre {conductaCiclo}</h2>
                   <p className="tutor-evidencias-panel-sub">
                     <strong>{detalleAlumno.alumno?.nombre_completo}</strong>
-                    {' · '}Nota {detalleAlumno.alumno?.nota_conducta ?? '—'}
                   </p>
+                  <div className="conducta-detalle-subchips">
+                    <span className="conducta-detalle-chip conducta-detalle-chip--nota">
+                      Nota {detalleAlumno.alumno?.nota_conducta ?? '—'}
+                    </span>
+                    <span className="conducta-detalle-chip">
+                      {(detalleAlumno.incidencias || []).length} registro{(detalleAlumno.incidencias || []).length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
                 </div>
                 <button type="button" className="tutor-evidencias-close" onClick={() => setDetalleAlumno(null)}>
                   ✕
@@ -364,13 +371,22 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
                 ) : (
                   <ul className="tutor-evidencia-lineas tutor-evidencia-lineas--inci">
                     {(detalleAlumno.incidencias || []).map((inc) => (
-                      <li key={inc.id}>
-                        <div className="tutor-inc-fila-super">
-                          <span>{formatearFechaHoraPeru(inc.created_at)}</span>
+                      <li key={inc.id} className="tutor-inc-card">
+                        <div className="tutor-inc-card-top">
+                          <time className="tutor-inc-fecha">{formatearFechaHoraPeru(inc.created_at)}</time>
                           <span className={`tutor-inc-origen ${inc.origen === 'vestimenta' ? 'es-vestimenta' : 'es-incidencia'}`}>
                             {inc.origen === 'vestimenta' ? 'Presentación' : 'Incidencia'}
                           </span>
-                          <span className="tutor-inc-doc">{inc.docente_nombre || '—'}</span>
+                        </div>
+                        <div className="tutor-inc-card-meta">
+                          <div className="tutor-inc-meta-item">
+                            <span className="tutor-inc-meta-label">Docente</span>
+                            <span className="tutor-inc-meta-value es-docente">{inc.docente_nombre || '—'}</span>
+                          </div>
+                          <div className="tutor-inc-meta-item">
+                            <span className="tutor-inc-meta-label">Curso</span>
+                            <span className="tutor-inc-meta-value es-curso">{inc.curso_nombre || '—'}</span>
+                          </div>
                         </div>
                         {(inc.description || '').trim() ? <p className="tutor-inc-detalle">{inc.description}</p> : null}
                       </li>
@@ -441,12 +457,22 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
                         </div>
                         <ul className="tutor-evidencia-lineas tutor-evidencia-lineas--inci">
                           {(alu.incidencias || []).map((inc) => (
-                            <li key={inc.id}>
-                              <div className="tutor-inc-fila-super">
-                                <span>{formatearFechaHoraPeru(inc.created_at)}</span>
+                            <li key={inc.id} className="tutor-inc-card">
+                              <div className="tutor-inc-card-top">
+                                <time className="tutor-inc-fecha">{formatearFechaHoraPeru(inc.created_at)}</time>
                                 <span className={`tutor-inc-origen ${inc.origen === 'vestimenta' ? 'es-vestimenta' : 'es-incidencia'}`}>
                                   {inc.origen === 'vestimenta' ? 'Presentación' : 'Incidencia'}
                                 </span>
+                              </div>
+                              <div className="tutor-inc-card-meta">
+                                <div className="tutor-inc-meta-item">
+                                  <span className="tutor-inc-meta-label">Docente</span>
+                                  <span className="tutor-inc-meta-value es-docente">{inc.docente_nombre || '—'}</span>
+                                </div>
+                                <div className="tutor-inc-meta-item">
+                                  <span className="tutor-inc-meta-label">Curso</span>
+                                  <span className="tutor-inc-meta-value es-curso">{inc.curso_nombre || '—'}</span>
+                                </div>
                               </div>
                               {(inc.description || '').trim() ? <p className="tutor-inc-detalle">{inc.description}</p> : null}
                             </li>
