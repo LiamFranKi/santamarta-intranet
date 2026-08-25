@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
-import jsPDF from 'jspdf';
 import { exportConductaGrupoPdf } from '../../utils/exportConductaGrupoPdf';
+import { exportIncidenciasPresentacionPdf } from '../../utils/exportIncidenciasPresentacionPdf';
 import '../../pages/DocenteTutoria.css';
 
 const API_BASE = '/admin/academico/grupos';
@@ -160,55 +160,49 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
     }
   };
 
-  const exportPdfIncidencias = () => {
+  const exportPdfIncidencias = async () => {
     if (!dataIncidencias.length) {
       Swal.fire({ icon: 'info', title: 'Sin registros', text: 'No hay incidencias ni presentación en el bimestre.' });
       return;
     }
-    const doc = new jsPDF('p', 'mm', 'a4');
-    const pw = doc.internal.pageSize.getWidth();
-    const ph = doc.internal.pageSize.getHeight();
-    const mm = 14;
-    const tituloGrupo = `${grupo?.grado}° ${grupo?.seccion} - ${grupo?.nivel_nombre}`;
-    let y = 20;
-    doc.setFontSize(13);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Incidencias y presentación', mm, y);
-    y += 7;
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`${tituloGrupo} · Bimestre ${conductaCiclo} · ${formatearSoloFecha(fechaIncDesde)} → ${formatearSoloFecha(fechaIncHasta)}`, mm, y);
-    y += 10;
-    dataIncidencias.forEach((al) => {
-      if (y > ph - 30) {
-        doc.addPage();
-        y = 16;
-      }
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.text(String(al.alumno_nombre || 'Alumno'), mm, y);
-      y += 5;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      (al.incidencias || []).forEach((inc) => {
-        if (y > ph - 20) {
-          doc.addPage();
-          y = 16;
-        }
-        const tipo = inc.origen === 'vestimenta' ? 'Presentación' : 'Incidencia';
-        const lineas = doc.splitTextToSize(
-          `${formatearFechaHoraPeru(inc.created_at)} · ${tipo} · ${inc.description || ''}`,
-          pw - 2 * mm
-        );
-        lineas.forEach((ln) => {
-          doc.text(ln, mm + 2, y);
-          y += 4;
-        });
-        y += 2;
-      });
-      y += 4;
+    const r = await exportIncidenciasPresentacionPdf({
+      alumnos: dataIncidencias,
+      grupo,
+      ciclo: conductaCiclo,
+      fechaDesde: fechaIncDesde,
+      fechaHasta: fechaIncHasta,
+      tituloExtra: 'Admin',
     });
-    doc.save(`${tituloGrupo.replace(/\s+/g, '_')}_incidencias_B${conductaCiclo}.pdf`);
+    if (!r.ok) {
+      Swal.fire({ icon: 'info', title: 'Sin registros', text: 'No hay datos para exportar.' });
+      return;
+    }
+    Swal.fire({ icon: 'success', title: 'PDF generado', timer: 1800, showConfirmButton: false });
+  };
+
+  const exportPdfDetalleAlumno = async () => {
+    if (!detalleAlumno?.incidencias?.length) {
+      Swal.fire({ icon: 'info', title: 'Sin registros', text: 'No hay registros para exportar.' });
+      return;
+    }
+    const r = await exportIncidenciasPresentacionPdf({
+      alumnos: [
+        {
+          alumno_nombre: detalleAlumno.alumno?.nombre_completo,
+          incidencias: detalleAlumno.incidencias,
+        },
+      ],
+      grupo,
+      ciclo: conductaCiclo,
+      fechaDesde: detalleAlumno.fecha_desde || conductaRango.desde,
+      fechaHasta: detalleAlumno.fecha_hasta || conductaRango.hasta,
+      tituloExtra: `Nota ${detalleAlumno.alumno?.nota_conducta ?? '—'}`,
+      filenameSuffix: `B${conductaCiclo}_alumno`,
+    });
+    if (!r.ok) {
+      Swal.fire({ icon: 'info', title: 'Sin registros', text: 'No hay datos para exportar.' });
+      return;
+    }
     Swal.fire({ icon: 'success', title: 'PDF generado', timer: 1800, showConfirmButton: false });
   };
 
@@ -360,6 +354,13 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
                   ✕
                 </button>
               </header>
+              {(detalleAlumno.incidencias || []).length > 0 && !loadingDetalle ? (
+                <div className="tutor-evidencias-toolbar">
+                  <button type="button" className="tutor-evidencias-btn pdf" onClick={exportPdfDetalleAlumno}>
+                    📄 Exportar PDF
+                  </button>
+                </div>
+              ) : null}
               <div className="tutor-evidencias-body">
                 {loadingDetalle ? (
                   <div className="modal-registro-asistencia-loading">

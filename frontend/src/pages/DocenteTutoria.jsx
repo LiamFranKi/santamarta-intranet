@@ -9,6 +9,7 @@ import SwalSobreModal from '../utils/swalSobreModal';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { generarPDFNotasTutoria } from '../utils/pdfNotasTutoria';
+import { exportIncidenciasPresentacionPdf } from '../utils/exportIncidenciasPresentacionPdf';
 import jsPDF from 'jspdf';
 import './DocenteTutoria.css';
 import './DocenteCursos.css';
@@ -2451,140 +2452,49 @@ function DocenteTutoria({
     await cargarReporteIncidenciasGrupo();
   };
 
-  const exportPdfIncidenciasGrupoReporte = () => {
+  const exportPdfIncidenciasGrupoReporte = async () => {
     if (!grupoParaConducta || !dataIncidenciasPorAlumno?.length) {
       Swal.fire({ icon: 'info', title: 'Sin registros', text: 'No hay incidencias ni descuentos por presentación en el periodo.' });
       return;
     }
-    const doc = new jsPDF('p', 'mm', 'a4');
-    const pw = doc.internal.pageSize.getWidth();
-    const ph = doc.internal.pageSize.getHeight();
-    const mm = 14;
-    const innerW = pw - 2 * mm;
-    const footerReserve = 12;
-    const yBottom = () => ph - footerReserve;
-    const lineStep = 4;
-    const tituloGrupo = `${grupoParaConducta.grado}° ${grupoParaConducta.seccion} - ${grupoParaConducta.nivel_nombre}`;
-    const periodoTxt = usarFiltroBimestreInc
-      ? `Bimestre ${incidenciasReporteCiclo} · ${formatearSoloFecha(fechaIncDesde)} → ${formatearSoloFecha(fechaIncHasta)}`
-      : `Periodo: ${formatearSoloFecha(fechaIncDesde)} → ${formatearSoloFecha(fechaIncHasta)}`;
-
-    const paletasInc = [
-      { f: [250, 245, 255], b: [216, 180, 254], t: [107, 33, 168] },
-      { f: [239, 246, 255], b: [165, 180, 252], t: [67, 56, 202] },
-      { f: [255, 247, 237], b: [251, 207, 232], t: [157, 23, 77] },
-      { f: [240, 253, 250], b: [153, 246, 228], t: [15, 118, 110] },
-      { f: [254, 252, 232], b: [253, 224, 71], t: [113, 63, 18] },
-      { f: [248, 250, 252], b: [203, 213, 225], t: [51, 65, 85] },
-    ];
-
-    let y = 0;
-    const pintarCabeceraPrincipalInc = () => {
-      doc.setFillColor(243, 232, 255);
-      doc.rect(0, 0, pw, 28, 'F');
-      doc.setDrawColor(192, 132, 252);
-      doc.setLineWidth(0.4);
-      doc.rect(0, 0, pw, 28, 'S');
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(91, 33, 182);
-      doc.text('Incidencias y presentación (tutoría)', mm + 2, 11);
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(88, 28, 135);
-      doc.text(`${tituloGrupo} · Año ${grupoParaConducta.anio || ''}`, mm + 2, 18);
-      doc.setTextColor(71, 85, 105);
-      doc.text(periodoTxt, mm + 2, 24);
-      y = 34;
-    };
-
-    const nuevaPaginaInc = () => {
-      doc.addPage();
-      doc.setFillColor(243, 232, 255);
-      doc.rect(0, 0, pw, 16, 'F');
-      doc.setDrawColor(192, 132, 252);
-      doc.rect(0, 0, pw, 16, 'S');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(91, 33, 182);
-      doc.text('Incidencias y presentación (continúa)', mm + 2, 9);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(71, 85, 105);
-      doc.text(periodoTxt, mm + 2, 14);
-      y = 20;
-    };
-
-    pintarCabeceraPrincipalInc();
-
-    dataIncidenciasPorAlumno.forEach((al, idxAl) => {
-      const pal = paletasInc[idxAl % paletasInc.length];
-      const bloques = [];
-      (al.incidencias || []).forEach((inc) => {
-        const tipo = inc.origen === 'vestimenta' ? 'Presentación' : 'Incidencia';
-        const cab = `${formatearFechaHoraPeru(inc.created_at)}  ·  ${tipo}  ·  ${inc.docente_nombre || '—'}  ·  ${inc.curso_nombre || '—'}`;
-        const det = (inc.description || '').trim();
-        const lineasCab = doc.splitTextToSize(cab, innerW - 10);
-        const lineasDet = det ? doc.splitTextToSize(det, innerW - 10) : [];
-        bloques.push({ lineasCab, lineasDet });
-      });
-
-      let alturaEst = 7;
-      bloques.forEach((b) => {
-        alturaEst += b.lineasCab.length * lineStep + 1 + b.lineasDet.length * lineStep + 3;
-      });
-      const pad = 5;
-      const bloqueH = pad + alturaEst + pad;
-
-      if (y + bloqueH > yBottom()) {
-        nuevaPaginaInc();
-      }
-
-      const y0 = y;
-      doc.setFillColor(...pal.f);
-      doc.setDrawColor(...pal.b);
-      doc.setLineWidth(0.25);
-      doc.rect(mm, y0, innerW, bloqueH, 'FD');
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.setTextColor(...pal.t);
-      doc.text(String(al.alumno_nombre || 'Alumno'), mm + pad, y0 + pad + 5);
-
-      let yLine = y0 + pad + 8;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.3);
-      bloques.forEach((b) => {
-        doc.setTextColor(30, 41, 59);
-        b.lineasCab.forEach((ln) => {
-          if (yLine > y0 + bloqueH - pad) return;
-          doc.text(ln, mm + pad + 2, yLine);
-          yLine += lineStep;
-        });
-        doc.setTextColor(71, 85, 105);
-        b.lineasDet.forEach((ln) => {
-          if (yLine > y0 + bloqueH - pad) return;
-          doc.text(ln, mm + pad + 3, yLine);
-          yLine += lineStep;
-        });
-        yLine += 2;
-      });
-
-      y = y0 + bloqueH + 4;
+    const r = await exportIncidenciasPresentacionPdf({
+      alumnos: dataIncidenciasPorAlumno,
+      grupo: grupoParaConducta,
+      ciclo: usarFiltroBimestreInc ? incidenciasReporteCiclo : null,
+      fechaDesde: fechaIncDesde,
+      fechaHasta: fechaIncHasta,
+      tituloExtra: 'Tutoría',
     });
-
-    const genTxt = `Generado: ${new Date().toLocaleString('es-PE')}`;
-    const totalP = doc.internal.getNumberOfPages();
-    for (let p = 1; p <= totalP; p += 1) {
-      doc.setPage(p);
-      doc.setFontSize(7.5);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(100, 116, 139);
-      doc.text(genTxt, mm, ph - 5);
-      doc.text(`Pág. ${p} / ${totalP}`, pw - mm, ph - 5, { align: 'right' });
+    if (!r.ok) {
+      Swal.fire({ icon: 'info', title: 'Sin registros', text: 'No hay datos para exportar.' });
+      return;
     }
+    Swal.fire({ icon: 'success', title: 'PDF generado', timer: 1800, showConfirmButton: false });
+  };
 
-    doc.save(`${tituloGrupo.replace(/\s+/g, '_')}_incidencias_B${incidenciasReporteCiclo}.pdf`);
+  const exportPdfDetalleConductaAlumno = async () => {
+    if (!grupoParaConducta || !detalleConductaAlumno?.incidencias?.length) {
+      Swal.fire({ icon: 'info', title: 'Sin registros', text: 'No hay registros para exportar.' });
+      return;
+    }
+    const r = await exportIncidenciasPresentacionPdf({
+      alumnos: [
+        {
+          alumno_nombre: detalleConductaAlumno.alumno?.nombre_completo,
+          incidencias: detalleConductaAlumno.incidencias,
+        },
+      ],
+      grupo: grupoParaConducta,
+      ciclo: conductaCiclo,
+      fechaDesde: detalleConductaAlumno.fecha_desde || conductaRango.desde,
+      fechaHasta: detalleConductaAlumno.fecha_hasta || conductaRango.hasta,
+      tituloExtra: `Nota ${detalleConductaAlumno.alumno?.nota_conducta ?? '—'}`,
+      filenameSuffix: `B${conductaCiclo}_alumno`,
+    });
+    if (!r.ok) {
+      Swal.fire({ icon: 'info', title: 'Sin registros', text: 'No hay datos para exportar.' });
+      return;
+    }
     Swal.fire({ icon: 'success', title: 'PDF generado', timer: 1800, showConfirmButton: false });
   };
 
@@ -3727,6 +3637,13 @@ function DocenteTutoria({
               </div>
               <button type="button" className="tutor-evidencias-close" onClick={() => setDetalleConductaAlumno(null)} aria-label="Cerrar">✕</button>
             </header>
+            {(detalleConductaAlumno.incidencias || []).length > 0 && !loadingDetalleConducta ? (
+              <div className="tutor-evidencias-toolbar">
+                <button type="button" className="tutor-evidencias-btn pdf" onClick={exportPdfDetalleConductaAlumno}>
+                  📄 Exportar PDF
+                </button>
+              </div>
+            ) : null}
             <div className="tutor-evidencias-body">
               {loadingDetalleConducta ? (
                 <div className="modal-registro-asistencia-loading"><div className="loading-spinner" /><p>Cargando…</p></div>
