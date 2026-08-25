@@ -67,12 +67,14 @@ export default function AdminInstitucional() {
   };
 
   const cargarCategorias = useCallback(async () => {
-    const res = await api.get('/admin/institucional/categorias');
+    const res = await api.get('/admin/institucional/categorias', {
+      params: { excluir_matricula: 1 },
+    });
     setCategorias(res.data.categorias || []);
   }, []);
 
   const cargarDocumentos = useCallback(async () => {
-    const params = {};
+    const params = { excluir_matricula: 1 };
     if (filtroCategoria) params.categoria_id = filtroCategoria;
     const res = await api.get('/admin/institucional/documentos', { params });
     setDocumentos(res.data.documentos || []);
@@ -294,7 +296,8 @@ export default function AdminInstitucional() {
             <p>
               Documentación institucional en PDF, organizada por categorías. Con fecha de vencimiento, los
               administradores reciben avisos en la campanita (y push, si está activo) a los 10, 5 y 1 día antes,
-              el día del vencimiento y el día siguiente.
+              el día del vencimiento y el día siguiente. Los documentos de <strong>Matrícula</strong> se gestionan
+              en <strong>Web → Matrícula</strong> (no se listan aquí).
             </p>
             <div className="inst-hero-meta">
               <span className="inst-hero-chip">{categorias.length} categorí{categorias.length === 1 ? 'a' : 'as'}</span>

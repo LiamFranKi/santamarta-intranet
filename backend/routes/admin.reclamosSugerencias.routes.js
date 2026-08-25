@@ -29,6 +29,7 @@ const CORREO_FLAGS = [
   'recibe_visitas',
   'recibe_trabaja',
   'recibe_admision',
+  'recibe_matricula',
 ];
 
 function parseId(raw) {
@@ -1016,6 +1017,7 @@ router.get('/correos', async (req, res) => {
       `SELECT id, email, etiqueta, activo,
               recibe_sugerencias, recibe_reclamos,
               recibe_contacto, recibe_visitas, recibe_trabaja, recibe_admision,
+              recibe_matricula,
               creado_en
        FROM web_correos_envio
        ORDER BY activo DESC, etiqueta ASC, email ASC`
@@ -1026,23 +1028,45 @@ router.get('/correos', async (req, res) => {
     if (String(e.message || '').includes('Unknown column')) {
       try {
         const rows = await query(
-          `SELECT id, email, etiqueta, activo, recibe_sugerencias, recibe_reclamos, creado_en
+          `SELECT id, email, etiqueta, activo, recibe_sugerencias, recibe_reclamos,
+                  recibe_contacto, recibe_visitas, recibe_trabaja, recibe_admision, creado_en
            FROM web_correos_envio
            ORDER BY activo DESC, etiqueta ASC, email ASC`
         );
         return res.json({
           correos: (rows || []).map((r) => ({
             ...r,
-            recibe_contacto: 0,
-            recibe_visitas: 0,
-            recibe_trabaja: 0,
-            recibe_admision: 0,
+            recibe_contacto: r.recibe_contacto ?? 0,
+            recibe_visitas: r.recibe_visitas ?? 0,
+            recibe_trabaja: r.recibe_trabaja ?? 0,
+            recibe_admision: r.recibe_admision ?? 0,
+            recibe_matricula: 0,
           })),
           warning:
-            'Faltan columnas recibe_* nuevas en web_correos_envio. Ejecute los SQL de web-vanguard/sql/.',
+            'Falta columna recibe_matricula en web_correos_envio. Ejecute sql/web_correos_recibe_matricula.sql',
         });
       } catch (e2) {
-        return res.status(500).json({ error: e2.message || 'Error al listar correos.' });
+        try {
+          const rows = await query(
+            `SELECT id, email, etiqueta, activo, recibe_sugerencias, recibe_reclamos, creado_en
+             FROM web_correos_envio
+             ORDER BY activo DESC, etiqueta ASC, email ASC`
+          );
+          return res.json({
+            correos: (rows || []).map((r) => ({
+              ...r,
+              recibe_contacto: 0,
+              recibe_visitas: 0,
+              recibe_trabaja: 0,
+              recibe_admision: 0,
+              recibe_matricula: 0,
+            })),
+            warning:
+              'Faltan columnas recibe_* en web_correos_envio. Ejecute los SQL de canales web (incl. recibe_matricula).',
+          });
+        } catch (e3) {
+          return res.status(500).json({ error: e3.message || 'Error al listar correos.' });
+        }
       }
     }
     res.status(500).json({ error: e.message || 'Error al listar correos.' });
@@ -1071,8 +1095,8 @@ router.post('/correos', async (req, res) => {
     const r = await execute(
       `INSERT INTO web_correos_envio
         (email, etiqueta, activo, recibe_sugerencias, recibe_reclamos,
-         recibe_contacto, recibe_visitas, recibe_trabaja, recibe_admision)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         recibe_contacto, recibe_visitas, recibe_trabaja, recibe_admision, recibe_matricula)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         email,
         etiqueta,
@@ -1083,6 +1107,7 @@ router.post('/correos', async (req, res) => {
         flags.recibe_visitas,
         flags.recibe_trabaja,
         flags.recibe_admision,
+        flags.recibe_matricula,
       ]
     );
     const rows = await query('SELECT * FROM web_correos_envio WHERE id = ? LIMIT 1', [r.insertId]);
@@ -1094,7 +1119,7 @@ router.post('/correos', async (req, res) => {
     if (String(e.message || '').includes('Unknown column')) {
       return res.status(400).json({
         error:
-          'Faltan columnas de canales en web_correos_envio. Ejecute los SQL de contacto/visitas/trabaja/admisión en web-vanguard/sql/.',
+          'Faltan columnas de canales en web_correos_envio. Ejecute sql/web_correos_recibe_matricula.sql (y SQL previos de canales web).',
       });
     }
     res.status(500).json({ error: e.message || 'Error al crear correo.' });
@@ -1132,7 +1157,8 @@ router.put('/correos/:id', async (req, res) => {
       `UPDATE web_correos_envio
        SET email = ?, etiqueta = ?, activo = ?,
            recibe_sugerencias = ?, recibe_reclamos = ?,
-           recibe_contacto = ?, recibe_visitas = ?, recibe_trabaja = ?, recibe_admision = ?
+           recibe_contacto = ?, recibe_visitas = ?, recibe_trabaja = ?, recibe_admision = ?,
+           recibe_matricula = ?
        WHERE id = ?`,
       [
         email,
@@ -1144,6 +1170,7 @@ router.put('/correos/:id', async (req, res) => {
         flags.recibe_visitas,
         flags.recibe_trabaja,
         flags.recibe_admision,
+        flags.recibe_matricula,
         id,
       ]
     );
@@ -1153,7 +1180,7 @@ router.put('/correos/:id', async (req, res) => {
     if (String(e.message || '').includes('Unknown column')) {
       return res.status(400).json({
         error:
-          'Faltan columnas de canales en web_correos_envio. Ejecute los SQL de web-vanguard/sql/.',
+          'Faltan columnas de canales en web_correos_envio. Ejecute sql/web_correos_recibe_matricula.sql',
       });
     }
     res.status(500).json({ error: e.message || 'Error al actualizar correo.' });
@@ -1172,6 +1199,34 @@ router.delete('/correos/:id', async (req, res) => {
   }
 });
 
+/**
+ * Importa destinatarios legacy de config.email_notificacion_matricula_online
+ * hacia web_correos_envio con recibe_matricula=1 (idempotente; se llama también al abrir Web → Matrícula).
+ */
+router.post('/matricula-online/sync-correos-legacy', async (req, res) => {
+  try {
+    const { sincronizarDestinatariosMatriculaLegacy } = require('../utils/matriculaOnlineCorreosSync');
+    const result = await sincronizarDestinatariosMatriculaLegacy();
+    res.json({
+      ok: true,
+      imported: result.imported || 0,
+      updated: result.updated || 0,
+      message:
+        result.message ||
+        (result.skipped
+          ? 'No hay correos legacy en configuración.'
+          : 'Sin cambios.'),
+    });
+  } catch (e) {
+    if (String(e.message || '').includes('Unknown column')) {
+      return res.status(400).json({
+        error: 'Falta columna recibe_matricula. Ejecute sql/web_correos_recibe_matricula.sql en la base de datos.',
+      });
+    }
+    res.status(500).json({ error: e.message || 'Error al sincronizar correos.' });
+  }
+});
+
 router.get('/meta', async (_req, res) => {
   const root = resolveWebVanguardRoot();
   const adj = path.join(root, 'data', 'libro-reclamaciones', 'adjuntos');
@@ -1179,7 +1234,7 @@ router.get('/meta', async (_req, res) => {
   res.json({
     estados: ESTADOS,
     tipos_reclamo: TIPOS_RECLAMO,
-    canales: ['reclamos', 'sugerencias', 'contacto', 'visitas', 'trabaja', 'admision'],
+    canales: ['reclamos', 'sugerencias', 'contacto', 'visitas', 'trabaja', 'admision', 'matricula'],
     correo_flags: CORREO_FLAGS,
     web_vanguard_root: root,
     adjuntos_dir: adj,

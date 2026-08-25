@@ -8,6 +8,7 @@ import AdminWebCalendarizacion from './AdminWebCalendarizacion';
 import AdminWebFaqs from './AdminWebFaqs';
 import AdminWebUtiles from './AdminWebUtiles';
 import AdminWebDocumentos from './AdminWebDocumentos';
+import AdminWebMatricula from './AdminWebMatricula';
 import './AdminReclamosSugerencias.css';
 
 const API = '/admin/reclamos-sugerencias';
@@ -26,6 +27,7 @@ const TABS = [
   { id: 'visitas', label: '🗓️ Visitas' },
   { id: 'trabaja', label: '💼 Trabaja' },
   { id: 'admision', label: '🎓 Admisión' },
+  { id: 'matricula', label: '📝 Matrícula' },
   { id: 'calendarizacion', label: '📆 Calendarización' },
   { id: 'faqs', label: '❓ Preguntas frecuentes' },
   { id: 'utiles', label: '📚 Lista de útiles' },
@@ -33,7 +35,7 @@ const TABS = [
 ];
 
 const FORM_TAB_IDS = ['reclamos', 'sugerencias', 'contacto', 'visitas', 'trabaja', 'admision'];
-const PANEL_TABS = new Set(['calendarizacion', 'faqs', 'utiles', 'documentos']);
+const PANEL_TABS = new Set(['calendarizacion', 'faqs', 'utiles', 'documentos', 'matricula']);
 const TAB_IDS = TABS.map((t) => t.id);
 
 const CORREO_CANALES = [
@@ -43,6 +45,7 @@ const CORREO_CANALES = [
   { key: 'recibe_visitas', label: 'Visitas', badge: 'rs-badge--ok' },
   { key: 'recibe_trabaja', label: 'Trabaja', badge: 'rs-badge--ok' },
   { key: 'recibe_admision', label: 'Admisión', badge: 'rs-badge--ok' },
+  { key: 'recibe_matricula', label: 'Matrícula', badge: 'rs-badge--ok' },
 ];
 
 const DIAS_SEMANA = [
@@ -65,6 +68,7 @@ const correoFormVacio = () => ({
   recibe_visitas: false,
   recibe_trabaja: false,
   recibe_admision: false,
+  recibe_matricula: false,
 });
 
 const swalOpts = {
@@ -214,6 +218,7 @@ function CorreosModal({ open, onClose }) {
       recibe_visitas: !!row.recibe_visitas,
       recibe_trabaja: !!row.recibe_trabaja,
       recibe_admision: !!row.recibe_admision,
+      recibe_matricula: !!row.recibe_matricula,
     });
   };
 
@@ -245,6 +250,7 @@ function CorreosModal({ open, onClose }) {
         recibe_visitas: form.recibe_visitas ? 1 : 0,
         recibe_trabaja: form.recibe_trabaja ? 1 : 0,
         recibe_admision: form.recibe_admision ? 1 : 0,
+        recibe_matricula: form.recibe_matricula ? 1 : 0,
       };
       if (edit?.id) {
         await api.put(`${API}/correos/${edit.id}`, payload);
@@ -1835,9 +1841,11 @@ export default function AdminReclamosSugerencias() {
                 <button type="button" className="rs-btn rs-btn-light" onClick={() => setModalCorreos(true)}>
                   📧 Correos de envío
                 </button>
-                <button type="button" className="rs-btn rs-btn-light" onClick={() => setModalVisitasCfg(true)}>
-                  🗓️ Config. visitas
-                </button>
+                {tab !== 'matricula' && (
+                  <button type="button" className="rs-btn rs-btn-light" onClick={() => setModalVisitasCfg(true)}>
+                    🗓️ Config. visitas
+                  </button>
+                )}
               </>
             )}
             <button
@@ -1872,6 +1880,8 @@ export default function AdminReclamosSugerencias() {
           <AdminWebUtiles />
         ) : tab === 'documentos' ? (
           <AdminWebDocumentos />
+        ) : tab === 'matricula' ? (
+          <AdminWebMatricula onOpenCorreos={() => setModalCorreos(true)} />
         ) : (
           <>
         <div className="rs-toolbar">

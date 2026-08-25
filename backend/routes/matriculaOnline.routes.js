@@ -558,6 +558,7 @@ router.post('/', uploadMatricula.fields([{ name: 'foto_dni', maxCount: 1 }, { na
             apellido_materno: am,
             nro_documento: dniAl,
             seguro_id: seguroId,
+            domicilio: domicilioAl,
           },
           apoderado: {
             nombres: nomAp,

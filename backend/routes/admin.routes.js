@@ -2473,13 +2473,24 @@ router.delete('/gestion-documentos/:id', async (req, res) => {
 router.get('/institucional/categorias', requireSoloAdministrador, async (req, res) => {
   try {
     const { colegio_id } = req.user;
-    const categorias = await query(
+    const excluirMatricula =
+      String(req.query.excluir_matricula || '').trim() === '1' ||
+      String(req.query.excluir_matricula || '').toLowerCase() === 'true';
+    let categorias = await query(
       `SELECT id, nombre, descripcion, orden, activo, created_at
        FROM institucional_categorias
        WHERE colegio_id = ?
        ORDER BY orden ASC, nombre ASC`,
       [colegio_id]
     );
+    if (excluirMatricula) {
+      categorias = (categorias || []).filter((c) => {
+        const n = String(c.nombre || '')
+          .toUpperCase()
+          .trim();
+        return !(n.includes('MATRICUL') || n === 'MATRICULA');
+      });
+    }
     res.json({ categorias: categorias || [] });
   } catch (err) {
     console.error('list categorías institucional:', err);
@@ -2562,6 +2573,9 @@ router.get('/institucional/documentos', requireSoloAdministrador, async (req, re
   try {
     const { colegio_id } = req.user;
     const { categoria_id } = req.query;
+    const excluirMatricula =
+      String(req.query.excluir_matricula || '').trim() === '1' ||
+      String(req.query.excluir_matricula || '').toLowerCase() === 'true';
     let sql = `
       SELECT d.id, d.titulo, d.nombre_archivo_original, d.ruta_almacenamiento,
              d.fecha_publicacion, d.fecha_vencimiento, d.created_at, d.activo,
@@ -2574,6 +2588,11 @@ router.get('/institucional/documentos', requireSoloAdministrador, async (req, re
     if (categoria_id) {
       sql += ' AND d.categoria_id = ?';
       params.push(parseInt(categoria_id, 10));
+    }
+    if (excluirMatricula) {
+      sql += ` AND NOT (
+        UPPER(TRIM(c.nombre)) LIKE '%MATRICUL%' OR UPPER(TRIM(c.nombre)) = 'MATRICULA'
+      )`;
     }
     sql += ' ORDER BY c.orden ASC, d.created_at DESC';
     const documentos = await query(sql, params);

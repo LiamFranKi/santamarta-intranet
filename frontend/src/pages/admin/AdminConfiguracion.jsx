@@ -146,6 +146,7 @@ const CONFIG_TABS = [
     tone: 'rose',
     helpTitle: 'Formulario web',
     help: 'Activa o desactiva la matrícula online, correos de notificación y plantillas HTML del mensaje.',
+    oculto: true,
   },
   {
     id: 'tutoria',
@@ -488,7 +489,10 @@ function AdminConfiguracion() {
   const quillMatriculaInternoRef = useRef(null);
   const quillModulesMatricula = useMemo(() => QUILL_MODULES_MATRICULA, []);
   const visibleTabs = useMemo(
-    () => CONFIG_TABS.filter((tab) => !tab.soloAdmin || user?.tipo === 'ADMINISTRADOR'),
+    () =>
+      CONFIG_TABS.filter(
+        (tab) => !tab.oculto && (!tab.soloAdmin || user?.tipo === 'ADMINISTRADOR')
+      ),
     [user?.tipo]
   );
   const [config, setConfig] = useState({
@@ -1967,10 +1971,11 @@ function AdminConfiguracion() {
                   />
                 </div>
                 <small>
-                  Use etiquetas como <code>{'{{nombre_apoderado}}'}</code>, <code>{'{{nombre_alumno}}'}</code>,{' '}
-                  <code>{'{{nivel}}'}</code>, <code>{'{{grado}}'}</code>, <code>{'{{anio_matricula}}'}</code>{' '}
-                  (Año Matrículas de configuración), <code>{'{{fecha_registro}}'}</code>, <code>{'{{colegio}}'}</code>,{' '}
-                  <code>{'{{seguro}}'}</code>. Si deja vacío, se usa una plantilla predeterminada.
+                  Intro del correo al apoderado (el sistema añade el marco visual y el resumen de datos).
+                  Etiquetas: <code>{'{{nombre_apoderado}}'}</code>, <code>{'{{nombre_alumno}}'}</code>,{' '}
+                  <code>{'{{nivel}}'}</code>, <code>{'{{grado}}'}</code>, <code>{'{{anio_matricula}}'}</code>,{' '}
+                  <code>{'{{fecha_registro}}'}</code>, <code>{'{{colegio}}'}</code>, <code>{'{{seguro}}'}</code>.
+                  Si deja vacío, se usa el texto predeterminado.
                 </small>
               </div>
               <div className="form-group full-width">
@@ -1998,12 +2003,12 @@ function AdminConfiguracion() {
                   />
                 </div>
                 <small>
-                  Etiquetas: <code>{'{{nombre_alumno}}'}</code> (apellidos y nombres),{' '}
-                  <code>{'{{nombre_apoderado}}'}</code>, <code>{'{{nivel}}'}</code> / <code>{'{{nivel_postula}}'}</code>,{' '}
-                  <code>{'{{grado}}'}</code> / <code>{'{{grado_postula}}'}</code>, <code>{'{{nivel_grado}}'}</code>,{' '}
-                  <code>{'{{anio_matricula}}'}</code> (Año Matrículas), <code>{'{{seguro}}'}</code>,{' '}
-                  <code>{'{{dni_alumno}}'}</code>, <code>{'{{dni_apoderado}}'}</code>,{' '}
-                  <code>{'{{email_apoderado}}'}</code>, <code>{'{{telefono_apoderado}}'}</code>,{' '}
+                  Intro del aviso interno (el sistema añade marco, campos y Reply-To del apoderado).
+                  Etiquetas: <code>{'{{nombre_alumno}}'}</code>, <code>{'{{nombre_apoderado}}'}</code>,{' '}
+                  <code>{'{{nivel}}'}</code>, <code>{'{{grado}}'}</code>, <code>{'{{nivel_grado}}'}</code>,{' '}
+                  <code>{'{{anio_matricula}}'}</code>, <code>{'{{seguro}}'}</code>, <code>{'{{dni_alumno}}'}</code>,{' '}
+                  <code>{'{{dni_apoderado}}'}</code>, <code>{'{{email_apoderado}}'}</code>,{' '}
+                  <code>{'{{telefono_apoderado}}'}</code>, <code>{'{{domicilio}}'}</code>,{' '}
                   <code>{'{{fecha_registro}}'}</code>, <code>{'{{documentos_aceptados_html}}'}</code>.
                   Foto DNI y firma se adjuntan automáticamente.
                 </small>

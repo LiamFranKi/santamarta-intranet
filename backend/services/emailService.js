@@ -716,6 +716,9 @@ ${htmlBody}
     if (options.attachments && Array.isArray(options.attachments) && options.attachments.length) {
       mailOptions.attachments = options.attachments;
     }
+    if (options.replyTo && String(options.replyTo).includes('@')) {
+      mailOptions.replyTo = String(options.replyTo).trim();
+    }
 
     const info = await trans.sendMail(mailOptions);
     console.log(`✅ [EMAIL HTML] Enviado a ${emailDestino} MessageId: ${info.messageId}`);
