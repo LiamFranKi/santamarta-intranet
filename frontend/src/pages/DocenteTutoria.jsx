@@ -220,6 +220,8 @@ function DocenteTutoria({
   const [alumnoSeleccionadoTutoria, setAlumnoSeleccionadoTutoria] = useState(null);
   const [incidenciasTutoria, setIncidenciasTutoria] = useState([]);
   const [estrellasTutoria, setEstrellasTutoria] = useState([]);
+  const [bimestresIncidenciasTutoria, setBimestresIncidenciasTutoria] = useState([]);
+  const [bimestresEstrellasTutoria, setBimestresEstrellasTutoria] = useState([]);
   const [totalIncidenciasTutoria, setTotalIncidenciasTutoria] = useState(0);
   const [totalEstrellasTutoria, setTotalEstrellasTutoria] = useState(0);
   const [loadingIncidenciasTutoria, setLoadingIncidenciasTutoria] = useState(false);
@@ -807,6 +809,7 @@ function DocenteTutoria({
     try {
       const res = await api.get(`${apiPrefix}/grupos/${gid}/alumnos/${alumno.id}/incidencias`);
       setIncidenciasTutoria(res.data.incidencias || []);
+      setBimestresIncidenciasTutoria(res.data.bimestres || []);
       setTotalIncidenciasTutoria(res.data.total_incidencias ?? (res.data.incidencias || []).length);
     } catch (err) {
       console.error('Error cargando incidencias (tutoría):', err);
@@ -817,6 +820,7 @@ function DocenteTutoria({
         zIndex: 100001
       });
       setIncidenciasTutoria([]);
+      setBimestresIncidenciasTutoria([]);
       setTotalIncidenciasTutoria(0);
     } finally {
       setLoadingIncidenciasTutoria(false);
@@ -834,6 +838,7 @@ function DocenteTutoria({
     try {
       const res = await api.get(`${apiPrefix}/grupos/${gid}/alumnos/${alumno.id}/estrellas`);
       setEstrellasTutoria(res.data.estrellas || []);
+      setBimestresEstrellasTutoria(res.data.bimestres || []);
       setTotalEstrellasTutoria(res.data.total_estrellas || 0);
     } catch (err) {
       console.error('Error cargando estrellas (tutoría):', err);
@@ -844,6 +849,7 @@ function DocenteTutoria({
         zIndex: 100001
       });
       setEstrellasTutoria([]);
+      setBimestresEstrellasTutoria([]);
       setTotalEstrellasTutoria(0);
     } finally {
       setLoadingEstrellasTutoria(false);
@@ -887,6 +893,7 @@ function DocenteTutoria({
       setLoadingIncidenciasTutoria(true);
       const res = await api.get(`${apiPrefix}/grupos/${gid}/alumnos/${alumno.id}/incidencias`);
       setIncidenciasTutoria(res.data.incidencias || []);
+      setBimestresIncidenciasTutoria(res.data.bimestres || []);
       setTotalIncidenciasTutoria(res.data.total_incidencias ?? (res.data.incidencias || []).length);
     } catch (err) {
       console.error(err);
@@ -903,6 +910,7 @@ function DocenteTutoria({
       setLoadingEstrellasTutoria(true);
       const res = await api.get(`${apiPrefix}/grupos/${gid}/alumnos/${alumno.id}/estrellas`);
       setEstrellasTutoria(res.data.estrellas || []);
+      setBimestresEstrellasTutoria(res.data.bimestres || []);
       setTotalEstrellasTutoria(res.data.total_estrellas || 0);
     } catch (err) {
       console.error(err);
@@ -5048,48 +5056,72 @@ function DocenteTutoria({
               )}
 
               <div className="incidencias-historial-section">
-                <h3 className="section-title-incidencias">Historial de Incidencias</h3>
+                <h3 className="section-title-incidencias">Historial de Incidencias (por bimestre)</h3>
                 {loadingIncidenciasTutoria ? (
                   <div className="loading-incidencias">Cargando historial...</div>
-                ) : incidenciasTutoria.length > 0 ? (
-                  <div className="historial-table-container">
-                    <table className="historial-table-incidencias">
-                      <thead>
-                        <tr>
-                          <th>Docente</th>
-                          <th>Curso</th>
-                          <th>Descripción</th>
-                          <th>Fecha</th>
-                          <th />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {incidenciasTutoria.map((item) => (
-                          <tr key={item.id}>
-                            <td>{item.docente_nombre || 'N/A'}</td>
-                            <td>
-                              <span className="curso-badge-incidencia">{item.curso_nombre || 'N/A'}</span>
-                            </td>
-                            <td className="descripcion-cell">{item.description || '-'}</td>
-                            <td>{formatearFechaIncEstTutoria(item.created_at)}</td>
-                            <td>
-                              {!soloLectura && item.puede_eliminar ? (
-                                <button
-                                  className="btn-eliminar-incidencia"
-                                  onClick={() => handleEliminarIncidenciaTutoria(item.id)}
-                                  type="button"
-                                  title="Eliminar esta incidencia"
-                                >
-                                  🗑️
-                                </button>
-                              ) : (
-                                <span className="no-eliminar">-</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                ) : incidenciasTutoria.length > 0 || bimestresIncidenciasTutoria.length > 0 ? (
+                  <div className="historial-bimestres">
+                    {(bimestresIncidenciasTutoria.length
+                      ? bimestresIncidenciasTutoria
+                      : [{ ciclo: '—', incidencias: incidenciasTutoria }]
+                    ).map((bim) => {
+                      const regs = bim.incidencias || [];
+                      return (
+                        <section key={`tut-inc-b${bim.ciclo}`} className="historial-bimestre-block">
+                          <header className="historial-bimestre-head">
+                            <h4>Bimestre {bim.ciclo}</h4>
+                            <span className="historial-bimestre-meta">
+                              {String(bim.fecha_desde || '').slice(0, 10) || '—'} → {String(bim.fecha_hasta || '').slice(0, 10) || '—'}
+                              {' · '}
+                              <strong>{regs.length} registro(s)</strong>
+                            </span>
+                          </header>
+                          {regs.length === 0 ? (
+                            <p className="historial-bimestre-empty">Sin incidencias en este bimestre</p>
+                          ) : (
+                            <div className="historial-table-container">
+                              <table className="historial-table-incidencias">
+                                <thead>
+                                  <tr>
+                                    <th>Docente</th>
+                                    <th>Curso</th>
+                                    <th>Descripción</th>
+                                    <th>Fecha</th>
+                                    <th />
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {regs.map((item) => (
+                                    <tr key={item.id}>
+                                      <td>{item.docente_nombre || 'N/A'}</td>
+                                      <td>
+                                        <span className="curso-badge-incidencia">{item.curso_nombre || 'N/A'}</span>
+                                      </td>
+                                      <td className="descripcion-cell">{item.description || '-'}</td>
+                                      <td>{formatearFechaIncEstTutoria(item.created_at)}</td>
+                                      <td>
+                                        {!soloLectura && item.puede_eliminar ? (
+                                          <button
+                                            className="btn-eliminar-incidencia"
+                                            onClick={() => handleEliminarIncidenciaTutoria(item.id)}
+                                            type="button"
+                                            title="Eliminar esta incidencia"
+                                          >
+                                            🗑️
+                                          </button>
+                                        ) : (
+                                          <span className="no-eliminar">-</span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </section>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="empty-historial">
@@ -5183,48 +5215,72 @@ function DocenteTutoria({
               )}
 
               <div className="estrellas-historial-section">
-                <h3 className="section-title-estrellas">Historial de Estrellas</h3>
+                <h3 className="section-title-estrellas">Historial de Estrellas (por bimestre)</h3>
                 {loadingEstrellasTutoria ? (
                   <div className="loading-estrellas">Cargando historial...</div>
-                ) : estrellasTutoria.length > 0 ? (
-                  <div className="historial-table-container">
-                    <table className="historial-table">
-                      <thead>
-                        <tr>
-                          <th>Docente</th>
-                          <th>Estrellas</th>
-                          <th>Descripción</th>
-                          <th>Fecha</th>
-                          <th />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {estrellasTutoria.map((item) => (
-                          <tr key={item.id}>
-                            <td>{item.docente_nombre || 'N/A'}</td>
-                            <td>
-                              <span className="estrellas-badge-small">⭐ {item.points}</span>
-                            </td>
-                            <td className="descripcion-cell">{item.description || '-'}</td>
-                            <td>{formatearFechaIncEstTutoria(item.created_at)}</td>
-                            <td>
-                              {!soloLectura && item.puede_eliminar ? (
-                                <button
-                                  className="btn-eliminar-estrella"
-                                  onClick={() => handleEliminarEstrellasTutoria(item.id, item.points)}
-                                  type="button"
-                                  title="Eliminar estas estrellas"
-                                >
-                                  🗑️
-                                </button>
-                              ) : (
-                                <span className="no-eliminar">-</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                ) : estrellasTutoria.length > 0 || bimestresEstrellasTutoria.length > 0 ? (
+                  <div className="historial-bimestres">
+                    {(bimestresEstrellasTutoria.length
+                      ? bimestresEstrellasTutoria
+                      : [{ ciclo: '—', estrellas: estrellasTutoria, total_puntos: totalEstrellasTutoria }]
+                    ).map((bim) => {
+                      const regs = bim.estrellas || [];
+                      return (
+                        <section key={`tut-est-b${bim.ciclo}`} className="historial-bimestre-block">
+                          <header className="historial-bimestre-head">
+                            <h4>Bimestre {bim.ciclo}</h4>
+                            <span className="historial-bimestre-meta">
+                              {String(bim.fecha_desde || '').slice(0, 10) || '—'} → {String(bim.fecha_hasta || '').slice(0, 10) || '—'}
+                              {' · '}
+                              <strong>{bim.total_puntos ?? regs.reduce((s, e) => s + (e.points || 0), 0)} ★</strong>
+                            </span>
+                          </header>
+                          {regs.length === 0 ? (
+                            <p className="historial-bimestre-empty">Sin estrellas en este bimestre</p>
+                          ) : (
+                            <div className="historial-table-container">
+                              <table className="historial-table">
+                                <thead>
+                                  <tr>
+                                    <th>Docente</th>
+                                    <th>Estrellas</th>
+                                    <th>Descripción</th>
+                                    <th>Fecha</th>
+                                    <th />
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {regs.map((item) => (
+                                    <tr key={item.id}>
+                                      <td>{item.docente_nombre || 'N/A'}</td>
+                                      <td>
+                                        <span className="estrellas-badge-small">⭐ {item.points}</span>
+                                      </td>
+                                      <td className="descripcion-cell">{item.description || '-'}</td>
+                                      <td>{formatearFechaIncEstTutoria(item.created_at)}</td>
+                                      <td>
+                                        {!soloLectura && item.puede_eliminar ? (
+                                          <button
+                                            className="btn-eliminar-estrella"
+                                            onClick={() => handleEliminarEstrellasTutoria(item.id, item.points)}
+                                            type="button"
+                                            title="Eliminar estas estrellas"
+                                          >
+                                            🗑️
+                                          </button>
+                                        ) : (
+                                          <span className="no-eliminar">-</span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </section>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="empty-historial">

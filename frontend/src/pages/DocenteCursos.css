@@ -4796,3 +4796,43 @@ input.box:focus {
   }
 }
 
+
+/* Historial agrupado por bimestre (estrellas / incidencias) */
+.historial-bimestres {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.historial-bimestre-block {
+  border: 1px solid #e8e4f5;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+.historial-bimestre-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.65rem 0.9rem;
+  background: linear-gradient(180deg, #faf8ff 0%, #f8fafc 100%);
+  border-bottom: 1px solid #f1eef8;
+}
+.historial-bimestre-head h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e1b4b;
+}
+.historial-bimestre-meta {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+.historial-bimestre-empty {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  font-size: 0.85rem;
+  color: #94a3b8;
+  font-style: italic;
+}

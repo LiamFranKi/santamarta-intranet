@@ -32,7 +32,7 @@ const { urlStaticFotos } = require('../utils/staticStorage');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 const { getBoletaPdfJsonForPago } = require('../utils/boletaPdfData');
 const { obtenerRangosLetrasColegio } = require('../utils/rangosLetrasColegio');
-const { listarIncidenciasUnificadasMatricula } = require('../utils/conductaIncidenciasBimestre');
+const { listarIncidenciasUnificadasMatricula, agruparItemsPorBimestre } = require('../utils/conductaIncidenciasBimestre');
 const {
   pickSaludFields,
   normalizeSaludBody,
@@ -1568,15 +1568,17 @@ router.get('/hijos/:hijoId/incidencias', async (req, res) => {
 
     const matriculaId = matricula[0].id;
 
-    const incidencias = await listarIncidenciasUnificadasMatricula(query, {
+    const data = await listarIncidenciasUnificadasMatricula(query, {
       matriculaId,
       colegio_id,
       anio: anio_activo,
     });
 
     res.json({
-      incidencias: incidencias || [],
-      total_incidencias: (incidencias || []).length,
+      incidencias: data.incidencias || [],
+      bimestres: data.bimestres || [],
+      total_incidencias: (data.incidencias || []).length,
+      anio: data.anio,
     });
   } catch (error) {
     console.error('Error obteniendo incidencias:', error);
@@ -1624,7 +1626,9 @@ router.get('/hijos/:hijoId/estrellas', async (req, res) => {
     if (!matricula || matricula.length === 0) {
       return res.json({
         estrellas: [],
-        total_estrellas: 0
+        total_estrellas: 0,
+        bimestres: [],
+        anio: anio_activo || null,
       });
     }
 
@@ -1634,7 +1638,7 @@ router.get('/hijos/:hijoId/estrellas', async (req, res) => {
     const estrellas = await query(
       `SELECT ei.id, ei.points, ei.description, ei.created_at, ei.worker_id, ei.assignment_id,
               CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
-              c.nombre as curso_nombre
+              CASE WHEN ei.assignment_id = -102 THEN 'Tutoría' ELSE c.nombre END as curso_nombre
        FROM enrollment_incidents ei
        INNER JOIN matriculas m ON m.id = ei.enrollment_id
        INNER JOIN grupos g ON g.id = m.grupo_id
@@ -1649,10 +1653,16 @@ router.get('/hijos/:hijoId/estrellas', async (req, res) => {
 
     // Calcular total de estrellas
     const totalEstrellas = estrellas.reduce((sum, e) => sum + (e.points || 0), 0);
+    const agrupado = await agruparItemsPorBimestre(
+      query, colegio_id, anio_activo, estrellas || [],
+      { itemsKey: 'estrellas', pointsField: 'points' }
+    );
 
     res.json({
       estrellas: estrellas || [],
-      total_estrellas: totalEstrellas
+      total_estrellas: totalEstrellas,
+      bimestres: agrupado.bimestres,
+      anio: agrupado.anio,
     });
   } catch (error) {
     console.error('Error obteniendo estrellas:', error);

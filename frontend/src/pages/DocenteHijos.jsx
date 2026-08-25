@@ -21,6 +21,7 @@ import { formatearTutoresLibreta } from '../utils/tutoresGrupoTexto';
 import { generarPDFBoletaDesdeDatos, MSG_NO_IMPRESION_BOLETA } from '../utils/generarPDFBoletaPago';
 import AlumnoSaludFields from '../components/AlumnoSaludFields';
 import AlumnoPerfilExtra from '../components/AlumnoPerfilExtra';
+import { exportIncidenciasHijoBimestresPdf, exportEstrellasHijoBimestresPdf } from '../utils/exportIncidenciasPresentacionPdf';
 import './DocenteHijos.css';
 import './AlumnoCursos.css';
 
@@ -68,9 +69,13 @@ function DocenteHijos() {
   const [loadingQR, setLoadingQR] = useState(false);
   const [showModalIncidencias, setShowModalIncidencias] = useState(false);
   const [incidencias, setIncidencias] = useState([]);
+  const [bimestresIncidencias, setBimestresIncidencias] = useState([]);
+  const [anioIncidencias, setAnioIncidencias] = useState(null);
   const [loadingIncidencias, setLoadingIncidencias] = useState(false);
   const [showModalEstrellas, setShowModalEstrellas] = useState(false);
   const [estrellas, setEstrellas] = useState([]);
+  const [bimestresEstrellas, setBimestresEstrellas] = useState([]);
+  const [anioEstrellas, setAnioEstrellas] = useState(null);
   const [totalEstrellas, setTotalEstrellas] = useState(0);
   const [loadingEstrellas, setLoadingEstrellas] = useState(false);
   const [showModalAsistencias, setShowModalAsistencias] = useState(false);
@@ -542,6 +547,8 @@ function DocenteHijos() {
       // Cargar incidencias del hijo
       const response = await api.get(`/docente/hijos/${hijo.id}/incidencias`);
       setIncidencias(response.data.incidencias || []);
+      setBimestresIncidencias(response.data.bimestres || []);
+      setAnioIncidencias(response.data.anio || null);
       setShowModalIncidencias(true);
     } catch (error) {
       console.error('Error cargando incidencias:', error);
@@ -564,6 +571,8 @@ function DocenteHijos() {
       // Cargar estrellas del hijo
       const response = await api.get(`/docente/hijos/${hijo.id}/estrellas`);
       setEstrellas(response.data.estrellas || []);
+      setBimestresEstrellas(response.data.bimestres || []);
+      setAnioEstrellas(response.data.anio || null);
       setTotalEstrellas(response.data.total_estrellas || 0);
       setShowModalEstrellas(true);
     } catch (error) {
@@ -1395,255 +1404,55 @@ function DocenteHijos() {
     }
   };
 
-  // Función para exportar incidencias a PDF por mes
-  const handleExportarIncidenciasPDF = async (mesAnio, incidenciasMes) => {
+  // Exportar todas las incidencias/presentación por bimestre (un solo PDF)
+  const handleExportarIncidenciasPDF = async () => {
     try {
-      const doc = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
+      const nombre = `${hijoSeleccionado?.nombres || ''} ${hijoSeleccionado?.apellido_paterno || ''} ${hijoSeleccionado?.apellido_materno || ''}`.trim();
+      const r = await exportIncidenciasHijoBimestresPdf({
+        alumnoNombre: nombre,
+        anio: anioIncidencias,
+        bimestres: bimestresIncidencias,
       });
-
-      const margin = 15;
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const contentWidth = pageWidth - (margin * 2);
-      let yPos = margin;
-
-      // Header
-      doc.setFillColor(79, 70, 229);
-      doc.rect(0, 0, pageWidth, 30, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text('INCIDENCIAS Y PRESENTACIÓN', pageWidth / 2, 12, { align: 'center' });
-      doc.setFontSize(12);
-      doc.text(`${hijoSeleccionado?.nombres} ${hijoSeleccionado?.apellido_paterno}`, pageWidth / 2, 20, { align: 'center' });
-      doc.setFontSize(10);
-      doc.text(mesAnio, pageWidth / 2, 26, { align: 'center' });
-
-      yPos = 40;
-
-      // Cards de incidencias
-      incidenciasMes.forEach((incidencia, index) => {
-        if (yPos > pageHeight - 50) {
-          doc.addPage();
-          yPos = margin;
-        }
-
-        const color = coloresPastel[index % coloresPastel.length];
-        const cardHeight = 40;
-        const esVest = incidencia.origen === 'vestimenta';
-
-        // Fondo del card
-        doc.setFillColor(
-          parseInt(color.bg.substring(1, 3), 16),
-          parseInt(color.bg.substring(3, 5), 16),
-          parseInt(color.bg.substring(5, 7), 16)
-        );
-        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3, 'F');
-
-        // Borde
-        doc.setDrawColor(
-          parseInt(color.border.substring(1, 3), 16),
-          parseInt(color.border.substring(3, 5), 16),
-          parseInt(color.border.substring(5, 7), 16)
-        );
-        doc.setLineWidth(1);
-        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3);
-
-        // Contenido
-        doc.setTextColor(30, 41, 59);
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Fecha:', margin + 3, yPos + 6);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        doc.text(formatearFecha(incidencia.created_at), margin + 20, yPos + 6);
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.text('Tipo:', margin + 100, yPos + 6);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        doc.setTextColor(esVest ? 154 : 91, esVest ? 52 : 33, esVest ? 18 : 182);
-        doc.text(esVest ? 'Presentación' : 'Incidencia', margin + 115, yPos + 6);
-        doc.setTextColor(30, 41, 59);
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.text('Docente:', margin + 3, yPos + 13);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        doc.text(incidencia.docente_nombre || 'N/A', margin + 20, yPos + 13);
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.text('Curso:', margin + 3, yPos + 20);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        doc.text(incidencia.curso_nombre || 'N/A', margin + 20, yPos + 20);
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        const descY = yPos + 24;
-        doc.text('Detalle:', margin + 3, descY);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        const descLines = doc.splitTextToSize(incidencia.description || 'Sin detalle', contentWidth - 25);
-        descLines.forEach((line, idx) => {
-          doc.text(line, margin + 20, descY + (idx * 4));
-        });
-
-        // Ajustar altura del card según el contenido
-        const descHeight = descLines.length * 4;
-        yPos += Math.max(cardHeight, descY + descHeight - yPos) + 8;
-      });
-
-      const nombreArchivo = `Incidencias_${hijoSeleccionado?.nombres?.replace(/\s+/g, '_')}_${mesAnio.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
-      doc.save(nombreArchivo);
-
+      if (!r.ok) {
+        Swal.fire({ icon: 'info', title: 'Sin registros', text: 'No hay datos para exportar.' });
+        return;
+      }
       Swal.fire({
         title: '¡PDF Generado!',
-        text: 'Las incidencias se han exportado correctamente',
-        icon: 'success'
+        text: 'Se exportó el historial completo por bimestre',
+        icon: 'success',
+        timer: 2000,
+        showConfirmButton: false,
       });
     } catch (error) {
       console.error('Error generando PDF:', error);
-      Swal.fire({
-        title: 'Error',
-        text: 'No se pudo generar el PDF',
-        icon: 'error'
-      });
+      Swal.fire({ title: 'Error', text: 'No se pudo generar el PDF', icon: 'error' });
     }
   };
 
-  // Función para exportar estrellas a PDF por mes
-  const handleExportarEstrellasPDF = async (mesAnio, estrellasMes) => {
+  // Exportar todas las estrellas por bimestre (un solo PDF)
+  const handleExportarEstrellasPDF = async () => {
     try {
-      const doc = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
+      const nombre = `${hijoSeleccionado?.nombres || ''} ${hijoSeleccionado?.apellido_paterno || ''} ${hijoSeleccionado?.apellido_materno || ''}`.trim();
+      const r = await exportEstrellasHijoBimestresPdf({
+        alumnoNombre: nombre,
+        anio: anioEstrellas,
+        bimestres: bimestresEstrellas,
       });
-
-      const margin = 15;
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const contentWidth = pageWidth - (margin * 2);
-      let yPos = margin;
-
-      // Header
-      doc.setFillColor(251, 191, 36);
-      doc.rect(0, 0, pageWidth, 30, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text('ESTRELLAS', pageWidth / 2, 12, { align: 'center' });
-      doc.setFontSize(12);
-      doc.text(`${hijoSeleccionado?.nombres} ${hijoSeleccionado?.apellido_paterno}`, pageWidth / 2, 20, { align: 'center' });
-      doc.setFontSize(10);
-      doc.text(mesAnio, pageWidth / 2, 26, { align: 'center' });
-
-      // Total de estrellas del mes
-      const totalMes = estrellasMes.reduce((sum, e) => sum + (e.points || 0), 0);
-      yPos = 40;
-      doc.setFillColor(251, 191, 36);
-      doc.roundedRect(margin, yPos, contentWidth, 10, 3, 3, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Total del mes: ${totalMes} estrellas`, pageWidth / 2, yPos + 7, { align: 'center' });
-      yPos += 15;
-
-      // Cards de estrellas
-      estrellasMes.forEach((estrella, index) => {
-        if (yPos > pageHeight - 50) {
-          doc.addPage();
-          yPos = margin;
-        }
-
-        const color = coloresPastel[index % coloresPastel.length];
-        const cardHeight = 35;
-
-        // Fondo del card
-        doc.setFillColor(
-          parseInt(color.bg.substring(1, 3), 16),
-          parseInt(color.bg.substring(3, 5), 16),
-          parseInt(color.bg.substring(5, 7), 16)
-        );
-        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3, 'F');
-
-        // Borde
-        doc.setDrawColor(
-          parseInt(color.border.substring(1, 3), 16),
-          parseInt(color.border.substring(3, 5), 16),
-          parseInt(color.border.substring(5, 7), 16)
-        );
-        doc.setLineWidth(1);
-        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3);
-
-        // Contenido
-        doc.setTextColor(30, 41, 59);
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Fecha:', margin + 3, yPos + 6);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        doc.text(formatearFecha(estrella.created_at), margin + 20, yPos + 6);
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.text('Estrellas:', margin + 3, yPos + 12);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
-        doc.text(`${estrella.points || 0}`, margin + 20, yPos + 12);
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.text('Docente:', margin + 3, yPos + 18);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        doc.text(estrella.docente_nombre || 'N/A', margin + 20, yPos + 18);
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.text('Curso:', margin + 3, yPos + 24);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        doc.text(estrella.curso_nombre || 'N/A', margin + 20, yPos + 24);
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        const descY = yPos + 30;
-        doc.text('Detalle:', margin + 3, descY);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        const descLines = doc.splitTextToSize(estrella.description || 'Sin detalle', contentWidth - 25);
-        descLines.forEach((line, idx) => {
-          doc.text(line, margin + 20, descY + (idx * 4));
-        });
-
-        // Ajustar altura del card según el contenido
-        const descHeight = descLines.length * 4;
-        yPos += Math.max(cardHeight, descY + descHeight - yPos) + 8;
-      });
-
-      const nombreArchivo = `Estrellas_${hijoSeleccionado?.nombres?.replace(/\s+/g, '_')}_${mesAnio.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
-      doc.save(nombreArchivo);
-
+      if (!r.ok) {
+        Swal.fire({ icon: 'info', title: 'Sin registros', text: 'No hay estrellas para exportar.' });
+        return;
+      }
       Swal.fire({
         title: '¡PDF Generado!',
-        text: 'Las estrellas se han exportado correctamente',
-        icon: 'success'
+        text: 'Se exportó el historial completo por bimestre',
+        icon: 'success',
+        timer: 2000,
+        showConfirmButton: false,
       });
     } catch (error) {
       console.error('Error generando PDF:', error);
-      Swal.fire({
-        title: 'Error',
-        text: 'No se pudo generar el PDF',
-        icon: 'error'
-      });
+      Swal.fire({ title: 'Error', text: 'No se pudo generar el PDF', icon: 'error' });
     }
   };
 
@@ -4119,12 +3928,12 @@ function DocenteHijos() {
         document.body
       )}
 
-      {/* Modal Incidencias */}
+      {/* Modal Incidencias — lista por bimestre (como tutor) */}
       {showModalIncidencias && createPortal(
         <div className="modal-overlay-qr" onClick={() => setShowModalIncidencias(false)}>
           <div className="modal-content-incidencias" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header-qr">
-              <h2>📋 Incidencias y presentación de {hijoSeleccionado?.nombres} {hijoSeleccionado?.apellido_paterno}</h2>
+              <h2>Incidencias y presentación de {hijoSeleccionado?.nombres} {hijoSeleccionado?.apellido_paterno}</h2>
               <button className="modal-close-qr" onClick={() => setShowModalIncidencias(false)}>×</button>
             </div>
 
@@ -4133,92 +3942,106 @@ function DocenteHijos() {
                 <div className="qr-loading">
                   <div className="loading-spinner">Cargando incidencias...</div>
                 </div>
-              ) : incidencias.length === 0 ? (
-                <div className="empty-state">
-                  <p>No hay incidencias ni descuentos de presentación registrados</p>
-                </div>
-              ) : (() => {
-                const gruposPorMes = agruparIncidenciasPorMes(incidencias);
-                const mesesOrdenados = Object.keys(gruposPorMes).sort((a, b) => {
-                  const dateA = new Date(gruposPorMes[a][0].created_at);
-                  const dateB = new Date(gruposPorMes[b][0].created_at);
-                  return dateB - dateA;
-                });
-
-                return (
-                  <div className="grupos-mes-container">
-                    {mesesOrdenados.map((mesAnio) => {
-                      const incidenciasMes = gruposPorMes[mesAnio];
-                      return (
-                        <div key={mesAnio} className="grupo-mes">
-                          <div className="grupo-mes-header">
-                            <h3 className="mes-titulo">{mesAnio}</h3>
-                            <button 
-                              className="btn-exportar-mes"
-                              onClick={() => handleExportarIncidenciasPDF(mesAnio, incidenciasMes)}
-                            >
-                              <span className="btn-icon">📄</span>
-                              <span>Exportar PDF</span>
-                            </button>
-                          </div>
-                          <div className="cards-container">
-                            {incidenciasMes.map((incidencia, index) => {
-                              const color = coloresPastel[index % coloresPastel.length];
-                              return (
-                                <div 
-                                  key={incidencia.id} 
-                                  className="incidencia-card"
-                                  style={{
-                                    backgroundColor: color.bg,
-                                    borderColor: color.border,
-                                    color: color.text
-                                  }}
-                                >
-                                  <div className="card-header-incidencia">
-                                    <div className="card-fecha">
-                                      <span className="icon">📅</span>
-                                      <span>{formatearFecha(incidencia.created_at)}</span>
-                                    </div>
-                                    <span className={`incidencia-tipo-badge ${incidencia.origen === 'vestimenta' ? 'es-vestimenta' : 'es-incidencia'}`}>
-                                      {incidencia.origen === 'vestimenta' ? 'Presentación' : 'Incidencia'}
-                                    </span>
-                                  </div>
-                                  <div className="card-body-incidencia">
-                                    <div className="card-info-row">
-                                      <span className="label">Docente:</span>
-                                      <span className="value">{incidencia.docente_nombre || 'N/A'}</span>
-                                    </div>
-                                    <div className="card-info-row">
-                                      <span className="label">Curso:</span>
-                                      <span className="value">{incidencia.curso_nombre || 'N/A'}</span>
-                                    </div>
-                                    <div className="card-info-row card-descripcion">
-                                      <span className="label">Descripción:</span>
-                                      <span className="value">{incidencia.description || 'Sin descripción'}</span>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
+              ) : (
+                <>
+                  <div className="hijo-inc-toolbar">
+                    <p className="hijo-inc-toolbar-hint">
+                      Agrupado por bimestre{anioIncidencias ? ` · Año ${anioIncidencias}` : ''}. Nota de conducta = 20 − registros del bimestre.
+                    </p>
+                    <button
+                      type="button"
+                      className="btn-exportar-mes"
+                      onClick={handleExportarIncidenciasPDF}
+                      disabled={!bimestresIncidencias.some((b) => (b.incidencias || []).length > 0)}
+                    >
+                      <span className="btn-icon">📄</span>
+                      <span>Exportar PDF completo</span>
+                    </button>
                   </div>
-                );
-              })()}
+
+                  {!bimestresIncidencias.length && incidencias.length === 0 ? (
+                    <div className="empty-state">
+                      <p>No hay incidencias ni descuentos de presentación registrados</p>
+                    </div>
+                  ) : (
+                    <div className="hijo-inc-bimestres">
+                      {(bimestresIncidencias.length
+                        ? bimestresIncidencias
+                        : [{ ciclo: '—', incidencias, nota_conducta: null, total_incidencias: 0, total_presentacion: 0 }]
+                      ).map((bim) => {
+                        const regs = bim.incidencias || [];
+                        return (
+                          <section key={`bim-${bim.ciclo}`} className="hijo-inc-bimestre">
+                            <header className="hijo-inc-bimestre-head">
+                              <div>
+                                <h3 className="hijo-inc-bimestre-title">Bimestre {bim.ciclo}</h3>
+                                {(bim.fecha_desde || bim.fecha_hasta) && (
+                                  <p className="hijo-inc-bimestre-rango">
+                                    {String(bim.fecha_desde || '').slice(0, 10) || '—'} → {String(bim.fecha_hasta || '').slice(0, 10) || '—'}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="hijo-inc-nota" title="20 − incidencias − presentaciones">
+                                Conducta: <strong>{bim.nota_conducta ?? '20'}</strong>
+                              </div>
+                            </header>
+
+                            {regs.length === 0 ? (
+                              <p className="hijo-inc-empty">Sin registros en este bimestre</p>
+                            ) : (
+                              <ul className="hijo-inc-list">
+                                {regs.map((incidencia) => (
+                                  <li key={incidencia.id} className="hijo-inc-card">
+                                    <div className="hijo-inc-card-top">
+                                      <time className="hijo-inc-fecha">{formatearFecha(incidencia.created_at)}</time>
+                                      <span className={`hijo-inc-origen ${incidencia.origen === 'vestimenta' ? 'es-vestimenta' : 'es-incidencia'}`}>
+                                        {incidencia.origen === 'vestimenta' ? 'Presentación' : 'Incidencia'}
+                                      </span>
+                                    </div>
+                                    <div className="hijo-inc-card-meta">
+                                      <div className="hijo-inc-meta-item">
+                                        <span className="hijo-inc-meta-label">Docente</span>
+                                        <span className="hijo-inc-meta-value es-docente">{incidencia.docente_nombre || '—'}</span>
+                                      </div>
+                                      <div className="hijo-inc-meta-item">
+                                        <span className="hijo-inc-meta-label">Curso</span>
+                                        <span className="hijo-inc-meta-value es-curso">{incidencia.curso_nombre || '—'}</span>
+                                      </div>
+                                    </div>
+                                    {incidencia.description ? (
+                                      <p className="hijo-inc-detalle">{incidencia.description}</p>
+                                    ) : null}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+
+                            <footer className="hijo-inc-resumen">
+                              Resumen: {bim.total_incidencias ?? regs.filter((x) => x.origen !== 'vestimenta').length} incidencia(s)
+                              {' + '}
+                              {bim.total_presentacion ?? regs.filter((x) => x.origen === 'vestimenta').length} presentación(es)
+                              {' → nota '}
+                              <strong>{bim.nota_conducta ?? '20'}/20</strong>
+                            </footer>
+                          </section>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>,
         document.body
       )}
 
-      {/* Modal Estrellas */}
+      {/* Modal Estrellas — lista por bimestre */}
       {showModalEstrellas && createPortal(
         <div className="modal-overlay-qr" onClick={() => setShowModalEstrellas(false)}>
           <div className="modal-content-estrellas" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header-qr">
-              <h2>⭐ Estrellas de {hijoSeleccionado?.nombres} {hijoSeleccionado?.apellido_paterno}</h2>
+              <h2>Estrellas de {hijoSeleccionado?.nombres} {hijoSeleccionado?.apellido_paterno}</h2>
               <button className="modal-close-qr" onClick={() => setShowModalEstrellas(false)}>×</button>
             </div>
 
@@ -4227,91 +4050,86 @@ function DocenteHijos() {
                 <div className="qr-loading">
                   <div className="loading-spinner">Cargando estrellas...</div>
                 </div>
-              ) : estrellas.length === 0 ? (
-                <div className="empty-state">
-                  <p>No hay estrellas registradas</p>
-                </div>
               ) : (
                 <>
-                  <div className="total-estrellas-badge">
-                    <span className="total-label">Total de Estrellas:</span>
-                    <span className="total-value">{totalEstrellas}</span>
+                  <div className="hijo-inc-toolbar">
+                    <p className="hijo-inc-toolbar-hint">
+                      Agrupado por bimestre{anioEstrellas ? ` · Año ${anioEstrellas}` : ''}. Total general: {totalEstrellas} ★
+                    </p>
+                    <button
+                      type="button"
+                      className="btn-exportar-mes"
+                      onClick={handleExportarEstrellasPDF}
+                      disabled={!bimestresEstrellas.some((b) => (b.estrellas || []).length > 0)}
+                    >
+                      <span className="btn-icon">📄</span>
+                      <span>Exportar PDF completo</span>
+                    </button>
                   </div>
-                  {(() => {
-                    const gruposPorMes = agruparEstrellasPorMes(estrellas);
-                    const mesesOrdenados = Object.keys(gruposPorMes).sort((a, b) => {
-                      const dateA = new Date(gruposPorMes[a][0].created_at);
-                      const dateB = new Date(gruposPorMes[b][0].created_at);
-                      return dateB - dateA;
-                    });
 
-                    return (
-                      <div className="grupos-mes-container">
-                        {mesesOrdenados.map((mesAnio) => {
-                          const estrellasMes = gruposPorMes[mesAnio];
-                          const totalMes = estrellasMes.reduce((sum, e) => sum + (e.points || 0), 0);
-                          return (
-                            <div key={mesAnio} className="grupo-mes">
-                              <div className="grupo-mes-header">
-                                <div>
-                                  <h3 className="mes-titulo">{mesAnio}</h3>
-                                  <span className="mes-total">Total: {totalMes} estrellas</span>
-                                </div>
-                                <button 
-                                  className="btn-exportar-mes"
-                                  onClick={() => handleExportarEstrellasPDF(mesAnio, estrellasMes)}
-                                >
-                                  <span className="btn-icon">📄</span>
-                                  <span>Exportar PDF</span>
-                                </button>
+                  {!bimestresEstrellas.length && estrellas.length === 0 ? (
+                    <div className="empty-state">
+                      <p>No hay estrellas registradas</p>
+                    </div>
+                  ) : (
+                    <div className="hijo-inc-bimestres">
+                      {(bimestresEstrellas.length
+                        ? bimestresEstrellas
+                        : [{ ciclo: '—', estrellas, total_puntos: totalEstrellas }]
+                      ).map((bim) => {
+                        const regs = bim.estrellas || [];
+                        return (
+                          <section key={`est-bim-${bim.ciclo}`} className="hijo-inc-bimestre">
+                            <header className="hijo-inc-bimestre-head">
+                              <div>
+                                <h3 className="hijo-inc-bimestre-title">Bimestre {bim.ciclo}</h3>
+                                {(bim.fecha_desde || bim.fecha_hasta) && (
+                                  <p className="hijo-inc-bimestre-rango">
+                                    {String(bim.fecha_desde || '').slice(0, 10) || '—'} → {String(bim.fecha_hasta || '').slice(0, 10) || '—'}
+                                  </p>
+                                )}
                               </div>
-                              <div className="cards-container">
-                                {estrellasMes.map((estrella, index) => {
-                                  const color = coloresPastel[index % coloresPastel.length];
-                                  return (
-                                    <div 
-                                      key={estrella.id} 
-                                      className="estrella-card"
-                                      style={{
-                                        backgroundColor: color.bg,
-                                        borderColor: color.border,
-                                        color: color.text
-                                      }}
-                                    >
-                                      <div className="card-header-estrella">
-                                        <div className="card-fecha">
-                                          <span className="icon">📅</span>
-                                          <span>{formatearFecha(estrella.created_at)}</span>
-                                        </div>
-                                        <div className="card-estrellas-count">
-                                          <span className="icon">⭐</span>
-                                          <span className="count">{estrella.points || 0}</span>
-                                        </div>
+                              <div className="hijo-inc-nota">
+                                Total: <strong>{bim.total_puntos ?? regs.reduce((s, e) => s + (e.points || 0), 0)} ★</strong>
+                              </div>
+                            </header>
+
+                            {regs.length === 0 ? (
+                              <p className="hijo-inc-empty">Sin estrellas en este bimestre</p>
+                            ) : (
+                              <ul className="hijo-inc-list">
+                                {regs.map((estrella) => (
+                                  <li key={estrella.id} className="hijo-inc-card">
+                                    <div className="hijo-inc-card-top">
+                                      <time className="hijo-inc-fecha">{formatearFecha(estrella.created_at)}</time>
+                                      <span className="hijo-inc-origen es-vestimenta">+{estrella.points || 0} ★</span>
+                                    </div>
+                                    <div className="hijo-inc-card-meta">
+                                      <div className="hijo-inc-meta-item">
+                                        <span className="hijo-inc-meta-label">Docente</span>
+                                        <span className="hijo-inc-meta-value es-docente">{estrella.docente_nombre || '—'}</span>
                                       </div>
-                                      <div className="card-body-estrella">
-                                        <div className="card-info-row">
-                                          <span className="label">Docente:</span>
-                                          <span className="value">{estrella.docente_nombre || 'N/A'}</span>
-                                        </div>
-                                        <div className="card-info-row">
-                                          <span className="label">Curso:</span>
-                                          <span className="value">{estrella.curso_nombre || 'N/A'}</span>
-                                        </div>
-                                        <div className="card-info-row card-descripcion">
-                                          <span className="label">Descripción:</span>
-                                          <span className="value">{estrella.description || 'Sin descripción'}</span>
-                                        </div>
+                                      <div className="hijo-inc-meta-item">
+                                        <span className="hijo-inc-meta-label">Curso</span>
+                                        <span className="hijo-inc-meta-value es-curso">{estrella.curso_nombre || '—'}</span>
                                       </div>
                                     </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
+                                    {estrella.description ? (
+                                      <p className="hijo-inc-detalle">{estrella.description}</p>
+                                    ) : null}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+
+                            <footer className="hijo-inc-resumen">
+                              Resumen B{bim.ciclo}: {bim.total_puntos ?? 0} estrella(s) en {regs.length} registro(s)
+                            </footer>
+                          </section>
+                        );
+                      })}
+                    </div>
+                  )}
                 </>
               )}
             </div>

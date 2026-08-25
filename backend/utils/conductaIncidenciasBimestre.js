@@ -379,14 +379,15 @@ async function listarIncidenciasUnificadasGrupo(query, {
 }
 
 /**
- * Historial unificado de un alumno (matrícula): incidencias + presentación QR del año.
- * Usado en Hijos a cargo (apoderado / docente).
+ * Historial unificado de un alumno (matrícula): incidencias + presentación QR del año,
+ * agrupable por bimestre con nota de conducta (20 − N).
  */
 async function listarIncidenciasUnificadasMatricula(query, {
   matriculaId,
   colegio_id,
   anio,
 }) {
+  const anioInt = parseInt(anio, 10) || new Date().getFullYear();
   const rowsInc = await query(
     `SELECT ei.id, ei.description, ei.created_at, ei.assignment_id, ei.points,
             CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,'')) AS docente_nombre,
@@ -406,7 +407,7 @@ async function listarIncidenciasUnificadasMatricula(query, {
        AND COALESCE(ei.assignment_id, 0) <> ?
        AND COALESCE(ei.description, '') NOT LIKE '[VESTIMENTA]%'
      ORDER BY ei.created_at DESC`,
-    [ASSIGNMENT_ID_TUTORIA, matriculaId, anio, ASSIGNMENT_ID_VESTIMENTA]
+    [ASSIGNMENT_ID_TUTORIA, matriculaId, anioInt, ASSIGNMENT_ID_VESTIMENTA]
   );
 
   let rowsPed = [];
@@ -428,7 +429,7 @@ async function listarIncidenciasUnificadasMatricula(query, {
        LEFT JOIN alumnos alrp ON alrp.id = ur.alumno_id
        WHERE ped.colegio_id = ? AND ped.anio = ?
        ORDER BY ped.fecha DESC, ped.hora DESC`,
-      [matriculaId, colegio_id, anio]
+      [matriculaId, colegio_id, anioInt]
     );
   } catch (e) {
     if (!(String(e.message || '').includes("doesn't exist") || e.code === 'ER_NO_SUCH_TABLE')) {
@@ -437,9 +438,17 @@ async function listarIncidenciasUnificadasMatricula(query, {
     rowsPed = [];
   }
 
+  const fechaEnAnioEscolar = (fechaRaw) => {
+    const ymd = String(fechaRaw || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
+    const y = parseInt(ymd.slice(0, 4), 10);
+    return y >= anioInt - 1 && y <= anioInt + 1;
+  };
+
   const lista = [];
 
   (rowsInc || []).forEach((r) => {
+    if (!fechaEnAnioEscolar(r.created_at)) return;
     lista.push({
       id: `inc-${r.id}`,
       description: String(r.description || '').trim(),
@@ -452,6 +461,7 @@ async function listarIncidenciasUnificadasMatricula(query, {
   });
 
   (rowsPed || []).forEach((r) => {
+    if (!fechaEnAnioEscolar(r.fecha)) return;
     const fecha = String(r.fecha).slice(0, 10);
     const hora = r.hora ? String(r.hora).slice(0, 8) : '12:00:00';
     const motivo = String(r.motivo || '').trim();
@@ -470,8 +480,89 @@ async function listarIncidenciasUnificadasMatricula(query, {
     });
   });
 
+  const rangos = await fetchRangosCiclosParsed(query, colegio_id);
+  lista.forEach((item) => {
+    const ymd = String(item.created_at).slice(0, 10);
+    item.ciclo = cicloQueContieneFecha(rangos, anioInt, ymd);
+  });
   lista.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
-  return lista;
+
+  const bimestres = [];
+  for (let c = 1; c <= 4; c += 1) {
+    const rango = await obtenerRangoBimestre(query, colegio_id, c, anioInt);
+    const items = lista.filter((i) => {
+      const f = String(i.created_at).slice(0, 10);
+      return f >= rango.desde && f <= rango.hasta;
+    });
+    items.forEach((i) => { i.ciclo = c; });
+    const nInc = items.filter((x) => x.origen !== 'vestimenta').length;
+    const nPres = items.filter((x) => x.origen === 'vestimenta').length;
+    bimestres.push({
+      ciclo: c,
+      fecha_desde: rango.desde,
+      fecha_hasta: rango.hasta,
+      total: items.length,
+      total_incidencias: nInc,
+      total_presentacion: nPres,
+      nota_conducta: String(notaDesdeCantidad(items.length)),
+      incidencias: items,
+    });
+  }
+
+  return {
+    incidencias: lista,
+    bimestres,
+    anio: anioInt,
+  };
+}
+
+/**
+ * Agrupa una lista ya cargada (estrellas u otros) en los 4 bimestres del colegio.
+ * @param {Array} items - cada uno con created_at
+ * @param {{ itemsKey?: string, pointsField?: string|null }} opts
+ */
+async function agruparItemsPorBimestre(query, colegio_id, anio, items, opts = {}) {
+  const itemsKey = opts.itemsKey || 'items';
+  const pointsField = opts.pointsField || null;
+  const anioInt = parseInt(anio, 10) || new Date().getFullYear();
+  const lista = Array.isArray(items) ? items.slice() : [];
+
+  const fechaEnAnioEscolar = (fechaRaw) => {
+    const ymd = String(fechaRaw || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
+    const y = parseInt(ymd.slice(0, 4), 10);
+    return y >= anioInt - 1 && y <= anioInt + 1;
+  };
+
+  const filtrados = lista.filter((item) => fechaEnAnioEscolar(item.created_at));
+
+  const bimestres = [];
+  for (let c = 1; c <= 4; c += 1) {
+    const rango = await obtenerRangoBimestre(query, colegio_id, c, anioInt);
+    const itemsB = filtrados.filter((i) => {
+      const f = String(i.created_at).slice(0, 10);
+      return f >= rango.desde && f <= rango.hasta;
+    });
+    itemsB.forEach((i) => {
+      i.ciclo = c;
+    });
+    const entry = {
+      ciclo: c,
+      fecha_desde: rango.desde,
+      fecha_hasta: rango.hasta,
+      total: itemsB.length,
+      [itemsKey]: itemsB,
+    };
+    if (pointsField) {
+      entry.total_puntos = itemsB.reduce(
+        (s, e) => s + (parseInt(e[pointsField], 10) || 0),
+        0
+      );
+    }
+    bimestres.push(entry);
+  }
+
+  return { bimestres, anio: anioInt };
 }
 
 module.exports = {
@@ -489,5 +580,6 @@ module.exports = {
   backfillVestimentaAIncidenciasGrupo,
   listarIncidenciasUnificadasGrupo,
   listarIncidenciasUnificadasMatricula,
+  agruparItemsPorBimestre,
   fetchRangosCiclosParsed,
 };

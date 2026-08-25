@@ -2068,3 +2068,208 @@
   }
 }
 
+/* —— Incidencias hijo (apoderado/docente): lista por bimestre —— */
+.hijo-inc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1.1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.hijo-inc-toolbar-hint {
+  margin: 0;
+  flex: 1;
+  min-width: 12rem;
+  font-size: 0.86rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.hijo-inc-bimestres {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+}
+
+.hijo-inc-bimestre {
+  border: 1px solid #e8e4f5;
+  border-radius: 14px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.hijo-inc-bimestre-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(180deg, #faf8ff 0%, #f8fafc 100%);
+  border-bottom: 1px solid #f1eef8;
+}
+
+.hijo-inc-bimestre-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1e1b4b;
+}
+
+.hijo-inc-bimestre-rango {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.hijo-inc-nota {
+  font-size: 0.9rem;
+  color: #9a3412;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  white-space: nowrap;
+}
+
+.hijo-inc-nota strong {
+  font-size: 1.05rem;
+}
+
+.hijo-inc-empty {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  font-size: 0.88rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.hijo-inc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.75rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.hijo-inc-card {
+  padding: 0;
+  background: #fff;
+  border: 1px solid #e8e4f5;
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+}
+
+.hijo-inc-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.7rem 0.9rem 0.55rem;
+  background: linear-gradient(180deg, #faf8ff 0%, #fff 100%);
+  border-bottom: 1px solid #f1eef8;
+}
+
+.hijo-inc-fecha {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1e1b4b;
+}
+
+.hijo-inc-card-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem 0.75rem;
+  padding: 0.65rem 0.9rem 0.2rem;
+}
+
+@media (max-width: 560px) {
+  .hijo-inc-card-meta {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hijo-inc-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.hijo-inc-meta-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+}
+
+.hijo-inc-meta-value {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #334155;
+  line-height: 1.3;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.hijo-inc-meta-value.es-docente {
+  color: #4338ca;
+}
+
+.hijo-inc-meta-value.es-curso {
+  color: #047857;
+}
+
+.hijo-inc-detalle {
+  margin: 0.55rem 0.9rem 0.9rem;
+  padding: 0.7rem 0.8rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #334155;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  background: #f8fafc;
+  border: 1px solid #eef2f7;
+  border-radius: 10px;
+}
+
+.hijo-inc-origen {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+
+.hijo-inc-origen.es-vestimenta {
+  background: #ffedd5;
+  color: #9a3412;
+  border: 1px solid #fdba74;
+}
+
+.hijo-inc-origen.es-incidencia {
+  background: #ede9fe;
+  color: #5b21b6;
+  border: 1px solid #c4b5fd;
+}
+
+.hijo-inc-resumen {
+  margin: 0;
+  padding: 0.65rem 1rem;
+  font-size: 0.84rem;
+  color: #92400e;
+  background: #fffbeb;
+  border-top: 1px solid #fde68a;
+}
+
