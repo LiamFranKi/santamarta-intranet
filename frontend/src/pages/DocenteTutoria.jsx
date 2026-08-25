@@ -20,6 +20,7 @@ import './DocenteHijos.css';
 import './DocenteTutoria-swal-layer.css';
 import '../styles/docente-swal-over-modal.css';
 import TutoriaModalDeudores from '../components/tutoria/TutoriaModalDeudores';
+import { useGrupoReportesConducta } from '../components/grupoReportes/useGrupoReportesConducta';
 import { buildOpcionesTutoriaGrupo } from '../utils/opcionesMenuGrupo';
 import { abrirVerLibretasGrupo } from '../utils/exportLibretasGrupoPdf';
 
@@ -108,6 +109,8 @@ function DocenteTutoria({
 } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
+  const reportesGrupoPrefix = String(apiPrefix || '/docente/tutoria').replace(/^\//, '') + '/grupos';
+  const reportesConducta = useGrupoReportesConducta({ apiPathPrefix: reportesGrupoPrefix });
   const [loading, setLoading] = useState(true);
   const [esTutor, setEsTutor] = useState(false);
   const [gruposTutor, setGruposTutor] = useState([]);
@@ -3563,6 +3566,16 @@ function DocenteTutoria({
               <button type="button" className="btn-tutor-evid-incidencias" onClick={abrirModalIncidenciasGrupo}>
                 📌 Ver incidencias y presentación
               </button>
+              <button
+                type="button"
+                className="btn-tutor-evid-incidencias"
+                onClick={() => {
+                  const g = grupoParaConducta || (typeof selectedGrupo === 'object' ? selectedGrupo : null);
+                  if (g?.id) reportesConducta.openEstrellasGrupo(g);
+                }}
+              >
+                ⭐ Ver estrellas del grupo
+              </button>
             </div>
             <p className="conducta-auto-aviso">
               Nota automática: parte de 20; −1 por cada incidencia o descuento de presentación del bimestre (mín. 0). No se edita a mano.
@@ -5293,6 +5306,7 @@ function DocenteTutoria({
         </div>,
         document.body
       )}
+      {reportesConducta.ReportesModals}
     </DashboardLayout>
   );
 }

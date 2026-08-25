@@ -59,12 +59,17 @@ export function useGrupoReportesConducta({ apiPathPrefix, anioFallback } = {}) {
   const [modalIncidenciasGrupoAbierto, setModalIncidenciasGrupoAbierto] = useState(false);
   const [fechaDescuentosDesde, setFechaDescuentosDesde] = useState('');
   const [fechaDescuentosHasta, setFechaDescuentosHasta] = useState('');
-  const [fechaIncDesde, setFechaIncDesde] = useState('');
-  const [fechaIncHasta, setFechaIncHasta] = useState('');
+  const [cicloIncidencias, setCicloIncidencias] = useState(1);
+  const [rangoIncidencias, setRangoIncidencias] = useState({ desde: '', hasta: '' });
+  const [cicloEstrellas, setCicloEstrellas] = useState(1);
+  const [rangoEstrellas, setRangoEstrellas] = useState({ desde: '', hasta: '' });
   const [dataDescuentosPorAlumno, setDataDescuentosPorAlumno] = useState([]);
   const [dataIncidenciasPorAlumno, setDataIncidenciasPorAlumno] = useState([]);
+  const [dataEstrellasPorAlumno, setDataEstrellasPorAlumno] = useState([]);
+  const [modalEstrellasGrupoAbierto, setModalEstrellasGrupoAbierto] = useState(false);
   const [loadingDescuentosRep, setLoadingDescuentosRep] = useState(false);
   const [loadingIncidenciasRep, setLoadingIncidenciasRep] = useState(false);
+  const [loadingEstrellasRep, setLoadingEstrellasRep] = useState(false);
 
   const cerrarDescuentos = useCallback(() => {
     setModalDescuentosPresentacionAbierto(false);
@@ -76,11 +81,17 @@ export function useGrupoReportesConducta({ apiPathPrefix, anioFallback } = {}) {
     setDataIncidenciasPorAlumno([]);
   }, []);
 
+  const cerrarEstrellas = useCallback(() => {
+    setModalEstrellasGrupoAbierto(false);
+    setDataEstrellasPorAlumno([]);
+  }, []);
+
   const cerrarTodo = useCallback(() => {
     cerrarDescuentos();
     cerrarIncidencias();
+    cerrarEstrellas();
     setTargetGrupo(null);
-  }, [cerrarDescuentos, cerrarIncidencias]);
+  }, [cerrarDescuentos, cerrarIncidencias, cerrarEstrellas]);
 
   const anioParaGrupo = useCallback(
     (grupo) => Number(grupo?.anio ?? anioFallback) || new Date().getFullYear(),
@@ -109,16 +120,34 @@ export function useGrupoReportesConducta({ apiPathPrefix, anioFallback } = {}) {
     setLoadingIncidenciasRep(true);
     try {
       const { data } = await api.get(`/${prefix}/${targetGrupo.id}/reporte-incidencias-grupo`, {
-        params: { fecha_desde: fechaIncDesde, fecha_hasta: fechaIncHasta },
+        params: { ciclo: cicloIncidencias },
       });
       setDataIncidenciasPorAlumno(data.alumnos || []);
+      setRangoIncidencias({ desde: data.fecha_desde || '', hasta: data.fecha_hasta || '' });
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudieron cargar incidencias' });
       setDataIncidenciasPorAlumno([]);
     } finally {
       setLoadingIncidenciasRep(false);
     }
-  }, [prefix, targetGrupo, fechaIncDesde, fechaIncHasta]);
+  }, [prefix, targetGrupo, cicloIncidencias]);
+
+  const cargarReporteEstrellasGrupo = useCallback(async () => {
+    if (!targetGrupo?.id) return;
+    setLoadingEstrellasRep(true);
+    try {
+      const { data } = await api.get(`/${prefix}/${targetGrupo.id}/reporte-estrellas-grupo`, {
+        params: { ciclo: cicloEstrellas },
+      });
+      setDataEstrellasPorAlumno(data.alumnos || []);
+      setRangoEstrellas({ desde: data.fecha_desde || '', hasta: data.fecha_hasta || '' });
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudieron cargar estrellas' });
+      setDataEstrellasPorAlumno([]);
+    } finally {
+      setLoadingEstrellasRep(false);
+    }
+  }, [prefix, targetGrupo, cicloEstrellas]);
 
   const openDescuentosPresentacion = useCallback(
     async (grupo) => {
@@ -151,23 +180,49 @@ export function useGrupoReportesConducta({ apiPathPrefix, anioFallback } = {}) {
     async (grupo) => {
       if (!grupo?.id) return;
       const a = anioParaGrupo(grupo);
-      const r = rangoFechasReporteGrupo(a);
       setTargetGrupo({ ...grupo, anio: grupo.anio ?? a });
-      setFechaIncDesde(r.desde);
-      setFechaIncHasta(r.hasta);
+      setCicloIncidencias(1);
       setModalDescuentosPresentacionAbierto(false);
+      setModalEstrellasGrupoAbierto(false);
       setModalIncidenciasGrupoAbierto(true);
       setLoadingIncidenciasRep(true);
       try {
         const { data } = await api.get(`/${prefix}/${grupo.id}/reporte-incidencias-grupo`, {
-          params: { fecha_desde: r.desde, fecha_hasta: r.hasta },
+          params: { ciclo: 1 },
         });
         setDataIncidenciasPorAlumno(data.alumnos || []);
+        setRangoIncidencias({ desde: data.fecha_desde || '', hasta: data.fecha_hasta || '' });
       } catch (e) {
         Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudieron cargar incidencias' });
         setDataIncidenciasPorAlumno([]);
       } finally {
         setLoadingIncidenciasRep(false);
+      }
+    },
+    [prefix, anioParaGrupo]
+  );
+
+  const openEstrellasGrupo = useCallback(
+    async (grupo) => {
+      if (!grupo?.id) return;
+      const a = anioParaGrupo(grupo);
+      setTargetGrupo({ ...grupo, anio: grupo.anio ?? a });
+      setCicloEstrellas(1);
+      setModalDescuentosPresentacionAbierto(false);
+      setModalIncidenciasGrupoAbierto(false);
+      setModalEstrellasGrupoAbierto(true);
+      setLoadingEstrellasRep(true);
+      try {
+        const { data } = await api.get(`/${prefix}/${grupo.id}/reporte-estrellas-grupo`, {
+          params: { ciclo: 1 },
+        });
+        setDataEstrellasPorAlumno(data.alumnos || []);
+        setRangoEstrellas({ desde: data.fecha_desde || '', hasta: data.fecha_hasta || '' });
+      } catch (e) {
+        Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudieron cargar estrellas' });
+        setDataEstrellasPorAlumno([]);
+      } finally {
+        setLoadingEstrellasRep(false);
       }
     },
     [prefix, anioParaGrupo]
@@ -348,7 +403,7 @@ export function useGrupoReportesConducta({ apiPathPrefix, anioFallback } = {}) {
       doc.setTextColor(88, 28, 135);
       doc.text(`${tituloGrupo} · Año ${targetGrupo.anio || ''}`, mm + 2, 18);
       doc.setTextColor(71, 85, 105);
-      doc.text(`Periodo: ${formatearSoloFecha(fechaIncDesde)} → ${formatearSoloFecha(fechaIncHasta)}`, mm + 2, 24);
+      doc.text(`Bimestre ${cicloIncidencias} · ${formatearSoloFecha(rangoIncidencias.desde)} → ${formatearSoloFecha(rangoIncidencias.hasta)}`, mm + 2, 24);
       y = 34;
     };
 
@@ -365,7 +420,7 @@ export function useGrupoReportesConducta({ apiPathPrefix, anioFallback } = {}) {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(71, 85, 105);
-      doc.text(`Periodo: ${formatearSoloFecha(fechaIncDesde)} → ${formatearSoloFecha(fechaIncHasta)}`, mm + 2, 14);
+      doc.text(`Bimestre ${cicloIncidencias} · ${formatearSoloFecha(rangoIncidencias.desde)} → ${formatearSoloFecha(rangoIncidencias.hasta)}`, mm + 2, 14);
       y = 20;
     };
 
@@ -439,7 +494,7 @@ export function useGrupoReportesConducta({ apiPathPrefix, anioFallback } = {}) {
 
     doc.save(`${tituloGrupo.replace(/\s+/g, '_')}_incidencias_grupo.pdf`);
     Swal.fire({ icon: 'success', title: 'PDF generado', timer: 1800, showConfirmButton: false });
-  }, [targetGrupo, dataIncidenciasPorAlumno, fechaIncDesde, fechaIncHasta]);
+  }, [targetGrupo, dataIncidenciasPorAlumno, cicloIncidencias, rangoIncidencias]);
 
   const ReportesModals = (
     <>
@@ -542,7 +597,7 @@ export function useGrupoReportesConducta({ apiPathPrefix, anioFallback } = {}) {
                     <strong>
                       {targetGrupo.grado}° {targetGrupo.seccion}
                     </strong>{' '}
-                    — detalle registrado por docentes (solo incidencias)
+                    — detalle por bimestre (incidencias + presentación)
                   </p>
                 </div>
                 <button type="button" className="tutor-evidencias-close" onClick={cerrarIncidencias} aria-label="Cerrar">
@@ -551,13 +606,24 @@ export function useGrupoReportesConducta({ apiPathPrefix, anioFallback } = {}) {
               </header>
               <div className="tutor-evidencias-toolbar">
                 <label className="tutor-evidencias-date">
-                  Desde <input type="date" value={fechaIncDesde} onChange={(e) => setFechaIncDesde(e.target.value)} />
+                  Bimestre{' '}
+                  <select
+                    value={cicloIncidencias}
+                    onChange={(e) => setCicloIncidencias(parseInt(e.target.value, 10))}
+                  >
+                    <option value={1}>I</option>
+                    <option value={2}>II</option>
+                    <option value={3}>III</option>
+                    <option value={4}>IV</option>
+                  </select>
                 </label>
-                <label className="tutor-evidencias-date">
-                  Hasta <input type="date" value={fechaIncHasta} onChange={(e) => setFechaIncHasta(e.target.value)} />
-                </label>
+                {(rangoIncidencias.desde || rangoIncidencias.hasta) && (
+                  <span className="conducta-rango-hint">
+                    {formatearSoloFecha(rangoIncidencias.desde)} → {formatearSoloFecha(rangoIncidencias.hasta)}
+                  </span>
+                )}
                 <button type="button" className="tutor-evidencias-btn aplicar" onClick={aplicarFiltrosIncidenciasYResumen}>
-                  Aplicar filtros
+                  Aplicar bimestre
                 </button>
                 <button type="button" className="tutor-evidencias-btn pdf" onClick={exportPdfIncidenciasGrupoReporte}>
                   📄 Exportar PDF
@@ -614,6 +680,99 @@ export function useGrupoReportesConducta({ apiPathPrefix, anioFallback } = {}) {
           </div>,
           document.body
         )}
+
+      {modalEstrellasGrupoAbierto && targetGrupo &&
+        createPortal(
+          <div className="tutor-evidencias-overlay" onClick={cerrarEstrellas} role="presentation">
+            <div className="tutor-evidencias-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="titulo-est-evid-gr">
+              <header className="tutor-evidencias-panel-header">
+                <div>
+                  <h2 id="titulo-est-evid-gr">Estrellas del grupo</h2>
+                  <p className="tutor-evidencias-panel-sub">
+                    <strong>
+                      {targetGrupo.grado}° {targetGrupo.seccion}
+                    </strong>{' '}
+                    — historial por bimestre
+                  </p>
+                </div>
+                <button type="button" className="tutor-evidencias-close" onClick={cerrarEstrellas} aria-label="Cerrar">
+                  ✕
+                </button>
+              </header>
+              <div className="tutor-evidencias-toolbar">
+                <label className="tutor-evidencias-date">
+                  Bimestre{' '}
+                  <select
+                    value={cicloEstrellas}
+                    onChange={(e) => setCicloEstrellas(parseInt(e.target.value, 10))}
+                  >
+                    <option value={1}>I</option>
+                    <option value={2}>II</option>
+                    <option value={3}>III</option>
+                    <option value={4}>IV</option>
+                  </select>
+                </label>
+                {(rangoEstrellas.desde || rangoEstrellas.hasta) && (
+                  <span className="conducta-rango-hint">
+                    {formatearSoloFecha(rangoEstrellas.desde)} → {formatearSoloFecha(rangoEstrellas.hasta)}
+                  </span>
+                )}
+                <button type="button" className="tutor-evidencias-btn aplicar" onClick={cargarReporteEstrellasGrupo}>
+                  Aplicar bimestre
+                </button>
+              </div>
+              <div className="tutor-evidencias-body">
+                {loadingEstrellasRep ? (
+                  <div className="modal-registro-asistencia-loading">
+                    <div className="loading-spinner" />
+                    <p>Cargando…</p>
+                  </div>
+                ) : !dataEstrellasPorAlumno.length ? (
+                  <p className="tutor-evidencias-empty tutor-evidencias-empty--destacado">No hay estrellas en este bimestre</p>
+                ) : (
+                  <div className="tutor-evidencia-cards-scroll">
+                    {dataEstrellasPorAlumno.map((alu, idx) => {
+                      const pastel = PASTEL_TUTOR_EVIDENCIA[(idx + 1) % PASTEL_TUTOR_EVIDENCIA.length];
+                      return (
+                        <article
+                          key={alu.alumno_id || idx}
+                          className="tutor-evidencia-alumno-card"
+                          style={{
+                            border: `1px solid ${pastel.border}`,
+                            background: pastel.bg,
+                          }}
+                        >
+                          <div className="tutor-evidencia-alumno-card-head" style={{ color: pastel.accent }}>
+                            <span className="tutor-evidencia-alumno-nombre">{alu.alumno_nombre}</span>
+                            <span className="tutor-evidencia-alumno-total">
+                              ★ <strong>{alu.total_puntos ?? 0}</strong>
+                              {' · '}
+                              {(alu.estrellas || []).length} registro{(alu.estrellas || []).length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          <ul className="tutor-evidencia-lineas">
+                            {(alu.estrellas || []).map((est) => (
+                              <li key={est.id}>
+                                <span className="tutor-evidencia-linea-fecha">
+                                  {formatearFechaHoraPeru(est.created_at)} · +{est.points || 0} ★
+                                </span>
+                                <span className="tutor-evidencia-linea-pts">
+                                  {est.docente_nombre || '—'} · {est.curso_nombre || '—'}
+                                </span>
+                                <span className="tutor-evidencia-linea-autor">{est.description || '—'}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   );
 
@@ -621,6 +780,7 @@ export function useGrupoReportesConducta({ apiPathPrefix, anioFallback } = {}) {
     ReportesModals,
     openDescuentosPresentacion,
     openIncidenciasGrupo,
+    openEstrellasGrupo,
     cerrarReportesConducta: cerrarTodo,
   };
 }

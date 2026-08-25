@@ -613,6 +613,7 @@ const OPCIONES_GRUPO_MENU = [
   { key: 'registrar_conducta', label: 'Registrar Conducta', icon: '📝' },
   { key: 'recomendaciones', label: 'Recomendaciones', icon: '💡' },
   { key: 'reporte_incidencias', label: 'Incidencia', icon: '📌' },
+  { key: 'reporte_estrellas', label: 'Estrellas', icon: '⭐' },
   { key: 'reporte_presentacion', label: 'Presentación', icon: '📉' },
   { key: 'editar', label: 'Editar', icon: '✏️' },
   { key: 'eliminar', label: 'Eliminar', icon: '🗑️', danger: true }
@@ -622,6 +623,7 @@ const OPCIONES_GRUPO_MENU = [
 const KEYS_OPCIONES_GRUPO_PSICOLOGA = new Set([
   'lista_alumnos',
   'reporte_incidencias',
+  'reporte_estrellas',
   'reporte_presentacion',
   'ver_horario',
   'ver_nomina',
@@ -1316,6 +1318,18 @@ function GruposPanel({ meta }) {
         anio: row.anio != null ? row.anio : anio,
       };
       reportesConducta.openIncidenciasGrupo(meta);
+      return;
+    }
+    if (accion === 'reporte_estrellas') {
+      const meta = {
+        id: row.id,
+        grado: row.grado,
+        seccion: row.seccion,
+        nivel_nombre: row.nivel_nombre,
+        turno_nombre: row.turno_nombre,
+        anio: row.anio != null ? row.anio : anio,
+      };
+      reportesConducta.openEstrellasGrupo(meta);
       return;
     }
     if (accion === 'reporte_presentacion') {

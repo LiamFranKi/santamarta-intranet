@@ -4255,12 +4255,23 @@ function DocenteCursos() {
                   <h3 className="section-title-estrellas">Historial de Estrellas (por bimestre)</h3>
                   {loadingEstrellas ? (
                     <div className="loading-estrellas">Cargando historial...</div>
-                  ) : historialEstrellas.length > 0 || bimestresEstrellas.length > 0 ? (
+                  ) : (() => {
+                    const hayEnBims = bimestresEstrellas.some((b) => (b.estrellas || []).length > 0);
+                    const bloquesEst = hayEnBims
+                      ? bimestresEstrellas
+                      : (historialEstrellas.length
+                        ? [{ ciclo: '—', estrellas: historialEstrellas, total_puntos: totalEstrellas }]
+                        : []);
+                    if (!bloquesEst.length) {
+                      return (
+                        <div className="empty-historial">
+                          <p>No hay estrellas registradas aún</p>
+                        </div>
+                      );
+                    }
+                    return (
                     <div className="historial-bimestres">
-                      {(bimestresEstrellas.length
-                        ? bimestresEstrellas
-                        : [{ ciclo: '—', estrellas: historialEstrellas, total_puntos: totalEstrellas }]
-                      ).map((bim) => {
+                      {bloquesEst.map((bim) => {
                         const regs = bim.estrellas || [];
                         return (
                           <section key={`est-b${bim.ciclo}`} className="historial-bimestre-block">
@@ -4321,11 +4332,8 @@ function DocenteCursos() {
                         );
                       })}
                     </div>
-                  ) : (
-                    <div className="empty-historial">
-                      <p>No hay estrellas registradas aún</p>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -4401,12 +4409,23 @@ function DocenteCursos() {
                   <h3 className="section-title-incidencias">Historial de Incidencias (por bimestre)</h3>
                   {loadingIncidencias ? (
                     <div className="loading-incidencias">Cargando historial...</div>
-                  ) : historialIncidencias.length > 0 || bimestresIncidencias.length > 0 ? (
+                  ) : (() => {
+                    const hayEnBims = bimestresIncidencias.some((b) => (b.incidencias || []).length > 0);
+                    const bloquesInc = hayEnBims
+                      ? bimestresIncidencias
+                      : (historialIncidencias.length
+                        ? [{ ciclo: '—', incidencias: historialIncidencias }]
+                        : []);
+                    if (!bloquesInc.length) {
+                      return (
+                        <div className="empty-historial">
+                          <p>No hay incidencias registradas aún</p>
+                        </div>
+                      );
+                    }
+                    return (
                     <div className="historial-bimestres">
-                      {(bimestresIncidencias.length
-                        ? bimestresIncidencias
-                        : [{ ciclo: '—', incidencias: historialIncidencias }]
-                      ).map((bim) => {
+                      {bloquesInc.map((bim) => {
                         const regs = bim.incidencias || [];
                         return (
                           <section key={`inc-b${bim.ciclo}`} className="historial-bimestre-block">
@@ -4467,11 +4486,8 @@ function DocenteCursos() {
                         );
                       })}
                     </div>
-                  ) : (
-                    <div className="empty-historial">
-                      <p>No hay incidencias registradas aún</p>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
               </div>
             </div>

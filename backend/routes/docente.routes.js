@@ -84,6 +84,7 @@ const {
   asegurarIncidenciaVestimenta,
   listarIncidenciasUnificadasMatricula,
   agruparItemsPorBimestre,
+  listarEstrellasGrupo,
 } = require('../utils/conductaIncidenciasBimestre');
 const { esCompletarCorrecto } = require('../utils/examenCompletar');
 const { finalizarPruebaConCalificacion } = require('../utils/examenFinalizarPrueba');
@@ -2625,6 +2626,55 @@ router.get('/grupos/:grupoId/reporte-incidencias-grupo', async (req, res) => {
     res.json({ ...data, ciclo });
   } catch (e) {
     console.error('[grupos/reporte-incidencias-grupo]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/**
+ * GET /api/docente/grupos/:grupoId/reporte-estrellas-grupo
+ * Estrellas del grupo. Query: ciclo=1..4 o fecha_desde/fecha_hasta.
+ */
+router.get('/grupos/:grupoId/reporte-estrellas-grupo', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id } = req.user;
+    const acc = await assertAccesoReporteGrupoGeneral(req, grupoId);
+    if (!acc.ok) return res.status(acc.status).json({ error: acc.error });
+
+    const anioEsc = acc.anioEsc;
+    const cicloQ = parseInt(req.query.ciclo, 10);
+    let fechaDesde;
+    let fechaHasta;
+    let ciclo = null;
+    if (cicloQ >= 1 && cicloQ <= 4) {
+      const rango = await obtenerRangoBimestre(query, colegio_id, cicloQ, anioEsc);
+      fechaDesde = rango.desde;
+      fechaHasta = rango.hasta;
+      ciclo = rango.ciclo;
+    } else {
+      const hoyStr = fechaQueryValida(req.query.fecha_hasta || new Date().toISOString().slice(0, 10))
+        || new Date().toISOString().slice(0, 10);
+      fechaDesde = fechaQueryValida(req.query.fecha_desde) || `${anioEsc}-03-01`;
+      fechaHasta = fechaQueryValida(req.query.fecha_hasta) || `${anioEsc + 1}-02-28`;
+      if (fechaDesde > fechaHasta) {
+        const t = fechaDesde;
+        fechaDesde = fechaHasta;
+        fechaHasta = t;
+      }
+      if (hoyStr < fechaHasta) fechaHasta = hoyStr;
+    }
+
+    const data = await listarEstrellasGrupo(query, {
+      grupoId,
+      colegio_id,
+      anio: anioEsc,
+      desde: fechaDesde,
+      hasta: fechaHasta,
+    });
+
+    res.json({ ...data, ciclo });
+  } catch (e) {
+    console.error('[grupos/reporte-estrellas-grupo]', e);
     res.status(500).json({ error: e.message || 'Error' });
   }
 });
@@ -9590,6 +9640,61 @@ router.get('/tutoria/grupos/:grupoId/reporte-incidencias-grupo', async (req, res
     res.json({ ...data, ciclo });
   } catch (e) {
     console.error('[tutoria/reporte-incidencias-grupo]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/**
+ * GET /api/docente/tutoria/grupos/:grupoId/reporte-estrellas-grupo
+ */
+router.get('/tutoria/grupos/:grupoId/reporte-estrellas-grupo', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    if (!personalId && !req._tutoriaGrupoAccesoOk) return res.status(404).json({ error: 'Docente no encontrado' });
+
+    const gRow = await query(
+      `SELECT g.id, g.anio FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
+    );
+    if (!req._tutoriaGrupoAccesoOk && !gRow.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+
+    const anioEsc = gRow.length > 0 ? Number(gRow[0].anio) : Number(anio_activo);
+    const cicloQ = parseInt(req.query.ciclo, 10);
+    let fechaDesde;
+    let fechaHasta;
+    let ciclo = null;
+    if (cicloQ >= 1 && cicloQ <= 4) {
+      const rango = await obtenerRangoBimestre(query, colegio_id, cicloQ, anioEsc);
+      fechaDesde = rango.desde;
+      fechaHasta = rango.hasta;
+      ciclo = rango.ciclo;
+    } else {
+      const hoyStr =
+        fechaQueryValida(req.query.fecha_hasta || new Date().toISOString().slice(0, 10)) ||
+        new Date().toISOString().slice(0, 10);
+      fechaDesde = fechaQueryValida(req.query.fecha_desde) || `${anioEsc}-03-01`;
+      fechaHasta = fechaQueryValida(req.query.fecha_hasta) || `${anioEsc + 1}-02-28`;
+      if (fechaDesde > fechaHasta) {
+        const t = fechaDesde;
+        fechaDesde = fechaHasta;
+        fechaHasta = t;
+      }
+      if (hoyStr < fechaHasta) fechaHasta = hoyStr;
+    }
+
+    const data = await listarEstrellasGrupo(query, {
+      grupoId,
+      colegio_id,
+      anio: anioEsc,
+      desde: fechaDesde,
+      hasta: fechaHasta,
+    });
+
+    res.json({ ...data, ciclo });
+  } catch (e) {
+    console.error('[tutoria/reporte-estrellas-grupo]', e);
     res.status(500).json({ error: e.message || 'Error' });
   }
 });

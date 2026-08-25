@@ -17,6 +17,46 @@ const ASSIGNMENT_ID_VESTIMENTA = -103;
 const DESC_VESTIMENTA =
   '[VESTIMENTA] Descuento por vestimenta / presentación escolar (−1 punto)';
 
+/**
+ * Normaliza Date / ISO / MySQL datetime a YYYY-MM-DD.
+ * mysql2 devuelve Date; String(date).slice(0,10) NO es YMD y vaciaba los bimestres.
+ */
+function toFechaYmd(value) {
+  if (value == null || value === '') return '';
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const s = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const parsed = new Date(s);
+  if (!Number.isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const d = String(parsed.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return '';
+}
+
+/** Preserva hora si existe; siempre con fecha YMD legible. */
+function toFechaHoraSql(value) {
+  const ymd = toFechaYmd(value);
+  if (!ymd) return '';
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const hh = String(value.getHours()).padStart(2, '0');
+    const mm = String(value.getMinutes()).padStart(2, '0');
+    const ss = String(value.getSeconds()).padStart(2, '0');
+    return `${ymd} ${hh}:${mm}:${ss}`;
+  }
+  const s = String(value).trim();
+  const m = s.match(/^\d{4}-\d{2}-\d{2}[ T](\d{2}:\d{2}(?::\d{2})?)/);
+  if (m) return `${ymd} ${m[1].length === 5 ? `${m[1]}:00` : m[1]}`;
+  return ymd;
+}
+
 async function obtenerRangoBimestre(query, colegio_id, ciclo, anioEscolar) {
   const cicloInt = parseInt(ciclo, 10) || 1;
   const rangos = await fetchRangosCiclosParsed(query, colegio_id);
@@ -333,7 +373,7 @@ async function listarIncidenciasUnificadasGrupo(query, {
     ensureAlumno(r.alumno_id, r.alumno_nombre, r.matricula_id).incidencias.push({
       id: `inc-${r.id}`,
       description: String(r.description || '').trim(),
-      created_at: r.created_at,
+      created_at: toFechaHoraSql(r.created_at) || r.created_at,
       docente_nombre: r.docente_nombre,
       curso_nombre: r.curso_nombre,
       origen: 'incidencia',
@@ -341,7 +381,7 @@ async function listarIncidenciasUnificadasGrupo(query, {
   });
 
   (rowsPed || []).forEach((r) => {
-    const fecha = String(r.fecha).slice(0, 10);
+    const fecha = toFechaYmd(r.fecha) || String(r.fecha).slice(0, 10);
     const hora = r.hora ? String(r.hora).slice(0, 8) : '12:00:00';
     const motivo = String(r.motivo || '').trim();
     const desc =
@@ -439,8 +479,8 @@ async function listarIncidenciasUnificadasMatricula(query, {
   }
 
   const fechaEnAnioEscolar = (fechaRaw) => {
-    const ymd = String(fechaRaw || '').slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
+    const ymd = toFechaYmd(fechaRaw);
+    if (!ymd) return false;
     const y = parseInt(ymd.slice(0, 4), 10);
     return y >= anioInt - 1 && y <= anioInt + 1;
   };
@@ -452,7 +492,7 @@ async function listarIncidenciasUnificadasMatricula(query, {
     lista.push({
       id: `inc-${r.id}`,
       description: String(r.description || '').trim(),
-      created_at: r.created_at,
+      created_at: toFechaHoraSql(r.created_at),
       docente_nombre: r.docente_nombre || '—',
       curso_nombre: r.curso_nombre || '—',
       origen: 'incidencia',
@@ -462,7 +502,7 @@ async function listarIncidenciasUnificadasMatricula(query, {
 
   (rowsPed || []).forEach((r) => {
     if (!fechaEnAnioEscolar(r.fecha)) return;
-    const fecha = String(r.fecha).slice(0, 10);
+    const fecha = toFechaYmd(r.fecha);
     const hora = r.hora ? String(r.hora).slice(0, 8) : '12:00:00';
     const motivo = String(r.motivo || '').trim();
     const desc =
@@ -482,7 +522,7 @@ async function listarIncidenciasUnificadasMatricula(query, {
 
   const rangos = await fetchRangosCiclosParsed(query, colegio_id);
   lista.forEach((item) => {
-    const ymd = String(item.created_at).slice(0, 10);
+    const ymd = toFechaYmd(item.created_at);
     item.ciclo = cicloQueContieneFecha(rangos, anioInt, ymd);
   });
   lista.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
@@ -491,8 +531,17 @@ async function listarIncidenciasUnificadasMatricula(query, {
   for (let c = 1; c <= 4; c += 1) {
     const rango = await obtenerRangoBimestre(query, colegio_id, c, anioInt);
     const items = lista.filter((i) => {
-      const f = String(i.created_at).slice(0, 10);
-      return f >= rango.desde && f <= rango.hasta;
+      const f = toFechaYmd(i.created_at);
+      if (f >= rango.desde && f <= rango.hasta) return true;
+      // Fechas en huecos entre bimestres: van al ciclo estimado
+      const enAlgunRango = (() => {
+        for (let k = 1; k <= 4; k += 1) {
+          const rk = getFechasCicloAsistencia(rangos, k, anioInt);
+          if (rk && f >= rk.desde && f <= rk.hasta) return true;
+        }
+        return false;
+      })();
+      return !enAlgunRango && i.ciclo === c;
     });
     items.forEach((i) => { i.ciclo = c; });
     const nInc = items.filter((x) => x.origen !== 'vestimenta').length;
@@ -526,25 +575,38 @@ async function agruparItemsPorBimestre(query, colegio_id, anio, items, opts = {}
   const pointsField = opts.pointsField || null;
   const anioInt = parseInt(anio, 10) || new Date().getFullYear();
   const lista = Array.isArray(items) ? items.slice() : [];
+  const rangos = await fetchRangosCiclosParsed(query, colegio_id);
 
-  const fechaEnAnioEscolar = (fechaRaw) => {
-    const ymd = String(fechaRaw || '').slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
-    const y = parseInt(ymd.slice(0, 4), 10);
-    return y >= anioInt - 1 && y <= anioInt + 1;
-  };
-
-  const filtrados = lista.filter((item) => fechaEnAnioEscolar(item.created_at));
+  const normalizados = lista
+    .map((item) => {
+      const ymd = toFechaYmd(item.created_at);
+      if (!ymd) return null;
+      const y = parseInt(ymd.slice(0, 4), 10);
+      if (y < anioInt - 1 || y > anioInt + 1) return null;
+      const copy = { ...item, created_at: toFechaHoraSql(item.created_at) || item.created_at };
+      copy.ciclo = cicloQueContieneFecha(rangos, anioInt, ymd);
+      copy._ymd = ymd;
+      return copy;
+    })
+    .filter(Boolean);
 
   const bimestres = [];
   for (let c = 1; c <= 4; c += 1) {
     const rango = await obtenerRangoBimestre(query, colegio_id, c, anioInt);
-    const itemsB = filtrados.filter((i) => {
-      const f = String(i.created_at).slice(0, 10);
-      return f >= rango.desde && f <= rango.hasta;
+    const itemsB = normalizados.filter((i) => {
+      if (i._ymd >= rango.desde && i._ymd <= rango.hasta) return true;
+      const enAlgunRango = (() => {
+        for (let k = 1; k <= 4; k += 1) {
+          const rk = getFechasCicloAsistencia(rangos, k, anioInt);
+          if (rk && i._ymd >= rk.desde && i._ymd <= rk.hasta) return true;
+        }
+        return false;
+      })();
+      return !enAlgunRango && i.ciclo === c;
     });
     itemsB.forEach((i) => {
       i.ciclo = c;
+      delete i._ymd;
     });
     const entry = {
       ciclo: c,
@@ -565,11 +627,83 @@ async function agruparItemsPorBimestre(query, colegio_id, anio, items, opts = {}
   return { bimestres, anio: anioInt };
 }
 
+/**
+ * Estrellas de todos los alumnos de un grupo en un rango de fechas.
+ */
+async function listarEstrellasGrupo(query, {
+  grupoId,
+  colegio_id,
+  anio,
+  desde,
+  hasta,
+}) {
+  const anioInt = parseInt(anio, 10) || new Date().getFullYear();
+  const rows = await query(
+    `SELECT ei.id, ei.points, ei.description, ei.created_at, ei.worker_id, ei.assignment_id,
+            m.id AS matricula_id, m.alumno_id,
+            TRIM(CONCAT(COALESCE(al.apellido_paterno,''),' ', COALESCE(al.apellido_materno,''),' ', COALESCE(al.nombres,''))) AS alumno_nombre,
+            CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,'')) AS docente_nombre,
+            CASE WHEN ei.assignment_id = ? THEN 'Tutoría' ELSE COALESCE(c.nombre, '—') END AS curso_nombre
+     FROM enrollment_incidents ei
+     INNER JOIN matriculas m ON m.id = ei.enrollment_id AND m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0)
+     INNER JOIN grupos g ON g.id = m.grupo_id AND g.anio = ?
+     INNER JOIN alumnos al ON al.id = m.alumno_id
+     LEFT JOIN personal p ON p.id = ei.worker_id
+     LEFT JOIN asignaturas a ON a.id = ei.assignment_id AND ei.assignment_id > 0
+     LEFT JOIN cursos c ON c.id = a.curso_id
+     WHERE ei.type = 2
+       AND DATE(ei.created_at) BETWEEN ? AND ?
+     ORDER BY alumno_nombre ASC, ei.created_at DESC`,
+    [ASSIGNMENT_ID_TUTORIA, grupoId, colegio_id, anioInt, desde, hasta]
+  );
+
+  const porAlumno = new Map();
+  (rows || []).forEach((r) => {
+    const aid = r.alumno_id;
+    if (!porAlumno.has(aid)) {
+      porAlumno.set(aid, {
+        alumno_id: aid,
+        matricula_id: r.matricula_id,
+        alumno_nombre: r.alumno_nombre,
+        total_puntos: 0,
+        estrellas: [],
+      });
+    }
+    const bloque = porAlumno.get(aid);
+    const pts = parseInt(r.points, 10) || 0;
+    bloque.total_puntos += pts;
+    bloque.estrellas.push({
+      id: r.id,
+      points: pts,
+      description: String(r.description || '').trim(),
+      created_at: toFechaHoraSql(r.created_at),
+      docente_nombre: r.docente_nombre || '—',
+      curso_nombre: r.curso_nombre || '—',
+    });
+  });
+
+  const alumnos = Array.from(porAlumno.values()).sort((a, b) =>
+    String(a.alumno_nombre || '').localeCompare(String(b.alumno_nombre || ''), 'es')
+  );
+  const total = alumnos.reduce((s, a) => s + (a.estrellas?.length || 0), 0);
+  const totalPuntos = alumnos.reduce((s, a) => s + (a.total_puntos || 0), 0);
+
+  return {
+    fecha_desde: desde,
+    fecha_hasta: hasta,
+    total,
+    total_puntos: totalPuntos,
+    alumnos,
+  };
+}
+
 module.exports = {
   ASIGNATURA_CONDUCTA,
   ASSIGNMENT_ID_TUTORIA,
   ASSIGNMENT_ID_VESTIMENTA,
   DESC_VESTIMENTA,
+  toFechaYmd,
+  toFechaHoraSql,
   obtenerRangoBimestre,
   cicloQueContieneFecha,
   contarIncidenciasMatriculaEnRango,
@@ -581,5 +715,6 @@ module.exports = {
   listarIncidenciasUnificadasGrupo,
   listarIncidenciasUnificadasMatricula,
   agruparItemsPorBimestre,
+  listarEstrellasGrupo,
   fetchRangosCiclosParsed,
 };

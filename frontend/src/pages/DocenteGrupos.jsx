@@ -282,6 +282,19 @@ function DocenteGrupos() {
                                     e.stopPropagation();
                                     e.preventDefault();
                                     setOpenDropdownGrupo(null);
+                                    reportesConducta.openEstrellasGrupo(grupo);
+                                  }}
+                                >
+                                  <span className="dropdown-icon">⭐</span>
+                                  <span>Estrellas</span>
+                                </button>
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    setOpenDropdownGrupo(null);
                                     reportesConducta.openDescuentosPresentacion(grupo);
                                   }}
                                 >
