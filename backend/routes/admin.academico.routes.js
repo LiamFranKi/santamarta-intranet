@@ -1107,12 +1107,23 @@ router.get('/grupos/:grupoId/conducta', async (req, res) => {
     if (!grupo) {
       return res.status(404).json({ error: 'Grupo no encontrado' });
     }
-    const { lista, ciclo: cicloInt } = await listarAlumnosConductaPorGrupo(query, {
-      grupoId,
-      colegio_id: cid,
-      ciclo,
+    const { lista, ciclo: cicloInt, fecha_desde, fecha_hasta } = await listarAlumnosConductaPorGrupo(
+      query,
+      execute,
+      {
+        grupoId,
+        colegio_id: cid,
+        ciclo,
+      }
+    );
+    res.json({
+      grupo,
+      alumnos: lista,
+      ciclo: cicloInt,
+      fecha_desde,
+      fecha_hasta,
+      automatica: true,
     });
-    res.json({ grupo, alumnos: lista, ciclo: cicloInt });
   } catch (error) {
     console.error('[admin/academico/grupos/:grupoId/conducta GET]', error);
     res.status(500).json({ error: 'Error al obtener conducta' });
@@ -1121,7 +1132,7 @@ router.get('/grupos/:grupoId/conducta', async (req, res) => {
 
 /**
  * POST /api/admin/academico/grupos/:grupoId/conducta
- * body: { ciclo, notas: { matricula_id: nota } }
+ * Recalcula conducta automática del bimestre.
  */
 router.post('/grupos/:grupoId/conducta', async (req, res) => {
   try {
@@ -1130,20 +1141,30 @@ router.post('/grupos/:grupoId/conducta', async (req, res) => {
     }
     const grupoId = parseInt(req.params.grupoId, 10);
     const cid = colegio(req);
-    const { ciclo, notas } = req.body;
+    const ciclo = parseInt(req.body?.ciclo, 10) || 1;
     if (!Number.isFinite(grupoId)) {
       return res.status(400).json({ error: 'ID de grupo inválido' });
     }
-    const cicloInt = parseInt(ciclo, 10) || 1;
-    if (cicloInt < 1 || cicloInt > 4) {
+    if (ciclo < 1 || ciclo > 4) {
       return res.status(400).json({ error: 'Ciclo inválido' });
     }
     const grupo = await fetchGrupoConductaContext(query, grupoId, cid);
     if (!grupo) {
       return res.status(404).json({ error: 'Grupo no encontrado' });
     }
-    await guardarConductaPorGrupo(execute, { cicloInt, notas });
-    res.json({ success: true });
+    const { lista, ciclo: cicloInt, fecha_desde, fecha_hasta } = await listarAlumnosConductaPorGrupo(
+      query,
+      execute,
+      { grupoId, colegio_id: cid, ciclo }
+    );
+    res.json({
+      success: true,
+      alumnos: lista,
+      ciclo: cicloInt,
+      fecha_desde,
+      fecha_hasta,
+      automatica: true,
+    });
   } catch (error) {
     console.error('[admin/academico/grupos/:grupoId/conducta POST]', error);
     res.status(500).json({ error: 'Error al guardar conducta' });

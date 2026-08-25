@@ -1,4 +1,11 @@
-const ASIGNATURA_CONDUCTA = -101;
+const {
+  ASIGNATURA_CONDUCTA,
+  obtenerRangoBimestre,
+  contarIncidenciasMatriculaEnRango,
+  notaDesdeCantidad,
+  persistirNotaConducta,
+  backfillVestimentaAIncidenciasGrupo,
+} = require('./conductaIncidenciasBimestre');
 
 async function fetchGrupoConductaContext(query, grupoId, colegio_id) {
   const rows = await query(
@@ -10,8 +17,30 @@ async function fetchGrupoConductaContext(query, grupoId, colegio_id) {
   return rows[0] || null;
 }
 
-async function listarAlumnosConductaPorGrupo(query, { grupoId, colegio_id, ciclo }) {
+/**
+ * Lista alumnos con nota de conducta automática del bimestre (20 − incidencias).
+ * Persiste el promedio calculado para libretas / reportes.
+ */
+async function listarAlumnosConductaPorGrupo(query, execute, { grupoId, colegio_id, ciclo }) {
   const cicloInt = parseInt(ciclo, 10) || 1;
+  const grupo = await fetchGrupoConductaContext(query, grupoId, colegio_id);
+  const anio = grupo?.anio || new Date().getFullYear();
+  const rango = await obtenerRangoBimestre(query, colegio_id, cicloInt, anio);
+
+  if (execute) {
+    try {
+      await backfillVestimentaAIncidenciasGrupo(query, execute, {
+        grupoId,
+        colegio_id,
+        anio,
+        desde: rango.desde,
+        hasta: rango.hasta,
+      });
+    } catch (e) {
+      console.warn('[conducta] backfill vestimenta:', e.message);
+    }
+  }
+
   const matriculas = await query(
     `SELECT m.id as matricula_id, a.id as alumno_id,
             CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo
@@ -22,45 +51,55 @@ async function listarAlumnosConductaPorGrupo(query, { grupoId, colegio_id, ciclo
   );
 
   if (!matriculas.length) {
-    return { lista: [], ciclo: cicloInt };
+    return {
+      lista: [],
+      ciclo: cicloInt,
+      fecha_desde: rango.desde,
+      fecha_hasta: rango.hasta,
+    };
   }
 
-  const promedios = await query(
-    `SELECT matricula_id, promedio FROM promedios
-     WHERE asignatura_id = ? AND ciclo = ? AND matricula_id IN (${matriculas.map(() => '?').join(',')})`,
-    [ASIGNATURA_CONDUCTA, cicloInt, ...matriculas.map((m) => m.matricula_id)]
-  );
-  const mapaProm = {};
-  promedios.forEach((p) => {
-    mapaProm[p.matricula_id] = p.promedio;
-  });
-
-  const lista = matriculas.map((m, i) => {
-    const nota = mapaProm[m.matricula_id];
-    return {
+  const lista = [];
+  for (let i = 0; i < matriculas.length; i += 1) {
+    const m = matriculas[i];
+    const cant = await contarIncidenciasMatriculaEnRango(
+      query,
+      m.matricula_id,
+      rango.desde,
+      rango.hasta
+    );
+    const nota = notaDesdeCantidad(cant);
+    if (execute) {
+      try {
+        await persistirNotaConducta(execute, m.matricula_id, cicloInt, nota);
+      } catch (e) {
+        console.warn('[conducta] persistir nota:', e.message);
+      }
+    }
+    lista.push({
       numero: i + 1,
       matricula_id: m.matricula_id,
+      alumno_id: m.alumno_id,
       nombre_completo: m.nombre_completo,
-      nota_conducta: nota !== undefined && nota !== null && nota !== '' ? String(nota) : '20',
-    };
-  });
+      nota_conducta: String(nota),
+      total_incidencias: cant,
+    });
+  }
 
-  return { lista, ciclo: cicloInt };
+  return {
+    lista,
+    ciclo: cicloInt,
+    fecha_desde: rango.desde,
+    fecha_hasta: rango.hasta,
+  };
 }
 
+/** @deprecated Manual save — conducta es automática; se mantiene por compatibilidad API. */
 async function guardarConductaPorGrupo(execute, { cicloInt, notas }) {
   for (const [matriculaId, nota] of Object.entries(notas || {})) {
     const val = String(nota || '20').trim();
     if (!/^\d{1,2}$/.test(val) || parseInt(val, 10) < 0 || parseInt(val, 10) > 20) continue;
-
-    await execute(
-      `DELETE FROM promedios WHERE matricula_id = ? AND asignatura_id = ? AND ciclo = ?`,
-      [matriculaId, ASIGNATURA_CONDUCTA, cicloInt]
-    );
-    await execute(
-      `INSERT INTO promedios (matricula_id, asignatura_id, ciclo, promedio) VALUES (?, ?, ?, ?)`,
-      [matriculaId, ASIGNATURA_CONDUCTA, cicloInt, val]
-    );
+    await persistirNotaConducta(execute, matriculaId, cicloInt, val);
   }
 }
 

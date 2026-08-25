@@ -9,6 +9,12 @@ const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { urlPortalHijoPorTipoUsuario } = require('../utils/notificacionUrls');
 const { lineaAlumnoGrado, etiquetaGradoGrupo } = require('../utils/notificacionExamenApoderadoTexto');
 const mensajesConfig = require('../config/mensajes.json');
+const {
+  asegurarIncidenciaVestimenta,
+  sincronizarConductaMatriculaBimestre,
+  cicloQueContieneFecha,
+  fetchRangosCiclosParsed,
+} = require('../utils/conductaIncidenciasBimestre');
 
 // Todas las rutas requieren autenticación: ASISTENCIA, ADMINISTRADOR o DOCENTE con al menos un grupo como tutor
 router.use(authenticateToken);
@@ -1122,8 +1128,35 @@ router.post('/registrar', async (req, res) => {
       resultado.id
     ) {
       try {
+        // Espejo en incidencias (mismo control de conducta) — sin segunda notificación
+        let matriculaIdEspejo = null;
+        let anioGrupoEspejo = anio_activo;
+        let workerIdEspejo = 0;
+        try {
+          const matRows = await query(
+            `SELECT m.id AS matricula_id, g.anio AS anio_grupo
+             FROM usuarios u
+             INNER JOIN matriculas m ON m.alumno_id = u.alumno_id AND m.colegio_id = u.colegio_id AND (m.estado = 0)
+             INNER JOIN grupos g ON g.id = m.grupo_id AND g.anio = ?
+             WHERE u.id = ? AND u.colegio_id = ?
+             ORDER BY m.id DESC LIMIT 1`,
+            [anio_activo, usuario_id, colegio_id]
+          );
+          if (matRows?.length) {
+            matriculaIdEspejo = matRows[0].matricula_id;
+            anioGrupoEspejo = matRows[0].anio_grupo || anio_activo;
+          }
+          const w = await query(
+            `SELECT personal_id FROM usuarios WHERE id = ? LIMIT 1`,
+            [asistencia_usuario_id]
+          );
+          workerIdEspejo = w?.[0]?.personal_id || 0;
+        } catch (_) {
+          /* ignore */
+        }
+
         for (const motivo of descuentosPresentacion) {
-          await execute(
+          const ins = await execute(
             `INSERT INTO presentacion_escolar_descuentos
              (colegio_id, anio, alumno_usuario_id, asistencia_registro_id, motivo, puntos, fecha, hora, registrado_por_usuario_id, created_at)
              VALUES (?, ?, ?, ?, ?, -1, ?, ?, ?, NOW())`,
@@ -1138,10 +1171,39 @@ router.post('/registrar', async (req, res) => {
               asistencia_usuario_id
             ]
           );
+          if (matriculaIdEspejo) {
+            try {
+              await asegurarIncidenciaVestimenta(query, execute, {
+                matriculaId: matriculaIdEspejo,
+                workerId: workerIdEspejo,
+                fechaYmd: fechaHoy,
+                hora: horaActual,
+                motivo,
+                descuentoId: ins.insertId,
+              });
+            } catch (errOne) {
+              console.error('❌ [ASISTENCIA] Espejo incidencia vestimenta:', errOne.message);
+            }
+          }
         }
         console.log(
           `✅ [ASISTENCIA] Registrados ${descuentosPresentacion.length} descuento(s) presentación escolar para usuario ${usuario_id}`
         );
+
+        if (matriculaIdEspejo) {
+          try {
+            const rangos = await fetchRangosCiclosParsed(query, colegio_id);
+            const ciclo = cicloQueContieneFecha(rangos, anioGrupoEspejo, fechaHoy);
+            await sincronizarConductaMatriculaBimestre(query, execute, {
+              matriculaId: matriculaIdEspejo,
+              colegio_id,
+              anioEscolar: anioGrupoEspejo,
+              ciclo,
+            });
+          } catch (errSync) {
+            console.error('❌ [ASISTENCIA] Sync conducta vestimenta:', errSync.message);
+          }
+        }
       } catch (errDesc) {
         console.error('❌ [ASISTENCIA] Error guardando descuentos presentación escolar:', errDesc);
       }

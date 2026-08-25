@@ -2147,6 +2147,67 @@
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1);
 }
 
+.conducta-auto-aviso {
+  margin: 0 1.25rem 0.75rem;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.85rem;
+  color: #475569;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.conducta-rango-hint {
+  font-size: 0.8rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.input-conducta--readonly {
+  display: inline-block;
+  min-width: 2.5rem;
+  padding: 0.4rem 0.55rem;
+  text-align: center;
+  font-weight: 700;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #0f172a;
+}
+
+.btn-conducta-ver {
+  border: none;
+  background: #eef2ff;
+  border-radius: 8px;
+  padding: 0.35rem 0.55rem;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.btn-conducta-ver:hover {
+  background: #e0e7ff;
+}
+
+.tutor-inc-origen {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.tutor-inc-origen.es-vestimenta {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.tutor-inc-origen.es-incidencia {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
 .btn-tutor-evid-descuentos:disabled,
 .btn-tutor-evid-incidencias:disabled {
   opacity: 0.55;

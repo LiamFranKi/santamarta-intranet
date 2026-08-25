@@ -166,24 +166,24 @@ function DocenteTutoria({
   const [mostrarModalDeudores, setMostrarModalDeudores] = useState(false);
   const [grupoParaDeudores, setGrupoParaDeudores] = useState(null);
 
-  // Estados para modal Conducta
+  // Estados para modal Conducta (automática: 20 − incidencias del bimestre)
   const [mostrarModalConducta, setMostrarModalConducta] = useState(false);
   const [grupoParaConducta, setGrupoParaConducta] = useState(null);
   const [conductaCiclo, setConductaCiclo] = useState(1);
   const [conductaAlumnos, setConductaAlumnos] = useState([]);
+  const [conductaRango, setConductaRango] = useState({ desde: '', hasta: '' });
   const [loadingConducta, setLoadingConducta] = useState(false);
-  const [guardandoConducta, setGuardandoConducta] = useState(false);
+  const [recalculandoConducta, setRecalculandoConducta] = useState(false);
 
-  const [fechaDescuentosDesde, setFechaDescuentosDesde] = useState('');
-  const [fechaDescuentosHasta, setFechaDescuentosHasta] = useState('');
   const [fechaIncDesde, setFechaIncDesde] = useState('');
   const [fechaIncHasta, setFechaIncHasta] = useState('');
-  const [modalDescuentosPresentacionAbierto, setModalDescuentosPresentacionAbierto] = useState(false);
+  const [incidenciasReporteCiclo, setIncidenciasReporteCiclo] = useState(1);
+  const [usarFiltroBimestreInc, setUsarFiltroBimestreInc] = useState(true);
   const [modalIncidenciasGrupoAbierto, setModalIncidenciasGrupoAbierto] = useState(false);
-  const [dataDescuentosPorAlumno, setDataDescuentosPorAlumno] = useState([]);
   const [dataIncidenciasPorAlumno, setDataIncidenciasPorAlumno] = useState([]);
-  const [loadingDescuentosRep, setLoadingDescuentosRep] = useState(false);
   const [loadingIncidenciasRep, setLoadingIncidenciasRep] = useState(false);
+  const [detalleConductaAlumno, setDetalleConductaAlumno] = useState(null);
+  const [loadingDetalleConducta, setLoadingDetalleConducta] = useState(false);
 
   // Estados para modal Ver Horario (del grupo, como lo ve el alumno)
   const [mostrarModalHorario, setMostrarModalHorario] = useState(false);
@@ -1677,20 +1677,19 @@ function DocenteTutoria({
     });
   };
 
-  // Conducta (+ modales evidencias: descuentos presentación / incidencias)
+  // Conducta automática (+ reporte unificado incidencias / presentación)
   const handleAbrirConducta = async (grupo) => {
     const rango = rangoFechasReporteGrupo(grupo.anio);
-    setFechaDescuentosDesde(rango.desde);
-    setFechaDescuentosHasta(rango.hasta);
     setFechaIncDesde(rango.desde);
     setFechaIncHasta(rango.hasta);
     setGrupoParaConducta(grupo);
     setMostrarModalConducta(true);
     setConductaCiclo(1);
-    setModalDescuentosPresentacionAbierto(false);
+    setIncidenciasReporteCiclo(1);
+    setUsarFiltroBimestreInc(true);
     setModalIncidenciasGrupoAbierto(false);
-    setDataDescuentosPorAlumno([]);
     setDataIncidenciasPorAlumno([]);
+    setDetalleConductaAlumno(null);
     await cargarConducta(grupo.id, 1);
   };
 
@@ -2204,6 +2203,10 @@ function DocenteTutoria({
       setLoadingConducta(true);
       const res = await api.get(`${apiPrefix}/grupos/${grupoId}/conducta`, { params: { ciclo } });
       setConductaAlumnos(res.data.alumnos || []);
+      setConductaRango({
+        desde: res.data.fecha_desde || '',
+        hasta: res.data.fecha_hasta || '',
+      });
     } catch (error) {
       console.error('Error cargando conducta:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: error.response?.data?.error || 'No se pudieron cargar' });
@@ -2215,44 +2218,38 @@ function DocenteTutoria({
 
   const handleCambiarCicloConducta = (ciclo) => {
     setConductaCiclo(ciclo);
+    setIncidenciasReporteCiclo(ciclo);
     if (grupoParaConducta) cargarConducta(grupoParaConducta.id, ciclo);
   };
 
-  const handleConductaChange = (matriculaId, valor) => {
-    const v = String(valor || '').replace(/[^0-9]/g, '').slice(0, 2);
-    const num = parseInt(v);
-    const finalVal = v === '' ? '' : (num >= 0 && num <= 20 ? v : (num > 20 ? '20' : v));
-    setConductaAlumnos(prev =>
-      prev.map(a => a.matricula_id === matriculaId ? { ...a, nota_conducta: finalVal } : a)
-    );
-  };
-
-  const handleGuardarConducta = async () => {
+  const handleRecalcularConducta = async () => {
     if (!grupoParaConducta) return;
     try {
-      setGuardandoConducta(true);
-      const notas = {};
-      conductaAlumnos.forEach(a => { notas[a.matricula_id] = a.nota_conducta || '20'; });
-      await api.post(`${apiPrefix}/grupos/${grupoParaConducta.id}/conducta`, {
+      setRecalculandoConducta(true);
+      const res = await api.post(`${apiPrefix}/grupos/${grupoParaConducta.id}/conducta`, {
         ciclo: conductaCiclo,
-        notas
+      });
+      setConductaAlumnos(res.data.alumnos || []);
+      setConductaRango({
+        desde: res.data.fecha_desde || '',
+        hasta: res.data.fecha_hasta || '',
       });
       Swal.fire({
         icon: 'success',
-        title: 'Guardado',
-        text: 'Notas de conducta guardadas correctamente',
-        timer: 2000,
+        title: 'Recalculado',
+        text: 'Nota = 20 − incidencias del bimestre (máx. 20, mín. 0)',
+        timer: 2200,
         showConfirmButton: false,
       });
     } catch (error) {
-      console.error('Error guardando conducta:', error);
+      console.error('Error recalculando conducta:', error);
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: error.response?.data?.error || 'No se pudo guardar',
+        text: error.response?.data?.error || 'No se pudo recalcular',
       });
     } finally {
-      setGuardandoConducta(false);
+      setRecalculandoConducta(false);
     }
   };
 
@@ -2303,15 +2300,17 @@ function DocenteTutoria({
       let y = yStart;
       doc.setDrawColor(200, 200, 200);
       doc.setFillColor(234, 234, 234);
-      doc.rect(margin, y, 25, 8, 'FD');
-      doc.rect(margin + 25, y, pageWidth - 2 * margin - 60, 8, 'FD');
-      doc.rect(pageWidth - margin - 35, y, 35, 8, 'FD');
+      doc.rect(margin, y, 18, 8, 'FD');
+      doc.rect(margin + 18, y, pageWidth - 2 * margin - 70, 8, 'FD');
+      doc.rect(pageWidth - margin - 52, y, 22, 8, 'FD');
+      doc.rect(pageWidth - margin - 30, y, 30, 8, 'FD');
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(55, 65, 81);
-      doc.text('N°', margin + 12.5, y + 5.5, { align: 'center' });
-      doc.text('APELLIDOS Y NOMBRES', margin + (pageWidth - 2 * margin - 60) / 2 + 25, y + 5.5, { align: 'center' });
-      doc.text('NOTA', pageWidth - margin - 17.5, y + 5.5, { align: 'center' });
+      doc.text('N°', margin + 9, y + 5.5, { align: 'center' });
+      doc.text('APELLIDOS Y NOMBRES', margin + 18 + (pageWidth - 2 * margin - 70) / 2, y + 5.5, { align: 'center' });
+      doc.text('Incid.', pageWidth - margin - 41, y + 5.5, { align: 'center' });
+      doc.text('NOTA', pageWidth - margin - 15, y + 5.5, { align: 'center' });
       y += 8;
       return y;
     };
@@ -2329,13 +2328,15 @@ function DocenteTutoria({
       const zebra = i % 2 === 0 ? [248, 250, 252] : [255, 255, 255];
       doc.setFillColor(...zebra);
       doc.setDrawColor(220, 220, 220);
-      doc.rect(margin, yPos, 25, rowH, 'FD');
-      doc.rect(margin + 25, yPos, pageWidth - 2 * margin - 60, rowH, 'FD');
-      doc.rect(pageWidth - margin - 35, yPos, 35, rowH, 'FD');
+      doc.rect(margin, yPos, 18, rowH, 'FD');
+      doc.rect(margin + 18, yPos, pageWidth - 2 * margin - 70, rowH, 'FD');
+      doc.rect(pageWidth - margin - 52, yPos, 22, rowH, 'FD');
+      doc.rect(pageWidth - margin - 30, yPos, 30, rowH, 'FD');
       doc.setTextColor(30, 41, 59);
-      doc.text(String(i + 1), margin + 12.5, yPos + 4.5, { align: 'center' });
-      doc.text((a.nombre_completo || '').slice(0, 78), margin + 28, yPos + 4.5);
-      doc.text(a.nota_conducta || '20', pageWidth - margin - 17.5, yPos + 4.5, { align: 'center' });
+      doc.text(String(i + 1), margin + 9, yPos + 4.5, { align: 'center' });
+      doc.text((a.nombre_completo || '').slice(0, 72), margin + 21, yPos + 4.5);
+      doc.text(String(a.total_incidencias ?? 0), pageWidth - margin - 41, yPos + 4.5, { align: 'center' });
+      doc.text(a.nota_conducta || '20', pageWidth - margin - 15, yPos + 4.5, { align: 'center' });
       yPos += rowH;
     });
 
@@ -2360,38 +2361,22 @@ function DocenteTutoria({
     });
   };
 
-  /** Reportes evidencias tutor: descuentos presentación QR / incidencias grupo — PDF mismos filtros fecha */
+  /** Reporte unificado: incidencias + presentación (vestimenta QR) por bimestre */
   const cerrarConductaLimpiando = () => {
     setMostrarModalConducta(false);
     setGrupoParaConducta(null);
     setConductaAlumnos([]);
-    setModalDescuentosPresentacionAbierto(false);
+    setConductaRango({ desde: '', hasta: '' });
     setModalIncidenciasGrupoAbierto(false);
-    setDataDescuentosPorAlumno([]);
     setDataIncidenciasPorAlumno([]);
+    setDetalleConductaAlumno(null);
   };
 
-  const cargarReporteDescuentosPresentacion = async () => {
-    if (!grupoParaConducta) return;
-    setLoadingDescuentosRep(true);
-    try {
-      const { data } = await api.get(
-        `${apiPrefix}/grupos/${grupoParaConducta.id}/reporte-descuentos-presentacion`,
-        { params: { fecha_desde: fechaDescuentosDesde, fecha_hasta: fechaDescuentosHasta } }
-      );
-      setDataDescuentosPorAlumno(data.alumnos || []);
-      return data;
-    } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar descuentos' });
-      setDataDescuentosPorAlumno([]);
-    } finally {
-      setLoadingDescuentosRep(false);
+  const paramsReporteIncidencias = (extra = {}) => {
+    if (usarFiltroBimestreInc) {
+      return { ciclo: incidenciasReporteCiclo, ...extra };
     }
-  };
-
-  const abrirModalDescuentosPresentacion = async () => {
-    setModalDescuentosPresentacionAbierto(true);
-    await cargarReporteDescuentosPresentacion();
+    return { fecha_desde: fechaIncDesde, fecha_hasta: fechaIncHasta, ...extra };
   };
 
   const cargarReporteIncidenciasGrupo = async () => {
@@ -2399,9 +2384,11 @@ function DocenteTutoria({
     setLoadingIncidenciasRep(true);
     try {
       const { data } = await api.get(`${apiPrefix}/grupos/${grupoParaConducta.id}/reporte-incidencias-grupo`, {
-        params: { fecha_desde: fechaIncDesde, fecha_hasta: fechaIncHasta },
+        params: paramsReporteIncidencias(),
       });
       setDataIncidenciasPorAlumno(data.alumnos || []);
+      if (data.fecha_desde) setFechaIncDesde(data.fecha_desde);
+      if (data.fecha_hasta) setFechaIncHasta(data.fecha_hasta);
       return data;
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudieron cargar incidencias' });
@@ -2412,148 +2399,61 @@ function DocenteTutoria({
   };
 
   const abrirModalIncidenciasGrupo = async () => {
+    setIncidenciasReporteCiclo(conductaCiclo);
+    setUsarFiltroBimestreInc(true);
+    setDetalleConductaAlumno(null);
     setModalIncidenciasGrupoAbierto(true);
-    await cargarReporteIncidenciasGrupo();
+    setLoadingIncidenciasRep(true);
+    try {
+      const { data } = await api.get(`${apiPrefix}/grupos/${grupoParaConducta.id}/reporte-incidencias-grupo`, {
+        params: { ciclo: conductaCiclo },
+      });
+      setDataIncidenciasPorAlumno(data.alumnos || []);
+      if (data.fecha_desde) setFechaIncDesde(data.fecha_desde);
+      if (data.fecha_hasta) setFechaIncHasta(data.fecha_hasta);
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudieron cargar incidencias' });
+      setDataIncidenciasPorAlumno([]);
+    } finally {
+      setLoadingIncidenciasRep(false);
+    }
   };
 
-  const aplicarFiltrosDescuentosYResumen = async () => {
-    await cargarReporteDescuentosPresentacion();
+  const abrirDetalleConductaAlumno = async (alumno) => {
+    if (!grupoParaConducta || !alumno?.matricula_id) return;
+    setLoadingDetalleConducta(true);
+    setDetalleConductaAlumno({
+      alumno,
+      incidencias: [],
+      fecha_desde: conductaRango.desde,
+      fecha_hasta: conductaRango.hasta,
+    });
+    try {
+      const { data } = await api.get(`${apiPrefix}/grupos/${grupoParaConducta.id}/reporte-incidencias-grupo`, {
+        params: { ciclo: conductaCiclo, matricula_id: alumno.matricula_id },
+      });
+      const bloque = (data.alumnos || [])[0] || { incidencias: [] };
+      setDetalleConductaAlumno({
+        alumno,
+        incidencias: bloque.incidencias || [],
+        fecha_desde: data.fecha_desde || conductaRango.desde,
+        fecha_hasta: data.fecha_hasta || conductaRango.hasta,
+      });
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar el detalle' });
+      setDetalleConductaAlumno(null);
+    } finally {
+      setLoadingDetalleConducta(false);
+    }
   };
 
   const aplicarFiltrosIncidenciasYResumen = async () => {
     await cargarReporteIncidenciasGrupo();
   };
 
-  const exportPdfDescuentosPresentacion = () => {
-    if (!grupoParaConducta || !dataDescuentosPorAlumno?.length) {
-      Swal.fire({ icon: 'info', title: 'No hay Descuentos', text: 'No hay registros en el rango de fechas seleccionado.' });
-      return;
-    }
-    const doc = new jsPDF('p', 'mm', 'a4');
-    const pw = doc.internal.pageSize.getWidth();
-    const ph = doc.internal.pageSize.getHeight();
-    const mm = 14;
-    const innerW = pw - 2 * mm;
-    const footerReserve = 12;
-    const yBottom = () => ph - footerReserve;
-    const lineStep = 4.1;
-    const tituloGrupo = `${grupoParaConducta.grado}° ${grupoParaConducta.seccion} - ${grupoParaConducta.nivel_nombre}`;
-
-    const paletasDesc = [
-      { f: [255, 247, 237], b: [253, 186, 116], t: [154, 52, 18] },
-      { f: [239, 246, 255], b: [147, 197, 253], t: [30, 64, 175] },
-      { f: [240, 253, 244], b: [134, 239, 172], t: [22, 101, 52] },
-      { f: [253, 244, 255], b: [232, 121, 249], t: [134, 25, 143] },
-      { f: [236, 254, 255], b: [34, 211, 238], t: [14, 116, 144] },
-      { f: [254, 252, 232], b: [234, 179, 8], t: [133, 77, 14] },
-    ];
-
-    let y = 0;
-    const pintarCabeceraPrincipalDesc = () => {
-      doc.setFillColor(254, 243, 199);
-      doc.rect(0, 0, pw, 28, 'F');
-      doc.setDrawColor(251, 191, 36);
-      doc.setLineWidth(0.4);
-      doc.rect(0, 0, pw, 28, 'S');
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(146, 64, 14);
-      doc.text('Descuentos por presentación (asistencia / QR)', mm + 2, 11);
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(120, 53, 15);
-      doc.text(`${tituloGrupo} · Año ${grupoParaConducta.anio || ''}`, mm + 2, 18);
-      doc.setTextColor(71, 85, 105);
-      doc.text(
-        `Periodo: ${formatearSoloFecha(fechaDescuentosDesde)} → ${formatearSoloFecha(fechaDescuentosHasta)}`,
-        mm + 2,
-        24
-      );
-      y = 34;
-    };
-
-    const nuevaPaginaDesc = () => {
-      doc.addPage();
-      doc.setFillColor(254, 243, 199);
-      doc.rect(0, 0, pw, 16, 'F');
-      doc.setDrawColor(251, 191, 36);
-      doc.rect(0, 0, pw, 16, 'S');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(146, 64, 14);
-      doc.text('Descuentos por presentación (continúa)', mm + 2, 9);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(71, 85, 105);
-      doc.setFontSize(8);
-      doc.text(
-        `Periodo: ${formatearSoloFecha(fechaDescuentosDesde)} → ${formatearSoloFecha(fechaDescuentosHasta)}`,
-        mm + 2,
-        14
-      );
-      y = 20;
-    };
-
-    pintarCabeceraPrincipalDesc();
-
-    dataDescuentosPorAlumno.forEach((al, idxAl) => {
-      const pal = paletasDesc[idxAl % paletasDesc.length];
-      const lineas = [];
-      (al.registros || []).forEach((r) => {
-        const linea = `${formatearSoloFecha(r.fecha)} ${String(r.hora || '').slice(0, 8)} · ${r.puntos ?? ''} pts · ${r.motivo || ''} · Reg.: ${r.registrado_por_nombre || '—'}`;
-        lineas.push(...doc.splitTextToSize(linea, innerW - 8));
-      });
-      const tituloCard = `${al.alumno_nombre || 'Alumno'}  ·  Σ puntos: ${al.suma_puntos ?? 0}`;
-      const alturaTitulo = 7;
-      const alturaLineas = Math.max(lineas.length, 1) * lineStep;
-      const pad = 5;
-      const bloqueH = pad + alturaTitulo + 2 + alturaLineas + pad;
-
-      if (y + bloqueH > yBottom()) {
-        nuevaPaginaDesc();
-      }
-
-      const y0 = y;
-      doc.setFillColor(...pal.f);
-      doc.setDrawColor(...pal.b);
-      doc.setLineWidth(0.25);
-      doc.rect(mm, y0, innerW, bloqueH, 'FD');
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.setTextColor(...pal.t);
-      doc.text(tituloCard, mm + pad, y0 + pad + 5);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(51, 65, 85);
-      let yLine = y0 + pad + alturaTitulo + 3;
-      lineas.forEach((ln) => {
-        if (yLine + lineStep > y0 + bloqueH - 2) return;
-        doc.text(ln, mm + pad + 2, yLine);
-        yLine += lineStep;
-      });
-
-      y = y0 + bloqueH + 4;
-    });
-
-    const genTxt = `Generado: ${new Date().toLocaleString('es-PE')}`;
-    const totalP = doc.internal.getNumberOfPages();
-    for (let p = 1; p <= totalP; p += 1) {
-      doc.setPage(p);
-      doc.setFontSize(7.5);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(100, 116, 139);
-      doc.text(genTxt, mm, ph - 5);
-      doc.text(`Pág. ${p} / ${totalP}`, pw - mm, ph - 5, { align: 'right' });
-    }
-
-    doc.save(`${tituloGrupo.replace(/\s+/g, '_')}_descuentos_presentacion.pdf`);
-    Swal.fire({ icon: 'success', title: 'PDF generado', timer: 1800, showConfirmButton: false });
-  };
-
   const exportPdfIncidenciasGrupoReporte = () => {
     if (!grupoParaConducta || !dataIncidenciasPorAlumno?.length) {
-      Swal.fire({ icon: 'info', title: 'No hay Incidencias', text: 'No hay registros en el rango de fechas seleccionado.' });
+      Swal.fire({ icon: 'info', title: 'Sin registros', text: 'No hay incidencias ni descuentos por presentación en el periodo.' });
       return;
     }
     const doc = new jsPDF('p', 'mm', 'a4');
@@ -2565,6 +2465,9 @@ function DocenteTutoria({
     const yBottom = () => ph - footerReserve;
     const lineStep = 4;
     const tituloGrupo = `${grupoParaConducta.grado}° ${grupoParaConducta.seccion} - ${grupoParaConducta.nivel_nombre}`;
+    const periodoTxt = usarFiltroBimestreInc
+      ? `Bimestre ${incidenciasReporteCiclo} · ${formatearSoloFecha(fechaIncDesde)} → ${formatearSoloFecha(fechaIncHasta)}`
+      : `Periodo: ${formatearSoloFecha(fechaIncDesde)} → ${formatearSoloFecha(fechaIncHasta)}`;
 
     const paletasInc = [
       { f: [250, 245, 255], b: [216, 180, 254], t: [107, 33, 168] },
@@ -2585,13 +2488,13 @@ function DocenteTutoria({
       doc.setFontSize(13);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(91, 33, 182);
-      doc.text('Incidencias del grupo (tutoría)', mm + 2, 11);
+      doc.text('Incidencias y presentación (tutoría)', mm + 2, 11);
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(88, 28, 135);
       doc.text(`${tituloGrupo} · Año ${grupoParaConducta.anio || ''}`, mm + 2, 18);
       doc.setTextColor(71, 85, 105);
-      doc.text(`Periodo: ${formatearSoloFecha(fechaIncDesde)} → ${formatearSoloFecha(fechaIncHasta)}`, mm + 2, 24);
+      doc.text(periodoTxt, mm + 2, 24);
       y = 34;
     };
 
@@ -2604,11 +2507,11 @@ function DocenteTutoria({
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       doc.setTextColor(91, 33, 182);
-      doc.text('Incidencias del grupo (continúa)', mm + 2, 9);
+      doc.text('Incidencias y presentación (continúa)', mm + 2, 9);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(71, 85, 105);
-      doc.text(`Periodo: ${formatearSoloFecha(fechaIncDesde)} → ${formatearSoloFecha(fechaIncHasta)}`, mm + 2, 14);
+      doc.text(periodoTxt, mm + 2, 14);
       y = 20;
     };
 
@@ -2618,7 +2521,8 @@ function DocenteTutoria({
       const pal = paletasInc[idxAl % paletasInc.length];
       const bloques = [];
       (al.incidencias || []).forEach((inc) => {
-        const cab = `${formatearFechaHoraPeru(inc.created_at)}  ·  ${inc.docente_nombre || '—'}  ·  ${inc.curso_nombre || '—'}`;
+        const tipo = inc.origen === 'vestimenta' ? 'Presentación' : 'Incidencia';
+        const cab = `${formatearFechaHoraPeru(inc.created_at)}  ·  ${tipo}  ·  ${inc.docente_nombre || '—'}  ·  ${inc.curso_nombre || '—'}`;
         const det = (inc.description || '').trim();
         const lineasCab = doc.splitTextToSize(cab, innerW - 10);
         const lineasDet = det ? doc.splitTextToSize(det, innerW - 10) : [];
@@ -2680,7 +2584,7 @@ function DocenteTutoria({
       doc.text(`Pág. ${p} / ${totalP}`, pw - mm, ph - 5, { align: 'right' });
     }
 
-    doc.save(`${tituloGrupo.replace(/\s+/g, '_')}_incidencias_grupo.pdf`);
+    doc.save(`${tituloGrupo.replace(/\s+/g, '_')}_incidencias_B${incidenciasReporteCiclo}.pdf`);
     Swal.fire({ icon: 'success', title: 'PDF generado', timer: 1800, showConfirmButton: false });
   };
 
@@ -3719,12 +3623,12 @@ function DocenteTutoria({
         document.body
       )}
 
-      {/* Modal Conducta */}
+      {/* Modal Conducta (automática) */}
       {mostrarModalConducta && grupoParaConducta && createPortal(
         <div className="modal-registro-asistencia-overlay" onClick={cerrarConductaLimpiando}>
           <div className="modal-registro-asistencia-container" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
             <div className="modal-registro-asistencia-header">
-              <h2>📝 Registrar Conducta</h2>
+              <h2>📝 Conducta del bimestre</h2>
               <button className="modal-registro-asistencia-close" onClick={cerrarConductaLimpiando} type="button">✕</button>
             </div>
             <div className="modal-registro-asistencia-filters modal-registro-asistencia-filters--wrap">
@@ -3732,145 +3636,119 @@ function DocenteTutoria({
               <select value={conductaCiclo} onChange={(e) => handleCambiarCicloConducta(parseInt(e.target.value))} disabled={loadingConducta} style={{ padding: '0.5rem 1rem', border: '2px solid #e5e7eb', borderRadius: 8, fontSize: '1rem', background: 'white', minWidth: 100 }}>
                 {[1, 2, 3, 4].map(b => <option key={b} value={b}>Bimestre {b}</option>)}
               </select>
+              {(conductaRango.desde || conductaRango.hasta) && (
+                <span className="conducta-rango-hint">
+                  {formatearSoloFecha(conductaRango.desde)} → {formatearSoloFecha(conductaRango.hasta)}
+                </span>
+              )}
               <button type="button" className="btn-imprimir-asistencia" onClick={exportarPDFConducta} disabled={loadingConducta || !conductaAlumnos.length}>🖨️ Exportar PDF</button>
-              <button type="button" className="btn-tutor-evid-descuentos" onClick={abrirModalDescuentosPresentacion}>
-                📉 Ver descuentos (presentación)
-              </button>
               <button type="button" className="btn-tutor-evid-incidencias" onClick={abrirModalIncidenciasGrupo}>
-                📌 Ver incidencias
+                📌 Ver incidencias y presentación
               </button>
             </div>
+            <p className="conducta-auto-aviso">
+              Nota automática: parte de 20; −1 por cada incidencia o descuento de presentación del bimestre (mín. 0). No se edita a mano.
+            </p>
             <div className="modal-registro-asistencia-table-wrap">
               {loadingConducta ? (
                 <div className="modal-registro-asistencia-loading"><div className="loading-spinner" /><p>Cargando...</p></div>
               ) : (
                 <table className="tabla-registro-asistencia">
-                  <thead><tr><th style={{ width: 50 }}>N°</th><th>APELLIDOS Y NOMBRES</th><th style={{ width: 90, textAlign: 'center' }}>NOTA (0-20)</th></tr></thead>
+                  <thead>
+                    <tr>
+                      <th style={{ width: 50 }}>N°</th>
+                      <th>APELLIDOS Y NOMBRES</th>
+                      <th style={{ width: 70, textAlign: 'center' }}>Incid.</th>
+                      <th style={{ width: 90, textAlign: 'center' }}>NOTA (0-20)</th>
+                      <th style={{ width: 70, textAlign: 'center' }}>Ver</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {conductaAlumnos.map(a => (
                       <tr key={a.matricula_id}>
                         <td style={{ textAlign: 'center', fontWeight: 600 }}>{a.numero}</td>
                         <td>{a.nombre_completo}</td>
-                        <td style={{ textAlign: 'center' }}><input type="text" className="input-conducta" value={a.nota_conducta || ''} onChange={(e) => handleConductaChange(a.matricula_id, e.target.value)} maxLength={2} placeholder="20" style={{ width: 50, textAlign: 'center', padding: '0.5rem' }} readOnly={soloLectura} /></td>
+                        <td style={{ textAlign: 'center' }}>{a.total_incidencias ?? 0}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className="input-conducta input-conducta--readonly">{a.nota_conducta ?? '20'}</span>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            className="btn-conducta-ver"
+                            title="Ver incidencias del bimestre"
+                            onClick={() => abrirDetalleConductaAlumno(a)}
+                          >
+                            👁️
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               )}
             </div>
-            {!soloLectura && (
             <div className="modal-registro-asistencia-footer">
-              <button type="button" className="btn-guardar-asistencias" onClick={handleGuardarConducta} disabled={loadingConducta || guardandoConducta}>{guardandoConducta ? 'Guardando...' : 'Guardar Datos'}</button>
+              <button
+                type="button"
+                className="btn-guardar-asistencias"
+                onClick={handleRecalcularConducta}
+                disabled={loadingConducta || recalculandoConducta}
+              >
+                {recalculandoConducta ? 'Recalculando...' : '↻ Recalcular'}
+              </button>
             </div>
-            )}
           </div>
         </div>,
         document.body
       )}
 
-      {/* Modal: descuentos presentación escolar por alumno (tutor grupo) */}
-      {modalDescuentosPresentacionAbierto && grupoParaConducta &&
-        createPortal(
-          <div
-            className="tutor-evidencias-overlay"
-            onClick={() => setModalDescuentosPresentacionAbierto(false)}
-            role="presentation"
-          >
-            <div className="tutor-evidencias-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="titulo-desc-evid">
-              <header className="tutor-evidencias-panel-header tutor-evidencias-panel-header--descuentos">
-                <div>
-                  <h2 id="titulo-desc-evid">Descuentos por presentación</h2>
-                  <p className="tutor-evidencias-panel-sub">
-                    Grupo{' '}
-                    <strong>
-                      {grupoParaConducta.grado}° {grupoParaConducta.seccion} — {grupoParaConducta.nivel_nombre}
-                    </strong>{' '}
-                    · puntos aplicados al marcar asistencia (uniforme/presentación)
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="tutor-evidencias-close"
-                  onClick={() => setModalDescuentosPresentacionAbierto(false)}
-                  aria-label="Cerrar"
-                >
-                  ✕
-                </button>
-              </header>
-              <div className="tutor-evidencias-toolbar">
-                <label className="tutor-evidencias-date">
-                  Desde{' '}
-                  <input
-                    type="date"
-                    value={fechaDescuentosDesde}
-                    onChange={(e) => setFechaDescuentosDesde(e.target.value)}
-                  />
-                </label>
-                <label className="tutor-evidencias-date">
-                  Hasta{' '}
-                  <input
-                    type="date"
-                    value={fechaDescuentosHasta}
-                    onChange={(e) => setFechaDescuentosHasta(e.target.value)}
-                  />
-                </label>
-                <button type="button" className="tutor-evidencias-btn aplicar" onClick={aplicarFiltrosDescuentosYResumen}>
-                  Aplicar filtros
-                </button>
-                <button type="button" className="tutor-evidencias-btn pdf" onClick={exportPdfDescuentosPresentacion}>
-                  📄 Exportar PDF
-                </button>
+      {/* Modal detalle conducta de un alumno */}
+      {detalleConductaAlumno && grupoParaConducta && createPortal(
+        <div className="tutor-evidencias-overlay" onClick={() => setDetalleConductaAlumno(null)} role="presentation">
+          <div className="tutor-evidencias-panel tutor-evidencias-panel--inci" onClick={(e) => e.stopPropagation()} role="dialog">
+            <header className="tutor-evidencias-panel-header tutor-evidencias-panel-header--incidencias">
+              <div>
+                <h2>Detalle bimestre {conductaCiclo}</h2>
+                <p className="tutor-evidencias-panel-sub">
+                  <strong>{detalleConductaAlumno.alumno?.nombre_completo}</strong>
+                  {' · '}Nota {detalleConductaAlumno.alumno?.nota_conducta ?? '—'}
+                  {' · '}{formatearSoloFecha(detalleConductaAlumno.fecha_desde)} → {formatearSoloFecha(detalleConductaAlumno.fecha_hasta)}
+                </p>
               </div>
-              <div className="tutor-evidencias-body">
-                {loadingDescuentosRep ? (
-                  <div className="modal-registro-asistencia-loading">
-                    <div className="loading-spinner" />
-                    <p>Cargando…</p>
-                  </div>
-                ) : !dataDescuentosPorAlumno.length ? (
-                  <p className="tutor-evidencias-empty tutor-evidencias-empty--destacado">No hay Descuentos</p>
-                ) : (
-                  <div className="tutor-evidencia-cards-scroll">
-                    {dataDescuentosPorAlumno.map((alu, idx) => {
-                      const pastel = PASTEL_TUTOR_EVIDENCIA[idx % PASTEL_TUTOR_EVIDENCIA.length];
-                      return (
-                        <article
-                          key={alu.alumno_id || idx}
-                          className="tutor-evidencia-alumno-card"
-                          style={{
-                            border: `1px solid ${pastel.border}`,
-                            background: pastel.bg,
-                          }}
-                        >
-                          <div className="tutor-evidencia-alumno-card-head" style={{ color: pastel.accent }}>
-                            <span className="tutor-evidencia-alumno-nombre">{alu.alumno_nombre}</span>
-                            <span className="tutor-evidencia-alumno-total" title="Suma de puntos (negativo descontado)">
-                              Σ puntos: <strong>{alu.suma_puntos ?? 0}</strong>
-                            </span>
-                          </div>
-                          <ul className="tutor-evidencia-lineas">
-                            {(alu.registros || []).map((r) => (
-                              <li key={r.id}>
-                                <span className="tutor-evidencia-linea-fecha">
-                                  {formatearSoloFecha(r.fecha)} · {String(r.hora || '').slice(0, 8)}
-                                </span>
-                                <span className="tutor-evidencia-linea-pts">{r.puntos} pts · {r.motivo || '—'}</span>
-                                <span className="tutor-evidencia-linea-autor">Por: {r.registrado_por_nombre || '—'}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </article>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              <button type="button" className="tutor-evidencias-close" onClick={() => setDetalleConductaAlumno(null)} aria-label="Cerrar">✕</button>
+            </header>
+            <div className="tutor-evidencias-body">
+              {loadingDetalleConducta ? (
+                <div className="modal-registro-asistencia-loading"><div className="loading-spinner" /><p>Cargando…</p></div>
+              ) : !(detalleConductaAlumno.incidencias || []).length ? (
+                <p className="tutor-evidencias-empty tutor-evidencias-empty--destacado">Sin incidencias ni descuentos de presentación en este bimestre</p>
+              ) : (
+                <ul className="tutor-evidencia-lineas tutor-evidencia-lineas--inci">
+                  {(detalleConductaAlumno.incidencias || []).map((inc) => (
+                    <li key={inc.id}>
+                      <div className="tutor-inc-fila-super">
+                        <span>{formatearFechaHoraPeru(inc.created_at)}</span>
+                        <span className={`tutor-inc-origen ${inc.origen === 'vestimenta' ? 'es-vestimenta' : 'es-incidencia'}`}>
+                          {inc.origen === 'vestimenta' ? 'Presentación' : 'Incidencia'}
+                        </span>
+                        <span className="tutor-inc-doc">{inc.docente_nombre || '—'}</span>
+                        <span className="tutor-inc-cur">{inc.curso_nombre || '—'}</span>
+                      </div>
+                      {(inc.description || '').trim() ? (
+                        <p className="tutor-inc-detalle">{inc.description}</p>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-          </div>,
-          document.body
-        )}
+          </div>
+        </div>,
+        document.body
+      )}
 
-      {/* Modal: incidencias del grupo agrupadas por alumno */}
+      {/* Modal: incidencias + presentación del grupo (imprimible por bimestre) */}
       {modalIncidenciasGrupoAbierto &&
         grupoParaConducta &&
         createPortal(
@@ -3878,12 +3756,12 @@ function DocenteTutoria({
             <div className="tutor-evidencias-panel tutor-evidencias-panel--inci" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="titulo-inci-evid">
               <header className="tutor-evidencias-panel-header tutor-evidencias-panel-header--incidencias">
                 <div>
-                  <h2 id="titulo-inci-evid">Incidencias del grupo</h2>
+                  <h2 id="titulo-inci-evid">Incidencias y presentación</h2>
                   <p className="tutor-evidencias-panel-sub">
                     <strong>
                       {grupoParaConducta.grado}° {grupoParaConducta.seccion}
-                    </strong>{' '}
-                    — detalle registrado por docentes (solo incidencias)
+                    </strong>
+                    {' '}— incidencias de docentes y descuentos por vestimenta (QR)
                   </p>
                 </div>
                 <button
@@ -3897,20 +3775,38 @@ function DocenteTutoria({
               </header>
               <div className="tutor-evidencias-toolbar">
                 <label className="tutor-evidencias-date">
-                  Desde{' '}
-                  <input type="date" value={fechaIncDesde} onChange={(e) => setFechaIncDesde(e.target.value)} />
+                  Bimestre{' '}
+                  <select
+                    value={incidenciasReporteCiclo}
+                    onChange={(e) => {
+                      setIncidenciasReporteCiclo(parseInt(e.target.value, 10));
+                      setUsarFiltroBimestreInc(true);
+                    }}
+                  >
+                    {[1, 2, 3, 4].map((b) => (
+                      <option key={b} value={b}>Bimestre {b}</option>
+                    ))}
+                  </select>
                 </label>
-                <label className="tutor-evidencias-date">
-                  Hasta{' '}
-                  <input type="date" value={fechaIncHasta} onChange={(e) => setFechaIncHasta(e.target.value)} />
-                </label>
-                <button type="button" className="tutor-evidencias-btn aplicar" onClick={aplicarFiltrosIncidenciasYResumen}>
-                  Aplicar filtros
+                <button
+                  type="button"
+                  className="tutor-evidencias-btn aplicar"
+                  onClick={() => {
+                    setUsarFiltroBimestreInc(true);
+                    aplicarFiltrosIncidenciasYResumen();
+                  }}
+                >
+                  Aplicar bimestre
                 </button>
                 <button type="button" className="tutor-evidencias-btn pdf" onClick={exportPdfIncidenciasGrupoReporte}>
                   📄 Exportar PDF
                 </button>
               </div>
+              {(fechaIncDesde || fechaIncHasta) && (
+                <p className="conducta-rango-hint" style={{ padding: '0 1rem' }}>
+                  Periodo: {formatearSoloFecha(fechaIncDesde)} → {formatearSoloFecha(fechaIncHasta)}
+                </p>
+              )}
               <div className="tutor-evidencias-body">
                 {loadingIncidenciasRep ? (
                   <div className="modal-registro-asistencia-loading">
@@ -3918,7 +3814,7 @@ function DocenteTutoria({
                     <p>Cargando…</p>
                   </div>
                 ) : !dataIncidenciasPorAlumno.length ? (
-                  <p className="tutor-evidencias-empty tutor-evidencias-empty--destacado">No hay Incidencias</p>
+                  <p className="tutor-evidencias-empty tutor-evidencias-empty--destacado">Sin registros en este bimestre</p>
                 ) : (
                   <div className="tutor-evidencia-cards-scroll">
                     {dataIncidenciasPorAlumno.map((alu, idx) => {
@@ -3943,6 +3839,9 @@ function DocenteTutoria({
                               <li key={inc.id}>
                                 <div className="tutor-inc-fila-super">
                                   <span>{formatearFechaHoraPeru(inc.created_at)}</span>
+                                  <span className={`tutor-inc-origen ${inc.origen === 'vestimenta' ? 'es-vestimenta' : 'es-incidencia'}`}>
+                                    {inc.origen === 'vestimenta' ? 'Presentación' : 'Incidencia'}
+                                  </span>
                                   <span className="tutor-inc-doc">{inc.docente_nombre || '—'}</span>
                                   <span className="tutor-inc-cur">{inc.curso_nombre || '—'}</span>
                                 </div>

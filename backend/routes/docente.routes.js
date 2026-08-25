@@ -74,8 +74,15 @@ const {
 } = require('../utils/adminTardanzasHuellero');
 const {
   listarAlumnosConductaPorGrupo,
-  guardarConductaPorGrupo,
 } = require('../utils/conductaGrupoMatriculas');
+const {
+  obtenerRangoBimestre,
+  backfillVestimentaAIncidenciasGrupo,
+  listarIncidenciasUnificadasGrupo,
+  sincronizarConductaMatriculaBimestre,
+  cicloQueContieneFecha,
+  asegurarIncidenciaVestimenta,
+} = require('../utils/conductaIncidenciasBimestre');
 const { esCompletarCorrecto } = require('../utils/examenCompletar');
 const { finalizarPruebaConCalificacion } = require('../utils/examenFinalizarPrueba');
 const {
@@ -2559,7 +2566,7 @@ router.get('/grupos/:grupoId/reporte-descuentos-presentacion', async (req, res) 
 
 /**
  * GET /api/docente/grupos/:grupoId/reporte-incidencias-grupo
- * Incidencias del aula (sin exigir ser tutor del grupo en el WHERE).
+ * Incidencias + vestimenta (QR). Query: ciclo=1..4 o fecha_desde/fecha_hasta. Opcional matricula_id.
  */
 router.get('/grupos/:grupoId/reporte-incidencias-grupo', async (req, res) => {
   try {
@@ -2569,62 +2576,51 @@ router.get('/grupos/:grupoId/reporte-incidencias-grupo', async (req, res) => {
     if (!acc.ok) return res.status(acc.status).json({ error: acc.error });
 
     const anioEsc = acc.anioEsc;
-    const hoyStr = fechaQueryValida(req.query.fecha_hasta || new Date().toISOString().slice(0, 10))
-      || new Date().toISOString().slice(0, 10);
-    let fechaDesde = fechaQueryValida(req.query.fecha_desde) || `${anioEsc}-03-01`;
-    let fechaHasta = fechaQueryValida(req.query.fecha_hasta) || `${anioEsc + 1}-02-28`;
-    if (fechaDesde > fechaHasta) {
-      const t = fechaDesde;
-      fechaDesde = fechaHasta;
-      fechaHasta = t;
-    }
-    if (hoyStr < fechaHasta) fechaHasta = hoyStr;
-
-    const rows = await query(
-      `SELECT ei.id, ei.description, ei.created_at,
-              CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,'')) AS docente_nombre,
-              CASE WHEN ei.assignment_id = ? THEN 'Tutoría' ELSE COALESCE(c.nombre, '—') END AS curso_nombre,
-              m.alumno_id,
-              TRIM(CONCAT(COALESCE(al.apellido_paterno,''),' ', COALESCE(al.apellido_materno,''),' ', COALESCE(al.nombres,''))) AS alumno_nombre
-       FROM enrollment_incidents ei
-       INNER JOIN matriculas m ON m.id = ei.enrollment_id
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       INNER JOIN alumnos al ON al.id = m.alumno_id
-       LEFT JOIN personal p ON p.id = ei.worker_id
-       LEFT JOIN asignaturas a ON a.id = ei.assignment_id
-       LEFT JOIN cursos c ON c.id = a.curso_id
-       WHERE g.id = ? AND g.colegio_id = ?
-         AND ei.type = 1 AND g.anio = ?
-         AND DATE(ei.created_at) BETWEEN ? AND ?
-       ORDER BY alumno_nombre ASC, ei.created_at DESC`,
-      [ASSIGNMENT_ID_TUTORIA, grupoId, colegio_id, anioEsc, fechaDesde, fechaHasta]
-    );
-
-    const porAlumno = new Map();
-    (rows || []).forEach((r) => {
-      const aid = r.alumno_id;
-      if (!porAlumno.has(aid)) {
-        porAlumno.set(aid, {
-          alumno_id: aid,
-          alumno_nombre: r.alumno_nombre,
-          incidencias: [],
-        });
+    const cicloQ = parseInt(req.query.ciclo, 10);
+    let fechaDesde;
+    let fechaHasta;
+    let ciclo = null;
+    if (cicloQ >= 1 && cicloQ <= 4) {
+      const rango = await obtenerRangoBimestre(query, colegio_id, cicloQ, anioEsc);
+      fechaDesde = rango.desde;
+      fechaHasta = rango.hasta;
+      ciclo = rango.ciclo;
+    } else {
+      const hoyStr = fechaQueryValida(req.query.fecha_hasta || new Date().toISOString().slice(0, 10))
+        || new Date().toISOString().slice(0, 10);
+      fechaDesde = fechaQueryValida(req.query.fecha_desde) || `${anioEsc}-03-01`;
+      fechaHasta = fechaQueryValida(req.query.fecha_hasta) || `${anioEsc + 1}-02-28`;
+      if (fechaDesde > fechaHasta) {
+        const t = fechaDesde;
+        fechaDesde = fechaHasta;
+        fechaHasta = t;
       }
-      porAlumno.get(aid).incidencias.push({
-        id: r.id,
-        description: r.description,
-        created_at: r.created_at,
-        docente_nombre: r.docente_nombre,
-        curso_nombre: r.curso_nombre,
+      if (hoyStr < fechaHasta) fechaHasta = hoyStr;
+    }
+
+    try {
+      await backfillVestimentaAIncidenciasGrupo(query, execute, {
+        grupoId,
+        colegio_id,
+        anio: anioEsc,
+        desde: fechaDesde,
+        hasta: fechaHasta,
       });
+    } catch (eBf) {
+      console.warn('[grupos/reporte-incidencias] backfill:', eBf.message);
+    }
+
+    const matriculaId = req.query.matricula_id ? parseInt(req.query.matricula_id, 10) : null;
+    const data = await listarIncidenciasUnificadasGrupo(query, {
+      grupoId,
+      colegio_id,
+      anio: anioEsc,
+      desde: fechaDesde,
+      hasta: fechaHasta,
+      matriculaId: Number.isFinite(matriculaId) && matriculaId > 0 ? matriculaId : null,
     });
 
-    res.json({
-      fecha_desde: fechaDesde,
-      fecha_hasta: fechaHasta,
-      total: (rows || []).length,
-      alumnos: Array.from(porAlumno.values()),
-    });
+    res.json({ ...data, ciclo });
   } catch (e) {
     console.error('[grupos/reporte-incidencias-grupo]', e);
     res.status(500).json({ error: e.message || 'Error' });
@@ -3906,6 +3902,24 @@ router.post('/cursos/:cursoId/alumnos/:alumnoId/incidencias', async (req, res) =
       } catch (error) {
         console.error(`❌ [INCIDENCIAS] Error en proceso de notificaciones:`, error);
       }
+      try {
+        const rangos = await fetchRangosCiclosParsed(query, colegio_id);
+        const hoy = moment().tz('America/Lima').format('YYYY-MM-DD');
+        const gAnioRows = await query(
+          `SELECT g.anio FROM matriculas m INNER JOIN grupos g ON g.id = m.grupo_id WHERE m.id = ? LIMIT 1`,
+          [matriculaId]
+        );
+        const anioG = gAnioRows?.[0]?.anio || anio_activo;
+        const ciclo = cicloQueContieneFecha(rangos, anioG, hoy);
+        await sincronizarConductaMatriculaBimestre(query, execute, {
+          matriculaId,
+          colegio_id,
+          anioEscolar: anioG,
+          ciclo,
+        });
+      } catch (eSync) {
+        console.warn('[INCIDENCIAS] sync conducta:', eSync.message);
+      }
     });
 
     res.json({
@@ -3957,7 +3971,7 @@ router.delete('/cursos/:cursoId/alumnos/:alumnoId/incidencias/:incidentId', asyn
       [incidentId]
     );
 
-    // Registrar auditoría ANTES de eliminar
+    // Registrar auditoría
     registrarAccion({
       usuario_id: req.user.usuario_id,
       colegio_id: colegio_id,
@@ -3976,14 +3990,34 @@ router.delete('/cursos/:cursoId/alumnos/:alumnoId/incidencias/:incidentId', asyn
       resultado: 'EXITOSO'
     });
 
-    // Eliminar el incidente
-    await execute(
-      `DELETE FROM enrollment_incidents WHERE id = ?`,
-      [incidentId]
-    );
-
     // Marcar para que el middleware no registre automáticamente
     req.skipAudit = true;
+
+    setImmediate(async () => {
+      try {
+        const matriculaId = incidente[0].enrollment_id;
+        const fechaYmd = String(incidente[0].created_at || '').slice(0, 10);
+        const gAnioRows = await query(
+          `SELECT g.anio FROM matriculas m INNER JOIN grupos g ON g.id = m.grupo_id WHERE m.id = ? LIMIT 1`,
+          [matriculaId]
+        );
+        const anioG = gAnioRows?.[0]?.anio || anio_activo;
+        const rangos = await fetchRangosCiclosParsed(query, colegio_id);
+        const ciclo = cicloQueContieneFecha(
+          rangos,
+          anioG,
+          fechaYmd || moment().tz('America/Lima').format('YYYY-MM-DD')
+        );
+        await sincronizarConductaMatriculaBimestre(query, execute, {
+          matriculaId,
+          colegio_id,
+          anioEscolar: anioG,
+          ciclo,
+        });
+      } catch (eSync) {
+        console.warn('[INCIDENCIAS] sync conducta tras borrar:', eSync.message);
+      }
+    });
 
     res.json({
       success: true,
@@ -8557,9 +8591,28 @@ router.post('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req
       } catch (e) {
         console.error('❌ [INCIDENCIAS TUTORÍA] Notificaciones:', e);
       }
+      try {
+        const gAnio = await query(`SELECT anio FROM grupos WHERE id = ? LIMIT 1`, [grupoId]);
+        const anioG = gAnio?.[0]?.anio || anio_activo;
+        const rangos = await fetchRangosCiclosParsed(query, colegio_id);
+        const hoy = moment().tz('America/Lima').format('YYYY-MM-DD');
+        const ciclo = cicloQueContieneFecha(rangos, anioG, hoy);
+        await sincronizarConductaMatriculaBimestre(query, execute, {
+          matriculaId,
+          colegio_id,
+          anioEscolar: anioG,
+          ciclo,
+        });
+      } catch (eSync) {
+        console.warn('[INCIDENCIAS TUTORÍA] sync conducta:', eSync.message);
+      }
     });
 
-    res.json({ success: true, message: 'Incidencia registrada correctamente', incident_id: result.insertId });
+    res.json({
+      success: true,
+      message: 'Incidencia registrada correctamente',
+      incident_id: result.insertId
+    });
   } catch (error) {
     console.error('Error registrando incidencia (tutor):', error);
     res.status(500).json({ error: 'Error al registrar la incidencia' });
@@ -8618,6 +8671,25 @@ router.delete('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias/:incidentI
       resultado: 'EXITOSO'
     }).catch(() => {});
     req.skipAudit = true;
+
+    setImmediate(async () => {
+      try {
+        const matriculaId = incidente[0].enrollment_id;
+        const fechaYmd = String(incidente[0].created_at || '').slice(0, 10);
+        const gAnio = await query(`SELECT anio FROM grupos WHERE id = ? LIMIT 1`, [grupoId]);
+        const anioG = gAnio?.[0]?.anio || anio_activo;
+        const rangos = await fetchRangosCiclosParsed(query, colegio_id);
+        const ciclo = cicloQueContieneFecha(rangos, anioG, fechaYmd || moment().tz('America/Lima').format('YYYY-MM-DD'));
+        await sincronizarConductaMatriculaBimestre(query, execute, {
+          matriculaId,
+          colegio_id,
+          anioEscolar: anioG,
+          ciclo,
+        });
+      } catch (eSync) {
+        console.warn('[INCIDENCIAS TUTORÍA] sync conducta tras borrar:', eSync.message);
+      }
+    });
 
     res.json({ success: true, message: 'Incidencia eliminada correctamente' });
   } catch (error) {
@@ -9177,14 +9249,25 @@ router.get('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
     );
     if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
-    const { lista, ciclo: cicloInt } = await listarAlumnosConductaPorGrupo(query, {
-      grupoId,
-      colegio_id,
-      ciclo,
-    });
+    const { lista, ciclo: cicloInt, fecha_desde, fecha_hasta } = await listarAlumnosConductaPorGrupo(
+      query,
+      execute,
+      {
+        grupoId,
+        colegio_id,
+        ciclo,
+      }
+    );
 
     const grupo = await filaGrupoTutoriaOGeneral(req, grupoId, grupoTutor, { withTurno: false });
-    res.json({ grupo, alumnos: lista, ciclo: cicloInt });
+    res.json({
+      grupo,
+      alumnos: lista,
+      ciclo: cicloInt,
+      fecha_desde,
+      fecha_hasta,
+      automatica: true,
+    });
   } catch (error) {
     console.error('Error obteniendo conducta:', error);
     res.status(500).json({ error: 'Error al obtener conducta' });
@@ -9193,18 +9276,17 @@ router.get('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
 
 /**
  * POST /api/docente/tutoria/grupos/:grupoId/conducta
- * Guardar notas de conducta por bimestre
+ * Recalcula notas automáticas del bimestre (ya no se editan a mano).
  */
 router.post('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
   try {
     const { grupoId } = req.params;
     const { colegio_id, anio_activo } = req.user;
     const personalId = req.user.personal_id;
-    const { ciclo, notas } = req.body;
+    const ciclo = parseInt(req.body?.ciclo, 10) || 1;
 
-    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
-    const cicloInt = parseInt(ciclo, 10) || 1;
-    if (cicloInt < 1 || cicloInt > 4) return res.status(400).json({ error: 'Ciclo inválido' });
+    if (!personalId && !req._tutoriaGrupoAccesoOk) return res.status(404).json({ error: 'Docente no encontrado' });
+    if (ciclo < 1 || ciclo > 4) return res.status(400).json({ error: 'Ciclo inválido' });
 
     const grupoTutor = await query(
       `SELECT g.id FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
@@ -9212,9 +9294,21 @@ router.post('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
     );
     if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
-    await guardarConductaPorGrupo(execute, { cicloInt, notas });
+    const { lista, ciclo: cicloInt, fecha_desde, fecha_hasta } = await listarAlumnosConductaPorGrupo(
+      query,
+      execute,
+      { grupoId, colegio_id, ciclo }
+    );
 
-    res.json({ success: true });
+    res.json({
+      success: true,
+      message: 'Conducta recalculada automáticamente (20 − incidencias del bimestre)',
+      alumnos: lista,
+      ciclo: cicloInt,
+      fecha_desde,
+      fecha_hasta,
+      automatica: true,
+    });
   } catch (error) {
     console.error('Error guardando conducta:', error);
     res.status(500).json({ error: 'Error al guardar conducta' });
@@ -9406,7 +9500,8 @@ router.get('/tutoria/grupos/:grupoId/reporte-descuentos-presentacion', async (re
 
 /**
  * GET /api/docente/tutoria/grupos/:grupoId/reporte-incidencias-grupo
- * Todas las incidencias tipo disciplinarias del año del grupo para alumnos de esta aula.
+ * Incidencias + vestimenta (QR) del aula. Query: ciclo=1..4 (fechas de Configuración) o fecha_desde/fecha_hasta.
+ * Opcional: matricula_id para un solo alumno.
  */
 router.get('/tutoria/grupos/:grupoId/reporte-incidencias-grupo', async (req, res) => {
   try {
@@ -9421,65 +9516,53 @@ router.get('/tutoria/grupos/:grupoId/reporte-incidencias-grupo', async (req, res
     );
     if (!req._tutoriaGrupoAccesoOk && !gRow.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
-    const anioEsc = gRow.length > 0
-      ? Number(gRow[0].anio)
-      : Number(anio_activo);
-    const hoyStr = fechaQueryValida(req.query.fecha_hasta || new Date().toISOString().slice(0, 10))
-      || new Date().toISOString().slice(0, 10);
-    let fechaDesde = fechaQueryValida(req.query.fecha_desde) || `${anioEsc}-03-01`;
-    let fechaHasta = fechaQueryValida(req.query.fecha_hasta) || `${anioEsc + 1}-02-28`;
-    if (fechaDesde > fechaHasta) {
-      const t = fechaDesde;
-      fechaDesde = fechaHasta;
-      fechaHasta = t;
-    }
-    if (hoyStr < fechaHasta) fechaHasta = hoyStr;
-
-    const rows = await query(
-      `SELECT ei.id, ei.description, ei.created_at,
-              CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,'')) AS docente_nombre,
-              CASE WHEN ei.assignment_id = ? THEN 'Tutoría' ELSE COALESCE(c.nombre, '—') END AS curso_nombre,
-              m.alumno_id,
-              TRIM(CONCAT(COALESCE(al.apellido_paterno,''),' ', COALESCE(al.apellido_materno,''),' ', COALESCE(al.nombres,''))) AS alumno_nombre
-       FROM enrollment_incidents ei
-       INNER JOIN matriculas m ON m.id = ei.enrollment_id
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       INNER JOIN alumnos al ON al.id = m.alumno_id
-       LEFT JOIN personal p ON p.id = ei.worker_id
-       LEFT JOIN asignaturas a ON a.id = ei.assignment_id
-       LEFT JOIN cursos c ON c.id = a.curso_id
-       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ?
-         AND ei.type = 1 AND g.anio = ?
-         AND DATE(ei.created_at) BETWEEN ? AND ?
-       ORDER BY alumno_nombre ASC, ei.created_at DESC`,
-      [ASSIGNMENT_ID_TUTORIA, grupoId, personalId, personalId, colegio_id, anioEsc, fechaDesde, fechaHasta]
-    );
-
-    const porAlumno = new Map();
-    (rows || []).forEach((r) => {
-      const aid = r.alumno_id;
-      if (!porAlumno.has(aid)) {
-        porAlumno.set(aid, {
-          alumno_id: aid,
-          alumno_nombre: r.alumno_nombre,
-          incidencias: [],
-        });
+    const anioEsc = gRow.length > 0 ? Number(gRow[0].anio) : Number(anio_activo);
+    const cicloQ = parseInt(req.query.ciclo, 10);
+    let fechaDesde;
+    let fechaHasta;
+    let ciclo = null;
+    if (cicloQ >= 1 && cicloQ <= 4) {
+      const rango = await obtenerRangoBimestre(query, colegio_id, cicloQ, anioEsc);
+      fechaDesde = rango.desde;
+      fechaHasta = rango.hasta;
+      ciclo = rango.ciclo;
+    } else {
+      const hoyStr =
+        fechaQueryValida(req.query.fecha_hasta || new Date().toISOString().slice(0, 10)) ||
+        new Date().toISOString().slice(0, 10);
+      fechaDesde = fechaQueryValida(req.query.fecha_desde) || `${anioEsc}-03-01`;
+      fechaHasta = fechaQueryValida(req.query.fecha_hasta) || `${anioEsc + 1}-02-28`;
+      if (fechaDesde > fechaHasta) {
+        const t = fechaDesde;
+        fechaDesde = fechaHasta;
+        fechaHasta = t;
       }
-      porAlumno.get(aid).incidencias.push({
-        id: r.id,
-        description: r.description,
-        created_at: r.created_at,
-        docente_nombre: r.docente_nombre,
-        curso_nombre: r.curso_nombre,
+      if (hoyStr < fechaHasta) fechaHasta = hoyStr;
+    }
+
+    try {
+      await backfillVestimentaAIncidenciasGrupo(query, execute, {
+        grupoId,
+        colegio_id,
+        anio: anioEsc,
+        desde: fechaDesde,
+        hasta: fechaHasta,
       });
+    } catch (eBf) {
+      console.warn('[tutoria/reporte-incidencias] backfill:', eBf.message);
+    }
+
+    const matriculaId = req.query.matricula_id ? parseInt(req.query.matricula_id, 10) : null;
+    const data = await listarIncidenciasUnificadasGrupo(query, {
+      grupoId,
+      colegio_id,
+      anio: anioEsc,
+      desde: fechaDesde,
+      hasta: fechaHasta,
+      matriculaId: Number.isFinite(matriculaId) && matriculaId > 0 ? matriculaId : null,
     });
 
-    res.json({
-      fecha_desde: fechaDesde,
-      fecha_hasta: fechaHasta,
-      total: (rows || []).length,
-      alumnos: Array.from(porAlumno.values()),
-    });
+    res.json({ ...data, ciclo });
   } catch (e) {
     console.error('[tutoria/reporte-incidencias-grupo]', e);
     res.status(500).json({ error: e.message || 'Error' });
