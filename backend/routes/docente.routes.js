@@ -82,6 +82,7 @@ const {
   sincronizarConductaMatriculaBimestre,
   cicloQueContieneFecha,
   asegurarIncidenciaVestimenta,
+  listarIncidenciasUnificadasMatricula,
 } = require('../utils/conductaIncidenciasBimestre');
 const { esCompletarCorrecto } = require('../utils/examenCompletar');
 const { finalizarPruebaConCalificacion } = require('../utils/examenFinalizarPrueba');
@@ -10527,25 +10528,13 @@ router.get('/hijos/:hijoId/incidencias', async (req, res) => {
 
     const matriculaId = matricula[0].id;
 
-    // Obtener todas las incidencias del alumno (type = 1) del año activo
-    const incidencias = await query(
-      `SELECT ei.id, ei.description, ei.created_at, ei.worker_id, ei.assignment_id,
-              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
-              c.nombre as curso_nombre
-       FROM enrollment_incidents ei
-       INNER JOIN matriculas m ON m.id = ei.enrollment_id
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       LEFT JOIN personal p ON p.id = ei.worker_id
-       LEFT JOIN asignaturas a ON a.id = ei.assignment_id
-       LEFT JOIN cursos c ON c.id = a.curso_id
-       WHERE ei.enrollment_id = ? 
-         AND ei.type = 1
-         AND g.anio = ?
-       ORDER BY ei.created_at DESC`,
-      [matriculaId, anio_activo]
-    );
+    const incidencias = await listarIncidenciasUnificadasMatricula(query, {
+      matriculaId,
+      colegio_id,
+      anio: anio_activo,
+    });
 
-    console.log(`✅ [HIJOS-INCIDENCIAS] Incidencias obtenidas: ${incidencias.length}`);
+    console.log(`✅ [HIJOS-INCIDENCIAS] Incidencias+presentación: ${incidencias.length}`);
     console.log(`🔵 ========== [HIJOS-INCIDENCIAS] FIN DE PETICIÓN ==========\n`);
 
     res.json({

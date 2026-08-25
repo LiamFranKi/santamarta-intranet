@@ -378,6 +378,102 @@ async function listarIncidenciasUnificadasGrupo(query, {
   };
 }
 
+/**
+ * Historial unificado de un alumno (matrícula): incidencias + presentación QR del año.
+ * Usado en Hijos a cargo (apoderado / docente).
+ */
+async function listarIncidenciasUnificadasMatricula(query, {
+  matriculaId,
+  colegio_id,
+  anio,
+}) {
+  const rowsInc = await query(
+    `SELECT ei.id, ei.description, ei.created_at, ei.assignment_id, ei.points,
+            CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,'')) AS docente_nombre,
+            CASE
+              WHEN ei.assignment_id = ? THEN 'Tutoría'
+              ELSE COALESCE(c.nombre, '—')
+            END AS curso_nombre
+     FROM enrollment_incidents ei
+     INNER JOIN matriculas m ON m.id = ei.enrollment_id
+     INNER JOIN grupos g ON g.id = m.grupo_id
+     LEFT JOIN personal p ON p.id = ei.worker_id
+     LEFT JOIN asignaturas a ON a.id = ei.assignment_id AND ei.assignment_id > 0
+     LEFT JOIN cursos c ON c.id = a.curso_id
+     WHERE ei.enrollment_id = ?
+       AND ei.type = 1
+       AND g.anio = ?
+       AND COALESCE(ei.assignment_id, 0) <> ?
+       AND COALESCE(ei.description, '') NOT LIKE '[VESTIMENTA]%'
+     ORDER BY ei.created_at DESC`,
+    [ASSIGNMENT_ID_TUTORIA, matriculaId, anio, ASSIGNMENT_ID_VESTIMENTA]
+  );
+
+  let rowsPed = [];
+  try {
+    rowsPed = await query(
+      `SELECT ped.id, ped.fecha, ped.hora, ped.motivo, ped.puntos,
+              CASE
+                WHEN rpp.id IS NOT NULL THEN TRIM(CONCAT(COALESCE(rpp.nombres,''), ' ', COALESCE(rpp.apellidos,'')))
+                WHEN alrp.id IS NOT NULL THEN TRIM(CONCAT(
+                  COALESCE(alrp.apellido_paterno,''),' ', COALESCE(alrp.apellido_materno,''),' ', COALESCE(alrp.nombres,'')))
+                ELSE 'Escaneo QR'
+              END AS docente_nombre
+       FROM presentacion_escolar_descuentos ped
+       INNER JOIN usuarios ua ON ua.id = ped.alumno_usuario_id AND ua.colegio_id = ped.colegio_id
+       INNER JOIN matriculas m ON m.id = ? AND m.alumno_id = ua.alumno_id AND m.colegio_id = ped.colegio_id AND (m.estado = 0)
+       INNER JOIN grupos g ON g.id = m.grupo_id AND g.anio = ped.anio
+       LEFT JOIN usuarios ur ON ur.id = ped.registrado_por_usuario_id
+       LEFT JOIN personal rpp ON rpp.id = ur.personal_id
+       LEFT JOIN alumnos alrp ON alrp.id = ur.alumno_id
+       WHERE ped.colegio_id = ? AND ped.anio = ?
+       ORDER BY ped.fecha DESC, ped.hora DESC`,
+      [matriculaId, colegio_id, anio]
+    );
+  } catch (e) {
+    if (!(String(e.message || '').includes("doesn't exist") || e.code === 'ER_NO_SUCH_TABLE')) {
+      console.warn('[conducta] listar presentacion matricula:', e.message);
+    }
+    rowsPed = [];
+  }
+
+  const lista = [];
+
+  (rowsInc || []).forEach((r) => {
+    lista.push({
+      id: `inc-${r.id}`,
+      description: String(r.description || '').trim(),
+      created_at: r.created_at,
+      docente_nombre: r.docente_nombre || '—',
+      curso_nombre: r.curso_nombre || '—',
+      origen: 'incidencia',
+      points: r.points,
+    });
+  });
+
+  (rowsPed || []).forEach((r) => {
+    const fecha = String(r.fecha).slice(0, 10);
+    const hora = r.hora ? String(r.hora).slice(0, 8) : '12:00:00';
+    const motivo = String(r.motivo || '').trim();
+    const desc =
+      !motivo || /^PRESENTACION$/i.test(motivo)
+        ? 'Descuento por vestimenta / presentación escolar (−1 punto)'
+        : `${motivo} (−1 punto)`;
+    lista.push({
+      id: `ped-${r.id}`,
+      description: desc,
+      created_at: `${fecha} ${hora}`,
+      docente_nombre: r.docente_nombre || 'Escaneo QR',
+      curso_nombre: 'Presentación (QR)',
+      origen: 'vestimenta',
+      points: r.puntos,
+    });
+  });
+
+  lista.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  return lista;
+}
+
 module.exports = {
   ASIGNATURA_CONDUCTA,
   ASSIGNMENT_ID_TUTORIA,
@@ -392,5 +488,6 @@ module.exports = {
   asegurarIncidenciaVestimenta,
   backfillVestimentaAIncidenciasGrupo,
   listarIncidenciasUnificadasGrupo,
+  listarIncidenciasUnificadasMatricula,
   fetchRangosCiclosParsed,
 };

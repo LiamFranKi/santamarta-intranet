@@ -1301,6 +1301,27 @@
   font-size: 1.1rem;
 }
 
+.incidencia-tipo-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.incidencia-tipo-badge.es-vestimenta {
+  background: #ffedd5;
+  color: #9a3412;
+  border: 1px solid #fdba74;
+}
+
+.incidencia-tipo-badge.es-incidencia {
+  background: #ede9fe;
+  color: #5b21b6;
+  border: 1px solid #c4b5fd;
+}
+
 .card-estrellas-count {
   display: flex;
   align-items: center;

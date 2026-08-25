@@ -32,6 +32,7 @@ const { urlStaticFotos } = require('../utils/staticStorage');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 const { getBoletaPdfJsonForPago } = require('../utils/boletaPdfData');
 const { obtenerRangosLetrasColegio } = require('../utils/rangosLetrasColegio');
+const { listarIncidenciasUnificadasMatricula } = require('../utils/conductaIncidenciasBimestre');
 const {
   pickSaludFields,
   normalizeSaludBody,
@@ -1567,24 +1568,16 @@ router.get('/hijos/:hijoId/incidencias', async (req, res) => {
 
     const matriculaId = matricula[0].id;
 
-    // Obtener todas las incidencias del alumno (type = 1)
-    const incidencias = await query(
-      `SELECT ei.id, ei.points, ei.description, ei.created_at, ei.worker_id, ei.assignment_id,
-              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
-              c.nombre as curso_nombre
-       FROM enrollment_incidents ei
-       INNER JOIN matriculas m ON m.id = ei.enrollment_id
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       LEFT JOIN personal p ON p.id = ei.worker_id
-       LEFT JOIN asignaturas a ON a.id = ei.assignment_id
-       LEFT JOIN cursos c ON c.id = a.curso_id
-       WHERE ei.enrollment_id = ? 
-         AND ei.type = 1
-       ORDER BY ei.created_at DESC`,
-      [matriculaId]
-    );
+    const incidencias = await listarIncidenciasUnificadasMatricula(query, {
+      matriculaId,
+      colegio_id,
+      anio: anio_activo,
+    });
 
-    res.json({ incidencias: incidencias || [] });
+    res.json({
+      incidencias: incidencias || [],
+      total_incidencias: (incidencias || []).length,
+    });
   } catch (error) {
     console.error('Error obteniendo incidencias:', error);
     res.status(500).json({ error: 'Error al obtener incidencias', details: error.message });

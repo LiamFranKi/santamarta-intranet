@@ -1416,7 +1416,7 @@ function DocenteHijos() {
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
-      doc.text('INCIDENCIAS', pageWidth / 2, 12, { align: 'center' });
+      doc.text('INCIDENCIAS Y PRESENTACIÓN', pageWidth / 2, 12, { align: 'center' });
       doc.setFontSize(12);
       doc.text(`${hijoSeleccionado?.nombres} ${hijoSeleccionado?.apellido_paterno}`, pageWidth / 2, 20, { align: 'center' });
       doc.setFontSize(10);
@@ -1432,7 +1432,8 @@ function DocenteHijos() {
         }
 
         const color = coloresPastel[index % coloresPastel.length];
-        const cardHeight = 35;
+        const cardHeight = 40;
+        const esVest = incidencia.origen === 'vestimenta';
 
         // Fondo del card
         doc.setFillColor(
@@ -1462,17 +1463,26 @@ function DocenteHijos() {
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
-        doc.text('Docente:', margin + 3, yPos + 12);
+        doc.text('Tipo:', margin + 100, yPos + 6);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7);
-        doc.text(incidencia.docente_nombre || 'N/A', margin + 20, yPos + 12);
+        doc.setTextColor(esVest ? 154 : 91, esVest ? 52 : 33, esVest ? 18 : 182);
+        doc.text(esVest ? 'Presentación' : 'Incidencia', margin + 115, yPos + 6);
+        doc.setTextColor(30, 41, 59);
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
-        doc.text('Curso:', margin + 3, yPos + 18);
+        doc.text('Docente:', margin + 3, yPos + 13);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7);
-        doc.text(incidencia.curso_nombre || 'N/A', margin + 20, yPos + 18);
+        doc.text(incidencia.docente_nombre || 'N/A', margin + 20, yPos + 13);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('Curso:', margin + 3, yPos + 20);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text(incidencia.curso_nombre || 'N/A', margin + 20, yPos + 20);
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
@@ -4114,7 +4124,7 @@ function DocenteHijos() {
         <div className="modal-overlay-qr" onClick={() => setShowModalIncidencias(false)}>
           <div className="modal-content-incidencias" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header-qr">
-              <h2>📋 Incidencias de {hijoSeleccionado?.nombres} {hijoSeleccionado?.apellido_paterno}</h2>
+              <h2>📋 Incidencias y presentación de {hijoSeleccionado?.nombres} {hijoSeleccionado?.apellido_paterno}</h2>
               <button className="modal-close-qr" onClick={() => setShowModalIncidencias(false)}>×</button>
             </div>
 
@@ -4125,7 +4135,7 @@ function DocenteHijos() {
                 </div>
               ) : incidencias.length === 0 ? (
                 <div className="empty-state">
-                  <p>No hay incidencias registradas</p>
+                  <p>No hay incidencias ni descuentos de presentación registrados</p>
                 </div>
               ) : (() => {
                 const gruposPorMes = agruparIncidenciasPorMes(incidencias);
@@ -4169,6 +4179,9 @@ function DocenteHijos() {
                                       <span className="icon">📅</span>
                                       <span>{formatearFecha(incidencia.created_at)}</span>
                                     </div>
+                                    <span className={`incidencia-tipo-badge ${incidencia.origen === 'vestimenta' ? 'es-vestimenta' : 'es-incidencia'}`}>
+                                      {incidencia.origen === 'vestimenta' ? 'Presentación' : 'Incidencia'}
+                                    </span>
                                   </div>
                                   <div className="card-body-incidencia">
                                     <div className="card-info-row">
