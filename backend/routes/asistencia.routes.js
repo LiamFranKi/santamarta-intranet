@@ -3,7 +3,7 @@ const router = express.Router();
 const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
 const moment = require('moment-timezone');
-const { enviarCorreoAsistencia, isEmailEnvioHabilitado } = require('../services/emailService');
+const { enviarCorreoAsistencia, isEmailEnvioHabilitado, enviarCorreoHtml } = require('../services/emailService');
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
 const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { urlPortalHijoPorTipoUsuario } = require('../utils/notificacionUrls');
@@ -252,13 +252,71 @@ router.post('/escaneo', async (req, res) => {
  */
 const MOTIVOS_PRESENTACION = new Set(['PRESENTACION']);
 
-/** Fragmento para push / notificación in-app / coherencia con correo (solo apoderados, entrada). */
-function textoDescuentosPresentacionApoderado(descuentosPresentacion) {
-  if (!Array.isArray(descuentosPresentacion) || descuentosPresentacion.length === 0) return '';
-  if (descuentosPresentacion.includes('PRESENTACION')) {
-    return ' Se le descontó 1 punto por presentación escolar.';
-  }
-  return '';
+function tieneDescuentoPresentacion(descuentosPresentacion) {
+  return (
+    Array.isArray(descuentosPresentacion) &&
+    descuentosPresentacion.includes('PRESENTACION')
+  );
+}
+
+/** Aviso aparte (campanita / push / correo): no mezclar con la notificación de asistencia. */
+function buildAvisoVestimenta({ nombreAlumno, fechaFormateada, horaFormateada, contextoAlumno }) {
+  const nombre = String(nombreAlumno || 'Su hijo(a)').trim() || 'Su hijo(a)';
+  const titulo = '👔 Vestimenta −1 punto';
+  let contenido =
+    `Se descontó 1 punto a ${nombre} por vestimenta / presentación escolar ` +
+    `(uniforme incompleto o presentación no adecuada) el ${fechaFormateada} a las ${horaFormateada}. ` +
+    `Le pedimos reforzar el cumplimiento del uniforme y la presentación requerida por el colegio.`;
+  contenido = construirMensajeFamiliaConAlumnoYGrupo(contenido, contextoAlumno);
+  return { titulo, contenido };
+}
+
+function htmlCorreoVestimenta({ nombreAlumno, fecha, hora, colegioNombre, mensaje }) {
+  const colegio = colegioNombre || 'Vanguard Schools';
+  return `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#f3f4f6;padding:20px;">
+  <tr><td align="center">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 14px rgba(15,23,42,0.08);">
+      <tr>
+        <td style="background:linear-gradient(135deg,#d97706 0%,#b45309 100%);padding:26px 22px;text-align:center;">
+          <div style="font-size:28px;margin-bottom:8px;">👔</div>
+          <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">Vestimenta −1 punto</h1>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:28px 26px;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1f2937;font-size:15px;line-height:1.6;">
+          <p style="margin:0 0 16px;">Estimado(a) apoderado(a),</p>
+          <p style="margin:0 0 16px;">${mensaje}</p>
+          <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 16px;margin:18px 0;">
+            <table role="presentation" width="100%" style="border-collapse:collapse;font-size:14px;">
+              <tr>
+                <td style="padding:6px 0;color:#92400e;font-weight:600;">Estudiante</td>
+                <td style="padding:6px 0;color:#78350f;font-weight:700;text-align:right;">${nombreAlumno}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0;color:#92400e;font-weight:600;">Motivo</td>
+                <td style="padding:6px 0;color:#78350f;font-weight:700;text-align:right;">Vestimenta / presentación</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0;color:#92400e;font-weight:600;">Descuento</td>
+                <td style="padding:6px 0;color:#b45309;font-weight:800;text-align:right;">−1 punto</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0;color:#92400e;font-weight:600;">Fecha</td>
+                <td style="padding:6px 0;color:#78350f;text-align:right;">${fecha}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0;color:#92400e;font-weight:600;">Hora</td>
+                <td style="padding:6px 0;color:#78350f;text-align:right;">${hora}</td>
+              </tr>
+            </table>
+          </div>
+          <p style="margin:16px 0 0;font-size:13px;color:#6b7280;">Mensaje automático de ${colegio}.</p>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>`;
 }
 
 router.post('/registrar', async (req, res) => {
@@ -657,16 +715,26 @@ router.post('/registrar', async (req, res) => {
           mensajeNotificacion += ` Estado: ${tipoTexto}.`;
         }
 
-        if (tipo_registro === 'ENTRADA') {
-          mensajeNotificacion += textoDescuentosPresentacionApoderado(descuentosPresentacion);
-        }
         mensajeNotificacion = construirMensajeFamiliaConAlumnoYGrupo(
           mensajeNotificacion,
           contextoAlumnoNotificacion
         );
+
+        const avisoVestimenta =
+          tipo_registro === 'ENTRADA' && tieneDescuentoPresentacion(descuentosPresentacion)
+            ? buildAvisoVestimenta({
+                nombreAlumno: datosUsuario.nombre_completo,
+                fechaFormateada,
+                horaFormateada,
+                contextoAlumno: contextoAlumnoNotificacion,
+              })
+            : null;
         
         console.log(`📧 [ASISTENCIA] Título notificación: ${tituloNotificacion}`);
         console.log(`📧 [ASISTENCIA] Mensaje notificación: ${mensajeNotificacion}`);
+        if (avisoVestimenta) {
+          console.log(`👔 [VESTIMENTA] Aviso aparte: ${avisoVestimenta.titulo}`);
+        }
 
         const idsPushTipos = [...new Set((subscriptions || []).map((s) => parseInt(s.usuario_id, 10)))];
         let tipoPorUsuarioAsistenciaPush = new Map();
@@ -741,13 +809,28 @@ router.post('/registrar', async (req, res) => {
                   accion_payload: {
                     alumno_id: datosUsuario.id,
                     tipo_registro,
-                    ...(descuentosPresentacion.length > 0
-                      ? { descuentos_presentacion: descuentosPresentacion }
-                      : {})
                   },
                   url_destino: urlDestinoAsist
                 });
                 console.log(`✅ [ASISTENCIA] Notificación creada en BD para usuario ID: ${usuarioId}`);
+
+                if (avisoVestimenta) {
+                  await insertNotificacionUsuario(execute, {
+                    usuario_id: asistencia_usuario_id,
+                    destinatario_id: usuarioId,
+                    asunto: avisoVestimenta.titulo,
+                    contenido: avisoVestimenta.contenido,
+                    estado: 'ENVIADO',
+                    accion_tipo: 'presentacion_vestimenta',
+                    accion_payload: {
+                      alumno_id: datosUsuario.id,
+                      puntos: -1,
+                      motivo: 'PRESENTACION',
+                    },
+                    url_destino: urlDestinoAsist,
+                  });
+                  console.log(`✅ [VESTIMENTA] Notificación aparte creada para usuario ID: ${usuarioId}`);
+                }
               } catch (error) {
                 console.error(`❌ [ASISTENCIA] Error creando notificación para usuario ${usuarioId}:`, error);
               }
@@ -781,9 +864,28 @@ router.post('/registrar', async (req, res) => {
                     colegioNombre,
                     esDocente: false,
                     tipoAsistencia: tipo_registro === 'ENTRADA' ? tipoAsistenciaParaNotificacion : null,
-                    descuentosPresentacion:
-                      tipo_registro === 'ENTRADA' ? descuentosPresentacion : []
+                    descuentosPresentacion: []
                   });
+                  if (avisoVestimenta) {
+                    try {
+                      await enviarCorreoHtml(
+                        email,
+                        avisoVestimenta.titulo,
+                        htmlCorreoVestimenta({
+                          nombreAlumno: datosUsuario.nombre_completo,
+                          fecha: fechaFormateada,
+                          hora: horaFormateada,
+                          colegioNombre,
+                          mensaje: avisoVestimenta.contenido,
+                        }),
+                        colegioNombre,
+                        'ASISTENCIA'
+                      );
+                      console.log(`✅ [VESTIMENTA] Correo aparte enviado a ${email}`);
+                    } catch (errV) {
+                      console.error(`❌ [VESTIMENTA] Correo a ${email}:`, errV.message);
+                    }
+                  }
                   if (resultadoCorreo.success) {
                     console.log(`✅ [ASISTENCIA] Correo enviado a ${email}`);
                     return { ok: true, email };
@@ -855,6 +957,37 @@ router.post('/registrar', async (req, res) => {
                       console.log(`📱 [ASISTENCIA] ${expiradas.length} suscripción(es) marcadas como inactivas (expiradas)`);
                     } catch (e) {
                       console.error(`❌ [ASISTENCIA] Error marcando suscripciones inactivas:`, e.message);
+                    }
+                  }
+
+                  if (avisoVestimenta && subscriptions.length > 0) {
+                    const pushItemsVest = subscriptions.map((sub) => {
+                      const uid = parseInt(sub.usuario_id, 10);
+                      const tipoD = tipoPorUsuarioAsistenciaPush.get(uid) || 'APODERADO';
+                      const url = urlPortalHijoPorTipoUsuario(tipoD, datosUsuario.id);
+                      return {
+                        subscription: { endpoint: sub.endpoint, keys: sub.keys },
+                        payload: {
+                          title: avisoVestimenta.titulo,
+                          body: avisoVestimenta.contenido,
+                          icon: '/icons/icon-192x192.png',
+                          badge: '/icons/icon-192x192.png',
+                          vibrate: [200, 100, 200, 100, 200],
+                          tag: `vestimenta-${datosUsuario.id}-${fechaHoy}`,
+                          data: {
+                            url,
+                            tipo: 'presentacion_vestimenta',
+                            alumno_id: datosUsuario.id,
+                          },
+                        },
+                      };
+                    });
+                    try {
+                      const rV = await enviarPushNotificacionesIndividuales(pushItemsVest);
+                      const okV = rV.filter((r) => r.resultado && r.resultado.success).length;
+                      console.log(`✅ [VESTIMENTA] Push aparte: ${okV}/${rV.length}`);
+                    } catch (ePushV) {
+                      console.error('❌ [VESTIMENTA] Push:', ePushV.message);
                     }
                   }
                 })

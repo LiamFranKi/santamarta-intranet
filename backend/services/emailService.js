@@ -188,27 +188,7 @@ function generarTemplateAsistencia(datos) {
   
   const colorPrincipal = tipo === 'ENTRADA' ? '#10b981' : '#3b82f6';
 
-  const tieneDescPresentacion =
-    tipo === 'ENTRADA' &&
-    !esDocente &&
-    Array.isArray(descuentosPresentacion) &&
-    descuentosPresentacion.length > 0;
-  const lineasPresentacion = [];
-  if (tieneDescPresentacion) {
-    if (descuentosPresentacion.includes('PRESENTACION')) {
-      lineasPresentacion.push('Se le descontó 1 punto por presentación escolar.');
-    }
-  }
-  const htmlBloquePresentacion =
-    lineasPresentacion.length > 0
-      ? `
-              <div style="background-color: #fef3c7; border-left: 4px solid #d97706; padding: 16px 18px; margin: 20px 0 0 0; border-radius: 8px;">
-                <p style="margin: 0; font-size: 15px; color: #78350f; line-height: 1.55;">
-                  <strong>Presentación escolar</strong><br/>
-                  ${lineasPresentacion.map((t) => `<span style="display:block;margin-top:6px;">${t}</span>`).join('')}
-                </p>
-              </div>`
-      : '';
+  const htmlBloquePresentacion = ''; // El aviso de vestimenta va en un correo aparte (presentacion_vestimenta)
   
   return `
 <!DOCTYPE html>

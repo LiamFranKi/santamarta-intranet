@@ -252,7 +252,7 @@ export function normalizarUrlNotificacion(notif, user) {
     return '/alumno/mensajes';
   }
 
-  if (tipoAccion === 'asistencia_alumno') {
+  if (tipoAccion === 'asistencia_alumno' || tipoAccion === 'presentacion_vestimenta') {
     // No existe ruta /hijos/:id en App; usar listado de hijos.
     if (user?.tipo === 'DOCENTE') return '/docente/hijos';
     return '/apoderado/hijos';

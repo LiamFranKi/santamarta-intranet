@@ -131,7 +131,7 @@ function inferirUrlNotificacionFamiliaPorDestinatario(
     if (td === 'DOCENTE') return '/docente/comunicados';
     return '/apoderado/comunicados';
   }
-  if (tipo.includes('asistencia')) {
+  if (tipo.includes('asistencia') || tipo === 'presentacion_vestimenta') {
     return urlPortalHijoPorTipoUsuario(td, alumno_id);
   }
   if (tipo === 'examen_finalizado') {
