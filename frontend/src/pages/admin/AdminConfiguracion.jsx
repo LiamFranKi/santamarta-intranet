@@ -1161,22 +1161,13 @@ function AdminConfiguracion() {
                   onChange={handleInputChange}
                 />
               </div>
-              <div className="form-group">
-                <label>Título Formulario Matrícula</label>
-                <input
-                  type="text"
-                  name="titulo_formulario_matricula"
-                  value={config.titulo_formulario_matricula}
-                  onChange={handleInputChange}
-                />
-              </div>
             </div>
             <div className="card-actions">
               <button 
                 type="button" 
                 onClick={() => handleSaveSection([
                   'titulo_intranet', 'codigo_modular', 'resolucion_creacion', 
-                  'texto_intranet', 'titulo_formulario_matricula', 'login_fondo'
+                  'texto_intranet', 'login_fondo'
                 ], 'Información General')}
                 disabled={saving}
                 className="btn-submit-card"

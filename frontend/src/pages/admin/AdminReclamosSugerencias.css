@@ -1,4 +1,4 @@
-/* Reclamos y Sugerencias (web pública) */
+/* Reclamos y Sugerencias (web pÃºblica) */
 
 .rs-page {
   max-width: 1280px;
@@ -643,7 +643,7 @@
   }
 }
 
-/* Matr�cula online (panel Web) */
+/* Matrícula online (panel Web) */
 .rs-card {
   background: #fff;
   border: 1px solid #e2e8f0;
@@ -652,8 +652,135 @@
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
-.rs-matricula-panel .rs-card h3 {
-  font-size: 1.05rem;
-  font-weight: 700;
+.rs-matricula-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+}
+
+.rs-matricula-panel .rs-matricula-card {
+  padding: 1.45rem 1.5rem 1.55rem;
+}
+
+.rs-matricula-card__head {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.rs-matricula-card__head--row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.25rem;
+  flex-wrap: wrap;
+}
+
+.rs-matricula-card__title {
+  margin: 0 0 0.5rem;
+  font-size: 1.12rem;
+  font-weight: 750;
   color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.rs-matricula-card__lead {
+  margin: 0;
+  max-width: 42rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #64748b;
+}
+
+.rs-matricula-card__lead code {
+  font-size: 0.84em;
+  padding: 0.12em 0.4em;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.rs-matricula-form {
+  gap: 1.15rem 1.35rem !important;
+}
+
+.rs-matricula-panel .rs-field label {
+  margin-bottom: 0.45rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+}
+
+.rs-matricula-panel .rs-field input,
+.rs-matricula-panel .rs-field select,
+.rs-matricula-panel .rs-field textarea {
+  padding: 0.7rem 0.9rem;
+  border-radius: 10px;
+  line-height: 1.45;
+}
+
+.rs-matricula-panel .rs-field textarea {
+  font-family: inherit;
+  min-height: 6.5rem;
+  resize: vertical;
+}
+
+.rs-field-hint {
+  display: block;
+  margin-top: 0.45rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #94a3b8;
+}
+
+.rs-field-hint--tags {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.74rem;
+  color: #64748b;
+  word-break: break-word;
+}
+
+.rs-matricula-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1.35rem;
+  padding-top: 1.15rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.rs-matricula-empty {
+  margin: 0.35rem 0 0;
+}
+
+.rs-matricula-docs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.rs-matricula-doc {
+  min-height: 88px;
+}
+
+.rs-matricula-doc__side {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+a.rs-pdf-open {
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  .rs-matricula-doc {
+    flex-wrap: wrap;
+  }
+
+  .rs-matricula-doc__side {
+    width: 100%;
+    justify-content: space-between;
+  }
 }

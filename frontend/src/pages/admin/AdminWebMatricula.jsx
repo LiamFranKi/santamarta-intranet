@@ -65,6 +65,23 @@ function Overlay({ title, onClose, children, footer }) {
   );
 }
 
+function PdfOpenLink({ href, title }) {
+  return (
+    <a
+      className="rs-pdf-open"
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={title || 'Abrir PDF'}
+    >
+      <span className="rs-pdf-open__icon" aria-hidden>
+        📄
+      </span>
+      <span className="rs-pdf-open__label">PDF</span>
+    </a>
+  );
+}
+
 /**
  * Gestión unificada de Matrícula online en el menú Web:
  * habilitar formulario, intros opcionales de correo, documentos a aceptar.
@@ -75,6 +92,7 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     enable_enrollment_form: 'NO',
+    titulo_formulario_matricula: '',
     remitente_emails: '',
     email_matricula_apoderado: '',
     email_matricula_interno: '',
@@ -129,6 +147,7 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
       const { data } = await api.get('/admin/configuracion');
       setForm({
         enable_enrollment_form: data.enable_enrollment_form || 'NO',
+        titulo_formulario_matricula: data.titulo_formulario_matricula || '',
         remitente_emails: data.remitente_emails || '',
         email_matricula_apoderado: htmlATextoPlano(data.email_matricula_apoderado || ''),
         email_matricula_interno: htmlATextoPlano(data.email_matricula_interno || ''),
@@ -156,6 +175,7 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
       setSaving(true);
       const fd = new FormData();
       fd.append('enable_enrollment_form', form.enable_enrollment_form);
+      fd.append('titulo_formulario_matricula', form.titulo_formulario_matricula);
       fd.append('remitente_emails', form.remitente_emails);
       fd.append('email_matricula_apoderado', form.email_matricula_apoderado);
       fd.append('email_matricula_interno', form.email_matricula_interno);
@@ -270,13 +290,15 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
 
   return (
     <div className="rs-matricula-panel">
-      <section className="rs-card" style={{ marginBottom: '1.25rem' }}>
-        <h3 style={{ margin: '0 0 0.35rem' }}>Formulario público</h3>
-        <p className="rs-muted" style={{ marginTop: 0 }}>
-          Ruta: <strong>/matricula_online</strong>. Al enviar se crea matrícula <strong>Temporal</strong>. El año
-          académico se toma de Configuración → Año (Año Matrículas).
-        </p>
-        <div className="rs-form-grid">
+      <section className="rs-card rs-matricula-card">
+        <header className="rs-matricula-card__head">
+          <h3 className="rs-matricula-card__title">Formulario público</h3>
+          <p className="rs-matricula-card__lead">
+            Disponible en <code>/matricula_online</code>. Al enviar se crea una matrícula{' '}
+            <strong>Temporal</strong>. El año académico se toma de Configuración → Año.
+          </p>
+        </header>
+        <div className="rs-form-grid rs-matricula-form">
           <div className="rs-field">
             <label>Habilitar formulario</label>
             <select
@@ -296,18 +318,29 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
               placeholder="Vanguard Schools"
             />
           </div>
+          <div className="rs-field rs-field--full">
+            <label>Título del formulario</label>
+            <input
+              type="text"
+              value={form.titulo_formulario_matricula}
+              onChange={(e) => setForm((f) => ({ ...f, titulo_formulario_matricula: e.target.value }))}
+              placeholder="MATRICULA ONLINE - VANGUARD"
+            />
+            <span className="rs-field-hint">Texto que ve el apoderado como encabezado del formulario.</span>
+          </div>
         </div>
       </section>
 
-      <section className="rs-card" style={{ marginBottom: '1.25rem' }}>
-        <h3 style={{ margin: '0 0 0.35rem' }}>Correos (diseño del sistema)</h3>
-        <p className="rs-muted" style={{ marginTop: 0 }}>
-          El sistema arma siempre el correo profesional (logo, campos del estudiante/apoderado, pie). Aquí solo
-          puede dejar un <strong>texto intro opcional</strong>; si queda en blanco se usa el mensaje
-          predeterminado. Los destinatarios del aviso interno se configuran en{' '}
-          <strong>Correos de envío → canal Matrícula</strong> (no en Admisión).
-        </p>
-        <div className="rs-form-grid">
+      <section className="rs-card rs-matricula-card">
+        <header className="rs-matricula-card__head">
+          <h3 className="rs-matricula-card__title">Correos</h3>
+          <p className="rs-matricula-card__lead">
+            El sistema arma el diseño del correo (logo, datos y pie). Aquí solo edita el texto intro si lo
+            necesita; vacío = mensaje predeterminado. Destinatarios internos:{' '}
+            <strong>Correos de envío → Matrícula</strong>.
+          </p>
+        </header>
+        <div className="rs-form-grid rs-matricula-form">
           <div className="rs-field rs-field--full">
             <label>Intro correo al apoderado (opcional)</label>
             <textarea
@@ -318,10 +351,10 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
                 'Estimado/a {{nombre_apoderado}},\n\nHemos recibido su pre-matrícula…\n\n(Deje vacío para usar el texto del sistema)'
               }
             />
-            <small className="rs-muted">
-              Etiquetas: {'{{nombre_apoderado}}'}, {'{{nombre_alumno}}'}, {'{{nivel}}'}, {'{{grado}}'},{' '}
-              {'{{anio_matricula}}'}, {'{{fecha_registro}}'}, {'{{colegio}}'}
-            </small>
+            <span className="rs-field-hint rs-field-hint--tags">
+              {'{{nombre_apoderado}}'} · {'{{nombre_alumno}}'} · {'{{nivel}}'} · {'{{grado}}'} ·{' '}
+              {'{{anio_matricula}}'} · {'{{fecha_registro}}'} · {'{{colegio}}'}
+            </span>
           </div>
           <div className="rs-field rs-field--full">
             <label>Asunto correo interno (opcional)</label>
@@ -342,7 +375,7 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
             />
           </div>
         </div>
-        <div className="rs-actions" style={{ marginTop: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div className="rs-matricula-actions">
           <button type="button" className="rs-btn rs-btn-primary" onClick={guardarConfig} disabled={saving}>
             {saving ? 'Guardando…' : '💾 Guardar configuración'}
           </button>
@@ -352,69 +385,59 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
             </button>
           )}
         </div>
-        <p className="rs-muted" style={{ marginTop: '0.75rem', marginBottom: 0 }}>
-          Los avisos internos llegan a quienes tengan el canal <strong>Matrícula</strong> activo en Correos de
-          envío. Si antes tenía correos en Configuración, el sistema los pasa solo a ese canal al abrir esta
-          pantalla (o al enviarse una pre-matrícula).
-        </p>
       </section>
 
-      <section className="rs-card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+      <section className="rs-card rs-matricula-card">
+        <header className="rs-matricula-card__head rs-matricula-card__head--row">
           <div>
-            <h3 style={{ margin: '0 0 0.35rem' }}>Documentos a aceptar</h3>
-            <p className="rs-muted" style={{ margin: 0 }}>
-              PDF que el apoderado debe marcar en el formulario. Gestionados aquí (ocultos en Institucional).
+            <h3 className="rs-matricula-card__title">Documentos a aceptar</h3>
+            <p className="rs-matricula-card__lead">
+              PDF que el apoderado debe marcar en el formulario. Se gestionan aquí (ocultos en Institucional).
             </p>
           </div>
           <button type="button" className="rs-btn rs-btn-primary" onClick={() => abrirDoc(null)}>
             ➕ Nuevo documento
           </button>
-        </div>
+        </header>
 
         {docs.length === 0 ? (
-          <p className="rs-empty" style={{ marginTop: '1rem' }}>
+          <p className="rs-empty rs-matricula-empty">
             No hay documentos. Agregue al menos uno si el formulario debe exigir aceptación.
           </p>
         ) : (
-          <div className="rs-table-wrap" style={{ marginTop: '1rem' }}>
-            <table className="rs-table">
-              <thead>
-                <tr>
-                  <th>Título</th>
-                  <th>Archivo</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {docs.map((d) => (
-                  <tr key={d.id}>
-                    <td>
-                      <div className="rs-nombre">{d.titulo}</div>
-                    </td>
-                    <td>
-                      <a href={baseArchivoUrl(d.archivo_url)} target="_blank" rel="noopener noreferrer">
-                        {d.nombre_archivo_original || 'Ver PDF'}
-                      </a>
-                    </td>
-                    <td>
-                      <div className="rs-actions">
-                        <button type="button" className="rs-btn rs-btn-ghost rs-btn-sm" onClick={() => abrirDoc(d)}>
-                          ✏️
-                        </button>
-                        <button
-                          type="button"
-                          className="rs-btn rs-btn-danger rs-btn-sm"
-                          onClick={() => eliminarDoc(d)}
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="rs-matricula-docs">
+            {docs.map((d) => (
+              <article key={d.id} className="rs-pdf-card rs-matricula-doc">
+                <div className="rs-pdf-card__body">
+                  <p className="rs-pdf-card__title">{d.titulo}</p>
+                  <p className="rs-pdf-card__hint">{d.nombre_archivo_original || 'Documento PDF'}</p>
+                </div>
+                <div className="rs-matricula-doc__side">
+                  <PdfOpenLink
+                    href={baseArchivoUrl(d.archivo_url)}
+                    title={`Abrir ${d.nombre_archivo_original || d.titulo}`}
+                  />
+                  <div className="rs-actions">
+                    <button
+                      type="button"
+                      className="rs-btn rs-btn-ghost rs-btn-sm"
+                      onClick={() => abrirDoc(d)}
+                      title="Editar"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      type="button"
+                      className="rs-btn rs-btn-danger rs-btn-sm"
+                      onClick={() => eliminarDoc(d)}
+                      title="Eliminar"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
           </div>
         )}
       </section>
@@ -461,7 +484,11 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
             </div>
             <div className="rs-field rs-field--full">
               <label>PDF {docEdit ? '(opcional si no cambia)' : '*'}</label>
-              <input type="file" accept="application/pdf,.pdf" onChange={(e) => setArchivo(e.target.files?.[0] || null)} />
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                onChange={(e) => setArchivo(e.target.files?.[0] || null)}
+              />
             </div>
           </div>
         </Overlay>
