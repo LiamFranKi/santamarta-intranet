@@ -57,6 +57,7 @@ sistema-anterior/
 !agregar-perfiles-usuarios.sql
 !database/alter_notificaciones_deep_link.sql
 !database/gestion_documentos.sql
+!sql/web_correos_recibe_matricula.sql
 
 # Archivos PNG subidos directamente al VPS (evitar conflictos)
 frontend/public/icons/*.backup
