@@ -3733,31 +3733,33 @@ function DocenteTutoria({
               ) : !(detalleConductaAlumno.incidencias || []).length ? (
                 <p className="tutor-evidencias-empty tutor-evidencias-empty--destacado">Sin incidencias ni descuentos de presentación en este bimestre</p>
               ) : (
-                <ul className="tutor-evidencia-lineas tutor-evidencia-lineas--inci">
-                  {(detalleConductaAlumno.incidencias || []).map((inc) => (
-                    <li key={inc.id} className="tutor-inc-card">
-                      <div className="tutor-inc-card-top">
-                        <time className="tutor-inc-fecha">{formatearFechaHoraPeru(inc.created_at)}</time>
-                        <span className={`tutor-inc-origen ${inc.origen === 'vestimenta' ? 'es-vestimenta' : 'es-incidencia'}`}>
-                          {inc.origen === 'vestimenta' ? 'Presentación' : 'Incidencia'}
-                        </span>
-                      </div>
-                      <div className="tutor-inc-card-meta">
-                        <div className="tutor-inc-meta-item">
-                          <span className="tutor-inc-meta-label">Docente</span>
-                          <span className="tutor-inc-meta-value es-docente">{inc.docente_nombre || '—'}</span>
+                <div className="tutor-evidencia-cards-scroll">
+                  <ul className="tutor-evidencia-lineas tutor-evidencia-lineas--inci">
+                    {(detalleConductaAlumno.incidencias || []).map((inc) => (
+                      <li key={inc.id} className="tutor-inc-card">
+                        <div className="tutor-inc-card-top">
+                          <time className="tutor-inc-fecha">{formatearFechaHoraPeru(inc.created_at)}</time>
+                          <span className={`tutor-inc-origen ${inc.origen === 'vestimenta' ? 'es-vestimenta' : 'es-incidencia'}`}>
+                            {inc.origen === 'vestimenta' ? 'Presentación' : 'Incidencia'}
+                          </span>
                         </div>
-                        <div className="tutor-inc-meta-item">
-                          <span className="tutor-inc-meta-label">Curso</span>
-                          <span className="tutor-inc-meta-value es-curso">{inc.curso_nombre || '—'}</span>
+                        <div className="tutor-inc-card-meta">
+                          <div className="tutor-inc-meta-item">
+                            <span className="tutor-inc-meta-label">Docente</span>
+                            <span className="tutor-inc-meta-value es-docente">{inc.docente_nombre || '—'}</span>
+                          </div>
+                          <div className="tutor-inc-meta-item">
+                            <span className="tutor-inc-meta-label">Curso</span>
+                            <span className="tutor-inc-meta-value es-curso">{inc.curso_nombre || '—'}</span>
+                          </div>
                         </div>
-                      </div>
-                      {(inc.description || '').trim() ? (
-                        <p className="tutor-inc-detalle">{inc.description}</p>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
+                        {(inc.description || '').trim() ? (
+                          <p className="tutor-inc-detalle">{inc.description}</p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
           </div>

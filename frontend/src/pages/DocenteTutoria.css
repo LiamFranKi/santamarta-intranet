@@ -2218,6 +2218,7 @@
   flex-direction: column;
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
   overflow: hidden;
+  min-height: 0;
 }
 
 .tutor-evidencias-panel-header {
@@ -2226,6 +2227,7 @@
   gap: 1rem;
   padding: 1.15rem 1.5rem;
   align-items: flex-start;
+  flex-shrink: 0;
 }
 
 .tutor-evidencias-panel-header--descuentos {
@@ -2272,6 +2274,7 @@
   padding: 0.85rem 1.35rem;
   background: linear-gradient(180deg, #f8fafc 0%, #fff 70%);
   border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
 }
 
 .tutor-evidencias-date input[type='date'] {
@@ -2303,7 +2306,8 @@
 }
 
 .tutor-evidencias-body {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -2325,11 +2329,19 @@
 
 .tutor-evidencia-cards-scroll {
   overflow-y: auto;
-  flex: 1;
+  overflow-x: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
   padding: 1rem 1.35rem 1.25rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+/* Detalle alumno: la lista va directa en el scroll */
+.tutor-evidencia-cards-scroll > .tutor-evidencia-lineas--inci {
+  flex: none;
 }
 
 .tutor-evidencia-alumno-card {
