@@ -10,7 +10,9 @@ import {
   normalizarReglaConducta,
   textoReglaConducta,
   textoReglaCorta,
-  ejemplosReglaConducta,
+  ejemplosReglaBloque,
+  CASILLEROS_CONDUCTA,
+  LABELS_CASILLERO,
 } from '../../utils/reglaConducta';
 import './AdminConfiguracion.css';
 
@@ -1001,12 +1003,25 @@ function AdminConfiguracion() {
     }
   };
 
-  const handleReglaConductaChange = (field, value) => {
+  const handleReglaConductaBloqueChange = (casillero, field, value) => {
+    setConfig((prev) => {
+      const r = normalizarReglaConducta(prev.regla_conducta);
+      return {
+        ...prev,
+        regla_conducta: {
+          ...r,
+          [casillero]: { ...r[casillero], [field]: value },
+        },
+      };
+    });
+  };
+
+  const handleReglaConductaPromedioChange = (checked) => {
     setConfig((prev) => ({
       ...prev,
       regla_conducta: {
         ...normalizarReglaConducta(prev.regla_conducta),
-        [field]: value,
+        redondear_promedio: checked,
       },
     }));
   };
@@ -1250,66 +1265,87 @@ function AdminConfiguracion() {
             </div>
             <div className="config-section">
               <p className="config-section-hint">
-                Nota automática por bimestre. Cada incidencia o descuento de presentación resta el valor indicado.
+                Tres casilleros independientes (incidencias, presentación y tardanzas). Cada uno parte de su nota máxima
+                y resta el descuento por registro. La nota de conducta es el promedio de los tres.
                 Al guardar se recalcula a todos los alumnos del año activo.
               </p>
-              <div className="form-grid form-grid--narrow">
-                <div className="form-group">
-                  <label>Nota máxima</label>
+              <div className="conducta-casilleros">
+                {CASILLEROS_CONDUCTA.map((key) => {
+                  const bloque = config.regla_conducta?.[key] || {};
+                  return (
+                    <div key={key} className="conducta-casillero">
+                      <h4 className="conducta-casillero-title">{LABELS_CASILLERO[key]}</h4>
+                      <div className="form-grid form-grid--narrow">
+                        <div className="form-group">
+                          <label>Nota máxima</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="20"
+                            step="1"
+                            value={bloque.max ?? 20}
+                            onChange={(e) => handleReglaConductaBloqueChange(key, 'max', e.target.value)}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Nota mínima</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="20"
+                            step="1"
+                            value={bloque.min ?? 6}
+                            onChange={(e) => handleReglaConductaBloqueChange(key, 'min', e.target.value)}
+                          />
+                          <small>No baja de este valor.</small>
+                        </div>
+                        <div className="form-group">
+                          <label>Descuento por registro</label>
+                          <input
+                            type="number"
+                            min="0.1"
+                            max="5"
+                            step="0.1"
+                            value={bloque.descuento ?? 0.5}
+                            onChange={(e) => handleReglaConductaBloqueChange(key, 'descuento', e.target.value)}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="config-check-label">
+                            <input
+                              type="checkbox"
+                              checked={!!bloque.redondear}
+                              onChange={(e) => handleReglaConductaBloqueChange(key, 'redondear', e.target.checked)}
+                            />
+                            Redondear .5 hacia arriba
+                          </label>
+                        </div>
+                      </div>
+                      <div className="conducta-ejemplos conducta-ejemplos--mini">
+                        <p className="conducta-ejemplos-title">Vista previa</p>
+                        <ul>
+                          {ejemplosReglaBloque(bloque).slice(0, 4).map((ej) => (
+                            <li key={`${key}-${ej.registros}`}>
+                              {ej.registros} → <strong>{ej.nota}</strong>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="form-group" style={{ marginTop: '0.75rem' }}>
+                <label className="config-check-label">
                   <input
-                    type="number"
-                    min="0"
-                    max="20"
-                    step="1"
-                    value={config.regla_conducta?.max ?? 20}
-                    onChange={(e) => handleReglaConductaChange('max', e.target.value)}
+                    type="checkbox"
+                    checked={!!config.regla_conducta?.redondear_promedio}
+                    onChange={(e) => handleReglaConductaPromedioChange(e.target.checked)}
                   />
-                </div>
-                <div className="form-group">
-                  <label>Nota mínima</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="20"
-                    step="1"
-                    value={config.regla_conducta?.min ?? 6}
-                    onChange={(e) => handleReglaConductaChange('min', e.target.value)}
-                  />
-                  <small>No puede bajar de este valor (ej. 06).</small>
-                </div>
-                <div className="form-group">
-                  <label>Descuento por registro</label>
-                  <input
-                    type="number"
-                    min="0.1"
-                    max="5"
-                    step="0.1"
-                    value={config.regla_conducta?.descuento ?? 0.5}
-                    onChange={(e) => handleReglaConductaChange('descuento', e.target.value)}
-                  />
-                  <small>Por cada incidencia o mala presentación.</small>
-                </div>
-                <div className="form-group">
-                  <label className="config-check-label">
-                    <input
-                      type="checkbox"
-                      checked={!!config.regla_conducta?.redondear}
-                      onChange={(e) => handleReglaConductaChange('redondear', e.target.checked)}
-                    />
-                    Redondear .5 hacia arriba
-                  </label>
-                  <small>Ejemplo: 7.5 → 08, 19.5 → 20.</small>
-                </div>
+                  Redondear el promedio final .5 hacia arriba
+                </label>
               </div>
               <div className="conducta-ejemplos">
-                <p className="conducta-ejemplos-title">Vista previa con la regla actual</p>
-                <ul>
-                  {ejemplosReglaConducta(config.regla_conducta).map((ej) => (
-                    <li key={ej.registros}>
-                      {ej.registros} registro{ej.registros === 1 ? '' : 's'} → <strong>{ej.nota}</strong>
-                    </li>
-                  ))}
-                </ul>
                 <p className="conducta-ejemplos-texto">{textoReglaConducta(config.regla_conducta)}</p>
               </div>
               <div className="card-actions">

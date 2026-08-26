@@ -32,7 +32,7 @@ const { urlStaticFotos } = require('../utils/staticStorage');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 const { getBoletaPdfJsonForPago } = require('../utils/boletaPdfData');
 const { obtenerRangosLetrasColegio } = require('../utils/rangosLetrasColegio');
-const { listarIncidenciasUnificadasMatricula, agruparItemsPorBimestre } = require('../utils/conductaIncidenciasBimestre');
+const { listarIncidenciasUnificadasMatricula, agruparItemsPorBimestre, fetchMapasNotasConductaLibreta } = require('../utils/conductaIncidenciasBimestre');
 const {
   pickSaludFields,
   normalizeSaludBody,
@@ -2856,12 +2856,8 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         } catch (e) { /* ignore */ }
       }
 
-      const conductaProm = await query(
-        `SELECT ciclo, promedio FROM promedios WHERE matricula_id = ? AND asignatura_id = -101 AND ciclo IN (1,2,3,4)`,
-        [matriculaId]
-      );
-      const conductaMap = {};
-      conductaProm.forEach(p => { conductaMap[p.ciclo] = p.promedio; });
+      const desgloseConducta = await fetchMapasNotasConductaLibreta(query, matriculaId);
+      const conductaMap = desgloseConducta.promedio_conducta;
 
       const inasistenciasB1 = await contarInasistenciasBimestre(query, matriculaId, anio, rangosLibretaAsis, 1);
       const inasistenciasB2 = await contarInasistenciasBimestre(query, matriculaId, anio, rangosLibretaAsis, 2);
@@ -2907,11 +2903,14 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         suma_notas: { b1: null, b2: null, b3: null, b4: null },
         promedio: { b1: null, b2: null, b3: null, b4: null, final: null },
         promedio_conducta: {
-          b1: conductaMap[1] != null && conductaMap[1] !== '' ? conductaMap[1] : null,
-          b2: conductaMap[2] != null && conductaMap[2] !== '' ? conductaMap[2] : null,
-          b3: conductaMap[3] != null && conductaMap[3] !== '' ? conductaMap[3] : null,
-          b4: conductaMap[4] != null && conductaMap[4] !== '' ? conductaMap[4] : null
+          b1: conductaMap.b1,
+          b2: conductaMap.b2,
+          b3: conductaMap.b3,
+          b4: conductaMap.b4
         },
+        conducta_incidencias: desgloseConducta.conducta_incidencias,
+        conducta_presentacion: desgloseConducta.conducta_presentacion,
+        conducta_tardanzas: desgloseConducta.conducta_tardanzas,
         orden_merito: { b1: null, b2: null, b3: null, b4: null },
         inasistencias: { b1: inasistenciasB1, b2: inasistenciasB2, b3: inasistenciasB3, b4: inasistenciasB4 },
         tardanzas: { b1: tardanzasB1, b2: tardanzasB2, b3: tardanzasB3, b4: tardanzasB4 }
@@ -2985,6 +2984,14 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     const promedioConductaB2 = (conductaProm[2] !== null && conductaProm[2] !== '' && conductaProm[2] !== '-') ? conductaProm[2] : null;
     const promedioConductaB3 = (conductaProm[3] !== null && conductaProm[3] !== '' && conductaProm[3] !== '-') ? conductaProm[3] : null;
     const promedioConductaB4 = (conductaProm[4] !== null && conductaProm[4] !== '' && conductaProm[4] !== '-') ? conductaProm[4] : null;
+    const mapaNotaCasillero = (id) => {
+      const raw = promediosPorAsignatura[id] || promediosPorAsignatura[String(id)] || {};
+      const v = (c) => (raw[c] !== null && raw[c] !== undefined && raw[c] !== '' && raw[c] !== '-' ? raw[c] : null);
+      return { b1: v(1), b2: v(2), b3: v(3), b4: v(4) };
+    };
+    const conductaIncidenciasMap = mapaNotaCasillero(-104);
+    const conductaPresentacionMap = mapaNotaCasillero(-105);
+    const conductaTardanzasMap = mapaNotaCasillero(-106);
 
     // Recomendaciones: solo la del bimestre seleccionado (sin prefijo "Bimestre X:")
     let recomendacionesTexto = '';
@@ -3245,6 +3252,9 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         b4: promedioConductaB4,
         final: promedioConductaFinal
       },
+      conducta_incidencias: conductaIncidenciasMap,
+      conducta_presentacion: conductaPresentacionMap,
+      conducta_tardanzas: conductaTardanzasMap,
       orden_merito: {
         b1: ordenMerito.b1,
         b2: ordenMerito.b2,

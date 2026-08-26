@@ -12,6 +12,7 @@ const mensajesConfig = require('../config/mensajes.json');
 const {
   asegurarIncidenciaVestimenta,
   sincronizarConductaMatriculaBimestre,
+  sincronizarConductaMatriculaPorFecha,
   cicloQueContieneFecha,
   fetchRangosCiclosParsed,
 } = require('../utils/conductaIncidenciasBimestre');
@@ -527,6 +528,16 @@ router.post('/registrar', async (req, res) => {
                 );
                 console.log(`✅ [ASISTENCIA] Creado registro en matriculas_asistencias: ${tipoAsistenciaParaNotificacion}`);
               }
+              try {
+                await sincronizarConductaMatriculaPorFecha(query, execute, {
+                  matriculaId: matricula[0].matricula_id,
+                  colegio_id,
+                  anioEscolar: anio_activo,
+                  fechaYmd: fechaHoy,
+                });
+              } catch (eSyncTard) {
+                console.warn('[ASISTENCIA] sync conducta tardanza QR:', eSyncTard.message);
+              }
             }
           } catch (error) {
             console.error(`❌ [ASISTENCIA] Error procesando asistencia en matriculas_asistencias:`, error);
@@ -687,7 +698,7 @@ router.post('/registrar', async (req, res) => {
         if (tipo_registro === 'ENTRADA' && tieneDescuentoPresentacion(descuentosPresentacion)) {
           try {
             const reglaV = await fetchReglaConducta(query);
-            descuentoVestimenta = reglaV.descuento;
+            descuentoVestimenta = reglaV.presentacion?.descuento ?? 0.5;
           } catch (_) { /* default */ }
         }
         let contextoAlumnoNotificacion = null;

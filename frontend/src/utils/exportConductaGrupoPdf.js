@@ -1,10 +1,11 @@
 import { jsPDF } from 'jspdf';
 import Swal from 'sweetalert2';
+import { formatNotaConducta, notaMaxReferencia } from './reglaConducta';
 
 /**
  * Exporta PDF de registro de conducta (misma maquetación que Tutoría).
  */
-export async function exportConductaGrupoPdf({ alumnos, grupo, ciclo }) {
+export async function exportConductaGrupoPdf({ alumnos, grupo, ciclo, regla }) {
   if (!alumnos?.length) {
     await Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay alumnos para exportar' });
     return;
@@ -22,6 +23,13 @@ export async function exportConductaGrupoPdf({ alumnos, grupo, ciclo }) {
     : '';
   const colorPrimario = [102, 126, 234];
   const colorBlanco = [255, 255, 255];
+  const wNum = 14;
+  const wInc = 18;
+  const wPres = 20;
+  const wTard = 18;
+  const wNota = 22;
+  const wName = pageWidth - 2 * margin - wNum - wInc - wPres - wTard - wNota;
+  const notaMax = notaMaxReferencia(regla);
 
   try {
     const logoRes = await fetch('/icons/logoboleta.png');
@@ -60,21 +68,34 @@ export async function exportConductaGrupoPdf({ alumnos, grupo, ciclo }) {
     }
   };
 
+  const xs = {
+    num: margin,
+    name: margin + wNum,
+    inc: margin + wNum + wName,
+    pres: margin + wNum + wName + wInc,
+    tard: margin + wNum + wName + wInc + wPres,
+    nota: margin + wNum + wName + wInc + wPres + wTard,
+  };
+
   const dibujarCabeceraTablaConducta = (yStart) => {
     let y = yStart;
     doc.setDrawColor(200, 200, 200);
     doc.setFillColor(234, 234, 234);
-    doc.rect(margin, y, 25, 8, 'FD');
-    doc.rect(margin + 25, y, pageWidth - 2 * margin - 60, 8, 'FD');
-    doc.rect(pageWidth - margin - 35, y, 35, 8, 'FD');
-    doc.setFontSize(9);
+    doc.rect(xs.num, y, wNum, 8, 'FD');
+    doc.rect(xs.name, y, wName, 8, 'FD');
+    doc.rect(xs.inc, y, wInc, 8, 'FD');
+    doc.rect(xs.pres, y, wPres, 8, 'FD');
+    doc.rect(xs.tard, y, wTard, 8, 'FD');
+    doc.rect(xs.nota, y, wNota, 8, 'FD');
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(55, 65, 81);
-    doc.text('N°', margin + 12.5, y + 5.5, { align: 'center' });
-    doc.text('APELLIDOS Y NOMBRES', margin + (pageWidth - 2 * margin - 60) / 2 + 25, y + 5.5, {
-      align: 'center',
-    });
-    doc.text('NOTA', pageWidth - margin - 17.5, y + 5.5, { align: 'center' });
+    doc.text('N°', xs.num + wNum / 2, y + 5.5, { align: 'center' });
+    doc.text('APELLIDOS Y NOMBRES', xs.name + 3, y + 5.5);
+    doc.text('Incid.', xs.inc + wInc / 2, y + 5.5, { align: 'center' });
+    doc.text('Present.', xs.pres + wPres / 2, y + 5.5, { align: 'center' });
+    doc.text('Tard.', xs.tard + wTard / 2, y + 5.5, { align: 'center' });
+    doc.text('NOTA', xs.nota + wNota / 2, y + 5.5, { align: 'center' });
     y += 8;
     return y;
   };
@@ -92,13 +113,20 @@ export async function exportConductaGrupoPdf({ alumnos, grupo, ciclo }) {
     const zebra = i % 2 === 0 ? [248, 250, 252] : [255, 255, 255];
     doc.setFillColor(...zebra);
     doc.setDrawColor(220, 220, 220);
-    doc.rect(margin, yPos, 25, rowH, 'FD');
-    doc.rect(margin + 25, yPos, pageWidth - 2 * margin - 60, rowH, 'FD');
-    doc.rect(pageWidth - margin - 35, yPos, 35, rowH, 'FD');
+    doc.rect(xs.num, yPos, wNum, rowH, 'FD');
+    doc.rect(xs.name, yPos, wName, rowH, 'FD');
+    doc.rect(xs.inc, yPos, wInc, rowH, 'FD');
+    doc.rect(xs.pres, yPos, wPres, rowH, 'FD');
+    doc.rect(xs.tard, yPos, wTard, rowH, 'FD');
+    doc.rect(xs.nota, yPos, wNota, rowH, 'FD');
     doc.setTextColor(30, 41, 59);
-    doc.text(String(i + 1), margin + 12.5, yPos + 4.5, { align: 'center' });
-    doc.text((a.nombre_completo || '').slice(0, 78), margin + 28, yPos + 4.5);
-    doc.text(a.nota_conducta || '20', pageWidth - margin - 17.5, yPos + 4.5, { align: 'center' });
+    doc.setFontSize(8);
+    doc.text(String(i + 1), xs.num + wNum / 2, yPos + 4.5, { align: 'center' });
+    doc.text((a.nombre_completo || '').slice(0, 70), xs.name + 2, yPos + 4.5);
+    doc.text(String(a.total_incidencias ?? 0), xs.inc + wInc / 2, yPos + 4.5, { align: 'center' });
+    doc.text(String(a.total_presentacion ?? 0), xs.pres + wPres / 2, yPos + 4.5, { align: 'center' });
+    doc.text(String(a.total_tardanzas ?? 0), xs.tard + wTard / 2, yPos + 4.5, { align: 'center' });
+    doc.text(a.nota_conducta || formatNotaConducta(notaMax), xs.nota + wNota / 2, yPos + 4.5, { align: 'center' });
     yPos += rowH;
   });
 

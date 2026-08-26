@@ -356,6 +356,11 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
 
       yPos += 5;
 
+      if (yPos > pageHeight - 70) {
+        doc.addPage();
+        yPos = margin + paddingVertical;
+      }
+
       const resumen = datosLibreta.resumen;
       const resumenWidth = colAreaWidth + (colBimestreWidth * numCols);
 
@@ -371,6 +376,9 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
       const sumaB = []; for (let c = 1; c <= 4; c++) sumaB.push(c <= cicloSel ? resumen.suma_notas[`b${c}`] : null);
       const promB = []; for (let c = 1; c <= 4; c++) promB.push(c <= cicloSel ? resumen.promedio[`b${c}`] : null);
       const condB = []; for (let c = 1; c <= 4; c++) condB.push(c <= cicloSel ? resumen.promedio_conducta[`b${c}`] : null);
+      const condIncB = []; for (let c = 1; c <= 4; c++) condIncB.push(c <= cicloSel ? resumen.conducta_incidencias?.[`b${c}`] : null);
+      const condPresB = []; for (let c = 1; c <= 4; c++) condPresB.push(c <= cicloSel ? resumen.conducta_presentacion?.[`b${c}`] : null);
+      const condTardNotaB = []; for (let c = 1; c <= 4; c++) condTardNotaB.push(c <= cicloSel ? resumen.conducta_tardanzas?.[`b${c}`] : null);
       const ordB = []; for (let c = 1; c <= 4; c++) ordB.push(c <= cicloSel ? resumen.orden_merito[`b${c}`] : null);
       const inasB = []; for (let c = 1; c <= 4; c++) inasB.push(c <= cicloSel ? resumen.inasistencias[`b${c}`] : null);
       const tardB = []; for (let c = 1; c <= 4; c++) tardB.push(c <= cicloSel ? resumen.tardanzas[`b${c}`] : null);
@@ -429,6 +437,9 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
       dibFila('SUMA DE NOTAS', sumaB);
       dibFila('PROMEDIO', promB, '-');
       dibFila('PROMEDIO CONDUCTA', condB, '-');
+      dibFila('COND. INCIDENCIAS', condIncB, '-');
+      dibFila('COND. PRESENTACIÓN', condPresB, '-');
+      dibFila('COND. TARDANZAS', condTardNotaB, '-');
       dibFila('ORDEN DE MÉRITO', ordB);
       dibFila('N° DE INASISTENCIAS', inasB, '0');
       dibFila('N° DE TARDANZAS', tardB, '0');

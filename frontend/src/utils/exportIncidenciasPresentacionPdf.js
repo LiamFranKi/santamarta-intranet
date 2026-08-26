@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import { etiquetaOrigenConducta } from './reglaConducta';
 
 function formatearSoloFecha(f) {
   if (f == null || f === '') return '—';
@@ -33,6 +34,14 @@ function sanitizePdfText(t) {
     .replace(/[^\x09\x0A\x0D\x20-\x7E\u00A0-\u00FF\u0100-\u017F]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function tipoOrigenPdf(origen) {
+  return sanitizePdfText(etiquetaOrigenConducta(origen).toUpperCase());
+}
+
+function esPresentacion(origen) {
+  return origen === 'vestimenta';
 }
 
 async function cargarLogoDataUrl() {
@@ -112,7 +121,7 @@ export async function exportIncidenciasPresentacionPdf({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(continuacion ? 11 : 13);
     doc.text(
-      continuacion ? 'INCIDENCIAS Y PRESENTACIÓN (continúa)' : 'INCIDENCIAS Y PRESENTACIÓN',
+      continuacion ? 'INCIDENCIAS, PRESENTACIÓN Y TARDANZAS (continúa)' : 'INCIDENCIAS, PRESENTACIÓN Y TARDANZAS',
       xText,
       continuacion ? 10 : 12
     );
@@ -147,8 +156,9 @@ export async function exportIncidenciasPresentacionPdf({
   for (let i = 0; i < lista.length; i += 1) {
     const al = lista[i];
     const regs = al.incidencias || [];
-    const nInc = regs.filter((r) => r.origen !== 'vestimenta').length;
+    const nInc = regs.filter((r) => r.origen !== 'vestimenta' && r.origen !== 'tardanza').length;
     const nPres = regs.filter((r) => r.origen === 'vestimenta').length;
+    const nTard = regs.filter((r) => r.origen === 'tardanza').length;
 
     asegurarEspacio(16);
 
@@ -164,14 +174,14 @@ export async function exportIncidenciasPresentacionPdf({
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...colorMuted);
-    const resumen = `${regs.length} reg.  ·  ${nInc} incidencia${nInc !== 1 ? 's' : ''}  ·  ${nPres} presentación`;
+    const resumen = `${regs.length} reg.  ·  ${nInc} incidencia${nInc !== 1 ? 's' : ''}  ·  ${nPres} presentación  ·  ${nTard} tardanza`;
     doc.text(resumen, pw - mm - 3, y + 6.5, { align: 'right' });
     y += 13;
 
     for (let j = 0; j < regs.length; j += 1) {
       const inc = regs[j];
-      const esVest = inc.origen === 'vestimenta';
-      const tipo = esVest ? 'PRESENTACIÓN' : 'INCIDENCIA';
+      const esVest = esPresentacion(inc.origen);
+      const tipo = tipoOrigenPdf(inc.origen);
       const desc = sanitizePdfText(inc.description || '');
       const lineasDesc = desc ? doc.splitTextToSize(desc, innerW - 10) : [];
       const altoDesc = lineasDesc.length * 4.2;
@@ -299,7 +309,7 @@ export async function exportIncidenciasHijoBimestresPdf({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(continuacion ? 11 : 13);
     doc.text(
-      continuacion ? 'INCIDENCIAS Y PRESENTACIÓN (continúa)' : 'INCIDENCIAS Y PRESENTACIÓN',
+      continuacion ? 'INCIDENCIAS, PRESENTACIÓN Y TARDANZAS (continúa)' : 'INCIDENCIAS, PRESENTACIÓN Y TARDANZAS',
       xText,
       continuacion ? 9 : 12
     );
@@ -359,8 +369,8 @@ export async function exportIncidenciasHijoBimestresPdf({
     }
 
     for (const inc of regs) {
-      const esVest = inc.origen === 'vestimenta';
-      const tipo = esVest ? 'PRESENTACIÓN' : 'INCIDENCIA';
+      const esVest = esPresentacion(inc.origen);
+      const tipo = tipoOrigenPdf(inc.origen);
       const desc = sanitizePdfText(inc.description || '');
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
@@ -438,7 +448,7 @@ export async function exportIncidenciasHijoBimestresPdf({
     doc.setFontSize(9);
     doc.setTextColor(146, 64, 14);
     doc.text(
-      `Resumen B${bim.ciclo}: ${bim.total_incidencias || 0} incidencia(s) + ${bim.total_presentacion || 0} presentación(es) = nota ${bim.nota_conducta ?? notaMax}/${notaMax}`,
+      `Resumen B${bim.ciclo}: ${bim.total_incidencias || 0} incidencia(s) + ${bim.total_presentacion || 0} presentación(es) + ${bim.total_tardanzas || 0} tardanza(s) = promedio ${bim.nota_conducta ?? notaMax}`,
       mm + 3,
       y + 7.5
     );

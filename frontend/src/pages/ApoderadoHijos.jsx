@@ -22,7 +22,7 @@ import { formatearTutoresLibreta } from '../utils/tutoresGrupoTexto';
 import AlumnoSaludFields from '../components/AlumnoSaludFields';
 import AlumnoPerfilExtra from '../components/AlumnoPerfilExtra';
 import { exportIncidenciasHijoBimestresPdf, exportEstrellasHijoBimestresPdf } from '../utils/exportIncidenciasPresentacionPdf';
-import { formatNotaConducta, textoReglaCorta, REGLA_CONDUCTA_DEFAULT } from '../utils/reglaConducta';
+import { textoReglaCorta, REGLA_CONDUCTA_DEFAULT, captionDescuentosConducta, etiquetaOrigenConducta, claseOrigenConducta, notaMaxReferencia, conteosOrigenConducta } from '../utils/reglaConducta';
 import './DocenteHijos.css';
 import './AlumnoCursos.css';
 
@@ -2267,6 +2267,11 @@ function ApoderadoHijos() {
 
       yPos += 5;
 
+      if (yPos > pageHeight - 70) {
+        doc.addPage();
+        yPos = margin + 10;
+      }
+
       const resumen = datosLibreta.resumen;
       const resumenWidth = colAreaWidth + (colBimestreWidth * numCols);
 
@@ -2282,6 +2287,9 @@ function ApoderadoHijos() {
       const sumaB = []; for (let c = 1; c <= 4; c++) sumaB.push(c <= cicloSel ? resumen.suma_notas[`b${c}`] : null);
       const promB = []; for (let c = 1; c <= 4; c++) promB.push(c <= cicloSel ? resumen.promedio[`b${c}`] : null);
       const condB = []; for (let c = 1; c <= 4; c++) condB.push(c <= cicloSel ? resumen.promedio_conducta[`b${c}`] : null);
+      const condIncB = []; for (let c = 1; c <= 4; c++) condIncB.push(c <= cicloSel ? resumen.conducta_incidencias?.[`b${c}`] : null);
+      const condPresB = []; for (let c = 1; c <= 4; c++) condPresB.push(c <= cicloSel ? resumen.conducta_presentacion?.[`b${c}`] : null);
+      const condTardNotaB = []; for (let c = 1; c <= 4; c++) condTardNotaB.push(c <= cicloSel ? resumen.conducta_tardanzas?.[`b${c}`] : null);
       const ordB = []; for (let c = 1; c <= 4; c++) ordB.push(c <= cicloSel ? resumen.orden_merito[`b${c}`] : null);
       const inasB = []; for (let c = 1; c <= 4; c++) inasB.push(c <= cicloSel ? resumen.inasistencias[`b${c}`] : null);
       const tardB = []; for (let c = 1; c <= 4; c++) tardB.push(c <= cicloSel ? resumen.tardanzas[`b${c}`] : null);
@@ -2340,6 +2348,9 @@ function ApoderadoHijos() {
       dibFila('SUMA DE NOTAS', sumaB);
       dibFila('PROMEDIO', promB, '-');
       dibFila('PROMEDIO CONDUCTA', condB, '-');
+      dibFila('COND. INCIDENCIAS', condIncB, '-');
+      dibFila('COND. PRESENTACIÓN', condPresB, '-');
+      dibFila('COND. TARDANZAS', condTardNotaB, '-');
       dibFila('ORDEN DE MÉRITO', ordB);
       dibFila('N° DE INASISTENCIAS', inasB, '0');
       dibFila('N° DE TARDANZAS', tardB, '0');
@@ -4040,7 +4051,7 @@ function ApoderadoHijos() {
 
                   {!bimestresIncidencias.length && incidencias.length === 0 ? (
                     <div className="empty-state">
-                      <p>No hay incidencias ni descuentos de presentación registrados</p>
+                      <p>No hay incidencias, presentación ni tardanzas registrados</p>
                     </div>
                   ) : (
                     <>
@@ -4061,11 +4072,11 @@ function ApoderadoHijos() {
                       {(() => {
                         const all = bimestresIncidencias.length
                           ? bimestresIncidencias
-                          : [{ ciclo: 1, incidencias, nota_conducta: null, total_incidencias: 0, total_presentacion: 0 }];
+                          : [{ ciclo: 1, incidencias, nota_conducta: null, total_incidencias: 0, total_presentacion: 0, total_tardanzas: 0 }];
                         const filtered = all.filter((b) => Number(b.ciclo) === Number(cicloFiltroIncidenciasHijo));
                         const list = filtered.length
                           ? filtered
-                          : [{ ciclo: cicloFiltroIncidenciasHijo, incidencias: [], nota_conducta: formatNotaConducta(reglaIncidencias.max), fecha_desde: '', fecha_hasta: '', total_incidencias: 0, total_presentacion: 0 }];
+                          : [{ ciclo: cicloFiltroIncidenciasHijo, incidencias: [], nota_conducta: notaMaxReferencia(reglaIncidencias), fecha_desde: '', fecha_hasta: '', total_incidencias: 0, total_presentacion: 0, total_tardanzas: 0 }];
                         return list;
                       })().map((bim) => {
                         const regs = bim.incidencias || [];
@@ -4081,7 +4092,7 @@ function ApoderadoHijos() {
                                 )}
                               </div>
                               <div className="hijo-inc-nota" title={textoReglaCorta(reglaIncidencias)}>
-                                Conducta: <strong>{bim.nota_conducta ?? formatNotaConducta(reglaIncidencias.max)}</strong>
+                                Conducta: <strong>{bim.nota_conducta ?? notaMaxReferencia(reglaIncidencias)}</strong>
                               </div>
                             </header>
 
@@ -4093,8 +4104,8 @@ function ApoderadoHijos() {
                                   <li key={incidencia.id} className="hijo-inc-card">
                                     <div className="hijo-inc-card-top">
                                       <time className="hijo-inc-fecha">{formatearFecha(incidencia.created_at)}</time>
-                                      <span className={`hijo-inc-origen ${incidencia.origen === 'vestimenta' ? 'es-vestimenta' : 'es-incidencia'}`}>
-                                        {incidencia.origen === 'vestimenta' ? 'Presentación' : 'Incidencia'}
+                                      <span className={`hijo-inc-origen ${claseOrigenConducta(incidencia.origen)}`}>
+                                        {etiquetaOrigenConducta(incidencia.origen)}
                                       </span>
                                     </div>
                                     <div className="hijo-inc-card-meta">
@@ -4116,11 +4127,26 @@ function ApoderadoHijos() {
                             )}
 
                             <footer className="hijo-inc-resumen">
-                              Resumen: {bim.total_incidencias ?? regs.filter((x) => x.origen !== 'vestimenta').length} incidencia(s)
-                              {' + '}
-                              {bim.total_presentacion ?? regs.filter((x) => x.origen === 'vestimenta').length} presentación(es)
-                              {' → nota '}
-                              <strong>{bim.nota_conducta ?? formatNotaConducta(reglaIncidencias.max)}/{formatNotaConducta(reglaIncidencias.max)}</strong>
+                              {(() => {
+                                const c = conteosOrigenConducta(regs);
+                                const nInc = bim.total_incidencias ?? c.incidencias;
+                                const nPres = bim.total_presentacion ?? c.presentacion;
+                                const nTard = bim.total_tardanzas ?? c.tardanzas;
+                                return (
+                                  <>
+                                    Resumen: {nInc} incidencia(s) + {nPres} presentación(es) + {nTard} tardanza(s)
+                                    {' → promedio '}
+                                    <strong>{bim.nota_conducta ?? notaMaxReferencia(reglaIncidencias)}</strong>
+                                    {(bim.nota_incidencias || bim.nota_presentacion || bim.nota_tardanzas) ? (
+                                      <span>
+                                        {' '}(Incid. {bim.nota_incidencias ?? '—'} · Present. {bim.nota_presentacion ?? '—'} · Tard. {bim.nota_tardanzas ?? '—'})
+                                      </span>
+                                    ) : null}
+                                    <br />
+                                    <span className="hijo-inc-caption">{captionDescuentosConducta(reglaIncidencias)}</span>
+                                  </>
+                                );
+                              })()}
                             </footer>
                           </section>
                         );

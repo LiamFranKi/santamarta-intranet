@@ -4,6 +4,7 @@ import api from '../../services/api';
 import Swal from 'sweetalert2';
 import jsPDF from 'jspdf';
 import '../../pages/DocenteTutoria.css';
+import { etiquetaOrigenConducta, claseOrigenConducta } from '../../utils/reglaConducta';
 
 /** Rango inicial para reportes (año lectivo → hoy) */
 function rangoFechasReporteGrupo(anioEscolar) {
@@ -686,8 +687,8 @@ export function useGrupoReportesConducta({ apiPathPrefix, anioFallback } = {}) {
                               <li key={inc.id} className="tutor-inc-card">
                                 <div className="tutor-inc-card-top">
                                   <time className="tutor-inc-fecha">{formatearFechaHoraPeru(inc.created_at)}</time>
-                                  <span className={`tutor-inc-origen ${inc.origen === 'vestimenta' ? 'es-vestimenta' : 'es-incidencia'}`}>
-                                    {inc.origen === 'vestimenta' ? 'Presentación' : 'Incidencia'}
+                                  <span className={`tutor-inc-origen ${claseOrigenConducta(inc.origen)}`}>
+                                    {etiquetaOrigenConducta(inc.origen)}
                                   </span>
                                 </div>
                                 <div className="tutor-inc-card-meta">

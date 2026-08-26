@@ -80,11 +80,13 @@ const {
   backfillVestimentaAIncidenciasGrupo,
   listarIncidenciasUnificadasGrupo,
   sincronizarConductaMatriculaBimestre,
+  sincronizarConductaMatriculaPorFecha,
   cicloQueContieneFecha,
   asegurarIncidenciaVestimenta,
   listarIncidenciasUnificadasMatricula,
   agruparItemsPorBimestre,
   listarEstrellasGrupo,
+  fetchMapasNotasConductaLibreta,
 } = require('../utils/conductaIncidenciasBimestre');
 const { esCompletarCorrecto } = require('../utils/examenCompletar');
 const { finalizarPruebaConCalificacion } = require('../utils/examenFinalizarPrueba');
@@ -9143,6 +9145,19 @@ router.post('/tutoria/grupos/:grupoId/asistencia', async (req, res) => {
       }
     }
 
+    if (enviarNotificacion) {
+      try {
+        await sincronizarConductaMatriculaPorFecha(query, execute, {
+          matriculaId: matricula_id,
+          colegio_id,
+          anioEscolar: anio_activo,
+          fechaYmd: fechaNorm,
+        });
+      } catch (eSync) {
+        console.warn('[ASISTENCIA] sync conducta tutor:', eSync.message);
+      }
+    }
+
     res.json({ success: true, tipo });
   } catch (error) {
     console.error('Error guardando asistencia:', error);
@@ -13625,12 +13640,8 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         } catch (e) { /* ignore */ }
       }
 
-      const conductaProm = await query(
-        `SELECT ciclo, promedio FROM promedios WHERE matricula_id = ? AND asignatura_id = -101 AND ciclo IN (1,2,3,4)`,
-        [matriculaId]
-      );
-      const conductaMap = {};
-      conductaProm.forEach(p => { conductaMap[p.ciclo] = p.promedio; });
+      const desgloseConducta = await fetchMapasNotasConductaLibreta(query, matriculaId);
+      const conductaMap = desgloseConducta.promedio_conducta;
 
       const inasistenciasB1 = await contarInasistenciasBimestre(query, matriculaId, anio, rangosLibretaAsis, 1);
       const inasistenciasB2 = await contarInasistenciasBimestre(query, matriculaId, anio, rangosLibretaAsis, 2);
@@ -13674,11 +13685,14 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         suma_notas: { b1: null, b2: null, b3: null, b4: null },
         promedio: { b1: null, b2: null, b3: null, b4: null, final: null },
         promedio_conducta: {
-          b1: conductaMap[1] != null && conductaMap[1] !== '' ? conductaMap[1] : null,
-          b2: conductaMap[2] != null && conductaMap[2] !== '' ? conductaMap[2] : null,
-          b3: conductaMap[3] != null && conductaMap[3] !== '' ? conductaMap[3] : null,
-          b4: conductaMap[4] != null && conductaMap[4] !== '' ? conductaMap[4] : null
+          b1: conductaMap.b1,
+          b2: conductaMap.b2,
+          b3: conductaMap.b3,
+          b4: conductaMap.b4
         },
+        conducta_incidencias: desgloseConducta.conducta_incidencias,
+        conducta_presentacion: desgloseConducta.conducta_presentacion,
+        conducta_tardanzas: desgloseConducta.conducta_tardanzas,
         orden_merito: { b1: null, b2: null, b3: null, b4: null },
         inasistencias: { b1: inasistenciasB1, b2: inasistenciasB2, b3: inasistenciasB3, b4: inasistenciasB4 },
         tardanzas: { b1: tardanzasB1, b2: tardanzasB2, b3: tardanzasB3, b4: tardanzasB4 }
@@ -13886,10 +13900,11 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       : null;
 
     // Promedio conducta (buscar en notas con asignatura_id = -101 o similar)
-    const promedioConductaB1 = await obtenerPromedioConducta(matriculaId, 1);
-    const promedioConductaB2 = await obtenerPromedioConducta(matriculaId, 2);
-    const promedioConductaB3 = await obtenerPromedioConducta(matriculaId, 3);
-    const promedioConductaB4 = await obtenerPromedioConducta(matriculaId, 4);
+    const desgloseConducta = await fetchMapasNotasConductaLibreta(query, matriculaId);
+    const promedioConductaB1 = desgloseConducta.promedio_conducta.b1;
+    const promedioConductaB2 = desgloseConducta.promedio_conducta.b2;
+    const promedioConductaB3 = desgloseConducta.promedio_conducta.b3;
+    const promedioConductaB4 = desgloseConducta.promedio_conducta.b4;
     const conductaVals = [promedioConductaB1, promedioConductaB2, promedioConductaB3, promedioConductaB4]
       .filter(v => v != null && v !== '' && v !== '-').map(v => parseFloat(v));
     const promedioConductaFinal = conductaVals.length > 0 ? Math.round(conductaVals.reduce((a, b) => a + b, 0) / conductaVals.length) : null;
@@ -13938,6 +13953,9 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         b4: promedioConductaB4,
         final: promedioConductaFinal
       },
+      conducta_incidencias: desgloseConducta.conducta_incidencias,
+      conducta_presentacion: desgloseConducta.conducta_presentacion,
+      conducta_tardanzas: desgloseConducta.conducta_tardanzas,
       orden_merito: {
         b1: ordenMerito.b1,
         b2: ordenMerito.b2,

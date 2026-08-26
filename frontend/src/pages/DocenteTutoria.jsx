@@ -10,7 +10,8 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { generarPDFNotasTutoria } from '../utils/pdfNotasTutoria';
 import { exportIncidenciasPresentacionPdf } from '../utils/exportIncidenciasPresentacionPdf';
-import { textoReglaConducta, textoReglaCorta, formatNotaConducta, REGLA_CONDUCTA_DEFAULT } from '../utils/reglaConducta';
+import { exportConductaGrupoPdf } from '../utils/exportConductaGrupoPdf';
+import { textoReglaConducta, textoReglaCorta, REGLA_CONDUCTA_DEFAULT, captionDescuentosConducta, etiquetaOrigenConducta, claseOrigenConducta, notaMaxReferencia } from '../utils/reglaConducta';
 import jsPDF from 'jspdf';
 import './DocenteTutoria.css';
 import './DocenteCursos.css';
@@ -2295,110 +2296,11 @@ function DocenteTutoria({
   };
 
   const exportarPDFConducta = async () => {
-    if (!conductaAlumnos.length) {
-      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay alumnos para exportar' });
-      return;
-    }
-    const doc = new jsPDF('l', 'mm', 'a4');
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 14;
-    const rowH = 7;
-    const footerReserve = 14;
-    const yContentMax = pageHeight - footerReserve;
-    const grupoNombre = grupoParaConducta ? `${grupoParaConducta.grado}° ${grupoParaConducta.seccion} - ${grupoParaConducta.nivel_nombre}` : '';
-    const colorPrimario = [102, 126, 234];
-    const colorBlanco = [255, 255, 255];
-
-    try {
-      const logoRes = await fetch('/icons/logoboleta.png');
-      if (logoRes.ok) {
-        const blob = await logoRes.blob();
-        const dataUrl = await new Promise((res) => {
-          const r = new FileReader();
-          r.onloadend = () => res(r.result);
-          r.readAsDataURL(blob);
-        });
-        doc.addImage(dataUrl, 'PNG', margin, 4, 24, 24);
-      }
-    } catch (e) { /* ignore */ }
-
-    const dibujarBannerConducta = (esContinuacion) => {
-      doc.setFillColor(...colorPrimario);
-      doc.rect(0, 0, pageWidth, esContinuacion ? 22 : 32, 'F');
-      doc.setFontSize(esContinuacion ? 11 : 14);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...colorBlanco);
-      doc.text(esContinuacion ? 'REGISTRO DE CONDUCTA (continúa)' : 'REGISTRO DE CONDUCTA', margin + (esContinuacion ? 4 : 30), esContinuacion ? 10 : 14);
-      if (!esContinuacion) {
-        doc.setFontSize(10);
-        doc.setTextColor(240, 240, 240);
-        doc.text(`Grupo: ${grupoNombre}  |  Bimestre: ${conductaCiclo}  |  Año: ${grupoParaConducta?.anio || ''}`, margin + 30, 22);
-      }
-    };
-
-    const dibujarCabeceraTablaConducta = (yStart) => {
-      let y = yStart;
-      doc.setDrawColor(200, 200, 200);
-      doc.setFillColor(234, 234, 234);
-      doc.rect(margin, y, 18, 8, 'FD');
-      doc.rect(margin + 18, y, pageWidth - 2 * margin - 70, 8, 'FD');
-      doc.rect(pageWidth - margin - 52, y, 22, 8, 'FD');
-      doc.rect(pageWidth - margin - 30, y, 30, 8, 'FD');
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(55, 65, 81);
-      doc.text('N°', margin + 9, y + 5.5, { align: 'center' });
-      doc.text('APELLIDOS Y NOMBRES', margin + 18 + (pageWidth - 2 * margin - 70) / 2, y + 5.5, { align: 'center' });
-      doc.text('Incid.', pageWidth - margin - 41, y + 5.5, { align: 'center' });
-      doc.text('NOTA', pageWidth - margin - 15, y + 5.5, { align: 'center' });
-      y += 8;
-      return y;
-    };
-
-    dibujarBannerConducta(false);
-    let yPos = dibujarCabeceraTablaConducta(38);
-
-    doc.setFont('helvetica', 'normal');
-    conductaAlumnos.forEach((a, i) => {
-      if (yPos + rowH > yContentMax) {
-        doc.addPage();
-        dibujarBannerConducta(true);
-        yPos = dibujarCabeceraTablaConducta(26);
-      }
-      const zebra = i % 2 === 0 ? [248, 250, 252] : [255, 255, 255];
-      doc.setFillColor(...zebra);
-      doc.setDrawColor(220, 220, 220);
-      doc.rect(margin, yPos, 18, rowH, 'FD');
-      doc.rect(margin + 18, yPos, pageWidth - 2 * margin - 70, rowH, 'FD');
-      doc.rect(pageWidth - margin - 52, yPos, 22, rowH, 'FD');
-      doc.rect(pageWidth - margin - 30, yPos, 30, rowH, 'FD');
-      doc.setTextColor(30, 41, 59);
-      doc.text(String(i + 1), margin + 9, yPos + 4.5, { align: 'center' });
-      doc.text((a.nombre_completo || '').slice(0, 72), margin + 21, yPos + 4.5);
-      doc.text(String(a.total_incidencias ?? 0), pageWidth - margin - 41, yPos + 4.5, { align: 'center' });
-      doc.text(a.nota_conducta || formatNotaConducta(reglaConducta.max), pageWidth - margin - 15, yPos + 4.5, { align: 'center' });
-      yPos += rowH;
-    });
-
-    const totalP = doc.internal.getNumberOfPages();
-    const genTxt = `Generado: ${new Date().toLocaleString('es-PE')}`;
-    for (let p = 1; p <= totalP; p += 1) {
-      doc.setPage(p);
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(100, 116, 139);
-      doc.text(genTxt, margin, pageHeight - 6);
-      doc.text(`Pág. ${p} / ${totalP}`, pageWidth - margin - 28, pageHeight - 6, { align: 'right' });
-    }
-
-    doc.save(`Conducta_${grupoNombre.replace(/\s+/g, '_')}_B${conductaCiclo}.pdf`);
-    Swal.fire({
-      icon: 'success',
-      title: 'PDF generado',
-      text: 'El reporte se descargó correctamente',
-      timer: 2000,
-      showConfirmButton: false,
+    await exportConductaGrupoPdf({
+      alumnos: conductaAlumnos,
+      grupo: grupoParaConducta,
+      ciclo: conductaCiclo,
+      regla: reglaConducta,
     });
   };
 
@@ -3609,6 +3511,7 @@ function DocenteTutoria({
             <p className="conducta-auto-aviso">
               {textoReglaConductaUi}
             </p>
+            <p className="conducta-caption-descuentos">{captionDescuentosConducta(reglaConducta)}</p>
             <div className="modal-registro-asistencia-table-wrap">
               {loadingConducta ? (
                 <div className="modal-registro-asistencia-loading"><div className="loading-spinner" /><p>Cargando...</p></div>
@@ -3618,8 +3521,10 @@ function DocenteTutoria({
                     <tr>
                       <th style={{ width: 50 }}>N°</th>
                       <th>APELLIDOS Y NOMBRES</th>
-                      <th style={{ width: 70, textAlign: 'center' }}>Incid.</th>
-                      <th style={{ width: 90, textAlign: 'center' }}>NOTA ({formatNotaConducta(reglaConducta.min)}-{formatNotaConducta(reglaConducta.max)})</th>
+                      <th style={{ width: 62, textAlign: 'center' }}>Incid.</th>
+                      <th style={{ width: 72, textAlign: 'center' }}>Present.</th>
+                      <th style={{ width: 62, textAlign: 'center' }}>Tard.</th>
+                      <th style={{ width: 90, textAlign: 'center' }}>NOTA</th>
                       <th style={{ width: 70, textAlign: 'center' }}>Ver</th>
                     </tr>
                   </thead>
@@ -3629,8 +3534,10 @@ function DocenteTutoria({
                         <td style={{ textAlign: 'center', fontWeight: 600 }}>{a.numero}</td>
                         <td>{a.nombre_completo}</td>
                         <td style={{ textAlign: 'center' }}>{a.total_incidencias ?? 0}</td>
+                        <td style={{ textAlign: 'center' }}>{a.total_presentacion ?? 0}</td>
+                        <td style={{ textAlign: 'center' }}>{a.total_tardanzas ?? 0}</td>
                         <td style={{ textAlign: 'center' }}>
-                          <span className="input-conducta input-conducta--readonly">{a.nota_conducta ?? formatNotaConducta(reglaConducta.max)}</span>
+                          <span className="input-conducta input-conducta--readonly">{a.nota_conducta ?? notaMaxReferencia(reglaConducta)}</span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           <button
@@ -3680,9 +3587,9 @@ function DocenteTutoria({
                   <span className="conducta-detalle-chip">
                     {formatearSoloFecha(detalleConductaAlumno.fecha_desde)} → {formatearSoloFecha(detalleConductaAlumno.fecha_hasta)}
                   </span>
-                  <span className="conducta-detalle-chip">
-                    {(detalleConductaAlumno.incidencias || []).length} registro{(detalleConductaAlumno.incidencias || []).length !== 1 ? 's' : ''}
-                  </span>
+                  <span className="conducta-detalle-chip">Incid. {detalleConductaAlumno.alumno?.total_incidencias ?? (detalleConductaAlumno.incidencias || []).filter((x) => x.origen !== 'vestimenta' && x.origen !== 'tardanza').length}</span>
+                  <span className="conducta-detalle-chip">Present. {detalleConductaAlumno.alumno?.total_presentacion ?? (detalleConductaAlumno.incidencias || []).filter((x) => x.origen === 'vestimenta').length}</span>
+                  <span className="conducta-detalle-chip">Tard. {detalleConductaAlumno.alumno?.total_tardanzas ?? (detalleConductaAlumno.incidencias || []).filter((x) => x.origen === 'tardanza').length}</span>
                 </div>
               </div>
               <button type="button" className="tutor-evidencias-close" onClick={() => setDetalleConductaAlumno(null)} aria-label="Cerrar">✕</button>
@@ -3698,7 +3605,7 @@ function DocenteTutoria({
               {loadingDetalleConducta ? (
                 <div className="modal-registro-asistencia-loading"><div className="loading-spinner" /><p>Cargando…</p></div>
               ) : !(detalleConductaAlumno.incidencias || []).length ? (
-                <p className="tutor-evidencias-empty tutor-evidencias-empty--destacado">Sin incidencias ni descuentos de presentación en este bimestre</p>
+                <p className="tutor-evidencias-empty tutor-evidencias-empty--destacado">Sin incidencias, presentación ni tardanzas en este bimestre</p>
               ) : (
                 <div className="tutor-evidencia-cards-scroll">
                   <ul className="tutor-evidencia-lineas tutor-evidencia-lineas--inci">
@@ -3706,8 +3613,8 @@ function DocenteTutoria({
                       <li key={inc.id} className="tutor-inc-card">
                         <div className="tutor-inc-card-top">
                           <time className="tutor-inc-fecha">{formatearFechaHoraPeru(inc.created_at)}</time>
-                          <span className={`tutor-inc-origen ${inc.origen === 'vestimenta' ? 'es-vestimenta' : 'es-incidencia'}`}>
-                            {inc.origen === 'vestimenta' ? 'Presentación' : 'Incidencia'}
+                          <span className={`tutor-inc-origen ${claseOrigenConducta(inc.origen)}`}>
+                            {etiquetaOrigenConducta(inc.origen)}
                           </span>
                         </div>
                         <div className="tutor-inc-card-meta">
@@ -3742,12 +3649,12 @@ function DocenteTutoria({
             <div className="tutor-evidencias-panel tutor-evidencias-panel--inci" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="titulo-inci-evid">
               <header className="tutor-evidencias-panel-header tutor-evidencias-panel-header--incidencias">
                 <div>
-                  <h2 id="titulo-inci-evid">Incidencias y presentación</h2>
+                  <h2 id="titulo-inci-evid">Incidencias, presentación y tardanzas</h2>
                   <p className="tutor-evidencias-panel-sub">
                     <strong>
                       {grupoParaConducta.grado}° {grupoParaConducta.seccion}
                     </strong>
-                    {' '}— incidencias de docentes y descuentos por vestimenta (QR)
+                    {' '}— incidencias, vestimenta (QR) y tardanzas. El caption indica el descuento de cada registro.
                   </p>
                 </div>
                 <button
@@ -3825,8 +3732,8 @@ function DocenteTutoria({
                               <li key={inc.id} className="tutor-inc-card">
                                 <div className="tutor-inc-card-top">
                                   <time className="tutor-inc-fecha">{formatearFechaHoraPeru(inc.created_at)}</time>
-                                  <span className={`tutor-inc-origen ${inc.origen === 'vestimenta' ? 'es-vestimenta' : 'es-incidencia'}`}>
-                                    {inc.origen === 'vestimenta' ? 'Presentación' : 'Incidencia'}
+                                  <span className={`tutor-inc-origen ${claseOrigenConducta(inc.origen)}`}>
+                                    {etiquetaOrigenConducta(inc.origen)}
                                   </span>
                                 </div>
                                 <div className="tutor-inc-card-meta">

@@ -2264,6 +2264,20 @@
   border: 1px solid #c4b5fd;
 }
 
+.hijo-inc-origen.es-tardanza {
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+}
+
+.hijo-inc-caption {
+  display: inline-block;
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
 .hijo-inc-resumen {
   margin: 0;
   padding: 0.65rem 1rem;

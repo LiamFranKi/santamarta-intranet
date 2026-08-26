@@ -2561,6 +2561,19 @@
   border: 1px solid #c4b5fd;
 }
 
+.tutor-inc-origen.es-tardanza {
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+}
+
+.conducta-caption-descuentos {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
 .conducta-detalle-subchips {
   display: flex;
   flex-wrap: wrap;

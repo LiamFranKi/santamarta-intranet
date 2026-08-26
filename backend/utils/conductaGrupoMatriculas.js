@@ -1,14 +1,16 @@
 const {
   ASIGNATURA_CONDUCTA,
   obtenerRangoBimestre,
-  contarIncidenciasMatriculaEnRango,
-  notaDesdeCantidad,
+  contarComponentesConductaEnRango,
   persistirNotaConducta,
+  persistirNotasConductaDesglose,
   backfillVestimentaAIncidenciasGrupo,
 } = require('./conductaIncidenciasBimestre');
 const {
   fetchReglaConducta,
   textoReglaConducta,
+  captionDescuentosConducta,
+  notasDesdeConteos,
   formatNotaAlmacenada,
 } = require('./reglaConducta');
 
@@ -64,22 +66,23 @@ async function listarAlumnosConductaPorGrupo(query, execute, { grupoId, colegio_
       fecha_hasta: rango.hasta,
       regla,
       texto_regla: textoReglaConducta(regla),
+      caption_descuentos: captionDescuentosConducta(regla),
     };
   }
 
   const lista = [];
   for (let i = 0; i < matriculas.length; i += 1) {
     const m = matriculas[i];
-    const cant = await contarIncidenciasMatriculaEnRango(
+    const conteos = await contarComponentesConductaEnRango(
       query,
       m.matricula_id,
       rango.desde,
       rango.hasta
     );
-    const nota = notaDesdeCantidad(cant, regla);
+    const notas = notasDesdeConteos(conteos, regla);
     if (execute) {
       try {
-        await persistirNotaConducta(execute, m.matricula_id, cicloInt, nota);
+        await persistirNotasConductaDesglose(execute, m.matricula_id, cicloInt, notas);
       } catch (e) {
         console.warn('[conducta] persistir nota:', e.message);
       }
@@ -89,8 +92,13 @@ async function listarAlumnosConductaPorGrupo(query, execute, { grupoId, colegio_
       matricula_id: m.matricula_id,
       alumno_id: m.alumno_id,
       nombre_completo: m.nombre_completo,
-      nota_conducta: String(nota),
-      total_incidencias: cant,
+      nota_conducta: String(notas.final),
+      nota_incidencias: notas.incidencias,
+      nota_presentacion: notas.presentacion,
+      nota_tardanzas: notas.tardanzas,
+      total_incidencias: conteos.incidencias,
+      total_presentacion: conteos.presentacion,
+      total_tardanzas: conteos.tardanzas,
     });
   }
 
@@ -101,6 +109,7 @@ async function listarAlumnosConductaPorGrupo(query, execute, { grupoId, colegio_
     fecha_hasta: rango.hasta,
     regla,
     texto_regla: textoReglaConducta(regla),
+    caption_descuentos: captionDescuentosConducta(regla),
   };
 }
 

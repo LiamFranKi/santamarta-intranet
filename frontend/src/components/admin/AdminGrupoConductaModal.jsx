@@ -4,7 +4,7 @@ import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { exportConductaGrupoPdf } from '../../utils/exportConductaGrupoPdf';
 import { exportIncidenciasPresentacionPdf } from '../../utils/exportIncidenciasPresentacionPdf';
-import { textoReglaConducta, textoReglaCorta, formatNotaConducta, REGLA_CONDUCTA_DEFAULT } from '../../utils/reglaConducta';
+import { textoReglaConducta, textoReglaCorta, REGLA_CONDUCTA_DEFAULT, captionDescuentosConducta, etiquetaOrigenConducta, claseOrigenConducta, notaMaxReferencia } from '../../utils/reglaConducta';
 import '../../pages/DocenteTutoria.css';
 
 const API_BASE = '/admin/academico/grupos';
@@ -223,6 +223,7 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
         anio: grupo?.anio,
       },
       ciclo: conductaCiclo,
+      regla: reglaConducta,
     });
   };
 
@@ -286,6 +287,7 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
             <p className="conducta-auto-aviso">
               {textoReglaConductaUi}
             </p>
+            <p className="conducta-caption-descuentos">{captionDescuentosConducta(reglaConducta)}</p>
             <div className="modal-registro-asistencia-table-wrap">
               {loadingConducta ? (
                 <div className="modal-registro-asistencia-loading">
@@ -298,8 +300,10 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
                     <tr>
                       <th style={{ width: 50 }}>N°</th>
                       <th>APELLIDOS Y NOMBRES</th>
-                      <th style={{ width: 70, textAlign: 'center' }}>Incid.</th>
-                      <th style={{ width: 90, textAlign: 'center' }}>NOTA ({formatNotaConducta(reglaConducta.min)}-{formatNotaConducta(reglaConducta.max)})</th>
+                      <th style={{ width: 62, textAlign: 'center' }}>Incid.</th>
+                      <th style={{ width: 72, textAlign: 'center' }}>Present.</th>
+                      <th style={{ width: 62, textAlign: 'center' }}>Tard.</th>
+                      <th style={{ width: 90, textAlign: 'center' }}>NOTA</th>
                       <th style={{ width: 70, textAlign: 'center' }}>Ver</th>
                     </tr>
                   </thead>
@@ -309,8 +313,10 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
                         <td style={{ textAlign: 'center', fontWeight: 600 }}>{a.numero}</td>
                         <td>{a.nombre_completo}</td>
                         <td style={{ textAlign: 'center' }}>{a.total_incidencias ?? 0}</td>
+                        <td style={{ textAlign: 'center' }}>{a.total_presentacion ?? 0}</td>
+                        <td style={{ textAlign: 'center' }}>{a.total_tardanzas ?? 0}</td>
                         <td style={{ textAlign: 'center' }}>
-                          <span className="input-conducta input-conducta--readonly">{a.nota_conducta ?? formatNotaConducta(reglaConducta.max)}</span>
+                          <span className="input-conducta input-conducta--readonly">{a.nota_conducta ?? notaMaxReferencia(reglaConducta)}</span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           <button type="button" className="btn-conducta-ver" title="Ver detalle" onClick={() => abrirDetalle(a)}>
@@ -352,9 +358,9 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
                     <span className="conducta-detalle-chip conducta-detalle-chip--nota">
                       Nota {detalleAlumno.alumno?.nota_conducta ?? '—'}
                     </span>
-                    <span className="conducta-detalle-chip">
-                      {(detalleAlumno.incidencias || []).length} registro{(detalleAlumno.incidencias || []).length !== 1 ? 's' : ''}
-                    </span>
+                    <span className="conducta-detalle-chip">Incid. {detalleAlumno.alumno?.total_incidencias ?? (detalleAlumno.incidencias || []).filter((x) => x.origen !== 'vestimenta' && x.origen !== 'tardanza').length}</span>
+                    <span className="conducta-detalle-chip">Present. {detalleAlumno.alumno?.total_presentacion ?? (detalleAlumno.incidencias || []).filter((x) => x.origen === 'vestimenta').length}</span>
+                    <span className="conducta-detalle-chip">Tard. {detalleAlumno.alumno?.total_tardanzas ?? (detalleAlumno.incidencias || []).filter((x) => x.origen === 'tardanza').length}</span>
                   </div>
                 </div>
                 <button type="button" className="tutor-evidencias-close" onClick={() => setDetalleAlumno(null)}>
@@ -383,8 +389,8 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
                         <li key={inc.id} className="tutor-inc-card">
                           <div className="tutor-inc-card-top">
                             <time className="tutor-inc-fecha">{formatearFechaHoraPeru(inc.created_at)}</time>
-                            <span className={`tutor-inc-origen ${inc.origen === 'vestimenta' ? 'es-vestimenta' : 'es-incidencia'}`}>
-                              {inc.origen === 'vestimenta' ? 'Presentación' : 'Incidencia'}
+                            <span className={`tutor-inc-origen ${claseOrigenConducta(inc.origen)}`}>
+                              {etiquetaOrigenConducta(inc.origen)}
                             </span>
                           </div>
                           <div className="tutor-inc-card-meta">
@@ -415,12 +421,12 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
             <div className="tutor-evidencias-panel tutor-evidencias-panel--inci" onClick={(e) => e.stopPropagation()} role="dialog">
               <header className="tutor-evidencias-panel-header tutor-evidencias-panel-header--incidencias">
                 <div>
-                  <h2>Incidencias y presentación</h2>
+                  <h2>Incidencias, presentación y tardanzas</h2>
                   <p className="tutor-evidencias-panel-sub">
                     <strong>
                       {grupo.grado}° {grupo.seccion}
                     </strong>{' '}
-                    — bimestre {conductaCiclo}
+                    — bimestre {conductaCiclo}. El caption de cada registro indica el descuento.
                   </p>
                 </div>
                 <button type="button" className="tutor-evidencias-close" onClick={() => setModalIncidencias(false)}>
@@ -470,8 +476,8 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
                             <li key={inc.id} className="tutor-inc-card">
                               <div className="tutor-inc-card-top">
                                 <time className="tutor-inc-fecha">{formatearFechaHoraPeru(inc.created_at)}</time>
-                                <span className={`tutor-inc-origen ${inc.origen === 'vestimenta' ? 'es-vestimenta' : 'es-incidencia'}`}>
-                                  {inc.origen === 'vestimenta' ? 'Presentación' : 'Incidencia'}
+                                <span className={`tutor-inc-origen ${claseOrigenConducta(inc.origen)}`}>
+                                  {etiquetaOrigenConducta(inc.origen)}
                                 </span>
                               </div>
                               <div className="tutor-inc-card-meta">

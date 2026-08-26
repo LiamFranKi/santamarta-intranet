@@ -28,6 +28,7 @@ const {
   listarAlumnosConductaPorGrupo,
   guardarConductaPorGrupo,
 } = require('../utils/conductaGrupoMatriculas');
+const { sincronizarConductaMatriculaPorFecha } = require('../utils/conductaIncidenciasBimestre');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -768,6 +769,19 @@ router.post('/grupos/:grupoId/asistencia', async (req, res) => {
             dataExtra: { fecha: fechaNorm, tipo },
           }).catch((err) => console.error('Error notificando asistencia:', err));
         });
+      }
+    }
+
+    if (enviarNotificacion) {
+      try {
+        await sincronizarConductaMatriculaPorFecha(query, execute, {
+          matriculaId: matricula_id,
+          colegio_id: cid,
+          anioEscolar: anio_activo,
+          fechaYmd: fechaNorm,
+        });
+      } catch (eSync) {
+        console.warn('[ASISTENCIA] sync conducta admin:', eSync.message);
       }
     }
 
