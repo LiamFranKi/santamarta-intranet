@@ -110,7 +110,7 @@ export default function AsistenciaConfirmModal({
                 </button>
               </div>
               <div className="asistencia-confirm-modal__labels-row">
-                <span className="asistencia-confirm-modal__label-text">Presentación −1</span>
+                <span className="asistencia-confirm-modal__label-text">Descuento por presentación</span>
               </div>
             </div>
           )}
