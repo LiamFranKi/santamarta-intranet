@@ -10,6 +10,7 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { generarPDFNotasTutoria } from '../utils/pdfNotasTutoria';
 import { exportIncidenciasPresentacionPdf } from '../utils/exportIncidenciasPresentacionPdf';
+import { textoReglaConducta, textoReglaCorta, formatNotaConducta, REGLA_CONDUCTA_DEFAULT } from '../utils/reglaConducta';
 import jsPDF from 'jspdf';
 import './DocenteTutoria.css';
 import './DocenteCursos.css';
@@ -176,6 +177,8 @@ function DocenteTutoria({
   const [conductaCiclo, setConductaCiclo] = useState(1);
   const [conductaAlumnos, setConductaAlumnos] = useState([]);
   const [conductaRango, setConductaRango] = useState({ desde: '', hasta: '' });
+  const [reglaConducta, setReglaConducta] = useState({ ...REGLA_CONDUCTA_DEFAULT });
+  const [textoReglaConductaUi, setTextoReglaConductaUi] = useState(textoReglaConducta(REGLA_CONDUCTA_DEFAULT));
   const [loadingConducta, setLoadingConducta] = useState(false);
   const [recalculandoConducta, setRecalculandoConducta] = useState(false);
 
@@ -2241,6 +2244,8 @@ function DocenteTutoria({
         desde: res.data.fecha_desde || '',
         hasta: res.data.fecha_hasta || '',
       });
+      if (res.data.regla) setReglaConducta(res.data.regla);
+      if (res.data.texto_regla) setTextoReglaConductaUi(res.data.texto_regla);
     } catch (error) {
       console.error('Error cargando conducta:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: error.response?.data?.error || 'No se pudieron cargar' });
@@ -2268,10 +2273,12 @@ function DocenteTutoria({
         desde: res.data.fecha_desde || '',
         hasta: res.data.fecha_hasta || '',
       });
+      if (res.data.regla) setReglaConducta(res.data.regla);
+      if (res.data.texto_regla) setTextoReglaConductaUi(res.data.texto_regla);
       Swal.fire({
         icon: 'success',
         title: 'Recalculado',
-        text: 'Nota = 20 − incidencias del bimestre (máx. 20, mín. 0)',
+        text: res.data.texto_regla || textoReglaCorta(res.data.regla || reglaConducta),
         timer: 2200,
         showConfirmButton: false,
       });
@@ -2370,7 +2377,7 @@ function DocenteTutoria({
       doc.text(String(i + 1), margin + 9, yPos + 4.5, { align: 'center' });
       doc.text((a.nombre_completo || '').slice(0, 72), margin + 21, yPos + 4.5);
       doc.text(String(a.total_incidencias ?? 0), pageWidth - margin - 41, yPos + 4.5, { align: 'center' });
-      doc.text(a.nota_conducta || '20', pageWidth - margin - 15, yPos + 4.5, { align: 'center' });
+      doc.text(a.nota_conducta || formatNotaConducta(reglaConducta.max), pageWidth - margin - 15, yPos + 4.5, { align: 'center' });
       yPos += rowH;
     });
 
@@ -3600,7 +3607,7 @@ function DocenteTutoria({
               </button>
             </div>
             <p className="conducta-auto-aviso">
-              Nota automática: parte de 20; −1 por cada incidencia o descuento de presentación del bimestre (mín. 0). No se edita a mano.
+              {textoReglaConductaUi}
             </p>
             <div className="modal-registro-asistencia-table-wrap">
               {loadingConducta ? (
@@ -3612,7 +3619,7 @@ function DocenteTutoria({
                       <th style={{ width: 50 }}>N°</th>
                       <th>APELLIDOS Y NOMBRES</th>
                       <th style={{ width: 70, textAlign: 'center' }}>Incid.</th>
-                      <th style={{ width: 90, textAlign: 'center' }}>NOTA (0-20)</th>
+                      <th style={{ width: 90, textAlign: 'center' }}>NOTA ({formatNotaConducta(reglaConducta.min)}-{formatNotaConducta(reglaConducta.max)})</th>
                       <th style={{ width: 70, textAlign: 'center' }}>Ver</th>
                     </tr>
                   </thead>
@@ -3623,7 +3630,7 @@ function DocenteTutoria({
                         <td>{a.nombre_completo}</td>
                         <td style={{ textAlign: 'center' }}>{a.total_incidencias ?? 0}</td>
                         <td style={{ textAlign: 'center' }}>
-                          <span className="input-conducta input-conducta--readonly">{a.nota_conducta ?? '20'}</span>
+                          <span className="input-conducta input-conducta--readonly">{a.nota_conducta ?? formatNotaConducta(reglaConducta.max)}</span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           <button

@@ -1,5 +1,6 @@
 /**
- * Conducta automática por bimestre: nota = max(0, 20 − incidencias del periodo).
+ * Conducta automática por bimestre según regla configurable
+ * (Configuración → General: máx, mín, descuento, redondeo).
  * Las fechas del bimestre salen de colegios.rangos_ciclos_notas (Configuración → Notas).
  * Vestimenta (QR) se refleja también como incidencia (enrollment_incidents).
  */
@@ -7,6 +8,13 @@ const {
   fetchRangosCiclosParsed,
   getFechasCicloAsistencia,
 } = require('./libretaResumenBimestres');
+const {
+  fetchReglaConducta,
+  notaDesdeCantidad,
+  formatNotaAlmacenada,
+  formatDescuentoLabel,
+  textoReglaConducta,
+} = require('./reglaConducta');
 
 const ASIGNATURA_CONDUCTA = -101;
 /** Incidencias registradas como tutor */
@@ -14,8 +22,11 @@ const ASSIGNMENT_ID_TUTORIA = -102;
 /** Descuento por vestimenta / presentación (escaneo QR) */
 const ASSIGNMENT_ID_VESTIMENTA = -103;
 
-const DESC_VESTIMENTA =
-  '[VESTIMENTA] Descuento por vestimenta / presentación escolar (−1 punto)';
+function descVestimentaPrefijo(descuento) {
+  return `[VESTIMENTA] Descuento por vestimenta / presentación escolar (${formatDescuentoLabel(descuento)})`;
+}
+
+const DESC_VESTIMENTA = descVestimentaPrefijo(0.5);
 
 /**
  * Normaliza Date / ISO / MySQL datetime a YYYY-MM-DD.
@@ -115,13 +126,8 @@ async function contarIncidenciasMatriculaEnRango(query, matriculaId, desde, hast
   return nInc + nPed;
 }
 
-function notaDesdeCantidad(cantidad) {
-  const n = 20 - Math.max(0, parseInt(cantidad, 10) || 0);
-  return Math.max(0, Math.min(20, n));
-}
-
 async function persistirNotaConducta(execute, matriculaId, cicloInt, nota) {
-  const notaFinal = String(Math.max(0, Math.min(20, parseInt(nota, 10) || 0)));
+  const notaFinal = formatNotaAlmacenada(nota);
   await execute(
     `DELETE FROM promedios WHERE matricula_id = ? AND asignatura_id = ? AND ciclo = ?`,
     [matriculaId, ASIGNATURA_CONDUCTA, cicloInt]
@@ -138,22 +144,25 @@ async function sincronizarConductaMatriculaBimestre(query, execute, {
   colegio_id,
   anioEscolar,
   ciclo,
+  regla: reglaIn = null,
 }) {
+  const regla = reglaIn || await fetchReglaConducta(query);
   const rango = await obtenerRangoBimestre(query, colegio_id, ciclo, anioEscolar);
   const cant = await contarIncidenciasMatriculaEnRango(query, matriculaId, rango.desde, rango.hasta);
-  const nota = notaDesdeCantidad(cant);
+  const nota = notaDesdeCantidad(cant, regla);
   await persistirNotaConducta(execute, matriculaId, rango.ciclo, nota);
-  return { nota, cantidad: cant, ...rango };
+  return { nota, cantidad: cant, regla, ...rango };
 }
 
 /**
  * Inserta incidencia espejo de vestimenta si aún no existe para ese día / matrícula.
  * No envía notificación (el escaneo ya avisa por vestimenta).
  */
-function descripcionVestimenta(motivo) {
+function descripcionVestimenta(motivo, descuento = 0.5) {
   const m = String(motivo || '').trim();
-  if (!m || /^PRESENTACION$/i.test(m)) return DESC_VESTIMENTA;
-  return `[VESTIMENTA] ${m} (−1 punto)`;
+  const tag = formatDescuentoLabel(descuento);
+  if (!m || /^PRESENTACION$/i.test(m)) return descVestimentaPrefijo(descuento);
+  return `[VESTIMENTA] ${m} (${tag})`;
 }
 
 async function asegurarIncidenciaVestimenta(query, execute, {
@@ -163,8 +172,18 @@ async function asegurarIncidenciaVestimenta(query, execute, {
   hora,
   motivo = null,
   descuentoId = null,
+  descuento = null,
 }) {
-  const desc = descripcionVestimenta(motivo);
+  let descVal = descuento;
+  if (descVal == null) {
+    try {
+      const regla = await fetchReglaConducta(query);
+      descVal = regla.descuento;
+    } catch {
+      descVal = 0.5;
+    }
+  }
+  const desc = descripcionVestimenta(motivo, descVal);
   // Evitar duplicar el mismo descuento (por id) o la misma descripción el mismo día
   if (descuentoId) {
     const porId = await query(
@@ -271,6 +290,15 @@ async function backfillVestimentaAIncidenciasGrupo(query, execute, {
   return created;
 }
 
+function descPresentacionLista(motivo, descuento) {
+  const tag = formatDescuentoLabel(descuento);
+  const m = String(motivo || '').trim();
+  if (!m || /^PRESENTACION$/i.test(m)) {
+    return `Descuento por vestimenta / presentación escolar (${tag})`;
+  }
+  return `${m} (${tag})`;
+}
+
 /**
  * Lista unificada: incidencias docentes + descuentos presentación (tabla QR).
  * La presentación se toma siempre de presentacion_escolar_descuentos (fuente de verdad).
@@ -283,6 +311,7 @@ async function listarIncidenciasUnificadasGrupo(query, {
   hasta,
   matriculaId = null,
 }) {
+  const regla = await fetchReglaConducta(query);
   const paramsInc = [ASSIGNMENT_ID_TUTORIA, grupoId, colegio_id, anio, desde, hasta, ASSIGNMENT_ID_VESTIMENTA];
   let extraInc = '';
   if (matriculaId) {
@@ -384,10 +413,7 @@ async function listarIncidenciasUnificadasGrupo(query, {
     const fecha = toFechaYmd(r.fecha) || String(r.fecha).slice(0, 10);
     const hora = r.hora ? String(r.hora).slice(0, 8) : '12:00:00';
     const motivo = String(r.motivo || '').trim();
-    const desc =
-      !motivo || /^PRESENTACION$/i.test(motivo)
-        ? 'Descuento por vestimenta / presentación escolar (−1 punto)'
-        : `${motivo} (−1 punto)`;
+    const desc = descPresentacionLista(motivo, regla.descuento);
     ensureAlumno(r.alumno_id, r.alumno_nombre, r.matricula_id).incidencias.push({
       id: `ped-${r.id}`,
       description: desc,
@@ -415,12 +441,14 @@ async function listarIncidenciasUnificadasGrupo(query, {
     fecha_hasta: hasta,
     total,
     alumnos,
+    regla,
+    texto_regla: textoReglaConducta(regla),
   };
 }
 
 /**
  * Historial unificado de un alumno (matrícula): incidencias + presentación QR del año,
- * agrupable por bimestre con nota de conducta (20 − N).
+ * agrupable por bimestre con nota de conducta según la regla configurada.
  */
 async function listarIncidenciasUnificadasMatricula(query, {
   matriculaId,
@@ -428,6 +456,7 @@ async function listarIncidenciasUnificadasMatricula(query, {
   anio,
 }) {
   const anioInt = parseInt(anio, 10) || new Date().getFullYear();
+  const regla = await fetchReglaConducta(query);
   const rowsInc = await query(
     `SELECT ei.id, ei.description, ei.created_at, ei.assignment_id, ei.points,
             CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,'')) AS docente_nombre,
@@ -505,10 +534,7 @@ async function listarIncidenciasUnificadasMatricula(query, {
     const fecha = toFechaYmd(r.fecha);
     const hora = r.hora ? String(r.hora).slice(0, 8) : '12:00:00';
     const motivo = String(r.motivo || '').trim();
-    const desc =
-      !motivo || /^PRESENTACION$/i.test(motivo)
-        ? 'Descuento por vestimenta / presentación escolar (−1 punto)'
-        : `${motivo} (−1 punto)`;
+    const desc = descPresentacionLista(motivo, regla.descuento);
     lista.push({
       id: `ped-${r.id}`,
       description: desc,
@@ -541,7 +567,7 @@ async function listarIncidenciasUnificadasMatricula(query, {
       total: items.length,
       total_incidencias: nInc,
       total_presentacion: nPres,
-      nota_conducta: String(notaDesdeCantidad(items.length)),
+      nota_conducta: String(notaDesdeCantidad(items.length, regla)),
       incidencias: items,
     });
   }
@@ -550,6 +576,8 @@ async function listarIncidenciasUnificadasMatricula(query, {
     incidencias: lista,
     bimestres,
     anio: anioInt,
+    regla,
+    texto_regla: textoReglaConducta(regla),
   };
 }
 
@@ -682,6 +710,97 @@ async function listarEstrellasGrupo(query, {
   };
 }
 
+async function recalcularConductaColegioAnio(query, execute, { colegio_id, anio }) {
+  const regla = await fetchReglaConducta(query);
+  const anioInt = parseInt(anio, 10) || new Date().getFullYear();
+  const matriculas = await query(
+    `SELECT m.id AS matricula_id
+     FROM matriculas m
+     INNER JOIN grupos g ON g.id = m.grupo_id
+     WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
+    [colegio_id, anioInt]
+  );
+  const ids = (matriculas || []).map((m) => m.matricula_id).filter((id) => id != null);
+  if (!ids.length) {
+    return { matriculas: 0, notas: 0, grupos: 0, regla };
+  }
+
+  const CHUNK = 150;
+  let notas = 0;
+  for (let ciclo = 1; ciclo <= 4; ciclo += 1) {
+    const rango = await obtenerRangoBimestre(query, colegio_id, ciclo, anioInt);
+    const incRows = await query(
+      `SELECT ei.enrollment_id AS mid, COUNT(*) AS c
+       FROM enrollment_incidents ei
+       INNER JOIN matriculas m ON m.id = ei.enrollment_id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)
+         AND ei.type = 1
+         AND DATE(ei.created_at) BETWEEN ? AND ?
+         AND COALESCE(ei.assignment_id, 0) <> ?
+         AND COALESCE(ei.description, '') NOT LIKE '[VESTIMENTA]%'
+       GROUP BY ei.enrollment_id`,
+      [colegio_id, anioInt, rango.desde, rango.hasta, ASSIGNMENT_ID_VESTIMENTA]
+    );
+    const incMap = {};
+    (incRows || []).forEach((r) => {
+      incMap[r.mid] = Math.max(0, parseInt(r.c, 10) || 0);
+    });
+
+    const pedMap = {};
+    try {
+      const pedRows = await query(
+        `SELECT m.id AS mid, COUNT(*) AS c
+         FROM presentacion_escolar_descuentos ped
+         INNER JOIN usuarios ua ON ua.id = ped.alumno_usuario_id AND ua.colegio_id = ped.colegio_id
+         INNER JOIN matriculas m ON m.alumno_id = ua.alumno_id AND m.colegio_id = ped.colegio_id AND (m.estado = 0)
+         INNER JOIN grupos g ON g.id = m.grupo_id AND g.anio = ped.anio
+         WHERE ped.colegio_id = ? AND ped.anio = ?
+           AND DATE(ped.fecha) BETWEEN ? AND ?
+         GROUP BY m.id`,
+        [colegio_id, anioInt, rango.desde, rango.hasta]
+      );
+      (pedRows || []).forEach((r) => {
+        pedMap[r.mid] = Math.max(0, parseInt(r.c, 10) || 0);
+      });
+    } catch (e) {
+      if (!(String(e.message || '').includes("doesn't exist") || e.code === 'ER_NO_SUCH_TABLE')) {
+        console.warn('[conducta] recalc presentacion:', e.message);
+      }
+    }
+
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const slice = ids.slice(i, i + CHUNK);
+      const ph = slice.map(() => '?').join(',');
+      await execute(
+        `DELETE FROM promedios WHERE asignatura_id = ? AND ciclo = ? AND matricula_id IN (${ph})`,
+        [ASIGNATURA_CONDUCTA, ciclo, ...slice]
+      );
+      const values = [];
+      const params = [];
+      slice.forEach((mid) => {
+        const cant = (incMap[mid] || 0) + (pedMap[mid] || 0);
+        values.push('(?, ?, ?, ?)');
+        params.push(mid, ASIGNATURA_CONDUCTA, ciclo, notaDesdeCantidad(cant, regla));
+      });
+      if (values.length) {
+        await execute(
+          `INSERT INTO promedios (matricula_id, asignatura_id, ciclo, promedio) VALUES ${values.join(',')}`,
+          params
+        );
+        notas += values.length;
+      }
+    }
+  }
+
+  return {
+    matriculas: ids.length,
+    notas,
+    regla,
+    texto_regla: textoReglaConducta(regla),
+  };
+}
+
 module.exports = {
   ASIGNATURA_CONDUCTA,
   ASSIGNMENT_ID_TUTORIA,
@@ -702,4 +821,7 @@ module.exports = {
   agruparItemsPorBimestre,
   listarEstrellasGrupo,
   fetchRangosCiclosParsed,
+  recalcularConductaColegioAnio,
+  textoReglaConducta,
+  fetchReglaConducta,
 };

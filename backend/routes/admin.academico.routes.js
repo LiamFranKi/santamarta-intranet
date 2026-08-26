@@ -1107,7 +1107,7 @@ router.get('/grupos/:grupoId/conducta', async (req, res) => {
     if (!grupo) {
       return res.status(404).json({ error: 'Grupo no encontrado' });
     }
-    const { lista, ciclo: cicloInt, fecha_desde, fecha_hasta } = await listarAlumnosConductaPorGrupo(
+    const { lista, ciclo: cicloInt, fecha_desde, fecha_hasta, regla, texto_regla } = await listarAlumnosConductaPorGrupo(
       query,
       execute,
       {
@@ -1123,6 +1123,8 @@ router.get('/grupos/:grupoId/conducta', async (req, res) => {
       fecha_desde,
       fecha_hasta,
       automatica: true,
+      regla,
+      texto_regla,
     });
   } catch (error) {
     console.error('[admin/academico/grupos/:grupoId/conducta GET]', error);
@@ -1152,7 +1154,7 @@ router.post('/grupos/:grupoId/conducta', async (req, res) => {
     if (!grupo) {
       return res.status(404).json({ error: 'Grupo no encontrado' });
     }
-    const { lista, ciclo: cicloInt, fecha_desde, fecha_hasta } = await listarAlumnosConductaPorGrupo(
+    const { lista, ciclo: cicloInt, fecha_desde, fecha_hasta, regla, texto_regla } = await listarAlumnosConductaPorGrupo(
       query,
       execute,
       { grupoId, colegio_id: cid, ciclo }
@@ -1164,6 +1166,9 @@ router.post('/grupos/:grupoId/conducta', async (req, res) => {
       fecha_desde,
       fecha_hasta,
       automatica: true,
+      regla,
+      texto_regla,
+      message: texto_regla || 'Conducta recalculada automáticamente',
     });
   } catch (error) {
     console.error('[admin/academico/grupos/:grupoId/conducta POST]', error);

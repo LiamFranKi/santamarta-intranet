@@ -4,6 +4,7 @@ import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { exportConductaGrupoPdf } from '../../utils/exportConductaGrupoPdf';
 import { exportIncidenciasPresentacionPdf } from '../../utils/exportIncidenciasPresentacionPdf';
+import { textoReglaConducta, textoReglaCorta, formatNotaConducta, REGLA_CONDUCTA_DEFAULT } from '../../utils/reglaConducta';
 import '../../pages/DocenteTutoria.css';
 
 const API_BASE = '/admin/academico/grupos';
@@ -39,6 +40,8 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
   const [conductaCiclo, setConductaCiclo] = useState(1);
   const [conductaAlumnos, setConductaAlumnos] = useState([]);
   const [conductaRango, setConductaRango] = useState({ desde: '', hasta: '' });
+  const [reglaConducta, setReglaConducta] = useState({ ...REGLA_CONDUCTA_DEFAULT });
+  const [textoReglaConductaUi, setTextoReglaConductaUi] = useState(textoReglaConducta(REGLA_CONDUCTA_DEFAULT));
   const [loadingConducta, setLoadingConducta] = useState(false);
   const [recalculandoConducta, setRecalculandoConducta] = useState(false);
   const [modalIncidencias, setModalIncidencias] = useState(false);
@@ -59,6 +62,8 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
         desde: res.data.fecha_desde || '',
         hasta: res.data.fecha_hasta || '',
       });
+      if (res.data.regla) setReglaConducta(res.data.regla);
+      if (res.data.texto_regla) setTextoReglaConductaUi(res.data.texto_regla);
     } catch (error) {
       console.error('Error cargando conducta:', error);
       Swal.fire({
@@ -96,10 +101,12 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
         desde: res.data.fecha_desde || '',
         hasta: res.data.fecha_hasta || '',
       });
+      if (res.data.regla) setReglaConducta(res.data.regla);
+      if (res.data.texto_regla) setTextoReglaConductaUi(res.data.texto_regla);
       Swal.fire({
         icon: 'success',
         title: 'Recalculado',
-        text: 'Nota = 20 − incidencias del bimestre (máx. 20, mín. 0)',
+        text: res.data.texto_regla || textoReglaCorta(res.data.regla || reglaConducta),
         timer: 2200,
         showConfirmButton: false,
       });
@@ -277,7 +284,7 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
               </button>
             </div>
             <p className="conducta-auto-aviso">
-              Nota automática: parte de 20; −1 por cada incidencia o descuento de presentación del bimestre (mín. 0). No se edita a mano.
+              {textoReglaConductaUi}
             </p>
             <div className="modal-registro-asistencia-table-wrap">
               {loadingConducta ? (
@@ -292,7 +299,7 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
                       <th style={{ width: 50 }}>N°</th>
                       <th>APELLIDOS Y NOMBRES</th>
                       <th style={{ width: 70, textAlign: 'center' }}>Incid.</th>
-                      <th style={{ width: 90, textAlign: 'center' }}>NOTA (0-20)</th>
+                      <th style={{ width: 90, textAlign: 'center' }}>NOTA ({formatNotaConducta(reglaConducta.min)}-{formatNotaConducta(reglaConducta.max)})</th>
                       <th style={{ width: 70, textAlign: 'center' }}>Ver</th>
                     </tr>
                   </thead>
@@ -303,7 +310,7 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
                         <td>{a.nombre_completo}</td>
                         <td style={{ textAlign: 'center' }}>{a.total_incidencias ?? 0}</td>
                         <td style={{ textAlign: 'center' }}>
-                          <span className="input-conducta input-conducta--readonly">{a.nota_conducta ?? '20'}</span>
+                          <span className="input-conducta input-conducta--readonly">{a.nota_conducta ?? formatNotaConducta(reglaConducta.max)}</span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           <button type="button" className="btn-conducta-ver" title="Ver detalle" onClick={() => abrirDetalle(a)}>

@@ -15,6 +15,7 @@ const {
   cicloQueContieneFecha,
   fetchRangosCiclosParsed,
 } = require('../utils/conductaIncidenciasBimestre');
+const { fetchReglaConducta, formatDescuentoLabel } = require('../utils/reglaConducta');
 
 // Todas las rutas requieren autenticación: ASISTENCIA, ADMINISTRADOR o DOCENTE con al menos un grupo como tutor
 router.use(authenticateToken);
@@ -266,19 +267,21 @@ function tieneDescuentoPresentacion(descuentosPresentacion) {
 }
 
 /** Aviso aparte (campanita / push / correo): no mezclar con la notificación de asistencia. */
-function buildAvisoVestimenta({ nombreAlumno, fechaFormateada, horaFormateada, contextoAlumno }) {
+function buildAvisoVestimenta({ nombreAlumno, fechaFormateada, horaFormateada, contextoAlumno, descuento = 0.5 }) {
   const nombre = String(nombreAlumno || 'Su hijo(a)').trim() || 'Su hijo(a)';
-  const titulo = '👔 Vestimenta −1 punto';
+  const tag = formatDescuentoLabel(descuento);
+  const titulo = `👔 Vestimenta ${tag}`;
   let contenido =
-    `Se descontó 1 punto a ${nombre} por vestimenta / presentación escolar ` +
+    `Se descontó ${tag.replace(/^−/, '')} a ${nombre} por vestimenta / presentación escolar ` +
     `(uniforme incompleto o presentación no adecuada) el ${fechaFormateada} a las ${horaFormateada}. ` +
     `Le pedimos reforzar el cumplimiento del uniforme y la presentación requerida por el colegio.`;
   contenido = construirMensajeFamiliaConAlumnoYGrupo(contenido, contextoAlumno);
   return { titulo, contenido };
 }
 
-function htmlCorreoVestimenta({ nombreAlumno, fecha, hora, colegioNombre, mensaje }) {
+function htmlCorreoVestimenta({ nombreAlumno, fecha, hora, colegioNombre, mensaje, descuento = 0.5 }) {
   const colegio = colegioNombre || 'Vanguard Schools';
+  const tag = formatDescuentoLabel(descuento);
   return `
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#f3f4f6;padding:20px;">
   <tr><td align="center">
@@ -286,7 +289,7 @@ function htmlCorreoVestimenta({ nombreAlumno, fecha, hora, colegioNombre, mensaj
       <tr>
         <td style="background:linear-gradient(135deg,#d97706 0%,#b45309 100%);padding:26px 22px;text-align:center;">
           <div style="font-size:28px;margin-bottom:8px;">👔</div>
-          <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">Vestimenta −1 punto</h1>
+          <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">Vestimenta ${tag}</h1>
         </td>
       </tr>
       <tr>
@@ -305,7 +308,7 @@ function htmlCorreoVestimenta({ nombreAlumno, fecha, hora, colegioNombre, mensaj
               </tr>
               <tr>
                 <td style="padding:6px 0;color:#92400e;font-weight:600;">Descuento</td>
-                <td style="padding:6px 0;color:#b45309;font-weight:800;text-align:right;">−1 punto</td>
+                <td style="padding:6px 0;color:#b45309;font-weight:800;text-align:right;">${tag}</td>
               </tr>
               <tr>
                 <td style="padding:6px 0;color:#92400e;font-weight:600;">Fecha</td>
@@ -680,6 +683,13 @@ router.post('/registrar', async (req, res) => {
         if (!mensajeConfig) {
           console.error(`❌ [ASISTENCIA] No se encontró configuración de mensaje para tipo_registro: ${tipo_registro}`);
         }
+        let descuentoVestimenta = 0.5;
+        if (tipo_registro === 'ENTRADA' && tieneDescuentoPresentacion(descuentosPresentacion)) {
+          try {
+            const reglaV = await fetchReglaConducta(query);
+            descuentoVestimenta = reglaV.descuento;
+          } catch (_) { /* default */ }
+        }
         let contextoAlumnoNotificacion = null;
         try {
           const ctxRows = await query(
@@ -733,6 +743,7 @@ router.post('/registrar', async (req, res) => {
                 fechaFormateada,
                 horaFormateada,
                 contextoAlumno: contextoAlumnoNotificacion,
+                descuento: descuentoVestimenta,
               })
             : null;
         
@@ -883,6 +894,7 @@ router.post('/registrar', async (req, res) => {
                           hora: horaFormateada,
                           colegioNombre,
                           mensaje: avisoVestimenta.contenido,
+                          descuento: descuentoVestimenta,
                         }),
                         colegioNombre,
                         'ASISTENCIA'

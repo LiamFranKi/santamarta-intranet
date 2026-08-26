@@ -266,6 +266,7 @@ export async function exportIncidenciasHijoBimestresPdf({
   alumnoNombre,
   anio,
   bimestres = [],
+  notaMax = 20,
 }) {
   const hayAlgo = (bimestres || []).some((b) => (b.incidencias || []).length > 0);
   if (!hayAlgo) return { ok: false, reason: 'empty' };
@@ -345,7 +346,7 @@ export async function exportIncidenciasHijoBimestresPdf({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(146, 64, 14);
-    doc.text(`Conducta: ${bim.nota_conducta ?? '20'}`, pw - mm - 3, y + 8.5, { align: 'right' });
+    doc.text(`Conducta: ${bim.nota_conducta ?? notaMax}`, pw - mm - 3, y + 8.5, { align: 'right' });
     y += 18;
 
     if (!regs.length) {
@@ -437,7 +438,7 @@ export async function exportIncidenciasHijoBimestresPdf({
     doc.setFontSize(9);
     doc.setTextColor(146, 64, 14);
     doc.text(
-      `Resumen B${bim.ciclo}: ${bim.total_incidencias || 0} incidencia(s) + ${bim.total_presentacion || 0} presentación(es) = nota ${bim.nota_conducta ?? 20}/20`,
+      `Resumen B${bim.ciclo}: ${bim.total_incidencias || 0} incidencia(s) + ${bim.total_presentacion || 0} presentación(es) = nota ${bim.nota_conducta ?? notaMax}/${notaMax}`,
       mm + 3,
       y + 7.5
     );

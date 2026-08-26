@@ -19,6 +19,13 @@ const { sqlFiltroAnioPago } = require('../utils/pagoFechaHora');
 const { normalizarUrlsImagenesEnHtml } = require('../utils/mensajesHtml');
 const { listarPensionesVencidasHastaHoy } = require('../utils/deudaPensiones');
 const { mountSelfServiceCvRoutes } = require('../utils/personalCv');
+const {
+  guardarReglaConducta,
+  textoReglaConducta,
+  normalizarReglaConducta,
+  REGLA_CONDUCTA_DEFAULT,
+} = require('../utils/reglaConducta');
+const { recalcularConductaColegioAnio } = require('../utils/conductaIncidenciasBimestre');
 
 const ANIO_PAGO_SQL = sqlFiltroAnioPago('p');
 const phpSerialize = require('php-serialize');
@@ -1593,7 +1600,18 @@ router.get('/configuracion', async (req, res) => {
       login_fondo: colegioData.login_background ? `${baseUrl}/Static/Image/Fondos/${colegioData.login_background}` : null,
       libreta_logo: configMap['libreta_logo'] ? `${baseUrl}/Static/Image/Fondos/${configMap['libreta_logo']}` : null,
       libreta_fondo: configMap['libreta_fondo'] ? `${baseUrl}/Static/Image/Fondos/${configMap['libreta_fondo']}` : null,
-      boleta_logo: configMap['boleta_logo'] ? `${baseUrl}/Static/Archivos/${configMap['boleta_logo']}` : null
+      boleta_logo: configMap['boleta_logo'] ? `${baseUrl}/Static/Archivos/${configMap['boleta_logo']}` : null,
+      regla_conducta: (() => {
+        try {
+          if (configMap.regla_conducta) {
+            const parsed = typeof configMap.regla_conducta === 'string'
+              ? JSON.parse(configMap.regla_conducta)
+              : configMap.regla_conducta;
+            return normalizarReglaConducta(parsed);
+          }
+        } catch (_) { /* defaults */ }
+        return { ...REGLA_CONDUCTA_DEFAULT };
+      })(),
     });
   } catch (error) {
     console.error('Error obteniendo configuración:', error);
@@ -1846,7 +1864,40 @@ router.put('/configuracion', uploadConfig.fields([
       }
     }
 
-    res.json({ success: true, message: 'Configuración guardada correctamente' });
+    let conductaRecalc = null;
+    if (body.regla_conducta !== undefined) {
+      let rawRegla = body.regla_conducta;
+      if (typeof rawRegla === 'string') {
+        try {
+          rawRegla = JSON.parse(rawRegla);
+        } catch {
+          rawRegla = {};
+        }
+      }
+      const reglaGuardada = await guardarReglaConducta(query, execute, rawRegla);
+      try {
+        const anioRows = await query(`SELECT anio_activo FROM colegios WHERE id = ? LIMIT 1`, [colegio_id]);
+        const anio = anioRows?.[0]?.anio_activo || new Date().getFullYear();
+        conductaRecalc = await recalcularConductaColegioAnio(query, execute, {
+          colegio_id,
+          anio,
+        });
+        conductaRecalc.anio = anio;
+        conductaRecalc.texto_regla = textoReglaConducta(reglaGuardada);
+      } catch (eRecalc) {
+        console.error('[config] recálculo conducta:', eRecalc);
+        conductaRecalc = {
+          error: eRecalc.message || 'No se pudieron recalcular las notas',
+          regla: reglaGuardada,
+        };
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Configuración guardada correctamente',
+      conducta_recalculada: conductaRecalc,
+    });
   } catch (error) {
     console.error('Error guardando configuración:', error);
     res.status(500).json({ error: 'Error al guardar configuración' });

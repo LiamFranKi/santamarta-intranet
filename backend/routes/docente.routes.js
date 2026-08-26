@@ -9335,7 +9335,7 @@ router.get('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
     );
     if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
-    const { lista, ciclo: cicloInt, fecha_desde, fecha_hasta } = await listarAlumnosConductaPorGrupo(
+    const { lista, ciclo: cicloInt, fecha_desde, fecha_hasta, regla, texto_regla } = await listarAlumnosConductaPorGrupo(
       query,
       execute,
       {
@@ -9353,6 +9353,8 @@ router.get('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
       fecha_desde,
       fecha_hasta,
       automatica: true,
+      regla,
+      texto_regla,
     });
   } catch (error) {
     console.error('Error obteniendo conducta:', error);
@@ -9380,7 +9382,7 @@ router.post('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
     );
     if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
-    const { lista, ciclo: cicloInt, fecha_desde, fecha_hasta } = await listarAlumnosConductaPorGrupo(
+    const { lista, ciclo: cicloInt, fecha_desde, fecha_hasta, regla, texto_regla } = await listarAlumnosConductaPorGrupo(
       query,
       execute,
       { grupoId, colegio_id, ciclo }
@@ -9388,12 +9390,14 @@ router.post('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Conducta recalculada automáticamente (20 − incidencias del bimestre)',
+      message: texto_regla || 'Conducta recalculada automáticamente',
       alumnos: lista,
       ciclo: cicloInt,
       fecha_desde,
       fecha_hasta,
       automatica: true,
+      regla,
+      texto_regla,
     });
   } catch (error) {
     console.error('Error guardando conducta:', error);
@@ -10694,6 +10698,8 @@ router.get('/hijos/:hijoId/incidencias', async (req, res) => {
       bimestres: data.bimestres || [],
       total_incidencias: (data.incidencias || []).length,
       anio: data.anio,
+      regla: data.regla || null,
+      texto_regla: data.texto_regla || null,
     });
   } catch (error) {
     console.error('❌ [HIJOS-INCIDENCIAS] Error obteniendo incidencias:', error);

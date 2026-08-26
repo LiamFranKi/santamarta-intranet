@@ -22,6 +22,7 @@ import { generarPDFBoletaDesdeDatos, MSG_NO_IMPRESION_BOLETA } from '../utils/ge
 import AlumnoSaludFields from '../components/AlumnoSaludFields';
 import AlumnoPerfilExtra from '../components/AlumnoPerfilExtra';
 import { exportIncidenciasHijoBimestresPdf, exportEstrellasHijoBimestresPdf } from '../utils/exportIncidenciasPresentacionPdf';
+import { formatNotaConducta, textoReglaCorta, REGLA_CONDUCTA_DEFAULT } from '../utils/reglaConducta';
 import './DocenteHijos.css';
 import './AlumnoCursos.css';
 
@@ -73,6 +74,7 @@ function DocenteHijos() {
   const [cicloFiltroIncidenciasHijo, setCicloFiltroIncidenciasHijo] = useState(1);
   const [cicloFiltroEstrellasHijo, setCicloFiltroEstrellasHijo] = useState(1);
   const [anioIncidencias, setAnioIncidencias] = useState(null);
+  const [reglaIncidencias, setReglaIncidencias] = useState({ ...REGLA_CONDUCTA_DEFAULT });
   const [loadingIncidencias, setLoadingIncidencias] = useState(false);
   const [showModalEstrellas, setShowModalEstrellas] = useState(false);
   const [estrellas, setEstrellas] = useState([]);
@@ -556,6 +558,7 @@ function DocenteHijos() {
         setCicloFiltroIncidenciasHijo(conInc ? Number(conInc.ciclo) : 1);
       }
       setAnioIncidencias(response.data.anio || null);
+      if (response.data.regla) setReglaIncidencias(response.data.regla);
       setShowModalIncidencias(true);
     } catch (error) {
       console.error('Error cargando incidencias:', error);
@@ -1424,6 +1427,7 @@ function DocenteHijos() {
         alumnoNombre: nombre,
         anio: anioIncidencias,
         bimestres: bimestresIncidencias,
+        notaMax: reglaIncidencias?.max,
       });
       if (!r.ok) {
         Swal.fire({ icon: 'info', title: 'Sin registros', text: 'No hay datos para exportar.' });
@@ -3958,7 +3962,7 @@ function DocenteHijos() {
                 <>
                   <div className="hijo-inc-toolbar">
                     <p className="hijo-inc-toolbar-hint">
-                      Agrupado por bimestre{anioIncidencias ? ` · Año ${anioIncidencias}` : ''}. Nota de conducta = 20 − registros del bimestre.
+                      Agrupado por bimestre{anioIncidencias ? ` · Año ${anioIncidencias}` : ''}. {textoReglaCorta(reglaIncidencias)}.
                     </p>
                     <button
                       type="button"
@@ -3998,7 +4002,7 @@ function DocenteHijos() {
                         const filtered = all.filter((b) => Number(b.ciclo) === Number(cicloFiltroIncidenciasHijo));
                         const list = filtered.length
                           ? filtered
-                          : [{ ciclo: cicloFiltroIncidenciasHijo, incidencias: [], nota_conducta: 20, fecha_desde: '', fecha_hasta: '', total_incidencias: 0, total_presentacion: 0 }];
+                          : [{ ciclo: cicloFiltroIncidenciasHijo, incidencias: [], nota_conducta: formatNotaConducta(reglaIncidencias.max), fecha_desde: '', fecha_hasta: '', total_incidencias: 0, total_presentacion: 0 }];
                         return list;
                       })().map((bim) => {
                         const regs = bim.incidencias || [];
@@ -4013,8 +4017,8 @@ function DocenteHijos() {
                                   </p>
                                 )}
                               </div>
-                              <div className="hijo-inc-nota" title="20 − incidencias − presentaciones">
-                                Conducta: <strong>{bim.nota_conducta ?? '20'}</strong>
+                              <div className="hijo-inc-nota" title={textoReglaCorta(reglaIncidencias)}>
+                                Conducta: <strong>{bim.nota_conducta ?? formatNotaConducta(reglaIncidencias.max)}</strong>
                               </div>
                             </header>
 
@@ -4053,7 +4057,7 @@ function DocenteHijos() {
                               {' + '}
                               {bim.total_presentacion ?? regs.filter((x) => x.origen === 'vestimenta').length} presentación(es)
                               {' → nota '}
-                              <strong>{bim.nota_conducta ?? '20'}/20</strong>
+                              <strong>{bim.nota_conducta ?? formatNotaConducta(reglaIncidencias.max)}/{formatNotaConducta(reglaIncidencias.max)}</strong>
                             </footer>
                           </section>
                         );

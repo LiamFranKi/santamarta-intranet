@@ -6,6 +6,11 @@ const {
   persistirNotaConducta,
   backfillVestimentaAIncidenciasGrupo,
 } = require('./conductaIncidenciasBimestre');
+const {
+  fetchReglaConducta,
+  textoReglaConducta,
+  formatNotaAlmacenada,
+} = require('./reglaConducta');
 
 async function fetchGrupoConductaContext(query, grupoId, colegio_id) {
   const rows = await query(
@@ -18,7 +23,7 @@ async function fetchGrupoConductaContext(query, grupoId, colegio_id) {
 }
 
 /**
- * Lista alumnos con nota de conducta automática del bimestre (20 − incidencias).
+ * Lista alumnos con nota de conducta automática del bimestre (regla configurable).
  * Persiste el promedio calculado para libretas / reportes.
  */
 async function listarAlumnosConductaPorGrupo(query, execute, { grupoId, colegio_id, ciclo }) {
@@ -26,6 +31,7 @@ async function listarAlumnosConductaPorGrupo(query, execute, { grupoId, colegio_
   const grupo = await fetchGrupoConductaContext(query, grupoId, colegio_id);
   const anio = grupo?.anio || new Date().getFullYear();
   const rango = await obtenerRangoBimestre(query, colegio_id, cicloInt, anio);
+  const regla = await fetchReglaConducta(query);
 
   if (execute) {
     try {
@@ -56,6 +62,8 @@ async function listarAlumnosConductaPorGrupo(query, execute, { grupoId, colegio_
       ciclo: cicloInt,
       fecha_desde: rango.desde,
       fecha_hasta: rango.hasta,
+      regla,
+      texto_regla: textoReglaConducta(regla),
     };
   }
 
@@ -68,7 +76,7 @@ async function listarAlumnosConductaPorGrupo(query, execute, { grupoId, colegio_
       rango.desde,
       rango.hasta
     );
-    const nota = notaDesdeCantidad(cant);
+    const nota = notaDesdeCantidad(cant, regla);
     if (execute) {
       try {
         await persistirNotaConducta(execute, m.matricula_id, cicloInt, nota);
@@ -91,14 +99,15 @@ async function listarAlumnosConductaPorGrupo(query, execute, { grupoId, colegio_
     ciclo: cicloInt,
     fecha_desde: rango.desde,
     fecha_hasta: rango.hasta,
+    regla,
+    texto_regla: textoReglaConducta(regla),
   };
 }
 
 /** @deprecated Manual save — conducta es automática; se mantiene por compatibilidad API. */
 async function guardarConductaPorGrupo(execute, { cicloInt, notas }) {
   for (const [matriculaId, nota] of Object.entries(notas || {})) {
-    const val = String(nota || '20').trim();
-    if (!/^\d{1,2}$/.test(val) || parseInt(val, 10) < 0 || parseInt(val, 10) > 20) continue;
+    const val = formatNotaAlmacenada(nota);
     await persistirNotaConducta(execute, matriculaId, cicloInt, val);
   }
 }

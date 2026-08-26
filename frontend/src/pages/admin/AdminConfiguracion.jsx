@@ -5,6 +5,13 @@ import 'react-quill/dist/quill.snow.css';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { procesarHTMLMensaje } from '../../utils/mensajesHtml';
+import {
+  REGLA_CONDUCTA_DEFAULT,
+  normalizarReglaConducta,
+  textoReglaConducta,
+  textoReglaCorta,
+  ejemplosReglaConducta,
+} from '../../utils/reglaConducta';
 import './AdminConfiguracion.css';
 
 function ConfigTabIcon({ name }) {
@@ -97,7 +104,7 @@ const CONFIG_TABS = [
     icon: 'general',
     tone: 'blue',
     helpTitle: 'Identidad del colegio',
-    help: 'Nombre, código modular, resolución, textos visibles y fondo del login. Guarde cada bloque con su propio botón.',
+    help: 'Nombre, código modular, resolución, textos visibles, fondo del login y regla de conducta. Guarde cada bloque con su propio botón.',
   },
   {
     id: 'recaudo',
@@ -569,7 +576,8 @@ function AdminConfiguracion() {
     login_fondo: null,
     libreta_logo: null,
     libreta_fondo: null,
-    boleta_logo: null
+    boleta_logo: null,
+    regla_conducta: { ...REGLA_CONDUCTA_DEFAULT },
   });
 
   const [archivosPreview, setArchivosPreview] = useState({
@@ -632,7 +640,7 @@ function AdminConfiguracion() {
       }
 
       // Separar data para evitar que sobrescriba rangos_letras_primaria e inicio_pensiones
-      const { rangos_letras_primaria: _, inicio_pensiones: __, inicio_notas: ___, bloquear_deudores_hasta_mes: __bdhm, ...restData } = data;
+      const { rangos_letras_primaria: _, inicio_pensiones: __, inicio_notas: ___, bloquear_deudores_hasta_mes: __bdhm, regla_conducta: __rc, ...restData } = data;
       
       // Asegurar que inicio_notas también sea un número
       let inicioNotas = 1;
@@ -672,6 +680,7 @@ function AdminConfiguracion() {
         email_matricula_interno_asunto: restData.email_matricula_interno_asunto || '',
         comision_tarjeta_debito: formatComisionPct(restData.comision_tarjeta_debito),
         comision_tarjeta_credito: formatComisionPct(restData.comision_tarjeta_credito),
+        regla_conducta: normalizarReglaConducta(data.regla_conducta),
         login_fondo: null,
         libreta_logo: null,
         libreta_fondo: null,
@@ -992,6 +1001,62 @@ function AdminConfiguracion() {
     }
   };
 
+  const handleReglaConductaChange = (field, value) => {
+    setConfig((prev) => ({
+      ...prev,
+      regla_conducta: {
+        ...normalizarReglaConducta(prev.regla_conducta),
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleSaveConducta = async () => {
+    const regla = normalizarReglaConducta(config.regla_conducta);
+    const confirm = await Swal.fire({
+      icon: 'question',
+      title: 'Guardar regla de conducta',
+      html:
+        `<p style="text-align:left;margin:0 0 0.75rem;">${textoReglaConducta(regla)}</p>` +
+        '<p style="text-align:left;margin:0;color:#b45309;font-weight:650;">Al guardar se recalcularán las notas de conducta de <strong>todos los alumnos del año activo</strong> (4 bimestres).</p>',
+      showCancelButton: true,
+      confirmButtonText: 'Guardar y recalcular',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0ea5e9',
+    });
+    if (!confirm.isConfirmed) return;
+    try {
+      setSaving(true);
+      const formData = new FormData();
+      formData.append('regla_conducta', JSON.stringify(regla));
+      const { data } = await api.put('/admin/configuracion', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 180000,
+      });
+      const rec = data?.conducta_recalculada;
+      const extra = rec?.error
+        ? ` La regla se guardó, pero el recálculo falló: ${rec.error}`
+        : rec
+          ? ` Se actualizaron ${rec.matriculas || 0} alumnos (${rec.notas || 0} notas, año ${rec.anio || ''}).`
+          : '';
+      Swal.fire({
+        icon: rec?.error ? 'warning' : 'success',
+        title: rec?.error ? 'Regla guardada' : 'Conducta actualizada',
+        text: `${textoReglaCorta(regla)}${extra}`,
+      });
+      await cargarConfiguracion();
+    } catch (error) {
+      console.error('Error guardando regla de conducta:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudo guardar la regla de conducta',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleReiniciarAccesos = async () => {
     const result = await Swal.fire({
       title: '⚠️ ¿Está seguro?',
@@ -1175,6 +1240,88 @@ function AdminConfiguracion() {
                 {saving ? 'Guardando…' : 'Guardar'}
               </button>
             </div>
+            </div>
+          </div>
+
+          <div className="config-panel-card config-panel-card--spaced">
+            <div className="config-panel-card-header">
+              <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="notas" /></span>
+              Conducta
+            </div>
+            <div className="config-section">
+              <p className="config-section-hint">
+                Nota automática por bimestre. Cada incidencia o descuento de presentación resta el valor indicado.
+                Al guardar se recalcula a todos los alumnos del año activo.
+              </p>
+              <div className="form-grid form-grid--narrow">
+                <div className="form-group">
+                  <label>Nota máxima</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="20"
+                    step="1"
+                    value={config.regla_conducta?.max ?? 20}
+                    onChange={(e) => handleReglaConductaChange('max', e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Nota mínima</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="20"
+                    step="1"
+                    value={config.regla_conducta?.min ?? 6}
+                    onChange={(e) => handleReglaConductaChange('min', e.target.value)}
+                  />
+                  <small>No puede bajar de este valor (ej. 06).</small>
+                </div>
+                <div className="form-group">
+                  <label>Descuento por registro</label>
+                  <input
+                    type="number"
+                    min="0.1"
+                    max="5"
+                    step="0.1"
+                    value={config.regla_conducta?.descuento ?? 0.5}
+                    onChange={(e) => handleReglaConductaChange('descuento', e.target.value)}
+                  />
+                  <small>Por cada incidencia o mala presentación.</small>
+                </div>
+                <div className="form-group">
+                  <label className="config-check-label">
+                    <input
+                      type="checkbox"
+                      checked={!!config.regla_conducta?.redondear}
+                      onChange={(e) => handleReglaConductaChange('redondear', e.target.checked)}
+                    />
+                    Redondear .5 hacia arriba
+                  </label>
+                  <small>Ejemplo: 7.5 → 08, 19.5 → 20.</small>
+                </div>
+              </div>
+              <div className="conducta-ejemplos">
+                <p className="conducta-ejemplos-title">Vista previa con la regla actual</p>
+                <ul>
+                  {ejemplosReglaConducta(config.regla_conducta).map((ej) => (
+                    <li key={ej.registros}>
+                      {ej.registros} registro{ej.registros === 1 ? '' : 's'} → <strong>{ej.nota}</strong>
+                    </li>
+                  ))}
+                </ul>
+                <p className="conducta-ejemplos-texto">{textoReglaConducta(config.regla_conducta)}</p>
+              </div>
+              <div className="card-actions">
+                <button
+                  type="button"
+                  onClick={handleSaveConducta}
+                  disabled={saving}
+                  className="btn-submit-card"
+                >
+                  {saving ? 'Guardando y recalculando…' : 'Guardar y recalcular conducta'}
+                </button>
+              </div>
             </div>
           </div>
 

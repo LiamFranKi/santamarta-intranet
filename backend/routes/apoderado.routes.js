@@ -1579,6 +1579,8 @@ router.get('/hijos/:hijoId/incidencias', async (req, res) => {
       bimestres: data.bimestres || [],
       total_incidencias: (data.incidencias || []).length,
       anio: data.anio,
+      regla: data.regla || null,
+      texto_regla: data.texto_regla || null,
     });
   } catch (error) {
     console.error('Error obteniendo incidencias:', error);

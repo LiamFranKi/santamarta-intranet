@@ -877,3 +877,50 @@
     width: 100%;
   }
 }
+
+.config-check-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 650;
+  color: #334155;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.config-check-label input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: #0ea5e9;
+}
+
+.conducta-ejemplos {
+  margin: 1rem 0 0.25rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.conducta-ejemplos-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.conducta-ejemplos ul {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: #475569;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+.conducta-ejemplos-texto {
+  margin: 0.7rem 0 0;
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
