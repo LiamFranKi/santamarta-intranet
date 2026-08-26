@@ -169,22 +169,35 @@ async function calcularTardanzasMesPersonal(
   }
 
   const registros = await query(
-    `SELECT ar.fecha, ar.hora_entrada
+    `SELECT ar.fecha, ar.hora_entrada AS hora_marcacion, ar.hora_salida,
+            p.nombres, p.apellidos, p.nro_documento, p.codigo_biometrico, u.personal_id
      FROM asistencia_registros ar
-     WHERE ar.usuario_id = ?
-       AND ar.colegio_id = ?
+     INNER JOIN usuarios u ON u.id = ar.usuario_id AND u.colegio_id = ar.colegio_id
+     INNER JOIN personal p ON p.id = u.personal_id AND p.colegio_id = ar.colegio_id
+     WHERE ar.colegio_id = ?
        AND ar.anio = ?
        AND YEAR(ar.fecha) = ?
        AND MONTH(ar.fecha) = ?
        AND ar.hora_entrada IS NOT NULL
        AND (ar.tipo_registro = 'ENTRADA' OR ar.tipo_registro = 'ENTRADA_SALIDA')
+       AND u.personal_id IN (
+         SELECT u2.personal_id FROM usuarios u2
+         WHERE u2.id = ? AND u2.colegio_id = ?
+       )
      ORDER BY ar.fecha ASC`,
-    [usuario_id, colegio_id, anio_activo, anioNum, mesNum]
+    [colegio_id, anio_activo, anioNum, mesNum, usuario_id, colegio_id]
   );
 
+  const porIdentidad = fusionarFilasPorIdentidad(
+    (registros || []).map((reg) => ({
+      ...reg,
+      fecha: fechaIsoFromValue(reg.fecha),
+      hora_entrada: reg.hora_marcacion,
+    }))
+  );
   let totalMinutos = 0;
-  (registros || []).forEach((reg) => {
-    const { minutos_tardanza } = calcTardanza(hora_entrada_config, reg.hora_entrada);
+  porIdentidad.forEach((reg) => {
+    const { minutos_tardanza } = calcTardanza(hora_entrada_config, reg.hora_entrada || reg.hora_marcacion);
     totalMinutos += minutos_tardanza;
   });
 
@@ -194,7 +207,7 @@ async function calcularTardanzasMesPersonal(
     mes: mesNum,
     anio_calendario: anioNum,
     mes_nombre: mesNombre,
-    registros: (registros || []).length,
+    registros: porIdentidad.length,
     hora_entrada_config: formatHoraDisplay(hora_entrada_config),
     tarifa_por_minuto: DESCUENTO_POR_MINUTO,
   };
@@ -275,16 +288,250 @@ function esDiaLaboral(fechaISO) {
   return day !== 0 && day !== 6;
 }
 
-/** Un registro por personal_id (prioriza fila con usuario vinculado). */
+function idsIguales(a, b) {
+  const dig = (v) => String(v ?? '').replace(/\D/g, '');
+  const na = dig(a);
+  const nb = dig(b);
+  if (na && nb) {
+    if (na === nb) return true;
+    return na.replace(/^0+/, '') === nb.replace(/^0+/, '');
+  }
+  const sa = String(a ?? '').trim().toLowerCase();
+  const sb = String(b ?? '').trim().toLowerCase();
+  return !!(sa && sb && sa === sb);
+}
+
+function primerTokenNombre(s) {
+  return tokens(s)[0] || '';
+}
+
+/**
+ * Misma persona física aunque haya 2 fichas / 2 usuarios.
+ * DNI, código biométrico, o mismo primer nombre + primer apellido.
+ */
+function mismaIdentidad(a, b) {
+  if (!a || !b) return false;
+  const ida = Number(a.personal_id ?? a.id ?? 0);
+  const idb = Number(b.personal_id ?? b.id ?? 0);
+  if (ida && idb && ida === idb) return true;
+
+  const dniA = String(a.nro_documento || '').replace(/\D/g, '');
+  const dniB = String(b.nro_documento || '').replace(/\D/g, '');
+  if (dniA.length >= 8 && dniB.length >= 8 && idsIguales(dniA, dniB)) return true;
+
+  const bioA = a.codigo_biometrico;
+  const bioB = b.codigo_biometrico;
+  if (bioA != null && String(bioA).trim() !== '' && bioB != null && String(bioB).trim() !== '') {
+    if (idsIguales(bioA, bioB)) return true;
+  }
+
+  const nomA = primerTokenNombre(a.nombres);
+  const nomB = primerTokenNombre(b.nombres);
+  const apeA = primerTokenNombre(a.apellidos);
+  const apeB = primerTokenNombre(b.apellidos);
+  if (nomA && nomB && apeA && apeB && nomA === nomB && apeA === apeB) return true;
+
+  if (a.nombres && a.apellidos && scorePersonalMatch(a.nombres, a.apellidos, b) >= 88) return true;
+  if (b.nombres && b.apellidos && scorePersonalMatch(b.nombres, b.apellidos, a) >= 88) return true;
+  return false;
+}
+
+function clusterPorIdentidadYFecha(rows) {
+  const clusters = [];
+  for (const r of rows || []) {
+    const fecha = fechaIsoFromValue(r.fecha);
+    const found = clusters.find((c) => c.fecha === fecha && mismaIdentidad(c.probe, r));
+    if (found) found.rows.push(r);
+    else clusters.push({ fecha, probe: r, rows: [r] });
+  }
+  return clusters;
+}
+
+function horaRegistro(r, campo) {
+  const raw = r[campo];
+  if (raw == null || raw === '') return null;
+  return parseHoraMarcacion(raw) || String(raw).slice(0, 8);
+}
+
+function tiemposDeRegistro(r) {
+  const times = [];
+  const he = horaRegistro(r, 'hora_entrada') || horaRegistro(r, 'hora_marcacion');
+  const hs = horaRegistro(r, 'hora_salida');
+  const em = toMinutesFromMidnight(he);
+  const sm = toMinutesFromMidnight(hs);
+  if (em != null) times.push({ min: em, hora: he });
+  if (sm != null) times.push({ min: sm, hora: hs });
+  return times;
+}
+
+function colapsarTiemposMarcacion(rows) {
+  const times = [];
+  for (const r of rows || []) times.push(...tiemposDeRegistro(r));
+  times.sort((a, b) => a.min - b.min);
+  if (!times.length) return { horaEntrada: null, horaSalida: null };
+  const horaEntrada = times[0].hora;
+  const last = times[times.length - 1];
+  const horaSalida = last.min > times[0].min ? last.hora : null;
+  return { horaEntrada, horaSalida };
+}
+
+function elegirKeeperCluster(rows) {
+  let keep = rows[0];
+  let keepMin = toMinutesFromMidnight(horaRegistro(keep, 'hora_entrada') || horaRegistro(keep, 'hora_marcacion'));
+  for (const r of rows) {
+    const m = toMinutesFromMidnight(horaRegistro(r, 'hora_entrada') || horaRegistro(r, 'hora_marcacion'));
+    if (m != null && (keepMin == null || m < keepMin || (m === keepMin && Number(r.id) < Number(keep.id)))) {
+      keep = r;
+      keepMin = m;
+    }
+  }
+  return keep;
+}
+
+function colapsarFilasMarcacion(rows) {
+  if (!rows || rows.length <= 1) return rows?.[0] || null;
+  const keep = elegirKeeperCluster(rows);
+  const { horaEntrada, horaSalida } = colapsarTiemposMarcacion(rows);
+  const { minutos_tardanza, descuento } = calcTardanza(keep.hora_entrada_real, horaEntrada);
+  return {
+    ...keep,
+    hora_marcacion: horaEntrada,
+    hora_marcacion_fmt: formatHoraDisplay(horaEntrada),
+    hora_entrada: horaEntrada,
+    hora_salida: horaSalida,
+    hora_salida_fmt: horaSalida ? formatHoraDisplay(horaSalida) : '—',
+    minutos_tardanza,
+    descuento,
+  };
+}
+
+function fusionarFilasPorIdentidad(filas) {
+  return clusterPorIdentidadYFecha(filas).map((c) => colapsarFilasMarcacion(c.rows));
+}
+
+async function loadRegistrosDiaColegio(query, colegioId, anio, fecha) {
+  const sql = (extra) =>
+    `SELECT ar.id, ar.usuario_id, ar.hora_entrada, ar.hora_salida, ar.tipo_registro, ar.fecha,
+            u.personal_id, p.nombres, p.apellidos, p.nro_documento, ${extra}
+            p.hora_entrada AS hora_entrada_real
+     FROM asistencia_registros ar
+     INNER JOIN usuarios u ON u.id = ar.usuario_id AND u.colegio_id = ar.colegio_id
+     INNER JOIN personal p ON p.id = u.personal_id AND p.colegio_id = ar.colegio_id
+     WHERE ar.colegio_id = ? AND ar.anio = ? AND DATE(ar.fecha) = ?
+       AND ar.hora_entrada IS NOT NULL
+       AND u.personal_id > 0
+       AND (ar.tipo_registro = 'ENTRADA' OR ar.tipo_registro = 'ENTRADA_SALIDA')
+     ORDER BY ar.id ASC`;
+  try {
+    return await query(sql('p.codigo_biometrico,'), [colegioId, anio, fecha]);
+  } catch (e) {
+    if (String(e.message || '').includes('codigo_biometrico')) {
+      const rows = await query(sql(''), [colegioId, anio, fecha]);
+      return (rows || []).map((r) => ({ ...r, codigo_biometrico: null }));
+    }
+    throw e;
+  }
+}
+
+async function persistirClusterMarcacion(execute, rows, auditUserId) {
+  if (!rows || !rows.length) return null;
+  if (rows.length === 1) return rows[0];
+  const keep = elegirKeeperCluster(rows);
+  const { horaEntrada, horaSalida } = colapsarTiemposMarcacion(rows);
+  const tipo = horaSalida ? 'ENTRADA_SALIDA' : 'ENTRADA';
+  await execute(
+    `UPDATE asistencia_registros
+     SET hora_entrada = ?, hora_salida = ?, tipo_registro = ?,
+         actualizado_por = ?, fecha_actualizacion = NOW()
+     WHERE id = ?`,
+    [horaEntrada, horaSalida, tipo, auditUserId ?? null, keep.id]
+  );
+  const dupIds = rows.filter((r) => Number(r.id) !== Number(keep.id)).map((r) => r.id);
+  if (dupIds.length) {
+    await execute(
+      `DELETE FROM asistencia_registros WHERE id IN (${dupIds.map(() => '?').join(',')})`,
+      dupIds
+    );
+  }
+  return { ...keep, hora_entrada: horaEntrada, hora_salida: horaSalida, tipo_registro: tipo };
+}
+
+/**
+ * Junta filas del mismo día que son la misma persona (2 fichas / 2 usuarios).
+ * Si personalProbe está definido, solo esa identidad.
+ */
+async function fusionarRegistrosEquivalentesDia(
+  query,
+  execute,
+  { colegioId, anio, fecha, personalProbe = null, auditUserId = null }
+) {
+  const rows = await loadRegistrosDiaColegio(query, colegioId, anio, fecha);
+  const pool = personalProbe ? rows.filter((r) => mismaIdentidad(personalProbe, r)) : rows;
+  if (!pool.length) return null;
+
+  const clusters = clusterPorIdentidadYFecha(pool);
+  let keeper = null;
+  for (const c of clusters) {
+    const merged = await persistirClusterMarcacion(execute, c.rows, auditUserId);
+    if (personalProbe && merged && mismaIdentidad(personalProbe, merged)) keeper = merged;
+    else if (!personalProbe) keeper = merged;
+  }
+  return keeper;
+}
+
+function elegirPersonalCanonico(candidatos, rowsDia = []) {
+  const conUsuario = (candidatos || []).filter((p) => p.usuario_id);
+  const lista = conUsuario.length ? conUsuario : candidatos || [];
+  if (!lista.length) return null;
+  if (rowsDia.length) {
+    const conMarca = lista.filter((p) =>
+      rowsDia.some((r) => Number(r.personal_id) === Number(p.personal_id) || mismaIdentidad(p, r))
+    );
+    if (conMarca.length) {
+      const byEarliest = conMarca.slice().sort((a, b) => {
+        const ra = rowsDia.filter((r) => mismaIdentidad(a, r));
+        const rb = rowsDia.filter((r) => mismaIdentidad(b, r));
+        const ma = Math.min(
+          ...ra.map((r) => toMinutesFromMidnight(horaRegistro(r, 'hora_entrada'))).filter((n) => n != null)
+        );
+        const mb = Math.min(
+          ...rb.map((r) => toMinutesFromMidnight(horaRegistro(r, 'hora_entrada'))).filter((n) => n != null)
+        );
+        if (Number.isFinite(ma) && Number.isFinite(mb) && ma !== mb) return ma - mb;
+        return Number(a.personal_id) - Number(b.personal_id);
+      });
+      return byEarliest[0];
+    }
+  }
+  return lista.slice().sort((a, b) => Number(a.personal_id) - Number(b.personal_id))[0];
+}
+
+async function resolverPersonalCanonico(query, { colegioId, anio, fecha, personal, personalList }) {
+  if (!personal) return personal;
+  const equivalentes = (personalList || []).filter((p) => mismaIdentidad(personal, p));
+  if (equivalentes.length <= 1) {
+    const conUser = equivalentes.find((p) => p.usuario_id) || personal;
+    return conUser.usuario_id ? conUser : personal;
+  }
+  let rowsDia = [];
+  if (fecha && anio) {
+    rowsDia = await loadRegistrosDiaColegio(query, colegioId, anio, fecha);
+  }
+  return elegirPersonalCanonico(equivalentes, rowsDia) || personal;
+}
+
+/** Un registro por personal_id (usuario ACTIVO de id más bajo). */
 function dedupePersonalList(personalList) {
   const byId = new Map();
   for (const p of personalList || []) {
     const id = p.personal_id ?? p.id;
     if (!id) continue;
     const prev = byId.get(id);
-    if (!prev || (!prev.usuario_id && p.usuario_id)) {
-      byId.set(id, p);
-    }
+    const takeNew =
+      !prev ||
+      (!prev.usuario_id && p.usuario_id) ||
+      (prev.usuario_id && p.usuario_id && Number(p.usuario_id) < Number(prev.usuario_id));
+    if (takeNew) byId.set(id, p);
   }
   return Array.from(byId.values()).sort((a, b) => {
     const ap = String(a.apellidos || '').localeCompare(String(b.apellidos || ''), 'es');
@@ -293,45 +540,63 @@ function dedupePersonalList(personalList) {
   });
 }
 
+const SQL_USUARIO_ACTIVO_CANONICO = `LEFT JOIN usuarios u ON u.id = (
+  SELECT u2.id FROM usuarios u2
+  WHERE u2.personal_id = p.id AND u2.colegio_id = p.colegio_id AND u2.estado = 'ACTIVO'
+  ORDER BY u2.id ASC
+  LIMIT 1
+)`;
+
 /**
- * Suma tardanzas sin doble conteo (mismo personal + mismo día).
+ * Suma tardanzas sin doble conteo (misma persona física + mismo día).
  * Por defecto excluye sábados y domingos, igual que el reporte Asistencia del Personal.
  */
 function sumarTardanzasDesdeRegistros(rows, { soloDiasLaborables = true } = {}) {
-  const seen = new Set();
-  let totalMinutos = 0;
-  let registrosUnicos = 0;
-
-  for (const r of rows || []) {
+  const filtradas = (rows || []).filter((r) => {
     const fecha = fechaIsoFromValue(r.fecha);
-    if (soloDiasLaborables && !esDiaLaboral(fecha)) continue;
-
-    const personalId = r.personal_id;
-    if (!personalId) continue;
-
-    const key = `${personalId}:${fecha}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    const { minutos_tardanza } = calcTardanza(r.hora_entrada_real, r.hora_marcacion);
+    if (soloDiasLaborables && !esDiaLaboral(fecha)) return false;
+    return !!(r.personal_id || r.nombres || r.apellidos);
+  });
+  const clusters = clusterPorIdentidadYFecha(filtradas);
+  let totalMinutos = 0;
+  for (const c of clusters) {
+    const { horaEntrada } = colapsarTiemposMarcacion(c.rows);
+    const horaReal = c.rows.find((r) => r.hora_entrada_real)?.hora_entrada_real || c.probe.hora_entrada_real;
+    const { minutos_tardanza } = calcTardanza(horaReal, horaEntrada);
     totalMinutos += minutos_tardanza;
-    registrosUnicos += 1;
   }
-
-  return { totalMinutos, registrosUnicos };
+  return { totalMinutos, registrosUnicos: clusters.length };
 }
 
 async function loadPersonalColegio(query, colegioId) {
-  const rows = await query(
+  const sql = (extraCols) =>
     `SELECT p.id AS personal_id, p.nombres, p.apellidos, p.hora_entrada, p.cargo,
+            ${extraCols}
             u.id AS usuario_id
      FROM personal p
-     LEFT JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = p.colegio_id AND u.estado = 'ACTIVO'
+     ${SQL_USUARIO_ACTIVO_CANONICO}
      WHERE p.colegio_id = ?
-     ORDER BY p.apellidos ASC, p.nombres ASC`,
-    [colegioId]
-  );
-  return dedupePersonalList(rows || []);
+     ORDER BY p.apellidos ASC, p.nombres ASC`;
+  try {
+    const rows = await query(sql('p.nro_documento, p.codigo_biometrico,'), [colegioId]);
+    return dedupePersonalList(rows || []);
+  } catch (e) {
+    if (String(e.message || '').includes('codigo_biometrico')) {
+      const rows = await query(sql('p.nro_documento,'), [colegioId]);
+      return dedupePersonalList((rows || []).map((r) => ({ ...r, codigo_biometrico: null })));
+    }
+    throw e;
+  }
+}
+
+async function personalIdsEquivalentes(query, colegioId, personalId) {
+  const pid = parseInt(personalId, 10);
+  if (!Number.isFinite(pid)) return [];
+  const list = await loadPersonalColegio(query, colegioId);
+  const probe = list.find((p) => Number(p.personal_id) === pid);
+  if (!probe) return [pid];
+  const ids = list.filter((p) => mismaIdentidad(probe, p)).map((p) => p.personal_id);
+  return ids.length ? ids : [pid];
 }
 
 async function getAnioActivo(query, colegioId) {
@@ -352,20 +617,43 @@ async function findRegistrosMarcacion(query, usuarioId, colegioId, fecha, anio) 
   );
 }
 
+async function findRegistrosMarcacionIdentidad(query, { usuarioId, personal, colegioId, fecha, anio }) {
+  const rows = await loadRegistrosDiaColegio(query, colegioId, anio, fecha);
+  const probe = personal || { usuario_id: usuarioId };
+  const hit = rows.filter((r) => {
+    if (personal && mismaIdentidad(probe, r)) return true;
+    if (usuarioId && Number(r.usuario_id) === Number(usuarioId)) return true;
+    if (personal?.personal_id && Number(r.personal_id) === Number(personal.personal_id)) return true;
+    return false;
+  });
+  hit.sort((a, b) => Number(b.id) - Number(a.id));
+  return hit;
+}
+
 /** Inserta o actualiza solo la entrada del día (import Excel / tardanzas). */
-async function upsertMarcacionDia(execute, query, { usuarioId, colegioId, anio, fecha, horaMarcacion, auditUserId }) {
-  const existing = await findRegistrosMarcacion(query, usuarioId, colegioId, fecha, anio);
+async function upsertMarcacionDia(
+  execute,
+  query,
+  { usuarioId, colegioId, anio, fecha, horaMarcacion, auditUserId, personal }
+) {
+  const existing = await findRegistrosMarcacionIdentidad(query, {
+    usuarioId,
+    personal,
+    colegioId,
+    fecha,
+    anio,
+  });
 
   if (existing.length > 0) {
-    const keepId = existing[0].id;
+    const keep = elegirKeeperCluster(existing);
     await execute(
       `UPDATE asistencia_registros
        SET hora_entrada = ?, tipo_registro = IF(hora_salida IS NULL, 'ENTRADA', 'ENTRADA_SALIDA'),
            actualizado_por = ?, fecha_actualizacion = NOW()
        WHERE id = ?`,
-      [horaMarcacion, auditUserId, keepId]
+      [horaMarcacion, auditUserId, keep.id]
     );
-    const dupIds = existing.slice(1).map((r) => r.id);
+    const dupIds = existing.filter((r) => Number(r.id) !== Number(keep.id)).map((r) => r.id);
     if (dupIds.length) {
       await execute(
         `DELETE FROM asistencia_registros WHERE id IN (${dupIds.map(() => '?').join(',')})`,
@@ -387,12 +675,13 @@ async function upsertMarcacionDia(execute, query, { usuarioId, colegioId, anio, 
 /**
  * Biométrico: 1ª marcación del día = entrada (se conserva la más temprana);
  * marcaciones posteriores = salida (siempre la más tardía).
+ * Une fichas/usuarios duplicados de la misma persona.
  * @returns {'insertado'|'actualizado_entrada'|'actualizado_salida'|'ya_procesado'|'kept_between'}
  */
 async function upsertMarcacionEntradaSalida(
   execute,
   query,
-  { usuarioId, colegioId, anio, fecha, horaMarcacion, auditUserId }
+  { usuarioId, colegioId, anio, fecha, horaMarcacion, auditUserId, personal }
 ) {
   const nuevaHora = parseHoraMarcacion(horaMarcacion) || String(horaMarcacion || '').slice(0, 8);
   const nuevaMin = toMinutesFromMidnight(nuevaHora);
@@ -402,7 +691,22 @@ async function upsertMarcacionEntradaSalida(
     throw err;
   }
 
-  const existing = await findRegistrosMarcacion(query, usuarioId, colegioId, fecha, anio);
+  const probe = personal ? { ...personal, usuario_id: usuarioId } : { usuario_id: usuarioId };
+  await fusionarRegistrosEquivalentesDia(query, execute, {
+    colegioId,
+    anio,
+    fecha,
+    personalProbe: personal ? probe : null,
+    auditUserId,
+  });
+
+  const existing = await findRegistrosMarcacionIdentidad(query, {
+    usuarioId,
+    personal: probe,
+    colegioId,
+    fecha,
+    anio,
+  });
 
   if (!existing.length) {
     await execute(
@@ -414,8 +718,9 @@ async function upsertMarcacionEntradaSalida(
     return 'insertado';
   }
 
-  const keepId = existing[0].id;
-  const dupIds = existing.slice(1).map((r) => r.id);
+  const keep = elegirKeeperCluster(existing);
+  const keepId = keep.id;
+  const dupIds = existing.filter((r) => Number(r.id) !== Number(keepId)).map((r) => r.id);
   if (dupIds.length) {
     await execute(
       `DELETE FROM asistencia_registros WHERE id IN (${dupIds.map(() => '?').join(',')})`,
@@ -423,11 +728,8 @@ async function upsertMarcacionEntradaSalida(
     );
   }
 
-  const entradaHora =
-    parseHoraMarcacion(existing[0].hora_entrada) || String(existing[0].hora_entrada || '').slice(0, 8);
-  const salidaHora = existing[0].hora_salida
-    ? parseHoraMarcacion(existing[0].hora_salida) || String(existing[0].hora_salida || '').slice(0, 8)
-    : null;
+  const entradaHora = horaRegistro(keep, 'hora_entrada');
+  const salidaHora = horaRegistro(keep, 'hora_salida');
   const entradaMin = toMinutesFromMidnight(entradaHora);
   const salidaMin = toMinutesFromMidnight(salidaHora);
 
@@ -445,9 +747,9 @@ async function upsertMarcacionEntradaSalida(
     await execute(
       `UPDATE asistencia_registros
        SET hora_entrada = ?, hora_salida = ?, tipo_registro = 'ENTRADA_SALIDA',
-           actualizado_por = ?, fecha_actualizacion = NOW()
+           usuario_id = ?, actualizado_por = ?, fecha_actualizacion = NOW()
        WHERE id = ?`,
-      [nuevaHora, nuevaSalida, auditUserId, keepId]
+      [nuevaHora, nuevaSalida, usuarioId, auditUserId, keepId]
     );
     return 'actualizado_entrada';
   }
@@ -523,7 +825,13 @@ async function previewHuelleroImport(query, colegioId, buffer) {
   let nuevos = 0;
   let actualizados = 0;
   for (const c of coincidencias) {
-    const existing = await findRegistrosMarcacion(query, c.usuario_id, colegioId, c.fecha, anio);
+    const existing = await findRegistrosMarcacionIdentidad(query, {
+      usuarioId: c.usuario_id,
+      personal: c,
+      colegioId,
+      fecha: c.fecha,
+      anio,
+    });
     if (existing.length) actualizados += 1;
     else nuevos += 1;
   }
@@ -579,6 +887,7 @@ async function importarHuellero(query, execute, colegioId, adminUsuarioId, buffe
         fecha: row.fecha,
         horaMarcacion: row.hora_marcacion,
         auditUserId,
+        personal: match,
       });
       if (result === 'actualizado') stats.actualizados += 1;
       else stats.insertados += 1;
@@ -601,6 +910,11 @@ function mapRowToFilaTardanza(r) {
   return {
     id: r.id,
     personal_id: r.personal_id,
+    usuario_id: r.usuario_id || null,
+    nombres: r.nombres,
+    apellidos: r.apellidos,
+    nro_documento: r.nro_documento || null,
+    codigo_biometrico: r.codigo_biometrico || null,
     personal_nombre: nombrePersonal(r),
     fecha: r.fecha instanceof Date ? r.fecha.toISOString().slice(0, 10) : String(r.fecha).slice(0, 10),
     hora_entrada_real: r.hora_entrada_real,
@@ -810,14 +1124,28 @@ async function crearRegistroManual(
   }
 
   const { anio } = await getAnioActivo(query, colegioId);
-  const existing = await findRegistrosMarcacion(query, personal.usuario_id, colegioId, fechaIso, anio);
+  await fusionarRegistrosEquivalentesDia(query, execute, {
+    colegioId,
+    anio,
+    fecha: fechaIso,
+    personalProbe: personal,
+    auditUserId,
+  });
+  const existing = await findRegistrosMarcacionIdentidad(query, {
+    usuarioId: personal.usuario_id,
+    personal,
+    colegioId,
+    fecha: fechaIso,
+    anio,
+  });
   const tipo = hs ? 'ENTRADA_SALIDA' : 'ENTRADA';
   let accion = 'insertado';
   let registroId;
 
   if (existing.length > 0) {
-    registroId = existing[0].id;
-    const dupIds = existing.slice(1).map((r) => r.id);
+    const keep = elegirKeeperCluster(existing);
+    registroId = keep.id;
+    const dupIds = existing.filter((r) => Number(r.id) !== Number(keep.id)).map((r) => r.id);
     if (dupIds.length) {
       await execute(
         `DELETE FROM asistencia_registros WHERE id IN (${dupIds.map(() => '?').join(',')})`,
@@ -851,7 +1179,7 @@ async function crearRegistroManual(
   return { accion, fila };
 }
 
-async function listarTardanzas(query, colegioId, params = {}) {
+async function listarTardanzas(query, colegioId, params = {}, execute = null) {
   const { anio, colegio_nombre } = await getAnioActivo(query, colegioId);
   const personalId = params.personal_id ? parseInt(params.personal_id, 10) : null;
   const desde = params.desde || null;
@@ -867,8 +1195,9 @@ async function listarTardanzas(query, colegioId, params = {}) {
   const sqlParams = [colegioId, anio];
 
   if (Number.isFinite(personalId)) {
-    where.push('p.id = ?');
-    sqlParams.push(personalId);
+    const ids = await personalIdsEquivalentes(query, colegioId, personalId);
+    where.push(`p.id IN (${ids.map(() => '?').join(',')})`);
+    sqlParams.push(...ids);
   }
   if (desde) {
     where.push('ar.fecha >= ?');
@@ -879,10 +1208,10 @@ async function listarTardanzas(query, colegioId, params = {}) {
     sqlParams.push(hasta);
   }
 
-  const rows = await query(
+  let rows = await query(
     `SELECT ar.id, ar.fecha, ar.hora_entrada AS hora_marcacion, ar.hora_salida,
-            p.id AS personal_id, p.nombres, p.apellidos, p.hora_entrada AS hora_entrada_real,
-            u.id AS usuario_id
+            p.id AS personal_id, p.nombres, p.apellidos, p.nro_documento, p.codigo_biometrico,
+            p.hora_entrada AS hora_entrada_real, u.id AS usuario_id
      FROM asistencia_registros ar
      INNER JOIN usuarios u ON u.id = ar.usuario_id AND u.colegio_id = ar.colegio_id
      INNER JOIN personal p ON p.id = u.personal_id AND p.colegio_id = ar.colegio_id
@@ -891,7 +1220,26 @@ async function listarTardanzas(query, colegioId, params = {}) {
     sqlParams
   );
 
-  const filas = (rows || []).map(mapRowToFilaTardanza);
+  if (execute) {
+    const fechas = [...new Set((rows || []).map((r) => fechaIsoFromValue(r.fecha)))];
+    for (const fecha of fechas) {
+      await fusionarRegistrosEquivalentesDia(query, execute, { colegioId, anio, fecha });
+    }
+    rows = await query(
+      `SELECT ar.id, ar.fecha, ar.hora_entrada AS hora_marcacion, ar.hora_salida,
+              p.id AS personal_id, p.nombres, p.apellidos, p.nro_documento, p.codigo_biometrico,
+              p.hora_entrada AS hora_entrada_real, u.id AS usuario_id
+       FROM asistencia_registros ar
+       INNER JOIN usuarios u ON u.id = ar.usuario_id AND u.colegio_id = ar.colegio_id
+       INNER JOIN personal p ON p.id = u.personal_id AND p.colegio_id = ar.colegio_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY ar.fecha DESC, p.apellidos ASC, p.nombres ASC`,
+      sqlParams
+    );
+  }
+
+  const filasRaw = (rows || []).map(mapRowToFilaTardanza);
+  const filas = fusionarFilasPorIdentidad(filasRaw);
 
   const total_descuento = Math.round(filas.reduce((s, f) => s + (f.descuento || 0), 0) * 100) / 100;
   const total_minutos = filas.reduce((s, f) => s + (f.minutos_tardanza || 0), 0);
@@ -916,8 +1264,9 @@ async function calcularTardanzasMesColegio(query, colegioId, params = {}) {
   const mesNombre = MESES_ES[mesNum - 1] || `Mes ${mesNum}`;
 
   const rows = await query(
-    `SELECT ar.fecha, ar.hora_entrada AS hora_marcacion, p.hora_entrada AS hora_entrada_real,
-            u.personal_id
+    `SELECT ar.fecha, ar.hora_entrada AS hora_marcacion, ar.hora_salida,
+            p.hora_entrada AS hora_entrada_real, u.personal_id,
+            p.nombres, p.apellidos, p.nro_documento, p.codigo_biometrico
      FROM asistencia_registros ar
      INNER JOIN usuarios u ON u.id = ar.usuario_id AND u.colegio_id = ar.colegio_id
      INNER JOIN personal p ON p.id = u.personal_id AND p.colegio_id = ar.colegio_id
@@ -1093,4 +1442,9 @@ module.exports = {
   upsertMarcacionEntradaSalida,
   actualizarEntradaSalidaRegistro,
   crearRegistroManual,
+  mismaIdentidad,
+  fusionarFilasPorIdentidad,
+  fusionarRegistrosEquivalentesDia,
+  resolverPersonalCanonico,
+  personalIdsEquivalentes,
 };

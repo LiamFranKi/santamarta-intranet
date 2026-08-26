@@ -8,6 +8,7 @@ const {
   calcularTardanzasMesPersonal,
   calcTardanza,
   formatHoraDisplay,
+  fusionarFilasPorIdentidad,
   DESCUENTO_POR_MINUTO,
   MESES_ES,
 } = require('../utils/adminTardanzasHuellero');
@@ -92,24 +93,42 @@ router.get('/asistencias', async (req, res) => {
     const horaEntradaConfigurada = usuario.hora_entrada;
 
     const registrosAsistencia = await query(
-      `SELECT ar.fecha, ar.hora_entrada, ar.hora_salida, ar.tipo_registro
+      `SELECT ar.fecha, ar.hora_entrada, ar.hora_salida, ar.tipo_registro,
+              p.nombres, p.apellidos, p.nro_documento, p.codigo_biometrico, u.personal_id
        FROM asistencia_registros ar
-       WHERE ar.usuario_id = ?
-         AND ar.colegio_id = ?
+       INNER JOIN usuarios u ON u.id = ar.usuario_id AND u.colegio_id = ar.colegio_id
+       INNER JOIN personal p ON p.id = u.personal_id AND p.colegio_id = ar.colegio_id
+       WHERE ar.colegio_id = ?
          AND ar.anio = ?
          AND YEAR(ar.fecha) = ?
          AND MONTH(ar.fecha) = ?
          AND ar.hora_entrada IS NOT NULL
          AND (ar.tipo_registro = 'ENTRADA' OR ar.tipo_registro = 'ENTRADA_SALIDA')
+         AND u.personal_id IN (
+           SELECT u2.personal_id FROM usuarios u2
+           WHERE u2.id = ? AND u2.colegio_id = ?
+         )
        ORDER BY ar.fecha DESC, ar.hora_entrada DESC`,
-      [usuarioId, colegioId, anioActivo, anioInt, mesInt]
+      [colegioId, anioActivo, anioInt, mesInt, usuarioId, colegioId]
+    );
+
+    const fusionadas = fusionarFilasPorIdentidad(
+      (registrosAsistencia || []).map((registro) => ({
+        ...registro,
+        fecha:
+          registro.fecha instanceof Date
+            ? registro.fecha.toISOString().slice(0, 10)
+            : String(registro.fecha).slice(0, 10),
+        hora_marcacion: registro.hora_entrada,
+      }))
     );
 
     let totalMinutosTardanza = 0;
-    const asistenciasConCalculos = (registrosAsistencia || []).map((registro) => {
+    const asistenciasConCalculos = fusionadas.map((registro) => {
+      const horaEnt = registro.hora_entrada || registro.hora_marcacion;
       const { minutos_tardanza: minutosTardanza, descuento } = calcTardanza(
         horaEntradaConfigurada,
-        registro.hora_entrada
+        horaEnt
       );
       totalMinutosTardanza += minutosTardanza;
       const fechaStr = registro.fecha instanceof Date
@@ -119,8 +138,8 @@ router.get('/asistencias', async (req, res) => {
         fecha: fechaStr,
         hora_entrada_real: horaEntradaConfigurada,
         hora_entrada_real_fmt: formatHoraDisplay(horaEntradaConfigurada),
-        hora_marcacion: registro.hora_entrada,
-        hora_marcacion_fmt: formatHoraDisplay(registro.hora_entrada),
+        hora_marcacion: horaEnt,
+        hora_marcacion_fmt: formatHoraDisplay(horaEnt),
         minutos_tardanza: minutosTardanza,
         descuento,
       };

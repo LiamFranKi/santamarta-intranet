@@ -17,6 +17,10 @@ const {
   formatHoraDisplay,
   calcTardanza,
   DESCUENTO_POR_MINUTO,
+  fusionarFilasPorIdentidad,
+  fusionarRegistrosEquivalentesDia,
+  resolverPersonalCanonico,
+  personalIdsEquivalentes,
 } = require('./adminTardanzasHuellero');
 
 const TZ_LIMA = 'America/Lima';
@@ -418,28 +422,25 @@ function normalizeEvent(ace, envelope) {
 }
 
 async function loadPersonalForBiometrico(colegioId) {
+  const sql = (extraCols) =>
+    `SELECT p.id AS personal_id, p.nombres, p.apellidos, p.hora_entrada, p.cargo,
+            ${extraCols}
+            u.id AS usuario_id
+     FROM personal p
+     LEFT JOIN usuarios u ON u.id = (
+       SELECT u2.id FROM usuarios u2
+       WHERE u2.personal_id = p.id AND u2.colegio_id = p.colegio_id AND u2.estado = 'ACTIVO'
+       ORDER BY u2.id ASC
+       LIMIT 1
+     )
+     WHERE p.colegio_id = ?
+     ORDER BY p.apellidos ASC, p.nombres ASC`;
   try {
-    const rows = await query(
-      `SELECT p.id AS personal_id, p.nombres, p.apellidos, p.hora_entrada, p.cargo,
-              p.nro_documento, p.codigo_biometrico, u.id AS usuario_id
-       FROM personal p
-       LEFT JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = p.colegio_id AND u.estado = 'ACTIVO'
-       WHERE p.colegio_id = ?
-       ORDER BY p.apellidos ASC, p.nombres ASC`,
-      [colegioId]
-    );
+    const rows = await query(sql('p.nro_documento, p.codigo_biometrico,'), [colegioId]);
     return dedupePersonalList(rows || []);
   } catch (e) {
     if (String(e.message || '').includes('codigo_biometrico')) {
-      const rows = await query(
-        `SELECT p.id AS personal_id, p.nombres, p.apellidos, p.hora_entrada, p.cargo,
-                p.nro_documento, u.id AS usuario_id
-         FROM personal p
-         LEFT JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = p.colegio_id AND u.estado = 'ACTIVO'
-         WHERE p.colegio_id = ?
-         ORDER BY p.apellidos ASC, p.nombres ASC`,
-        [colegioId]
-      );
+      const rows = await query(sql('p.nro_documento,'), [colegioId]);
       return dedupePersonalList((rows || []).map((r) => ({ ...r, codigo_biometrico: null })));
     }
     throw e;
@@ -710,7 +711,16 @@ async function ingestHikvisionPayload(body, meta = {}) {
     });
   }
 
-  const { personal, via } = matched;
+  const { personal: matchedPersonal, via } = matched;
+  const { anio } = await getAnioActivo(query, colegioId);
+  const personal =
+    (await resolverPersonalCanonico(query, {
+      colegioId,
+      anio,
+      fecha: event.fecha,
+      personal: matchedPersonal,
+      personalList,
+    })) || matchedPersonal;
   if (!personal.usuario_id) {
     await logEvento({
       colegio_id: colegioId,
@@ -737,8 +747,6 @@ async function ingestHikvisionPayload(body, meta = {}) {
     });
   }
 
-  const { anio } = await getAnioActivo(query, colegioId);
-
   const nuevaHora = parseHoraMarcacion(event.hora_marcacion) || String(event.hora_marcacion || '').slice(0, 8);
 
   const action = await upsertMarcacionEntradaSalida(execute, query, {
@@ -748,6 +756,7 @@ async function ingestHikvisionPayload(body, meta = {}) {
     fecha: event.fecha,
     horaMarcacion: nuevaHora,
     auditUserId: null,
+    personal,
   });
 
   // No spamear el log de diagnóstico con reenvíos idénticos / entre entrada-salida
@@ -954,8 +963,9 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
 
   const personalId = parseInt(opts.personalId, 10);
   if (personalId) {
-    where.push('p.id = ?');
-    params.push(personalId);
+    const ids = await personalIdsEquivalentes(query, colegioId, personalId);
+    where.push(`p.id IN (${ids.map(() => '?').join(',')})`);
+    params.push(...ids);
   }
 
   const desde = opts.desde ? String(opts.desde).slice(0, 10) : '';
@@ -969,8 +979,7 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
     params.push(hasta);
   }
 
-  const rows = await query(
-    `SELECT ar.id,
+  const selectSql = `SELECT ar.id,
             ar.fecha,
             ar.hora_entrada,
             ar.hora_salida,
@@ -979,6 +988,10 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
             ar.fecha_creacion,
             ar.fecha_actualizacion,
             p.id AS personal_id,
+            p.nombres,
+            p.apellidos,
+            p.nro_documento,
+            p.codigo_biometrico,
             p.hora_entrada AS hora_entrada_real,
             CONCAT(COALESCE(p.apellidos,''), ', ', COALESCE(p.nombres,'')) AS personal_nombre
      FROM asistencia_registros ar
@@ -988,11 +1001,21 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
      ORDER BY DATE(ar.fecha) DESC,
               ar.hora_entrada DESC,
               ar.id DESC
-     LIMIT ${lim}`,
-    params
-  );
+     LIMIT ${lim}`;
 
-  const filas = (rows || []).map((r) => {
+  let rows = await query(selectSql, params);
+
+  const fechas = [...new Set((rows || []).map((r) => String(r.fecha || '').slice(0, 10)))].filter((f) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(f)
+  );
+  for (const fecha of fechas) {
+    await fusionarRegistrosEquivalentesDia(query, execute, { colegioId, anio, fecha });
+  }
+  if (fechas.length) {
+    rows = await query(selectSql, params);
+  }
+
+  const filasRaw = (rows || []).map((r) => {
     const fechaStr =
       r.fecha instanceof Date
         ? r.fecha.toISOString().slice(0, 10)
@@ -1006,6 +1029,10 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
     return {
       id: r.id,
       personal_id: r.personal_id,
+      nombres: r.nombres,
+      apellidos: r.apellidos,
+      nro_documento: r.nro_documento,
+      codigo_biometrico: r.codigo_biometrico,
       personal_nombre: (r.personal_nombre || '').replace(/^,\s*/, '').trim() || '—',
       fecha: fechaStr,
       hora_entrada: he,
@@ -1022,6 +1049,12 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
       recibido_at: r.recibido_at,
       tipo_registro: r.tipo_registro,
     };
+  });
+
+  const filas = fusionarFilasPorIdentidad(filasRaw).sort((a, b) => {
+    const fd = String(b.fecha).localeCompare(String(a.fecha));
+    if (fd !== 0) return fd;
+    return String(b.hora_entrada || '').localeCompare(String(a.hora_entrada || ''));
   });
 
   const total_descuento = Math.round(filas.reduce((s, f) => s + (f.descuento || 0), 0) * 100) / 100;

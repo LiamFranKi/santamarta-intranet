@@ -83,8 +83,8 @@ router.get('/resumen-mes', async (req, res) => {
 /** GET /api/admin/tardanzas/lista?personal_id=&desde=&hasta= */
 router.get('/lista', async (req, res) => {
   try {
-    const { query } = require('../utils/mysql');
-    const data = await listarTardanzas(query, colegioId(req), req.query);
+    const { query, execute } = require('../utils/mysql');
+    const data = await listarTardanzas(query, colegioId(req), req.query, execute);
     res.json(data);
   } catch (e) {
     console.error('[admin/tardanzas/lista]', e);
@@ -95,8 +95,8 @@ router.get('/lista', async (req, res) => {
 /** GET /api/admin/tardanzas/export — Excel con mismos filtros que lista */
 router.get('/export', async (req, res) => {
   try {
-    const { query } = require('../utils/mysql');
-    const data = await listarTardanzas(query, colegioId(req), req.query);
+    const { query, execute } = require('../utils/mysql');
+    const data = await listarTardanzas(query, colegioId(req), req.query, execute);
     const buf = await buildExportWorkbook(data);
     const suffix = new Date().toISOString().slice(0, 10);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
