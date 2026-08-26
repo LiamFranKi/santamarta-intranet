@@ -4797,6 +4797,41 @@ input.box:focus {
 }
 
 
+/* Selector de bimestre en historial (cursos / tutoría) */
+.historial-bimestre-filtro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  margin: 0 0 0.85rem;
+  padding: 0.65rem 0.85rem;
+  background: #f8fafc;
+  border: 1px solid #e8e4f5;
+  border-radius: 10px;
+}
+.historial-bimestre-filtro label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1e1b4b;
+}
+.historial-bimestre-filtro select {
+  padding: 0.35rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid #c4b5fd;
+  background: #fff;
+  font-size: 0.9rem;
+  color: #312e81;
+  font-weight: 600;
+}
+.historial-bimestre-filtro .historial-bimestre-meta,
+.historial-bimestre-filtro .historial-bimestre-rango {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
 /* Historial agrupado por bimestre (estrellas / incidencias) */
 .historial-bimestres {
   display: flex;

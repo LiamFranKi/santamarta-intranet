@@ -2491,16 +2491,27 @@ router.get('/grupos/:grupoId/reporte-descuentos-presentacion', async (req, res) 
     if (!acc.ok) return res.status(acc.status).json({ error: acc.error });
 
     const anioEsc = acc.anioEsc;
-    const hoyStr = fechaQueryValida(req.query.fecha_hasta || new Date().toISOString().slice(0, 10))
-      || new Date().toISOString().slice(0, 10);
-    let fechaDesde = fechaQueryValida(req.query.fecha_desde) || `${anioEsc}-03-01`;
-    let fechaHasta = fechaQueryValida(req.query.fecha_hasta) || `${anioEsc + 1}-02-28`;
-    if (fechaDesde > fechaHasta) {
-      const t = fechaDesde;
-      fechaDesde = fechaHasta;
-      fechaHasta = t;
+    const cicloQ = parseInt(req.query.ciclo, 10);
+    let fechaDesde;
+    let fechaHasta;
+    let ciclo = null;
+    if (cicloQ >= 1 && cicloQ <= 4) {
+      const rango = await obtenerRangoBimestre(query, colegio_id, cicloQ, anioEsc);
+      fechaDesde = rango.desde;
+      fechaHasta = rango.hasta;
+      ciclo = rango.ciclo;
+    } else {
+      const hoyStr = fechaQueryValida(req.query.fecha_hasta || new Date().toISOString().slice(0, 10))
+        || new Date().toISOString().slice(0, 10);
+      fechaDesde = fechaQueryValida(req.query.fecha_desde) || `${anioEsc}-03-01`;
+      fechaHasta = fechaQueryValida(req.query.fecha_hasta) || `${anioEsc + 1}-02-28`;
+      if (fechaDesde > fechaHasta) {
+        const t = fechaDesde;
+        fechaDesde = fechaHasta;
+        fechaHasta = t;
+      }
+      if (hoyStr < fechaHasta) fechaHasta = hoyStr;
     }
-    if (hoyStr < fechaHasta) fechaHasta = hoyStr;
 
     let rows = [];
     try {
@@ -2559,6 +2570,7 @@ router.get('/grupos/:grupoId/reporte-descuentos-presentacion', async (req, res) 
     res.json({
       fecha_desde: fechaDesde,
       fecha_hasta: fechaHasta,
+      ciclo,
       alumnos: Array.from(porAlumno.values()),
     });
   } catch (e) {
@@ -3303,7 +3315,6 @@ router.get('/cursos/:cursoId/alumnos', async (req, res) => {
                INNER JOIN grupos g_ei ON g_ei.id = m_ei.grupo_id
                WHERE ei.enrollment_id = m.id 
                  AND ei.type = 1 
-                 AND ei.assignment_id = ?
                  AND g_ei.anio = ?) as total_incidencias,
               (SELECT CASE 
                  WHEN COUNT(*) > 0 THEN 
@@ -3325,7 +3336,7 @@ router.get('/cursos/:cursoId/alumnos', async (req, res) => {
          AND (m.estado = 0)
          AND g.anio = ?
        ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
-      [cursoInfo.id, anio_activo, cursoInfo.id, anio_activo, cursoInfo.id, cursoInfo.grupo_id, colegio_id, anio_activo]
+      [cursoInfo.id, anio_activo, anio_activo, cursoInfo.id, cursoInfo.grupo_id, colegio_id, anio_activo]
     );
 
     res.json({ 
@@ -9497,16 +9508,27 @@ router.get('/tutoria/grupos/:grupoId/reporte-descuentos-presentacion', async (re
     const anioEsc = gRow.length > 0
       ? Number(gRow[0].anio)
       : Number(anio_activo);
-    const hoyStr = fechaQueryValida(req.query.fecha_hasta || new Date().toISOString().slice(0, 10))
-      || new Date().toISOString().slice(0, 10);
-    let fechaDesde = fechaQueryValida(req.query.fecha_desde) || `${anioEsc}-03-01`;
-    let fechaHasta = fechaQueryValida(req.query.fecha_hasta) || `${anioEsc + 1}-02-28`;
-    if (fechaDesde > fechaHasta) {
-      const t = fechaDesde;
-      fechaDesde = fechaHasta;
-      fechaHasta = t;
+    const cicloQ = parseInt(req.query.ciclo, 10);
+    let fechaDesde;
+    let fechaHasta;
+    let ciclo = null;
+    if (cicloQ >= 1 && cicloQ <= 4) {
+      const rango = await obtenerRangoBimestre(query, colegio_id, cicloQ, anioEsc);
+      fechaDesde = rango.desde;
+      fechaHasta = rango.hasta;
+      ciclo = rango.ciclo;
+    } else {
+      const hoyStr = fechaQueryValida(req.query.fecha_hasta || new Date().toISOString().slice(0, 10))
+        || new Date().toISOString().slice(0, 10);
+      fechaDesde = fechaQueryValida(req.query.fecha_desde) || `${anioEsc}-03-01`;
+      fechaHasta = fechaQueryValida(req.query.fecha_hasta) || `${anioEsc + 1}-02-28`;
+      if (fechaDesde > fechaHasta) {
+        const t = fechaDesde;
+        fechaDesde = fechaHasta;
+        fechaHasta = t;
+      }
+      if (hoyStr < fechaHasta) fechaHasta = hoyStr;
     }
-    if (hoyStr < fechaHasta) fechaHasta = hoyStr;
 
     let rows = [];
     try {
@@ -9565,6 +9587,7 @@ router.get('/tutoria/grupos/:grupoId/reporte-descuentos-presentacion', async (re
     res.json({
       fecha_desde: fechaDesde,
       fecha_hasta: fechaHasta,
+      ciclo,
       alumnos: Array.from(porAlumno.values()),
     });
   } catch (e) {

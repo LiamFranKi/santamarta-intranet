@@ -41,6 +41,8 @@ function DocenteCursos() {
   const [historialIncidencias, setHistorialIncidencias] = useState([]);
   const [bimestresEstrellas, setBimestresEstrellas] = useState([]);
   const [bimestresIncidencias, setBimestresIncidencias] = useState([]);
+  const [cicloFiltroIncidencias, setCicloFiltroIncidencias] = useState(1);
+  const [cicloFiltroEstrellas, setCicloFiltroEstrellas] = useState(1);
   const [totalEstrellas, setTotalEstrellas] = useState(0);
   const [totalIncidencias, setTotalIncidencias] = useState(0);
   const [loadingEstrellas, setLoadingEstrellas] = useState(false);
@@ -837,6 +839,9 @@ function DocenteCursos() {
       const response = await api.get(`/docente/cursos/${selectedCurso}/alumnos/${alumnoId}/estrellas`);
       setHistorialEstrellas(response.data.estrellas || []);
       setBimestresEstrellas(response.data.bimestres || []);
+      const bims = response.data.bimestres || [];
+      const conDatos = bims.find((b) => (b.estrellas || []).length > 0);
+      setCicloFiltroEstrellas(conDatos?.ciclo || 1);
       setTotalEstrellas(response.data.total_estrellas || 0);
     } catch (error) {
       console.error('Error cargando historial de estrellas:', error);
@@ -950,6 +955,9 @@ function DocenteCursos() {
       const response = await api.get(`/docente/cursos/${selectedCurso}/alumnos/${alumnoId}/incidencias`);
       setHistorialIncidencias(response.data.incidencias || []);
       setBimestresIncidencias(response.data.bimestres || []);
+      const bims = response.data.bimestres || [];
+      const conDatos = bims.find((b) => (b.incidencias || []).length > 0);
+      setCicloFiltroIncidencias(conDatos?.ciclo || 1);
       setTotalIncidencias(response.data.total_incidencias || 0);
     } catch (error) {
       console.error('Error cargando historial de incidencias:', error);
@@ -4250,91 +4258,95 @@ function DocenteCursos() {
                   </form>
                 </div>
 
-                {/* Historial de Estrellas por bimestre */}
+                {/* Historial de Estrellas — elegir bimestre */}
                 <div className="estrellas-historial-section">
-                  <h3 className="section-title-estrellas">Historial de Estrellas (por bimestre)</h3>
+                  <h3 className="section-title-estrellas">Historial de Estrellas</h3>
                   {loadingEstrellas ? (
                     <div className="loading-estrellas">Cargando historial...</div>
-                  ) : (() => {
-                    const hayEnBims = bimestresEstrellas.some((b) => (b.estrellas || []).length > 0);
-                    const bloquesEst = hayEnBims
-                      ? bimestresEstrellas
-                      : (historialEstrellas.length
-                        ? [{ ciclo: '—', estrellas: historialEstrellas, total_puntos: totalEstrellas }]
-                        : []);
-                    if (!bloquesEst.length) {
-                      return (
-                        <div className="empty-historial">
-                          <p>No hay estrellas registradas aún</p>
-                        </div>
-                      );
-                    }
-                    return (
-                    <div className="historial-bimestres">
-                      {bloquesEst.map((bim) => {
-                        const regs = bim.estrellas || [];
-                        return (
-                          <section key={`est-b${bim.ciclo}`} className="historial-bimestre-block">
-                            <header className="historial-bimestre-head">
-                              <h4>Bimestre {bim.ciclo}</h4>
-                              <span className="historial-bimestre-meta">
-                                {String(bim.fecha_desde || '').slice(0, 10) || '—'} → {String(bim.fecha_hasta || '').slice(0, 10) || '—'}
-                                {' · '}
-                                <strong>{bim.total_puntos ?? regs.reduce((s, e) => s + (e.points || 0), 0)} ★</strong>
-                              </span>
-                            </header>
-                            {regs.length === 0 ? (
-                              <p className="historial-bimestre-empty">Sin estrellas en este bimestre</p>
-                            ) : (
-                              <div className="historial-table-container">
-                                <table className="historial-table">
-                                  <thead>
-                                    <tr>
-                                      <th>Docente</th>
-                                      <th>Estrellas</th>
-                                      <th>Descripción</th>
-                                      <th>Fecha</th>
-                                      <th></th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {regs.map((item) => (
-                                      <tr key={item.id}>
-                                        <td>{item.docente_nombre || 'N/A'}</td>
-                                        <td>
-                                          <span className="estrellas-badge-small">
-                                            ⭐ {item.points}
-                                          </span>
-                                        </td>
-                                        <td className="descripcion-cell">{item.description || '-'}</td>
-                                        <td>{formatearFecha(item.created_at)}</td>
-                                        <td>
-                                          {item.puede_eliminar ? (
-                                            <button
-                                              className="btn-eliminar-estrella"
-                                              onClick={() => handleEliminarEstrellas(item.id, item.points)}
-                                              type="button"
-                                              title="Eliminar estas estrellas"
-                                            >
-                                              🗑️
-                                            </button>
-                                          ) : (
-                                            <span className="no-eliminar">-</span>
-                                          )}
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
-                          </section>
-                        );
-                      })}
+                  ) : historialEstrellas.length === 0 && !(bimestresEstrellas || []).some((b) => (b.estrellas || []).length) ? (
+                    <div className="empty-historial">
+                      <p>No hay estrellas registradas aún</p>
                     </div>
-                    );
-                  })()}
+                  ) : (
+                    <>
+                      <div className="historial-bimestre-filtro">
+                        <label>
+                          Bimestre{' '}
+                          <select
+                            value={cicloFiltroEstrellas}
+                            onChange={(e) => setCicloFiltroEstrellas(parseInt(e.target.value, 10))}
+                          >
+                            {[1, 2, 3, 4].map((c) => (
+                              <option key={c} value={c}>Bimestre {c}</option>
+                            ))}
+                          </select>
+                        </label>
+                        {(() => {
+                          const bim = (bimestresEstrellas || []).find((b) => Number(b.ciclo) === Number(cicloFiltroEstrellas));
+                          return bim ? (
+                            <span className="historial-bimestre-meta">
+                              {String(bim.fecha_desde || '').slice(0, 10) || '—'} → {String(bim.fecha_hasta || '').slice(0, 10) || '—'}
+                              {' · '}
+                              <strong>{bim.total_puntos ?? (bim.estrellas || []).reduce((s, e) => s + (e.points || 0), 0)} ★</strong>
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
+                      {(() => {
+                        const bim = (bimestresEstrellas || []).find((b) => Number(b.ciclo) === Number(cicloFiltroEstrellas));
+                        let regs = bim?.estrellas || [];
+                        if (!regs.length && historialEstrellas.length && !(bimestresEstrellas || []).some((b) => (b.estrellas || []).length)) {
+                          regs = historialEstrellas;
+                        }
+                        if (!regs.length) {
+                          return <p className="historial-bimestre-empty">Sin estrellas en este bimestre</p>;
+                        }
+                        return (
+                          <div className="historial-table-container">
+                            <table className="historial-table">
+                              <thead>
+                                <tr>
+                                  <th>Docente</th>
+                                  <th>Estrellas</th>
+                                  <th>Descripción</th>
+                                  <th>Fecha</th>
+                                  <th></th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {regs.map((item) => (
+                                  <tr key={item.id}>
+                                    <td>{item.docente_nombre || 'N/A'}</td>
+                                    <td>
+                                      <span className="estrellas-badge-small">⭐ {item.points}</span>
+                                    </td>
+                                    <td className="descripcion-cell">{item.description || '-'}</td>
+                                    <td>{formatearFecha(item.created_at)}</td>
+                                    <td>
+                                      {item.puede_eliminar ? (
+                                        <button
+                                          className="btn-eliminar-estrella"
+                                          onClick={() => handleEliminarEstrellas(item.id, item.points)}
+                                          type="button"
+                                          title="Eliminar estas estrellas"
+                                        >
+                                          🗑️
+                                        </button>
+                                      ) : (
+                                        <span className="no-eliminar">-</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()}
+                    </>
+                  )}
                 </div>
+
               </div>
             </div>
             </div>,
@@ -4404,91 +4416,97 @@ function DocenteCursos() {
                   </form>
                 </div>
 
-                {/* Historial de Incidencias por bimestre */}
+                {/* Historial de Incidencias — elegir bimestre */}
                 <div className="incidencias-historial-section">
-                  <h3 className="section-title-incidencias">Historial de Incidencias (por bimestre)</h3>
+                  <h3 className="section-title-incidencias">Historial de Incidencias</h3>
                   {loadingIncidencias ? (
                     <div className="loading-incidencias">Cargando historial...</div>
-                  ) : (() => {
-                    const hayEnBims = bimestresIncidencias.some((b) => (b.incidencias || []).length > 0);
-                    const bloquesInc = hayEnBims
-                      ? bimestresIncidencias
-                      : (historialIncidencias.length
-                        ? [{ ciclo: '—', incidencias: historialIncidencias }]
-                        : []);
-                    if (!bloquesInc.length) {
-                      return (
-                        <div className="empty-historial">
-                          <p>No hay incidencias registradas aún</p>
-                        </div>
-                      );
-                    }
-                    return (
-                    <div className="historial-bimestres">
-                      {bloquesInc.map((bim) => {
-                        const regs = bim.incidencias || [];
-                        return (
-                          <section key={`inc-b${bim.ciclo}`} className="historial-bimestre-block">
-                            <header className="historial-bimestre-head">
-                              <h4>Bimestre {bim.ciclo}</h4>
-                              <span className="historial-bimestre-meta">
-                                {String(bim.fecha_desde || '').slice(0, 10) || '—'} → {String(bim.fecha_hasta || '').slice(0, 10) || '—'}
-                                {' · '}
-                                <strong>{regs.length} registro(s)</strong>
-                              </span>
-                            </header>
-                            {regs.length === 0 ? (
-                              <p className="historial-bimestre-empty">Sin incidencias en este bimestre</p>
-                            ) : (
-                              <div className="historial-table-container">
-                                <table className="historial-table-incidencias">
-                                  <thead>
-                                    <tr>
-                                      <th>Docente</th>
-                                      <th>Curso</th>
-                                      <th>Descripción</th>
-                                      <th>Fecha</th>
-                                      <th></th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {regs.map((item) => (
-                                      <tr key={item.id}>
-                                        <td>{item.docente_nombre || 'N/A'}</td>
-                                        <td>
-                                          <span className="curso-badge-incidencia">
-                                            {item.curso_nombre || 'N/A'}
-                                          </span>
-                                        </td>
-                                        <td className="descripcion-cell">{item.description || '-'}</td>
-                                        <td>{formatearFecha(item.created_at)}</td>
-                                        <td>
-                                          {item.puede_eliminar ? (
-                                            <button
-                                              className="btn-eliminar-incidencia"
-                                              onClick={() => handleEliminarIncidencia(item.id)}
-                                              type="button"
-                                              title="Eliminar esta incidencia"
-                                            >
-                                              🗑️
-                                            </button>
-                                          ) : (
-                                            <span className="no-eliminar">-</span>
-                                          )}
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
-                          </section>
-                        );
-                      })}
+                  ) : historialIncidencias.length === 0 && !(bimestresIncidencias || []).some((b) => (b.incidencias || []).length) ? (
+                    <div className="empty-historial">
+                      <p>No hay incidencias registradas aún</p>
                     </div>
-                    );
-                  })()}
+                  ) : (
+                    <>
+                      <div className="historial-bimestre-filtro">
+                        <label>
+                          Bimestre{' '}
+                          <select
+                            value={cicloFiltroIncidencias}
+                            onChange={(e) => setCicloFiltroIncidencias(parseInt(e.target.value, 10))}
+                          >
+                            {[1, 2, 3, 4].map((c) => (
+                              <option key={c} value={c}>Bimestre {c}</option>
+                            ))}
+                          </select>
+                        </label>
+                        {(() => {
+                          const bim = (bimestresIncidencias || []).find((b) => Number(b.ciclo) === Number(cicloFiltroIncidencias));
+                          return bim ? (
+                            <span className="historial-bimestre-meta">
+                              {String(bim.fecha_desde || '').slice(0, 10) || '—'} → {String(bim.fecha_hasta || '').slice(0, 10) || '—'}
+                              {' · '}
+                              <strong>{(bim.incidencias || []).length} registro(s)</strong>
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
+                      {(() => {
+                        const bim = (bimestresIncidencias || []).find((b) => Number(b.ciclo) === Number(cicloFiltroIncidencias));
+                        let regs = bim?.incidencias || [];
+                        if (!regs.length && historialIncidencias.length && !(bimestresIncidencias || []).some((b) => (b.incidencias || []).length)) {
+                          regs = historialIncidencias;
+                        }
+                        if (!regs.length) {
+                          return <p className="historial-bimestre-empty">Sin incidencias en este bimestre</p>;
+                        }
+                        return (
+                          <div className="historial-table-container">
+                            <table className="historial-table-incidencias">
+                              <thead>
+                                <tr>
+                                  <th>Docente</th>
+                                  <th>Curso</th>
+                                  <th>Descripción</th>
+                                  <th>Fecha</th>
+                                  <th></th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {regs.map((item) => (
+                                  <tr key={item.id}>
+                                    <td>{item.docente_nombre || 'N/A'}</td>
+                                    <td>
+                                      <span className="curso-badge-incidencia">
+                                        {item.curso_nombre || 'N/A'}
+                                      </span>
+                                    </td>
+                                    <td className="descripcion-cell">{item.description || '-'}</td>
+                                    <td>{formatearFecha(item.created_at)}</td>
+                                    <td>
+                                      {item.puede_eliminar ? (
+                                        <button
+                                          className="btn-eliminar-incidencia"
+                                          onClick={() => handleEliminarIncidencia(item.id)}
+                                          type="button"
+                                          title="Eliminar esta incidencia"
+                                        >
+                                          🗑️
+                                        </button>
+                                      ) : (
+                                        <span className="no-eliminar">-</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()}
+                    </>
+                  )}
                 </div>
+
               </div>
             </div>
           </div>,

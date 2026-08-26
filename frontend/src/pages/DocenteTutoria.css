@@ -2440,7 +2440,38 @@
 }
 
 .tutor-inc-fila-super {
-  display: none; /* legacy layout replaced by tutor-inc-card */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  align-items: center;
+  padding: 0.55rem 0.85rem 0.15rem;
+  font-size: 0.78rem;
+  color: #475569;
+}
+
+.tutor-inc-fila-super > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.tutor-inc-meta-bar {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.25rem;
+  padding: 0.45rem 0.85rem 0.15rem;
+  font-size: 0.8rem;
+  color: #334155;
+}
+
+.tutor-inc-meta-bar strong {
+  color: #64748b;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-right: 0.35rem;
 }
 
 .tutor-inc-card-meta {

@@ -59,6 +59,7 @@ export function useGrupoReportesConducta({ apiPathPrefix, anioFallback } = {}) {
   const [modalIncidenciasGrupoAbierto, setModalIncidenciasGrupoAbierto] = useState(false);
   const [fechaDescuentosDesde, setFechaDescuentosDesde] = useState('');
   const [fechaDescuentosHasta, setFechaDescuentosHasta] = useState('');
+  const [cicloDescuentos, setCicloDescuentos] = useState(1);
   const [cicloIncidencias, setCicloIncidencias] = useState(1);
   const [rangoIncidencias, setRangoIncidencias] = useState({ desde: '', hasta: '' });
   const [cicloEstrellas, setCicloEstrellas] = useState(1);
@@ -104,16 +105,18 @@ export function useGrupoReportesConducta({ apiPathPrefix, anioFallback } = {}) {
     try {
       const { data } = await api.get(
         `/${prefix}/${targetGrupo.id}/reporte-descuentos-presentacion`,
-        { params: { fecha_desde: fechaDescuentosDesde, fecha_hasta: fechaDescuentosHasta } }
+        { params: { ciclo: cicloDescuentos } }
       );
       setDataDescuentosPorAlumno(data.alumnos || []);
+      setFechaDescuentosDesde(data.fecha_desde || '');
+      setFechaDescuentosHasta(data.fecha_hasta || '');
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar descuentos' });
       setDataDescuentosPorAlumno([]);
     } finally {
       setLoadingDescuentosRep(false);
     }
-  }, [prefix, targetGrupo, fechaDescuentosDesde, fechaDescuentosHasta]);
+  }, [prefix, targetGrupo, cicloDescuentos]);
 
   const cargarReporteIncidenciasGrupo = useCallback(async () => {
     if (!targetGrupo?.id) return;
@@ -153,19 +156,20 @@ export function useGrupoReportesConducta({ apiPathPrefix, anioFallback } = {}) {
     async (grupo) => {
       if (!grupo?.id) return;
       const a = anioParaGrupo(grupo);
-      const r = rangoFechasReporteGrupo(a);
       setTargetGrupo({ ...grupo, anio: grupo.anio ?? a });
-      setFechaDescuentosDesde(r.desde);
-      setFechaDescuentosHasta(r.hasta);
+      setCicloDescuentos(1);
       setModalIncidenciasGrupoAbierto(false);
+      setModalEstrellasGrupoAbierto(false);
       setModalDescuentosPresentacionAbierto(true);
       setLoadingDescuentosRep(true);
       try {
         const { data } = await api.get(
           `/${prefix}/${grupo.id}/reporte-descuentos-presentacion`,
-          { params: { fecha_desde: r.desde, fecha_hasta: r.hasta } }
+          { params: { ciclo: 1 } }
         );
         setDataDescuentosPorAlumno(data.alumnos || []);
+        setFechaDescuentosDesde(data.fecha_desde || '');
+        setFechaDescuentosHasta(data.fecha_hasta || '');
       } catch (e) {
         Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar descuentos' });
         setDataDescuentosPorAlumno([]);
@@ -523,13 +527,24 @@ export function useGrupoReportesConducta({ apiPathPrefix, anioFallback } = {}) {
               </header>
               <div className="tutor-evidencias-toolbar">
                 <label className="tutor-evidencias-date">
-                  Desde <input type="date" value={fechaDescuentosDesde} onChange={(e) => setFechaDescuentosDesde(e.target.value)} />
+                  Bimestre{' '}
+                  <select
+                    value={cicloDescuentos}
+                    onChange={(e) => setCicloDescuentos(parseInt(e.target.value, 10))}
+                  >
+                    <option value={1}>I</option>
+                    <option value={2}>II</option>
+                    <option value={3}>III</option>
+                    <option value={4}>IV</option>
+                  </select>
                 </label>
-                <label className="tutor-evidencias-date">
-                  Hasta <input type="date" value={fechaDescuentosHasta} onChange={(e) => setFechaDescuentosHasta(e.target.value)} />
-                </label>
+                {(fechaDescuentosDesde || fechaDescuentosHasta) && (
+                  <span className="conducta-rango-hint">
+                    {formatearSoloFecha(fechaDescuentosDesde)} → {formatearSoloFecha(fechaDescuentosHasta)}
+                  </span>
+                )}
                 <button type="button" className="tutor-evidencias-btn aplicar" onClick={aplicarFiltrosDescuentosYResumen}>
-                  Aplicar filtros
+                  Aplicar bimestre
                 </button>
                 <button type="button" className="tutor-evidencias-btn pdf" onClick={exportPdfDescuentosPresentacion}>
                   📄 Exportar PDF
@@ -564,14 +579,24 @@ export function useGrupoReportesConducta({ apiPathPrefix, anioFallback } = {}) {
                           </div>
                           <ul className="tutor-evidencia-lineas">
                             {(alu.registros || []).map((r) => (
-                              <li key={r.id}>
-                                <span className="tutor-evidencia-linea-fecha">
-                                  {formatearSoloFecha(r.fecha)} · {String(r.hora || '').slice(0, 8)}
-                                </span>
-                                <span className="tutor-evidencia-linea-pts">
-                                  {r.puntos} pts · {r.motivo || '—'}
-                                </span>
-                                <span className="tutor-evidencia-linea-autor">Por: {r.registrado_por_nombre || '—'}</span>
+                              <li key={r.id} className="tutor-inc-card">
+                                <div className="tutor-inc-card-top">
+                                  <time className="tutor-inc-fecha">
+                                    {formatearSoloFecha(r.fecha)} · {String(r.hora || '').slice(0, 8) || '—'}
+                                  </time>
+                                  <span className="tutor-inc-origen es-vestimenta">Presentación</span>
+                                </div>
+                                <div className="tutor-inc-card-meta">
+                                  <div className="tutor-inc-meta-item">
+                                    <span className="tutor-inc-meta-label">Registrado por</span>
+                                    <span className="tutor-inc-meta-value es-docente">{r.registrado_por_nombre || '—'}</span>
+                                  </div>
+                                  <div className="tutor-inc-meta-item">
+                                    <span className="tutor-inc-meta-label">Puntos</span>
+                                    <span className="tutor-inc-meta-value">{r.puntos} pts</span>
+                                  </div>
+                                </div>
+                                <p className="tutor-inc-detalle">{r.motivo || 'Descuento por presentación escolar'}</p>
                               </li>
                             ))}
                           </ul>
@@ -658,11 +683,22 @@ export function useGrupoReportesConducta({ apiPathPrefix, anioFallback } = {}) {
                           </div>
                           <ul className="tutor-evidencia-lineas tutor-evidencia-lineas--inci">
                             {(alu.incidencias || []).map((inc) => (
-                              <li key={inc.id}>
-                                <div className="tutor-inc-fila-super">
-                                  <span>{formatearFechaHoraPeru(inc.created_at)}</span>
-                                  <span className="tutor-inc-doc">{inc.docente_nombre || '—'}</span>
-                                  <span className="tutor-inc-cur">{inc.curso_nombre || '—'}</span>
+                              <li key={inc.id} className="tutor-inc-card">
+                                <div className="tutor-inc-card-top">
+                                  <time className="tutor-inc-fecha">{formatearFechaHoraPeru(inc.created_at)}</time>
+                                  <span className={`tutor-inc-origen ${inc.origen === 'vestimenta' ? 'es-vestimenta' : 'es-incidencia'}`}>
+                                    {inc.origen === 'vestimenta' ? 'Presentación' : 'Incidencia'}
+                                  </span>
+                                </div>
+                                <div className="tutor-inc-card-meta">
+                                  <div className="tutor-inc-meta-item">
+                                    <span className="tutor-inc-meta-label">Registrado por</span>
+                                    <span className="tutor-inc-meta-value es-docente">{inc.docente_nombre || '—'}</span>
+                                  </div>
+                                  <div className="tutor-inc-meta-item">
+                                    <span className="tutor-inc-meta-label">Curso</span>
+                                    <span className="tutor-inc-meta-value es-curso">{inc.curso_nombre || '—'}</span>
+                                  </div>
                                 </div>
                                 {(inc.description || '').trim() ? (
                                   <p className="tutor-inc-detalle">{inc.description}</p>

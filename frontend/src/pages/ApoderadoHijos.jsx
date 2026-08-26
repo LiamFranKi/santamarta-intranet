@@ -69,6 +69,8 @@ function ApoderadoHijos() {
   const [showModalIncidencias, setShowModalIncidencias] = useState(false);
   const [incidencias, setIncidencias] = useState([]);
   const [bimestresIncidencias, setBimestresIncidencias] = useState([]);
+  const [cicloFiltroIncidenciasHijo, setCicloFiltroIncidenciasHijo] = useState(1);
+  const [cicloFiltroEstrellasHijo, setCicloFiltroEstrellasHijo] = useState(1);
   const [anioIncidencias, setAnioIncidencias] = useState(null);
   const [loadingIncidencias, setLoadingIncidencias] = useState(false);
   const [showModalEstrellas, setShowModalEstrellas] = useState(false);
@@ -620,6 +622,11 @@ function ApoderadoHijos() {
       const response = await api.get(`/apoderado/hijos/${hijo.id}/incidencias`);
       setIncidencias(response.data.incidencias || []);
       setBimestresIncidencias(response.data.bimestres || []);
+      {
+        const bims = Array.isArray(response.data.bimestres) ? response.data.bimestres : [];
+        const conInc = bims.find((b) => (b.incidencias || []).length > 0);
+        setCicloFiltroIncidenciasHijo(conInc ? Number(conInc.ciclo) : 1);
+      }
       setAnioIncidencias(response.data.anio || null);
       setShowModalIncidencias(true);
     } catch (error) {
@@ -644,6 +651,11 @@ function ApoderadoHijos() {
       const response = await api.get(`/apoderado/hijos/${hijo.id}/estrellas`);
       setEstrellas(response.data.estrellas || []);
       setBimestresEstrellas(response.data.bimestres || []);
+      {
+        const bims = Array.isArray(response.data.bimestres) ? response.data.bimestres : [];
+        const conEst = bims.find((b) => (b.estrellas || []).length > 0);
+        setCicloFiltroEstrellasHijo(conEst ? Number(conEst.ciclo) : 1);
+      }
       setAnioEstrellas(response.data.anio || null);
       setTotalEstrellas(response.data.total_estrellas || 0);
       setShowModalEstrellas(true);
@@ -4027,11 +4039,31 @@ function ApoderadoHijos() {
                       <p>No hay incidencias ni descuentos de presentación registrados</p>
                     </div>
                   ) : (
+                    <>
+                  <div className="historial-bimestre-filtro" style={{ marginBottom: '0.85rem' }}>
+                    <label>
+                      Bimestre{' '}
+                      <select
+                        value={cicloFiltroIncidenciasHijo}
+                        onChange={(e) => setCicloFiltroIncidenciasHijo(parseInt(e.target.value, 10))}
+                      >
+                        {[1, 2, 3, 4].map((c) => (
+                          <option key={c} value={c}>Bimestre {c}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
                     <div className="hijo-inc-bimestres">
-                      {(bimestresIncidencias.length
-                        ? bimestresIncidencias
-                        : [{ ciclo: '—', incidencias, nota_conducta: null, total_incidencias: 0, total_presentacion: 0 }]
-                      ).map((bim) => {
+                      {(() => {
+                        const all = bimestresIncidencias.length
+                          ? bimestresIncidencias
+                          : [{ ciclo: 1, incidencias, nota_conducta: null, total_incidencias: 0, total_presentacion: 0 }];
+                        const filtered = all.filter((b) => Number(b.ciclo) === Number(cicloFiltroIncidenciasHijo));
+                        const list = filtered.length
+                          ? filtered
+                          : [{ ciclo: cicloFiltroIncidenciasHijo, incidencias: [], nota_conducta: 20, fecha_desde: '', fecha_hasta: '', total_incidencias: 0, total_presentacion: 0 }];
+                        return list;
+                      })().map((bim) => {
                         const regs = bim.incidencias || [];
                         return (
                           <section key={`bim-${bim.ciclo}`} className="hijo-inc-bimestre">
@@ -4090,6 +4122,7 @@ function ApoderadoHijos() {
                         );
                       })}
                     </div>
+                    </>
                   )}
                 </>
               )}
@@ -4135,11 +4168,31 @@ function ApoderadoHijos() {
                       <p>No hay estrellas registradas</p>
                     </div>
                   ) : (
+                    <>
+                  <div className="historial-bimestre-filtro" style={{ marginBottom: '0.85rem' }}>
+                    <label>
+                      Bimestre{' '}
+                      <select
+                        value={cicloFiltroEstrellasHijo}
+                        onChange={(e) => setCicloFiltroEstrellasHijo(parseInt(e.target.value, 10))}
+                      >
+                        {[1, 2, 3, 4].map((c) => (
+                          <option key={c} value={c}>Bimestre {c}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
                     <div className="hijo-inc-bimestres">
-                      {(bimestresEstrellas.length
-                        ? bimestresEstrellas
-                        : [{ ciclo: '—', estrellas, total_puntos: totalEstrellas }]
-                      ).map((bim) => {
+                      {(() => {
+                        const all = bimestresEstrellas.length
+                          ? bimestresEstrellas
+                          : [{ ciclo: 1, estrellas, total_puntos: typeof totalEstrellas !== 'undefined' ? totalEstrellas : 0 }];
+                        const filtered = all.filter((b) => Number(b.ciclo) === Number(cicloFiltroEstrellasHijo));
+                        const list = filtered.length
+                          ? filtered
+                          : [{ ciclo: cicloFiltroEstrellasHijo, estrellas: [], total_puntos: 0, fecha_desde: '', fecha_hasta: '' }];
+                        return list;
+                      })().map((bim) => {
                         const regs = bim.estrellas || [];
                         return (
                           <section key={`est-bim-${bim.ciclo}`} className="hijo-inc-bimestre">
@@ -4192,6 +4245,7 @@ function ApoderadoHijos() {
                         );
                       })}
                     </div>
+                    </>
                   )}
                 </>
               )}

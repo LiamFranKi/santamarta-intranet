@@ -530,19 +530,7 @@ async function listarIncidenciasUnificadasMatricula(query, {
   const bimestres = [];
   for (let c = 1; c <= 4; c += 1) {
     const rango = await obtenerRangoBimestre(query, colegio_id, c, anioInt);
-    const items = lista.filter((i) => {
-      const f = toFechaYmd(i.created_at);
-      if (f >= rango.desde && f <= rango.hasta) return true;
-      // Fechas en huecos entre bimestres: van al ciclo estimado
-      const enAlgunRango = (() => {
-        for (let k = 1; k <= 4; k += 1) {
-          const rk = getFechasCicloAsistencia(rangos, k, anioInt);
-          if (rk && f >= rk.desde && f <= rk.hasta) return true;
-        }
-        return false;
-      })();
-      return !enAlgunRango && i.ciclo === c;
-    });
+    const items = lista.filter((i) => Number(i.ciclo) === c);
     items.forEach((i) => { i.ciclo = c; });
     const nInc = items.filter((x) => x.origen !== 'vestimenta').length;
     const nPres = items.filter((x) => x.origen === 'vestimenta').length;
@@ -577,36 +565,33 @@ async function agruparItemsPorBimestre(query, colegio_id, anio, items, opts = {}
   const lista = Array.isArray(items) ? items.slice() : [];
   const rangos = await fetchRangosCiclosParsed(query, colegio_id);
 
-  const normalizados = lista
-    .map((item) => {
-      const ymd = toFechaYmd(item.created_at);
-      if (!ymd) return null;
-      const y = parseInt(ymd.slice(0, 4), 10);
-      if (y < anioInt - 1 || y > anioInt + 1) return null;
-      const copy = { ...item, created_at: toFechaHoraSql(item.created_at) || item.created_at };
-      copy.ciclo = cicloQueContieneFecha(rangos, anioInt, ymd);
-      copy._ymd = ymd;
+  const normalizados = lista.map((item) => {
+    const ymd = toFechaYmd(item.created_at);
+    const copy = {
+      ...item,
+      created_at: toFechaHoraSql(item.created_at) || String(item.created_at || ''),
+    };
+    if (!ymd) {
+      // Sin fecha parseable: no se pierde; va al bimestre 1
+      copy.ciclo = 1;
       return copy;
-    })
-    .filter(Boolean);
+    }
+    const y = parseInt(ymd.slice(0, 4), 10);
+    if (y < anioInt - 1 || y > anioInt + 1) {
+      // Fuera de ventana amplia: aún así asignar ciclo estimado del año escolar
+      copy.ciclo = cicloQueContieneFecha(rangos, anioInt, ymd) || 1;
+      return copy;
+    }
+    copy.ciclo = cicloQueContieneFecha(rangos, anioInt, ymd) || 1;
+    return copy;
+  });
 
   const bimestres = [];
   for (let c = 1; c <= 4; c += 1) {
     const rango = await obtenerRangoBimestre(query, colegio_id, c, anioInt);
-    const itemsB = normalizados.filter((i) => {
-      if (i._ymd >= rango.desde && i._ymd <= rango.hasta) return true;
-      const enAlgunRango = (() => {
-        for (let k = 1; k <= 4; k += 1) {
-          const rk = getFechasCicloAsistencia(rangos, k, anioInt);
-          if (rk && i._ymd >= rk.desde && i._ymd <= rk.hasta) return true;
-        }
-        return false;
-      })();
-      return !enAlgunRango && i.ciclo === c;
-    });
+    const itemsB = normalizados.filter((i) => Number(i.ciclo) === c);
     itemsB.forEach((i) => {
       i.ciclo = c;
-      delete i._ymd;
     });
     const entry = {
       ciclo: c,
