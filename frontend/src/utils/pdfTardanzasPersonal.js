@@ -53,7 +53,13 @@ export async function generarPdfTardanzasPersonal({
     y += 4.5;
     doc.setFontSize(8.5);
     doc.setTextColor(80, 80, 80);
-    const sub = [`Año ${anio || '—'}`, filtroEtiqueta, `Tarifa: S/ ${tarifa_por_minuto.toFixed(2)} por minuto`]
+    const sub = [
+      `Año ${anio || '—'}`,
+      filtroEtiqueta,
+      tarifa_por_minuto != null && Number(tarifa_por_minuto) > 0
+        ? `Tarifa: S/ ${Number(tarifa_por_minuto).toFixed(4)} por minuto`
+        : 'Descuento: sueldo ÷ 30 ÷ 8 ÷ 60 por minuto (S/ 0 sin sueldo)',
+    ]
       .filter(Boolean)
       .join(' · ');
     doc.text(sub, pageW - MARGIN, y, { align: 'right' });

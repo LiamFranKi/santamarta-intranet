@@ -59,6 +59,17 @@ function toInputTime(horaFmt) {
   return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
 }
 
+function fechaYmd(val) {
+  return String(val || '').slice(0, 10);
+}
+
+function escapeHtmlAttr(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/"/g, '&quot;');
+}
+
 /** Botones de mantenimiento biométrico (ocultos en UI; no eliminar el código). */
 const SHOW_BIO_DEV_BUTTONS = false;
 
@@ -95,6 +106,11 @@ export default function AdminTardanzas() {
   const [bioPersonalId, setBioPersonalId] = useState('');
   const [bioDesde, setBioDesde] = useState(() => hoyLimaISO());
   const [bioHasta, setBioHasta] = useState(() => hoyLimaISO());
+  const [faltas, setFaltas] = useState(null);
+  const [faltasLoading, setFaltasLoading] = useState(false);
+  const [faltasPersonalId, setFaltasPersonalId] = useState('');
+  const [faltasDesde, setFaltasDesde] = useState(() => hoyLimaISO());
+  const [faltasHasta, setFaltasHasta] = useState(() => hoyLimaISO());
 
   const loadMeta = useCallback(async () => {
     try {
@@ -137,6 +153,42 @@ export default function AdminTardanzas() {
       }
     },
     [buildBioParams]
+  );
+
+  const buildFaltasParams = useCallback(
+    (overrides = {}) => {
+      const pid = overrides.personal_id !== undefined ? overrides.personal_id : faltasPersonalId;
+      const d = overrides.desde !== undefined ? overrides.desde : faltasDesde;
+      const h = overrides.hasta !== undefined ? overrides.hasta : faltasHasta;
+      const p = {};
+      if (pid) p.personal_id = pid;
+      if (d) p.desde = d;
+      if (h) p.hasta = h;
+      return p;
+    },
+    [faltasPersonalId, faltasDesde, faltasHasta]
+  );
+
+  const loadFaltas = useCallback(
+    async (overrides) => {
+      setFaltasLoading(true);
+      try {
+        const { data } = await api.get('/admin/tardanzas/faltas', {
+          params: buildFaltasParams(overrides || {}),
+        });
+        setFaltas(data);
+      } catch (e) {
+        setFaltas(null);
+        Swal.fire({
+          icon: 'error',
+          title: 'Faltas',
+          text: e.response?.data?.error || 'No se pudo cargar la lista de faltas.',
+        });
+      } finally {
+        setFaltasLoading(false);
+      }
+    },
+    [buildFaltasParams]
   );
 
   const buildListaParams = useCallback(
@@ -183,6 +235,7 @@ export default function AdminTardanzas() {
 
   useEffect(() => {
     if (tabActiva === 'biometrico') loadBioEstado();
+    if (tabActiva === 'faltas') loadFaltas();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al cambiar de tab
   }, [tabActiva]);
 
@@ -251,110 +304,113 @@ export default function AdminTardanzas() {
     }
   };
 
-  const editarHora = async (f) => {
-    const r = await Swal.fire({
-      icon: 'question',
-      title: 'Editar hora de marcación',
-      html: `<p style="margin:0 0 0.75rem;font-size:0.9rem"><strong>${f.personal_nombre}</strong><br>${fmtFecha(f.fecha)} · Entrada real: ${f.hora_entrada_real_fmt}</p>`,
-      input: 'time',
-      inputValue: toInputTime(f.hora_marcacion_fmt),
-      inputLabel: 'Hora de marcación',
-      showCancelButton: true,
-      confirmButtonText: 'Guardar',
-      cancelButtonText: 'Cancelar',
-      inputValidator: (v) => (!v ? 'Indique la hora' : undefined),
-    });
-    if (!r.isConfirmed || !r.value) return;
+  const hallarFilaDiaPersonal = (filas, pid, fecha) =>
+    (filas || []).find(
+      (x) => String(x.personal_id) === String(pid) && fechaYmd(x.fecha) === fechaYmd(fecha)
+    );
 
-    setRowActionId(f.id);
-    try {
-      const { data } = await api.patch(`/admin/tardanzas/registro/${f.id}`, {
-        hora_marcacion: r.value,
-      });
-      await Swal.fire({
-        icon: 'success',
-        title: 'Hora actualizada',
-        html: `Min. tarde: <strong>${data.fila.minutos_tardanza}</strong> · Descuento: <strong>${fmtSoles(data.fila.descuento)}</strong>`,
-        timer: 2200,
-        showConfirmButton: false,
-      });
-      loadLista();
-    } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Editar', text: e.response?.data?.error || 'No se pudo actualizar.' });
-    } finally {
-      setRowActionId(null);
-    }
+  const buscarRegistroDiaPersonal = async (pid, fecha) => {
+    const local =
+      hallarFilaDiaPersonal(bioEstado?.marcaciones || bioEstado?.eventos, pid, fecha) ||
+      hallarFilaDiaPersonal(lista?.filas, pid, fecha);
+    if (local?.id) return local;
+    const { data } = await api.get('/admin/tardanzas/lista', {
+      params: { personal_id: pid, desde: fecha, hasta: fecha },
+    });
+    return hallarFilaDiaPersonal(data?.filas, pid, fecha) || null;
   };
 
-  const eliminarRegistro = async (f) => {
-    const r = await Swal.fire({
-      icon: 'warning',
-      title: 'Eliminar registro',
-      html: `¿Eliminar la marcación de <strong>${f.personal_nombre}</strong> del <strong>${fmtFecha(f.fecha)}</strong>?<br><small>Se recalculará el descuento del mes en el dashboard del personal.</small>`,
-      showCancelButton: true,
-      confirmButtonText: 'Eliminar',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#dc2626',
-    });
-    if (!r.isConfirmed) return;
+  const opcionesPersonalHtml = () =>
+    (meta?.personal || [])
+      .map((p) => `<option value="${p.id}">${escapeHtmlAttr(p.nombre)}</option>`)
+      .join('');
 
-    setRowActionId(f.id);
-    try {
-      await api.delete(`/admin/tardanzas/registro/${f.id}`);
-      Swal.fire({ icon: 'success', title: 'Eliminado', timer: 1500, showConfirmButton: false });
-      loadLista();
-    } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Eliminar', text: e.response?.data?.error || 'No se pudo eliminar.' });
-    } finally {
-      setRowActionId(null);
+  const ajustarHorarioDesdeToolbar = async () => {
+    const personalOpts = opcionesPersonalHtml();
+    if (!personalOpts) {
+      Swal.fire({ icon: 'info', title: 'Personal', text: 'No hay personal cargado. Recargue la página.' });
+      return;
     }
-  };
+    const fechaDef = (tabActiva === 'biometrico' ? bioDesde : desde) || hoyLimaISO();
+    const personalDef = (tabActiva === 'biometrico' ? bioPersonalId : personalId) || '';
+    const filasVista = tabActiva === 'biometrico'
+      ? (bioEstado?.marcaciones || bioEstado?.eventos)
+      : lista?.filas;
+    const previo = personalDef ? hallarFilaDiaPersonal(filasVista, personalDef, fechaDef) : null;
 
-  const editarMarcacionBio = async (ev) => {
-    const entradaVal = toInputTime(ev.hora_entrada);
-    const salidaVal = toInputTime(ev.hora_salida);
     const r = await Swal.fire({
       icon: 'question',
-      title: 'Editar marcación',
+      title: 'Ajustar horario',
+      width: '28rem',
       html: `
-        <p style="margin:0 0 0.75rem;font-size:0.9rem;text-align:left">
-          <strong>${ev.personal_nombre || '—'}</strong><br>
-          ${fmtFecha(ev.fecha)}
+        <p style="margin:0 0 0.85rem;font-size:0.88rem;text-align:left;color:#64748b;line-height:1.4">
+          Indique el día y la persona. Se corrige la entrada y, si aplica, la salida de ese registro.
         </p>
-        <label style="display:block;text-align:left;font-size:0.85rem;margin-bottom:0.35rem">Hora entrada</label>
-        <input id="swal-bio-entrada" type="time" class="swal2-input" value="${entradaVal}" style="margin:0 0 0.75rem;width:100%">
-        <label style="display:block;text-align:left;font-size:0.85rem;margin-bottom:0.35rem">Hora salida (vacío = sin salida)</label>
-        <input id="swal-bio-salida" type="time" class="swal2-input" value="${salidaVal}" style="margin:0;width:100%">
+        <label style="display:block;text-align:left;font-size:0.85rem;margin-bottom:0.3rem">Día *</label>
+        <input id="swal-tz-aj-fecha" type="date" class="swal2-input" value="${fechaDef}" style="margin:0 0 0.75rem;width:100%">
+        <label style="display:block;text-align:left;font-size:0.85rem;margin-bottom:0.3rem">Personal *</label>
+        <select id="swal-tz-aj-personal" class="swal2-select" style="margin:0 0 0.75rem;width:100%">
+          <option value="">Seleccione…</option>
+          ${personalOpts}
+        </select>
+        <label style="display:block;text-align:left;font-size:0.85rem;margin-bottom:0.3rem">Hora entrada *</label>
+        <input id="swal-tz-aj-entrada" type="time" class="swal2-input" value="${toInputTime(previo?.hora_entrada || previo?.hora_marcacion_fmt)}" style="margin:0 0 0.75rem;width:100%">
+        <label style="display:block;text-align:left;font-size:0.85rem;margin-bottom:0.3rem">Hora salida (vacío = sin salida)</label>
+        <input id="swal-tz-aj-salida" type="time" class="swal2-input" value="${toInputTime(previo?.hora_salida || previo?.hora_salida_fmt)}" style="margin:0;width:100%">
       `,
       showCancelButton: true,
       confirmButtonText: 'Guardar',
       cancelButtonText: 'Cancelar',
       focusConfirm: false,
+      didOpen: () => {
+        const sel = document.getElementById('swal-tz-aj-personal');
+        if (sel && personalDef) sel.value = String(personalDef);
+      },
       preConfirm: () => {
-        const he = document.getElementById('swal-bio-entrada')?.value;
-        const hs = document.getElementById('swal-bio-salida')?.value || '';
+        const fecha = document.getElementById('swal-tz-aj-fecha')?.value;
+        const pid = document.getElementById('swal-tz-aj-personal')?.value;
+        const he = document.getElementById('swal-tz-aj-entrada')?.value;
+        const hs = document.getElementById('swal-tz-aj-salida')?.value || '';
+        if (!fecha) {
+          Swal.showValidationMessage('Indique el día');
+          return false;
+        }
+        if (!pid) {
+          Swal.showValidationMessage('Seleccione el personal');
+          return false;
+        }
         if (!he) {
           Swal.showValidationMessage('Indique la hora de entrada');
           return false;
         }
-        return { hora_entrada: he, hora_salida: hs };
+        return { personal_id: pid, fecha, hora_entrada: he, hora_salida: hs };
       },
     });
     if (!r.isConfirmed || !r.value) return;
 
-    setRowActionId(ev.id);
+    setRowActionId('toolbar');
     try {
-      await api.patch(`/admin/tardanzas/registro/${ev.id}`, {
+      Swal.fire({ title: 'Guardando…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      const fila = await buscarRegistroDiaPersonal(r.value.personal_id, r.value.fecha);
+      if (!fila?.id) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Sin registro',
+          text: 'Esa persona no tiene marcación ese día. Use «Agregar ingreso» si olvidó marcar.',
+        });
+        return;
+      }
+      await api.patch(`/admin/tardanzas/registro/${fila.id}`, {
         hora_entrada: r.value.hora_entrada,
         hora_salida: r.value.hora_salida,
       });
       await loadBioEstado();
       await loadLista();
-      Swal.fire({ icon: 'success', title: 'Actualizado', timer: 1500, showConfirmButton: false });
+      Swal.fire({ icon: 'success', title: 'Horario actualizado', timer: 1600, showConfirmButton: false });
     } catch (e) {
       Swal.fire({
         icon: 'error',
-        title: 'Editar',
+        title: 'Ajustar horario',
         text: e.response?.data?.error || 'No se pudo actualizar.',
       });
     } finally {
@@ -362,28 +418,88 @@ export default function AdminTardanzas() {
     }
   };
 
-  const eliminarMarcacionBio = async (ev) => {
+  const quitarRegistroDesdeToolbar = async () => {
+    const personalOpts = opcionesPersonalHtml();
+    if (!personalOpts) {
+      Swal.fire({ icon: 'info', title: 'Personal', text: 'No hay personal cargado. Recargue la página.' });
+      return;
+    }
+    const fechaDef = (tabActiva === 'biometrico' ? bioDesde : desde) || hoyLimaISO();
+    const personalDef = (tabActiva === 'biometrico' ? bioPersonalId : personalId) || '';
+
     const r = await Swal.fire({
       icon: 'warning',
-      title: 'Eliminar marcación',
-      html: `¿Eliminar la marcación de <strong>${ev.personal_nombre || '—'}</strong> del <strong>${fmtFecha(ev.fecha)}</strong>?<br><small>Solo se borra en la intranet. El huellero no se modifica.</small>`,
+      title: 'Quitar registro',
+      width: '28rem',
+      html: `
+        <p style="margin:0 0 0.85rem;font-size:0.88rem;text-align:left;color:#64748b;line-height:1.4">
+          Indique el día y la persona. Se elimina esa marcación en la intranet (el huellero no se modifica).
+        </p>
+        <label style="display:block;text-align:left;font-size:0.85rem;margin-bottom:0.3rem">Día *</label>
+        <input id="swal-tz-rm-fecha" type="date" class="swal2-input" value="${fechaDef}" style="margin:0 0 0.75rem;width:100%">
+        <label style="display:block;text-align:left;font-size:0.85rem;margin-bottom:0.3rem">Personal *</label>
+        <select id="swal-tz-rm-personal" class="swal2-select" style="margin:0;width:100%">
+          <option value="">Seleccione…</option>
+          ${personalOpts}
+        </select>
+      `,
       showCancelButton: true,
-      confirmButtonText: 'Eliminar',
+      confirmButtonText: 'Quitar',
       cancelButtonText: 'Cancelar',
       confirmButtonColor: '#dc2626',
+      focusConfirm: false,
+      didOpen: () => {
+        const sel = document.getElementById('swal-tz-rm-personal');
+        if (sel && personalDef) sel.value = String(personalDef);
+      },
+      preConfirm: () => {
+        const fecha = document.getElementById('swal-tz-rm-fecha')?.value;
+        const pid = document.getElementById('swal-tz-rm-personal')?.value;
+        if (!fecha) {
+          Swal.showValidationMessage('Indique el día');
+          return false;
+        }
+        if (!pid) {
+          Swal.showValidationMessage('Seleccione el personal');
+          return false;
+        }
+        return { personal_id: pid, fecha };
+      },
     });
-    if (!r.isConfirmed) return;
+    if (!r.isConfirmed || !r.value) return;
 
-    setRowActionId(ev.id);
+    const persona = (meta?.personal || []).find((p) => String(p.id) === String(r.value.personal_id));
+    const ok = await Swal.fire({
+      icon: 'warning',
+      title: 'Confirmar',
+      html: `¿Quitar la marcación de <strong>${escapeHtmlAttr(persona?.nombre || 'esa persona')}</strong> del <strong>${fmtFecha(r.value.fecha)}</strong>?`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, quitar',
+      cancelButtonText: 'No',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!ok.isConfirmed) return;
+
+    setRowActionId('toolbar');
     try {
-      await api.delete(`/admin/tardanzas/registro/${ev.id}`);
+      Swal.fire({ title: 'Quitando…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      const fila = await buscarRegistroDiaPersonal(r.value.personal_id, r.value.fecha);
+      if (!fila?.id) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Sin registro',
+          text: 'Esa persona no tiene marcación ese día.',
+        });
+        return;
+      }
+      await api.delete(`/admin/tardanzas/registro/${fila.id}`);
       await loadBioEstado();
       await loadLista();
-      Swal.fire({ icon: 'success', title: 'Eliminado', timer: 1500, showConfirmButton: false });
+      Swal.fire({ icon: 'success', title: 'Registro quitado', timer: 1500, showConfirmButton: false });
     } catch (e) {
       Swal.fire({
         icon: 'error',
-        title: 'Eliminar',
+        title: 'Quitar registro',
         text: e.response?.data?.error || 'No se pudo eliminar.',
       });
     } finally {
@@ -511,7 +627,7 @@ export default function AdminTardanzas() {
         }),
         filas: lista.filas,
         total_descuento: lista.total_descuento,
-        tarifa_por_minuto: lista.tarifa_por_minuto ?? 1,
+        tarifa_por_minuto: lista.tarifa_por_minuto,
         incluirHoraSalida: true,
       });
     } catch {
@@ -558,7 +674,7 @@ export default function AdminTardanzas() {
         }),
         filas,
         total_descuento: bioEstado?.total_descuento ?? 0,
-        tarifa_por_minuto: bioEstado?.tarifa_por_minuto ?? 1,
+        tarifa_por_minuto: bioEstado?.tarifa_por_minuto,
         incluirHoraSalida: true,
         minutosCeroComoCero: true,
       });
@@ -586,7 +702,8 @@ export default function AdminTardanzas() {
           <div className="admin-tz-hero-text">
             <h1>Tardanzas del personal</h1>
             <p>
-              Marcaciones del huellero (Excel o automático Hikvision) y descuentos por tardanza (S/. 1.00 por minuto).
+              Marcaciones del huellero (Excel o automático Hikvision) y descuentos por tardanza (sueldo ÷ 30 ÷ 8 ÷ 60
+              por minuto; S/. 0 si no hay sueldo).
               {meta?.colegio_nombre ? ` ${meta.colegio_nombre} · Año ${meta.anio}` : ''}
             </p>
           </div>
@@ -604,12 +721,16 @@ export default function AdminTardanzas() {
             <h2>
               {tabActiva === 'biometrico'
                 ? 'Biométrico en vivo'
-                : 'Registros de importación'}
+                : tabActiva === 'faltas'
+                  ? 'Faltas del personal'
+                  : 'Registros de importación'}
             </h2>
             <p>
               {tabActiva === 'biometrico'
-                ? 'El terminal envía cada marcación. Se identifica igual que el Excel: por nombre (First/Last Name). El DNI del huellero es solo respaldo. Descuento: S/ 1.00 por minuto de tardanza en la entrada.'
-                : 'Importe el Excel del huellero arriba y consulte abajo los registros (entrada, tardanza y descuento).'}
+                ? 'El terminal envía cada marcación. Se identifica igual que el Excel: por nombre (First/Last Name). El DNI del huellero es solo respaldo. El descuento es sueldo ÷ 30 ÷ 8 ÷ 60 por minuto de tardanza (S/ 0 si no hay sueldo).'
+                : tabActiva === 'faltas'
+                  ? 'Si ese día alguien marcó, el colegio estaba abierto. Se lista a todo el personal que no marcó. Quienes tienen hora de ingreso 00:00 (perfiles de ejemplo) no aparecen aquí ni en tardanzas.'
+                  : 'Importe el Excel del huellero arriba y consulte abajo los registros (entrada, tardanza y descuento).'}
             </p>
           </div>
         </div>
@@ -624,6 +745,15 @@ export default function AdminTardanzas() {
               onClick={() => setTabActiva('biometrico')}
             >
               Biométrico
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tabActiva === 'faltas'}
+              className={`admin-tz-tab admin-tz-tab--faltas${tabActiva === 'faltas' ? ' is-active' : ''}`}
+              onClick={() => setTabActiva('faltas')}
+            >
+              Faltas
             </button>
             <button
               type="button"
@@ -802,6 +932,28 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                     Hasta
                     <input type="date" value={bioHasta} onChange={(e) => setBioHasta(e.target.value)} />
                   </label>
+                  <div className="admin-tardanzas-toolbar-locks" role="group" aria-label="Ajuste de registros">
+                    <button
+                      type="button"
+                      className="admin-tardanzas-lock-btn"
+                      title="Ajustar horario (día, personal, entrada y salida)"
+                      aria-label="Ajustar horario"
+                      disabled={rowActionId != null}
+                      onClick={ajustarHorarioDesdeToolbar}
+                    >
+                      🔒
+                    </button>
+                    <button
+                      type="button"
+                      className="admin-tardanzas-lock-btn admin-tardanzas-lock-btn--quitar"
+                      title="Quitar registro (día y personal)"
+                      aria-label="Quitar registro"
+                      disabled={rowActionId != null}
+                      onClick={quitarRegistroDesdeToolbar}
+                    >
+                      ✖️
+                    </button>
+                  </div>
                   <div className="admin-tardanzas-toolbar__actions">
                     <button
                       type="button"
@@ -846,7 +998,7 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                 </div>
 
                 <p className="admin-tardanzas-meta">
-                  Tarifa: {fmtSoles(bioEstado.tarifa_por_minuto ?? 1)} por minuto tarde
+                  Descuento: sueldo ÷ 30 ÷ 8 ÷ 60 por minuto (S/. 0 sin sueldo)
                   {bioEstado.total_registros != null ? ` · ${bioEstado.total_registros} registro(s)` : ''}
                 </p>
 
@@ -861,13 +1013,12 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                         <th>Min. tarde</th>
                         <th>Descuento</th>
                         <th>Hora salida</th>
-                        <th aria-label="Acciones">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
                       {bioFilas.length === 0 && (
                         <tr>
-                          <td colSpan={8}>
+                          <td colSpan={7}>
                             No hay marcaciones para el filtro (por defecto día de hoy). Marque en el terminal o amplíe
                             las fechas.
                           </td>
@@ -897,28 +1048,6 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                                 ? String(ev.hora_salida).slice(0, 8)
                                 : '—'}
                           </td>
-                          <td className="col-acciones">
-                            <button
-                              type="button"
-                              className="admin-tardanzas-icon-btn"
-                              title="Editar entrada / salida"
-                              aria-label={`Editar marcación de ${ev.personal_nombre || 'personal'}`}
-                              disabled={rowActionId === ev.id}
-                              onClick={() => editarMarcacionBio(ev)}
-                            >
-                              ✏️
-                            </button>
-                            <button
-                              type="button"
-                              className="admin-tardanzas-icon-btn admin-tardanzas-icon-btn--danger"
-                              title="Eliminar marcación"
-                              aria-label={`Eliminar marcación de ${ev.personal_nombre || 'personal'}`}
-                              disabled={rowActionId === ev.id}
-                              onClick={() => eliminarMarcacionBio(ev)}
-                            >
-                              🗑️
-                            </button>
-                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -934,6 +1063,105 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                 </div>
               </>
             )}
+          </section>
+        )}
+
+        {tabActiva === 'faltas' && (
+          <section className="admin-tardanzas-import admin-tz-faltas" aria-label="Faltas del personal">
+            <h2 className="admin-tardanzas-import__title">Quién no marcó</h2>
+            <p className="admin-tardanzas-import__desc">
+              Se toman los días en los que <strong>alguien sí marcó</strong>. En cada uno se muestra el personal que{' '}
+              <strong>no tiene entrada</strong>. Quien tiene hora de ingreso <strong>00:00</strong> (perfiles de ejemplo)
+              no cuenta ni como tardanza ni como falta. Un sábado o feriado sin marcas no genera faltas.
+            </p>
+
+            <div className="admin-tardanzas-toolbar admin-tz-bio__filters">
+              <label>
+                Persona
+                <select value={faltasPersonalId} onChange={(e) => setFaltasPersonalId(e.target.value)}>
+                  <option value="">Todas</option>
+                  {(faltas?.personal_comun || meta?.personal_comun || []).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Desde
+                <input type="date" value={faltasDesde} onChange={(e) => setFaltasDesde(e.target.value)} />
+              </label>
+              <label>
+                Hasta
+                <input type="date" value={faltasHasta} onChange={(e) => setFaltasHasta(e.target.value)} />
+              </label>
+              <div className="admin-tardanzas-toolbar__actions">
+                <button
+                  type="button"
+                  className="admin-tardanzas-btn"
+                  onClick={() => {
+                    const hoy = hoyLimaISO();
+                    setFaltasPersonalId('');
+                    setFaltasDesde(hoy);
+                    setFaltasHasta(hoy);
+                    loadFaltas({ personal_id: '', desde: hoy, hasta: hoy });
+                  }}
+                >
+                  Solo hoy
+                </button>
+                <button
+                  type="button"
+                  className="admin-tardanzas-btn admin-tardanzas-btn--primary"
+                  disabled={faltasLoading}
+                  onClick={() => loadFaltas()}
+                >
+                  {faltasLoading ? 'Cargando…' : 'Filtrar'}
+                </button>
+              </div>
+            </div>
+
+            <p className="admin-tardanzas-meta">
+              {faltasLoading
+                ? 'Cargando…'
+                : faltas
+                  ? `${faltas.total} falta(s) · ${faltas.dias_con_marca} día(s) con marcación${
+                      faltas.desde && faltas.hasta
+                        ? ` · ${fmtFecha(faltas.desde)} – ${fmtFecha(faltas.hasta)}`
+                        : ''
+                    }`
+                  : 'Elija fechas y pulse Filtrar.'}
+            </p>
+
+            <div className="admin-tardanzas-table-wrap">
+              {faltasLoading ? (
+                <p className="admin-tardanzas-empty">Cargando…</p>
+              ) : !faltas?.filas?.length ? (
+                <p className="admin-tardanzas-empty">
+                  {faltas?.dias_con_marca === 0
+                    ? 'No hay días con marcación en ese rango.'
+                    : 'Nadie del personal dejó de marcar en esas fechas.'}
+                </p>
+              ) : (
+                <table className="admin-tardanzas-table">
+                  <thead>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Personal</th>
+                      <th>Cargo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {faltas.filas.map((f) => (
+                      <tr key={`${f.fecha}-${f.personal_id}`}>
+                        <td>{fmtFecha(f.fecha)}</td>
+                        <td className="col-personal">{f.personal_nombre}</td>
+                        <td>{f.cargo || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </section>
         )}
 
@@ -1034,6 +1262,28 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                 Hasta
                 <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
               </label>
+              <div className="admin-tardanzas-toolbar-locks" role="group" aria-label="Ajuste de registros">
+                <button
+                  type="button"
+                  className="admin-tardanzas-lock-btn"
+                  title="Ajustar horario (día, personal, entrada y salida)"
+                  aria-label="Ajustar horario"
+                  disabled={rowActionId != null}
+                  onClick={ajustarHorarioDesdeToolbar}
+                >
+                  🔒
+                </button>
+                <button
+                  type="button"
+                  className="admin-tardanzas-lock-btn admin-tardanzas-lock-btn--quitar"
+                  title="Quitar registro (día y personal)"
+                  aria-label="Quitar registro"
+                  disabled={rowActionId != null}
+                  onClick={quitarRegistroDesdeToolbar}
+                >
+                  ✖️
+                </button>
+              </div>
               <div className="admin-tardanzas-toolbar__actions">
                 <button
                   type="button"
@@ -1088,7 +1338,6 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                         <th>Min. tarde</th>
                         <th>Descuento</th>
                         <th>Hora salida</th>
-                        <th aria-label="Acciones">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1110,28 +1359,6 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                             {f.hora_salida_fmt && f.hora_salida_fmt !== '—'
                               ? f.hora_salida_fmt
                               : '—'}
-                          </td>
-                          <td className="col-acciones">
-                            <button
-                              type="button"
-                              className="admin-tardanzas-icon-btn"
-                              title="Editar hora"
-                              aria-label={`Editar hora de ${f.personal_nombre}`}
-                              disabled={rowActionId === f.id}
-                              onClick={() => editarHora(f)}
-                            >
-                              ✏️
-                            </button>
-                            <button
-                              type="button"
-                              className="admin-tardanzas-icon-btn admin-tardanzas-icon-btn--danger"
-                              title="Eliminar registro"
-                              aria-label={`Eliminar registro de ${f.personal_nombre}`}
-                              disabled={rowActionId === f.id}
-                              onClick={() => eliminarRegistro(f)}
-                            >
-                              🗑️
-                            </button>
                           </td>
                         </tr>
                       ))}

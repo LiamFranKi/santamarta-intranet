@@ -76,7 +76,7 @@ const {
 const {
   calcularTardanzasMesPersonal,
   calcTardanza,
-  DESCUENTO_POR_MINUTO,
+  sueldoDe,
 } = require('../utils/adminTardanzasHuellero');
 const {
   listarAlumnosConductaPorGrupo,
@@ -1613,6 +1613,7 @@ router.get('/dashboard', async (req, res) => {
       colegio_id,
       anio_activo,
       hora_entrada_config: docente.hora_entrada,
+      sueldo: docente.sueldo,
     });
 
     const comunicadosHomeData = await listarComunicadosInicio(query, colegio_id);
@@ -1756,26 +1757,30 @@ router.get('/asistencias', async (req, res) => {
       [usuario_id, colegio_id, anio_activo, anioInt, mesInt]
     );
 
+    const sueldo = sueldoDe(docente);
     let totalMinutosTardanza = 0;
+    let totalDescuento = 0;
     const asistenciasConCalculos = registrosAsistencia.map((registro) => {
-      const { minutos_tardanza: minutosTardanza } = calcTardanza(
+      const { minutos_tardanza: minutosTardanza, descuento } = calcTardanza(
         horaEntradaConfigurada,
-        registro.hora_entrada
+        registro.hora_entrada,
+        sueldo
       );
       totalMinutosTardanza += minutosTardanza;
+      totalDescuento += descuento;
       return {
         ...registro,
         minutos_tardanza: minutosTardanza,
+        descuento,
       };
     });
-
-    const totalDescuento = Math.round(totalMinutosTardanza * DESCUENTO_POR_MINUTO * 100) / 100;
 
     res.json({
       asistencias: asistenciasConCalculos,
       total_minutos_tardanza: totalMinutosTardanza,
-      total_descuento: totalDescuento,
+      total_descuento: Math.round(totalDescuento * 100) / 100,
       hora_entrada_configurada: horaEntradaConfigurada,
+      tarifa_por_minuto: sueldo > 0 ? sueldo / (30 * 8 * 60) : 0,
       mes: mesInt,
       anio: anioInt
     });

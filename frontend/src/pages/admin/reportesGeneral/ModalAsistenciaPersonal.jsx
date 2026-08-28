@@ -94,7 +94,12 @@ export default function ModalAsistenciaPersonal({
             {colegioNombre ? (
               <p className="rg-alum-modal__subtitle rg-alum-modal__subtitle--muted">{colegioNombre}</p>
             ) : null}
-            {data?.tarifa_por_minuto != null ? (
+            {data?.formula_descuento ? (
+              <p className="rg-alum-modal__hint">
+                Descuento por minuto: sueldo ÷ 30 días ÷ 8 horas ÷ 60 minutos (S/. 0 si no hay sueldo). El total es la
+                suma de cada día.
+              </p>
+            ) : data?.tarifa_por_minuto != null ? (
               <p className="rg-alum-modal__hint">
                 Tarifa tardanza: S/. {Number(data.tarifa_por_minuto).toFixed(2)} por minuto
               </p>

@@ -3,7 +3,11 @@
  */
 const XLSX = require('xlsx');
 
-const DESCUENTO_POR_MINUTO = 1.0;
+/** @deprecated La tarifa real es por persona: sueldo / 30 / 8 / 60. Se deja en 0 para no reutilizar S/ 1. */
+const DESCUENTO_POR_MINUTO = 0;
+/** 30 días × 8 horas × 60 minutos. */
+const MINUTOS_MES_LABORAL = 30 * 8 * 60;
+const FORMULA_DESCUENTO_TARDANZA = 'sueldo / 30 / 8 / 60';
 
 const MESES_ES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -142,13 +146,51 @@ function toMinutesFromMidnight(timeVal) {
   return h * 60 + min;
 }
 
+/** 00:00 = perfiles de ejemplo: no cuentan tardanza ni falta. */
+function esHoraEntradaMedianoche(hora) {
+  if (hora == null || hora === '') return false;
+  return toMinutesFromMidnight(hora) === 0;
+}
+
+function personalCuentaControlAsistencia(p) {
+  if (!p) return false;
+  const horaConfig =
+    p.hora_entrada_real != null && p.hora_entrada_real !== ''
+      ? p.hora_entrada_real
+      : p.hora_entrada;
+  return !esHoraEntradaMedianoche(horaConfig);
+}
+
+function parseSueldoNumero(v) {
+  if (v == null || v === '') return 0;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return n;
+}
+
+function sueldoDe(p) {
+  if (!p) return 0;
+  return parseSueldoNumero(p.sueldo);
+}
+
+/** Valor de un minuto de trabajo. Sin sueldo → 0. */
+function tarifaMinutoDesdeSueldo(sueldo) {
+  const s = parseSueldoNumero(sueldo);
+  if (s <= 0) return 0;
+  return s / MINUTOS_MES_LABORAL;
+}
+
+function redondearSoles(n) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
 /**
  * Tardanzas y descuento del mes calendario actual (o mes/año indicados)
  * según registros en asistencia_registros (incluye importación huellero).
  */
 async function calcularTardanzasMesPersonal(
   query,
-  { usuario_id, colegio_id, anio_activo, hora_entrada_config, mes, anio_calendario }
+  { usuario_id, colegio_id, anio_activo, hora_entrada_config, mes, anio_calendario, sueldo: sueldoParam }
 ) {
   const ahora = new Date();
   const mesNum = Number.isFinite(mes) ? mes : ahora.getMonth() + 1;
@@ -164,13 +206,14 @@ async function calcularTardanzasMesPersonal(
       mes_nombre: mesNombre,
       registros: 0,
       hora_entrada_config: null,
-      tarifa_por_minuto: DESCUENTO_POR_MINUTO,
+      tarifa_por_minuto: 0,
+      formula_descuento: FORMULA_DESCUENTO_TARDANZA,
     };
   }
 
   const registros = await query(
     `SELECT ar.fecha, ar.hora_entrada AS hora_marcacion, ar.hora_salida,
-            p.nombres, p.apellidos, p.nro_documento, p.codigo_biometrico, u.personal_id
+            p.nombres, p.apellidos, p.nro_documento, p.codigo_biometrico, p.sueldo, u.personal_id
      FROM asistencia_registros ar
      INNER JOIN usuarios u ON u.id = ar.usuario_id AND u.colegio_id = ar.colegio_id
      INNER JOIN personal p ON p.id = u.personal_id AND p.colegio_id = ar.colegio_id
@@ -195,34 +238,48 @@ async function calcularTardanzasMesPersonal(
       hora_entrada: reg.hora_marcacion,
     }))
   );
+  const sueldo = parseSueldoNumero(sueldoParam ?? registros?.[0]?.sueldo);
+  const tarifa = tarifaMinutoDesdeSueldo(sueldo);
   let totalMinutos = 0;
+  let totalDescuento = 0;
   porIdentidad.forEach((reg) => {
-    const { minutos_tardanza } = calcTardanza(hora_entrada_config, reg.hora_entrada || reg.hora_marcacion);
+    const { minutos_tardanza, descuento } = calcTardanza(
+      hora_entrada_config,
+      reg.hora_entrada || reg.hora_marcacion,
+      sueldoDe(reg) || sueldo
+    );
     totalMinutos += minutos_tardanza;
+    totalDescuento += descuento;
   });
 
   return {
     minutos_tardanza: totalMinutos,
-    descuento: Math.round(totalMinutos * DESCUENTO_POR_MINUTO * 100) / 100,
+    descuento: redondearSoles(totalDescuento),
     mes: mesNum,
     anio_calendario: anioNum,
     mes_nombre: mesNombre,
     registros: porIdentidad.length,
     hora_entrada_config: formatHoraDisplay(hora_entrada_config),
-    tarifa_por_minuto: DESCUENTO_POR_MINUTO,
+    tarifa_por_minuto: tarifa,
+    formula_descuento: FORMULA_DESCUENTO_TARDANZA,
   };
 }
 
-function calcTardanza(horaEntradaConfig, horaMarcacion) {
+function calcTardanza(horaEntradaConfig, horaMarcacion, sueldo) {
+  if (esHoraEntradaMedianoche(horaEntradaConfig)) {
+    return { minutos_tardanza: 0, descuento: 0, tarifa_por_minuto: 0 };
+  }
   const cfg = toMinutesFromMidnight(horaEntradaConfig);
   const mar = toMinutesFromMidnight(horaMarcacion);
+  const tarifa = tarifaMinutoDesdeSueldo(sueldo);
   if (cfg == null || mar == null) {
-    return { minutos_tardanza: 0, descuento: 0 };
+    return { minutos_tardanza: 0, descuento: 0, tarifa_por_minuto: tarifa };
   }
   const minutos = Math.max(0, mar - cfg);
   return {
     minutos_tardanza: minutos,
-    descuento: Math.round(minutos * DESCUENTO_POR_MINUTO * 100) / 100,
+    descuento: redondearSoles(minutos * tarifa),
+    tarifa_por_minuto: tarifa,
   };
 }
 
@@ -290,6 +347,15 @@ function fechaIsoFromValue(fecha) {
 function esDiaLaboral(fechaISO) {
   const day = new Date(`${fechaIsoFromValue(fechaISO)}T12:00:00`).getDay();
   return day !== 0 && day !== 6;
+}
+
+function mapPersonalAsistenciaMeta(p) {
+  return {
+    id: p.personal_id,
+    nombre: nombrePersonal(p),
+    cargo: p.cargo ? String(p.cargo).trim() : '',
+    tipo: p.usuario_tipo || p.tipo || null,
+  };
 }
 
 function idsIguales(a, b) {
@@ -396,7 +462,11 @@ function colapsarFilasMarcacion(rows) {
   if (!rows || rows.length <= 1) return rows?.[0] || null;
   const keep = elegirKeeperCluster(rows);
   const { horaEntrada, horaSalida } = colapsarTiemposMarcacion(rows);
-  const { minutos_tardanza, descuento } = calcTardanza(keep.hora_entrada_real, horaEntrada);
+  const { minutos_tardanza, descuento, tarifa_por_minuto } = calcTardanza(
+    keep.hora_entrada_real,
+    horaEntrada,
+    sueldoDe(keep)
+  );
   return {
     ...keep,
     hora_marcacion: horaEntrada,
@@ -406,6 +476,7 @@ function colapsarFilasMarcacion(rows) {
     hora_salida_fmt: horaSalida ? formatHoraDisplay(horaSalida) : '—',
     minutos_tardanza,
     descuento,
+    tarifa_por_minuto,
   };
 }
 
@@ -559,35 +630,67 @@ function sumarTardanzasDesdeRegistros(rows, { soloDiasLaborables = true } = {}) 
   const filtradas = (rows || []).filter((r) => {
     const fecha = fechaIsoFromValue(r.fecha);
     if (soloDiasLaborables && !esDiaLaboral(fecha)) return false;
+    if (!personalCuentaControlAsistencia(r)) return false;
     return !!(r.personal_id || r.nombres || r.apellidos);
   });
   const clusters = clusterPorIdentidadYFecha(filtradas);
   let totalMinutos = 0;
+  let totalDescuento = 0;
   for (const c of clusters) {
     const { horaEntrada } = colapsarTiemposMarcacion(c.rows);
     const horaReal = c.rows.find((r) => r.hora_entrada_real)?.hora_entrada_real || c.probe.hora_entrada_real;
-    const { minutos_tardanza } = calcTardanza(horaReal, horaEntrada);
+    const sueldo = sueldoDe(c.rows.find((r) => r.sueldo != null) || c.probe);
+    const { minutos_tardanza, descuento } = calcTardanza(horaReal, horaEntrada, sueldo);
     totalMinutos += minutos_tardanza;
+    totalDescuento += descuento;
   }
-  return { totalMinutos, registrosUnicos: clusters.length };
+  return {
+    totalMinutos,
+    totalDescuento: redondearSoles(totalDescuento),
+    registrosUnicos: clusters.length,
+  };
 }
 
 async function loadPersonalColegio(query, colegioId) {
   const sql = (extraCols) =>
     `SELECT p.id AS personal_id, p.nombres, p.apellidos, p.hora_entrada, p.cargo,
             ${extraCols}
-            u.id AS usuario_id
+            u.id AS usuario_id, u.tipo AS usuario_tipo
      FROM personal p
      ${SQL_USUARIO_ACTIVO_CANONICO}
      WHERE p.colegio_id = ?
      ORDER BY p.apellidos ASC, p.nombres ASC`;
+  const run = async (extraCols, mapRow) => {
+    const rows = await query(sql(extraCols), [colegioId]);
+    const mapped = (rows || []).map(mapRow || ((r) => r));
+    return dedupePersonalList(mapped);
+  };
   try {
-    const rows = await query(sql('p.nro_documento, p.codigo_biometrico,'), [colegioId]);
-    return dedupePersonalList(rows || []);
+    return await run('p.nro_documento, p.codigo_biometrico, p.sueldo,');
   } catch (e) {
-    if (String(e.message || '').includes('codigo_biometrico')) {
-      const rows = await query(sql('p.nro_documento,'), [colegioId]);
-      return dedupePersonalList((rows || []).map((r) => ({ ...r, codigo_biometrico: null })));
+    const msg = String(e.message || '');
+    if (msg.includes('sueldo')) {
+      try {
+        const list = await run('p.nro_documento, p.codigo_biometrico,');
+        return list.map((r) => ({ ...r, sueldo: null }));
+      } catch (e2) {
+        if (String(e2.message || '').includes('codigo_biometrico')) {
+          const list = await run('p.nro_documento,');
+          return list.map((r) => ({ ...r, codigo_biometrico: null, sueldo: null }));
+        }
+        throw e2;
+      }
+    }
+    if (msg.includes('codigo_biometrico')) {
+      try {
+        return await run('p.nro_documento, p.sueldo,');
+      } catch (e2) {
+        if (String(e2.message || '').includes('sueldo')) {
+          const list = await run('p.nro_documento,');
+          return list.map((r) => ({ ...r, codigo_biometrico: null, sueldo: null }));
+        }
+        throw e2;
+      }
     }
     throw e;
   }
@@ -776,7 +879,11 @@ async function upsertMarcacionEntradaSalida(
 
 function enrichFilaMarcacion(row, personal) {
   const horaEntradaReal = personal?.hora_entrada || null;
-  const { minutos_tardanza, descuento } = calcTardanza(horaEntradaReal, row.hora_marcacion);
+  const { minutos_tardanza, descuento, tarifa_por_minuto } = calcTardanza(
+    horaEntradaReal,
+    row.hora_marcacion,
+    sueldoDe(personal)
+  );
   return {
     personal_id: personal?.personal_id || null,
     usuario_id: personal?.usuario_id || null,
@@ -788,6 +895,8 @@ function enrichFilaMarcacion(row, personal) {
     hora_marcacion_fmt: formatHoraDisplay(row.hora_marcacion),
     minutos_tardanza,
     descuento,
+    tarifa_por_minuto,
+    sueldo: sueldoDe(personal) || null,
     excel_first_name: row.first_name,
     excel_last_name: row.last_name,
     department: row.department || null,
@@ -796,7 +905,9 @@ function enrichFilaMarcacion(row, personal) {
 
 async function previewHuelleroImport(query, colegioId, buffer) {
   const parsed = parseHuelleroExcelBuffer(buffer);
-  const personalList = await loadPersonalColegio(query, colegioId);
+  const personalList = (await loadPersonalColegio(query, colegioId)).filter(
+    personalCuentaControlAsistencia
+  );
   const { anio } = await getAnioActivo(query, colegioId);
 
   const coincidencias = [];
@@ -849,7 +960,8 @@ async function previewHuelleroImport(query, colegioId, buffer) {
       sin_usuario: sinUsuario.length,
       nuevos,
       actualizados,
-      tarifa_por_minuto: DESCUENTO_POR_MINUTO,
+      tarifa_por_minuto: null,
+      formula_descuento: FORMULA_DESCUENTO_TARDANZA,
     },
     coincidencias: coincidencias.slice(0, 200),
     sin_coincidencia: sinCoincidencia.slice(0, 100),
@@ -860,7 +972,9 @@ async function previewHuelleroImport(query, colegioId, buffer) {
 async function importarHuellero(query, execute, colegioId, adminUsuarioId, buffer) {
   const auditUserId = adminUsuarioId ?? null;
   const parsed = parseHuelleroExcelBuffer(buffer);
-  const personalList = await loadPersonalColegio(query, colegioId);
+  const personalList = (await loadPersonalColegio(query, colegioId)).filter(
+    personalCuentaControlAsistencia
+  );
   const { anio } = await getAnioActivo(query, colegioId);
 
   const stats = {
@@ -907,7 +1021,12 @@ async function importarHuellero(query, execute, colegioId, adminUsuarioId, buffe
 
 function mapRowToFilaTardanza(r) {
   const horaMarcacion = r.hora_marcacion ?? r.hora_entrada;
-  const { minutos_tardanza, descuento } = calcTardanza(r.hora_entrada_real, horaMarcacion);
+  const sueldo = sueldoDe(r);
+  const { minutos_tardanza, descuento, tarifa_por_minuto } = calcTardanza(
+    r.hora_entrada_real,
+    horaMarcacion,
+    sueldo
+  );
   const horaSalida = r.hora_salida
     ? parseHoraMarcacion(r.hora_salida) || String(r.hora_salida).slice(0, 8)
     : null;
@@ -929,13 +1048,15 @@ function mapRowToFilaTardanza(r) {
     hora_salida_fmt: horaSalida ? formatHoraDisplay(horaSalida) : '—',
     minutos_tardanza,
     descuento,
+    tarifa_por_minuto,
+    sueldo: sueldo || null,
   };
 }
 
 async function getRegistroTardanzaPersonal(query, registroId, colegioId) {
   const [row] = await query(
     `SELECT ar.id, ar.fecha, ar.hora_entrada, ar.hora_salida, ar.hora_entrada AS hora_marcacion,
-            p.id AS personal_id, p.nombres, p.apellidos, p.hora_entrada AS hora_entrada_real
+            p.id AS personal_id, p.nombres, p.apellidos, p.hora_entrada AS hora_entrada_real, p.sueldo
      FROM asistencia_registros ar
      INNER JOIN usuarios u ON u.id = ar.usuario_id AND u.colegio_id = ar.colegio_id
      INNER JOIN personal p ON p.id = u.personal_id AND p.colegio_id = ar.colegio_id
@@ -1119,6 +1240,13 @@ async function crearRegistroManual(
     err.status = 404;
     throw err;
   }
+  if (!personalCuentaControlAsistencia(personal)) {
+    const err = new Error(
+      'Ese personal tiene hora de ingreso 00:00 y no se controla en tardanzas ni faltas (perfil de ejemplo).'
+    );
+    err.status = 400;
+    throw err;
+  }
   if (!personal.usuario_id) {
     const err = new Error(
       'Ese personal no tiene usuario activo en la intranet. Cree el usuario antes de registrar asistencia.'
@@ -1215,7 +1343,7 @@ async function listarTardanzas(query, colegioId, params = {}, execute = null) {
   let rows = await query(
     `SELECT ar.id, ar.fecha, ar.hora_entrada AS hora_marcacion, ar.hora_salida,
             p.id AS personal_id, p.nombres, p.apellidos, p.nro_documento, p.codigo_biometrico,
-            p.hora_entrada AS hora_entrada_real, u.id AS usuario_id
+            p.hora_entrada AS hora_entrada_real, p.sueldo, u.id AS usuario_id
      FROM asistencia_registros ar
      INNER JOIN usuarios u ON u.id = ar.usuario_id AND u.colegio_id = ar.colegio_id
      INNER JOIN personal p ON p.id = u.personal_id AND p.colegio_id = ar.colegio_id
@@ -1232,7 +1360,7 @@ async function listarTardanzas(query, colegioId, params = {}, execute = null) {
     rows = await query(
       `SELECT ar.id, ar.fecha, ar.hora_entrada AS hora_marcacion, ar.hora_salida,
               p.id AS personal_id, p.nombres, p.apellidos, p.nro_documento, p.codigo_biometrico,
-              p.hora_entrada AS hora_entrada_real, u.id AS usuario_id
+              p.hora_entrada AS hora_entrada_real, p.sueldo, u.id AS usuario_id
        FROM asistencia_registros ar
        INNER JOIN usuarios u ON u.id = ar.usuario_id AND u.colegio_id = ar.colegio_id
        INNER JOIN personal p ON p.id = u.personal_id AND p.colegio_id = ar.colegio_id
@@ -1243,7 +1371,7 @@ async function listarTardanzas(query, colegioId, params = {}, execute = null) {
   }
 
   const filasRaw = (rows || []).map(mapRowToFilaTardanza);
-  const filas = fusionarFilasPorIdentidad(filasRaw);
+  const filas = fusionarFilasPorIdentidad(filasRaw).filter(personalCuentaControlAsistencia);
 
   const total_descuento = Math.round(filas.reduce((s, f) => s + (f.descuento || 0), 0) * 100) / 100;
   const total_minutos = filas.reduce((s, f) => s + (f.minutos_tardanza || 0), 0);
@@ -1251,11 +1379,103 @@ async function listarTardanzas(query, colegioId, params = {}, execute = null) {
   return {
     colegio_nombre,
     anio,
-    tarifa_por_minuto: DESCUENTO_POR_MINUTO,
+    tarifa_por_minuto: null,
+    formula_descuento: FORMULA_DESCUENTO_TARDANZA,
     filas,
     total_descuento,
     total_minutos,
     total_registros: filas.length,
+  };
+}
+
+/**
+ * Días con al menos una marcación en el rango: personal (excepto hora de ingreso 00:00) sin entrada ese día.
+ * GET /api/admin/tardanzas/faltas?personal_id=&desde=&hasta=
+ */
+async function listarFaltasPersonalComun(query, colegioId, params = {}) {
+  const { fechaMySQLLima } = require('./fechaHoraLima');
+  const { anio, colegio_nombre } = await getAnioActivo(query, colegioId);
+  const hoy = fechaMySQLLima();
+  const personalId = params.personal_id ? parseInt(params.personal_id, 10) : null;
+  const desde = params.desde || hoy;
+  const hasta = params.hasta || hoy;
+
+  const universoBase = (await loadPersonalColegio(query, colegioId)).filter(
+    personalCuentaControlAsistencia
+  );
+  const personalList = universoBase;
+
+  let universo = universoBase;
+  if (Number.isFinite(personalId)) {
+    const probe =
+      universoBase.find((p) => Number(p.personal_id) === personalId) ||
+      personalList.find((p) => Number(p.personal_id) === personalId);
+    const match = probe
+      ? universoBase.find(
+          (p) => Number(p.personal_id) === Number(probe.personal_id) || mismaIdentidad(p, probe)
+        )
+      : null;
+    universo = match ? [match] : [];
+  }
+
+  const where = [
+    'ar.colegio_id = ?',
+    'ar.anio = ?',
+    'ar.hora_entrada IS NOT NULL',
+    'u.personal_id > 0',
+    "(ar.tipo_registro = 'ENTRADA' OR ar.tipo_registro = 'ENTRADA_SALIDA')",
+    'ar.fecha >= ?',
+    'ar.fecha <= ?',
+  ];
+  const sqlParams = [colegioId, anio, desde, hasta];
+
+  const rows = await query(
+    `SELECT ar.fecha, p.id AS personal_id, p.nombres, p.apellidos, p.nro_documento, p.codigo_biometrico,
+            p.hora_entrada
+     FROM asistencia_registros ar
+     INNER JOIN usuarios u ON u.id = ar.usuario_id AND u.colegio_id = ar.colegio_id
+     INNER JOIN personal p ON p.id = u.personal_id AND p.colegio_id = ar.colegio_id
+     WHERE ${where.join(' AND ')}`,
+    sqlParams
+  );
+
+  const marcasPorFecha = new Map();
+  for (const r of rows || []) {
+    if (!personalCuentaControlAsistencia(r)) continue;
+    const fecha = fechaIsoFromValue(r.fecha);
+    if (!fecha) continue;
+    if (!marcasPorFecha.has(fecha)) marcasPorFecha.set(fecha, []);
+    marcasPorFecha.get(fecha).push(r);
+  }
+
+  const dias = [...marcasPorFecha.keys()].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+  const filas = [];
+  for (const fecha of dias) {
+    const marcas = marcasPorFecha.get(fecha) || [];
+    for (const p of universo) {
+      const marco = marcas.some(
+        (m) => Number(m.personal_id) === Number(p.personal_id) || mismaIdentidad(p, m)
+      );
+      if (!marco) {
+        filas.push({
+          fecha,
+          personal_id: p.personal_id,
+          personal_nombre: nombrePersonal(p),
+          cargo: p.cargo ? String(p.cargo).trim() : '',
+        });
+      }
+    }
+  }
+
+  return {
+    colegio_nombre,
+    anio,
+    desde,
+    hasta,
+    filas,
+    total: filas.length,
+    dias_con_marca: dias.length,
+    personal_comun: universoBase.map(mapPersonalAsistenciaMeta),
   };
 }
 
@@ -1269,7 +1489,7 @@ async function calcularTardanzasMesColegio(query, colegioId, params = {}) {
 
   const rows = await query(
     `SELECT ar.fecha, ar.hora_entrada AS hora_marcacion, ar.hora_salida,
-            p.hora_entrada AS hora_entrada_real, u.personal_id,
+            p.hora_entrada AS hora_entrada_real, p.sueldo, u.personal_id,
             p.nombres, p.apellidos, p.nro_documento, p.codigo_biometrico
      FROM asistencia_registros ar
      INNER JOIN usuarios u ON u.id = ar.usuario_id AND u.colegio_id = ar.colegio_id
@@ -1285,7 +1505,7 @@ async function calcularTardanzasMesColegio(query, colegioId, params = {}) {
     [colegioId, anio, anioCal, mesNum]
   );
 
-  const { totalMinutos, registrosUnicos } = sumarTardanzasDesdeRegistros(rows);
+  const { totalMinutos, totalDescuento, registrosUnicos } = sumarTardanzasDesdeRegistros(rows);
 
   return {
     mes: mesNum,
@@ -1293,9 +1513,10 @@ async function calcularTardanzasMesColegio(query, colegioId, params = {}) {
     mes_nombre: mesNombre,
     anio_academico: anio,
     minutos_tardanza: totalMinutos,
-    descuento: Math.round(totalMinutos * DESCUENTO_POR_MINUTO * 100) / 100,
+    descuento: totalDescuento,
     registros: registrosUnicos,
-    tarifa_por_minuto: DESCUENTO_POR_MINUTO,
+    tarifa_por_minuto: null,
+    formula_descuento: FORMULA_DESCUENTO_TARDANZA,
   };
 }
 
@@ -1349,8 +1570,7 @@ async function buildExportWorkbook(lista) {
   // Subtítulo
   ws.mergeCells(2, 1, 2, 7);
   const sub = ws.getCell(2, 1);
-  const tarifa = lista.tarifa_por_minuto != null ? lista.tarifa_por_minuto : DESCUENTO_POR_MINUTO;
-  sub.value = `Año ${lista.anio || '—'} · Tarifa: S/ ${Number(tarifa).toFixed(2)} por minuto · ${lista.total_registros || (lista.filas || []).length} registro(s)`;
+  sub.value = `Año ${lista.anio || '—'} · Descuento: sueldo ÷ 30 ÷ 8 ÷ 60 por minuto (S/ 0 sin sueldo) · ${lista.total_registros || (lista.filas || []).length} registro(s)`;
   sub.font = { size: 9, color: { argb: 'FF334155' } };
   sub.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
   sub.alignment = center;
@@ -1421,11 +1641,17 @@ async function buildExportWorkbook(lista) {
 
 module.exports = {
   DESCUENTO_POR_MINUTO,
+  FORMULA_DESCUENTO_TARDANZA,
+  tarifaMinutoDesdeSueldo,
+  sueldoDe,
   MESES_ES,
   parseHuelleroExcelBuffer,
   previewHuelleroImport,
   importarHuellero,
   listarTardanzas,
+  listarFaltasPersonalComun,
+  personalCuentaControlAsistencia,
+  esHoraEntradaMedianoche,
   actualizarHoraRegistro,
   eliminarRegistroTardanza,
   calcularTardanzasMesColegio,

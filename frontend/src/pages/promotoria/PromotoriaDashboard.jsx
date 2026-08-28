@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import EleccionesCampanaBanner from '../../components/EleccionesCampanaBanner';
+import TarjetasTardanzaPersonal from '../../components/TarjetasTardanzaPersonal';
 import api from '../../services/api';
 import './PromotoriaDashboard.css';
 
@@ -45,6 +46,8 @@ function PromotoriaDashboard() {
           <h1 className="promotoria-title">Panel de Promotoría</h1>
           <p className="promotoria-subtitle">Vista financiera y estadísticas — Año {anio}</p>
         </header>
+
+        <TarjetasTardanzaPersonal />
 
         <section className="promotoria-kpis">
           {kpis.map((kpi) => (

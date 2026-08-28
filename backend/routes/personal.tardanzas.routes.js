@@ -7,9 +7,11 @@ const { authenticateToken } = require('../middleware/auth');
 const {
   calcularTardanzasMesPersonal,
   calcTardanza,
+  sueldoDe,
+  tarifaMinutoDesdeSueldo,
+  FORMULA_DESCUENTO_TARDANZA,
   formatHoraDisplay,
   fusionarFilasPorIdentidad,
-  DESCUENTO_POR_MINUTO,
   MESES_ES,
 } = require('../utils/adminTardanzasHuellero');
 
@@ -28,7 +30,7 @@ router.get('/mi-mes', async (req, res) => {
     }
 
     const [usuario] = await query(
-      `SELECT u.id, u.personal_id, p.hora_entrada
+      `SELECT u.id, u.personal_id, p.hora_entrada, p.sueldo
        FROM usuarios u
        LEFT JOIN personal p ON p.id = u.personal_id AND p.colegio_id = u.colegio_id
        WHERE u.id = ? AND u.colegio_id = ?
@@ -45,6 +47,7 @@ router.get('/mi-mes', async (req, res) => {
       colegio_id: colegioId,
       anio_activo: anioActivo,
       hora_entrada_config: usuario.hora_entrada,
+      sueldo: usuario.sueldo,
     });
 
     res.json({
@@ -78,7 +81,7 @@ router.get('/asistencias', async (req, res) => {
     }
 
     const [usuario] = await query(
-      `SELECT u.id, u.personal_id, p.hora_entrada
+      `SELECT u.id, u.personal_id, p.hora_entrada, p.sueldo
        FROM usuarios u
        LEFT JOIN personal p ON p.id = u.personal_id AND p.colegio_id = u.colegio_id
        WHERE u.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'
@@ -94,7 +97,7 @@ router.get('/asistencias', async (req, res) => {
 
     const registrosAsistencia = await query(
       `SELECT ar.fecha, ar.hora_entrada, ar.hora_salida, ar.tipo_registro,
-              p.nombres, p.apellidos, p.nro_documento, p.codigo_biometrico, u.personal_id
+              p.nombres, p.apellidos, p.nro_documento, p.codigo_biometrico, p.sueldo, u.personal_id
        FROM asistencia_registros ar
        INNER JOIN usuarios u ON u.id = ar.usuario_id AND u.colegio_id = ar.colegio_id
        INNER JOIN personal p ON p.id = u.personal_id AND p.colegio_id = ar.colegio_id
@@ -123,14 +126,19 @@ router.get('/asistencias', async (req, res) => {
       }))
     );
 
+    const sueldo = sueldoDe(usuario);
+    const tarifa = tarifaMinutoDesdeSueldo(sueldo);
     let totalMinutosTardanza = 0;
+    let totalDescuento = 0;
     const asistenciasConCalculos = fusionadas.map((registro) => {
       const horaEnt = registro.hora_entrada || registro.hora_marcacion;
       const { minutos_tardanza: minutosTardanza, descuento } = calcTardanza(
         horaEntradaConfigurada,
-        horaEnt
+        horaEnt,
+        sueldoDe(registro) || sueldo
       );
       totalMinutosTardanza += minutosTardanza;
+      totalDescuento += descuento;
       const fechaStr = registro.fecha instanceof Date
         ? registro.fecha.toISOString().slice(0, 10)
         : String(registro.fecha).slice(0, 10);
@@ -145,18 +153,17 @@ router.get('/asistencias', async (req, res) => {
       };
     });
 
-    const totalDescuento = Math.round(totalMinutosTardanza * DESCUENTO_POR_MINUTO * 100) / 100;
-
     res.json({
       asistencias: asistenciasConCalculos,
       total_minutos_tardanza: totalMinutosTardanza,
-      total_descuento: totalDescuento,
+      total_descuento: Math.round(totalDescuento * 100) / 100,
       hora_entrada_configurada: horaEntradaConfigurada,
       hora_entrada_configurada_fmt: formatHoraDisplay(horaEntradaConfigurada),
       mes: mesInt,
       anio: anioInt,
       mes_nombre: MESES_ES[mesInt - 1] || `Mes ${mesInt}`,
-      tarifa_por_minuto: DESCUENTO_POR_MINUTO,
+      tarifa_por_minuto: tarifa,
+      formula_descuento: FORMULA_DESCUENTO_TARDANZA,
     });
   } catch (e) {
     console.error('[personal/tardanzas/asistencias]', e);

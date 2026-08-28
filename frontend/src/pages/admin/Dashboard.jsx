@@ -5,6 +5,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import BirthdayWidget from '../../components/BirthdayWidget';
 import EleccionesCampanaBanner from '../../components/EleccionesCampanaBanner';
 import TarjetasTardanzaAdminColegio from '../../components/TarjetasTardanzaAdminColegio';
+import TarjetasTardanzaPersonal from '../../components/TarjetasTardanzaPersonal';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import './Dashboard.css';
@@ -775,6 +776,7 @@ function Dashboard() {
       <EleccionesCampanaBanner />
       <div className="dashboard-container">
         <TarjetasTardanzaAdminColegio />
+        <TarjetasTardanzaPersonal />
         <div className="admin-stats-grid">
           {cards.map((card) => (
             <div key={card.key} className="admin-stat-card" style={{ background: card.color }}>

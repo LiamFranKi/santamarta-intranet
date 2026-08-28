@@ -16,11 +16,13 @@ const {
   parseHoraMarcacion,
   formatHoraDisplay,
   calcTardanza,
-  DESCUENTO_POR_MINUTO,
+  sueldoDe,
+  FORMULA_DESCUENTO_TARDANZA,
   fusionarFilasPorIdentidad,
   fusionarRegistrosEquivalentesDia,
   resolverPersonalCanonico,
   personalIdsEquivalentes,
+  personalCuentaControlAsistencia,
 } = require('./adminTardanzasHuellero');
 
 const TZ_LIMA = 'America/Lima';
@@ -993,6 +995,7 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
             p.nro_documento,
             p.codigo_biometrico,
             p.hora_entrada AS hora_entrada_real,
+            p.sueldo,
             CONCAT(COALESCE(p.apellidos,''), ', ', COALESCE(p.nombres,'')) AS personal_nombre
      FROM asistencia_registros ar
      INNER JOIN usuarios u ON u.id = ar.usuario_id
@@ -1025,7 +1028,8 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
       ? parseHoraMarcacion(r.hora_salida) || formatHoraDisplay(r.hora_salida)
       : null;
     const horaReal = r.hora_entrada_real;
-    const { minutos_tardanza, descuento } = calcTardanza(horaReal, he);
+    const sueldo = sueldoDe(r);
+    const { minutos_tardanza, descuento, tarifa_por_minuto } = calcTardanza(horaReal, he, sueldo);
     return {
       id: r.id,
       personal_id: r.personal_id,
@@ -1039,6 +1043,8 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
       hora_salida: hs,
       hora_entrada_real: horaReal,
       hora_entrada_real_fmt: formatHoraDisplay(horaReal),
+      sueldo: sueldo || null,
+      tarifa_por_minuto,
       hora_marcacion: he,
       hora_marcacion_fmt: formatHoraDisplay(he),
       hora_salida_fmt: hs ? formatHoraDisplay(hs) : '—',
@@ -1051,7 +1057,9 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
     };
   });
 
-  const filas = fusionarFilasPorIdentidad(filasRaw).sort((a, b) => {
+  const filas = fusionarFilasPorIdentidad(filasRaw)
+    .filter(personalCuentaControlAsistencia)
+    .sort((a, b) => {
     const fd = String(b.fecha).localeCompare(String(a.fecha));
     if (fd !== 0) return fd;
     return String(b.hora_entrada || '').localeCompare(String(a.hora_entrada || ''));
@@ -1065,7 +1073,8 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
     total_descuento,
     total_minutos,
     total_registros: filas.length,
-    tarifa_por_minuto: DESCUENTO_POR_MINUTO,
+    tarifa_por_minuto: null,
+    formula_descuento: FORMULA_DESCUENTO_TARDANZA,
   };
 }
 

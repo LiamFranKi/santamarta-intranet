@@ -9,6 +9,8 @@ const {
   previewHuelleroImport,
   importarHuellero,
   listarTardanzas,
+  listarFaltasPersonalComun,
+  personalCuentaControlAsistencia,
   actualizarHoraRegistro,
   actualizarEntradaSalidaRegistro,
   eliminarRegistroTardanza,
@@ -17,7 +19,7 @@ const {
   loadPersonalColegio,
   getAnioActivo,
   buildExportWorkbook,
-  DESCUENTO_POR_MINUTO,
+  FORMULA_DESCUENTO_TARDANZA,
 } = require('../utils/adminTardanzasHuellero');
 
 const upload = multer({
@@ -49,14 +51,24 @@ router.get('/meta', async (req, res) => {
     const cid = colegioId(req);
     const { anio, colegio_nombre } = await getAnioActivo(query, cid);
     const personal = await loadPersonalColegio(query, cid);
+    const personalControl = personal.filter(personalCuentaControlAsistencia);
     res.json({
       colegio_nombre,
       anio,
-      tarifa_por_minuto: DESCUENTO_POR_MINUTO,
-      personal: personal.map((p) => ({
+      tarifa_por_minuto: null,
+      formula_descuento: FORMULA_DESCUENTO_TARDANZA,
+      personal: personalControl.map((p) => ({
         id: p.personal_id,
         nombre: `${String(p.apellidos || '').trim()}, ${String(p.nombres || '').trim()}`.replace(/^,\s*|,\s*$/g, '').trim(),
         tiene_usuario: !!p.usuario_id,
+        tipo: p.usuario_tipo || null,
+        cargo: p.cargo || '',
+      })),
+      personal_comun: personalControl.map((p) => ({
+        id: p.personal_id,
+        nombre: `${String(p.apellidos || '').trim()}, ${String(p.nombres || '').trim()}`.replace(/^,\s*|,\s*$/g, '').trim(),
+        cargo: p.cargo || '',
+        tipo: p.usuario_tipo || null,
       })),
     });
   } catch (e) {
@@ -77,6 +89,18 @@ router.get('/resumen-mes', async (req, res) => {
   } catch (e) {
     console.error('[admin/tardanzas/resumen-mes]', e);
     res.status(500).json({ error: e.message || 'Error al calcular resumen del mes.' });
+  }
+});
+
+/** GET /api/admin/tardanzas/faltas?personal_id=&desde=&hasta= */
+router.get('/faltas', async (req, res) => {
+  try {
+    const { query } = require('../utils/mysql');
+    const data = await listarFaltasPersonalComun(query, colegioId(req), req.query);
+    res.json(data);
+  } catch (e) {
+    console.error('[admin/tardanzas/faltas]', e);
+    res.status(500).json({ error: e.message || 'Error al listar faltas.' });
   }
 });
 

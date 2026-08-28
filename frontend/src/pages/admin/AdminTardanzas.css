@@ -325,11 +325,39 @@
   min-width: 10rem;
 }
 
-.admin-tardanzas-toolbar__actions {
+.admin-tardanzas-toolbar-locks {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  margin-left: auto;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.admin-tardanzas-lock-btn {
+  width: 2.35rem;
+  height: 2.35rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 1.05rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.admin-tardanzas-lock-btn:hover:not(:disabled) {
+  border-color: #64748b;
+  background: #f8fafc;
+}
+
+.admin-tardanzas-lock-btn--quitar:hover:not(:disabled) {
+  border-color: #94a3b8;
+  background: #f1f5f9;
+}
+
+.admin-tardanzas-lock-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .admin-tardanzas-table-wrap {
@@ -461,6 +489,24 @@
   font-size: 0.8rem;
   color: #64748b;
   margin: 0 0 0.75rem;
+}
+
+.admin-tz-tab--faltas.is-active {
+  background: linear-gradient(135deg, #be123c, #e11d48);
+}
+
+.admin-tz-help--faltas {
+  border-color: #fecdd3;
+  border-left-color: #e11d48;
+  background: #fff1f2;
+}
+
+.admin-tz-help--faltas h2 {
+  color: #9f1239;
+}
+
+.admin-tz-help--faltas p {
+  color: #be123c;
 }
 
 .admin-tz-tab--bio.is-active {

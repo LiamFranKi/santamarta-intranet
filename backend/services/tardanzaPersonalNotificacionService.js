@@ -9,6 +9,7 @@ const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { enviarPushNotificacionesIndividuales } = require('./pushNotificationService');
 const {
   calcTardanza,
+  sueldoDe,
   formatHoraDisplay,
   nombrePersonal,
 } = require('../utils/adminTardanzasHuellero');
@@ -117,7 +118,7 @@ async function notificarAdminsTardanzaPersonal(opts = {}) {
     return { ok: false, reason: 'sin_hora_config' };
   }
 
-  const { minutos_tardanza, descuento } = calcTardanza(horaConfig, horaMarcacion);
+  const { minutos_tardanza, descuento } = calcTardanza(horaConfig, horaMarcacion, sueldoDe(personal));
   if (!minutos_tardanza || minutos_tardanza <= 0) {
     return { ok: false, reason: 'a_tiempo' };
   }

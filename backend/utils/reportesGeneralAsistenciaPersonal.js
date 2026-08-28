@@ -5,8 +5,9 @@ const ExcelJS = require('exceljs');
 const { query } = require('./mysql');
 const {
   loadPersonalColegio,
+  personalCuentaControlAsistencia,
   calcTardanza,
-  DESCUENTO_POR_MINUTO,
+  FORMULA_DESCUENTO_TARDANZA,
   formatHoraDisplay,
   nombrePersonal,
   getAnioActivo,
@@ -143,7 +144,7 @@ function construirFilasReporte(personalList, fechas, marcMap) {
       const horaMarc = marcMap[`${p.personal_id}:${fecha}`];
       const horaMarcFmt = horaMarc ? formatHoraDisplay(horaMarc) : '';
       const { minutos_tardanza: minT, descuento: desc } = horaMarc
-        ? calcTardanza(horaIngreso, horaMarc)
+        ? calcTardanza(horaIngreso, horaMarc, p.sueldo)
         : { minutos_tardanza: 0, descuento: 0 };
       dias[fecha] = {
         hora_marcacion: horaMarcFmt,
@@ -197,7 +198,9 @@ async function construirDatosAsistenciaPersonal(colegioId, filtros) {
   const fechas = fechasIso.map((iso) => ({ iso, label: fmtFechaDDM(iso) }));
 
   const { colegio_nombre: colegioNombre } = await getAnioActivo(query, colegioId);
-  const personalList = await loadPersonalColegio(query, colegioId);
+  const personalList = (await loadPersonalColegio(query, colegioId)).filter(
+    personalCuentaControlAsistencia
+  );
   const marcMap = await cargarMarcacionesRango(colegioId, desde, hasta);
   const filas = construirFilasReporte(personalList, fechasIso, marcMap);
 
@@ -212,7 +215,8 @@ async function construirDatosAsistenciaPersonal(colegioId, filtros) {
     hasta,
     fechas,
     colegio_nombre: colegioNombre,
-    tarifa_por_minuto: DESCUENTO_POR_MINUTO,
+    tarifa_por_minuto: null,
+    formula_descuento: FORMULA_DESCUENTO_TARDANZA,
     filas,
     total_personal: filas.length,
     total_minutos: totalMinutos,

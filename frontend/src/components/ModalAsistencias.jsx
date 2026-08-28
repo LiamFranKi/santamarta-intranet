@@ -57,7 +57,8 @@ function ModalAsistencias({ isOpen, onClose }) {
         total_descuento: data.total_descuento || 0,
         hora_entrada_configurada_fmt: data.hora_entrada_configurada_fmt || '—',
         mes_nombre: data.mes_nombre || MESES[mesSeleccionado - 1],
-        tarifa_por_minuto: data.tarifa_por_minuto ?? 1,
+        tarifa_por_minuto: data.tarifa_por_minuto ?? 0,
+        formula_descuento: data.formula_descuento,
       });
     } catch (error) {
       console.error('Error cargando asistencias:', error);
@@ -139,7 +140,16 @@ function ModalAsistencias({ isOpen, onClose }) {
             <span className="info-badge">
               Hora de entrada real: <strong>{resumen.hora_entrada_configurada_fmt}</strong>
               {' · '}
-              Tarifa: <strong>S/. {resumen.tarifa_por_minuto.toFixed(2)}</strong> por minuto de tardanza
+              {resumen.tarifa_por_minuto > 0 ? (
+                <>
+                  Tarifa: <strong>S/. {Number(resumen.tarifa_por_minuto).toFixed(4)}</strong> por minuto (sueldo ÷ 30 ÷
+                  8 ÷ 60)
+                </>
+              ) : (
+                <>
+                  Descuento: <strong>S/. 0.00</strong> (sin sueldo en ficha)
+                </>
+              )}
             </span>
           </div>
         )}
