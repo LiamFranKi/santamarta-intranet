@@ -47,7 +47,10 @@ async function query(sql, params = []) {
       throw new Error('Solo se permiten consultas SELECT. Modificación de datos no permitida.');
     }
     const queryParams = Array.isArray(params) ? params : [];
-    const [rows] = await mysqlReadPool.execute(sql, queryParams);
+    // pool.query (protocolo texto) — no crear prepared statements en el servidor.
+    // execute() acumula un statement por cada SQL distinta (IN con N placeholders) y
+    // llega a max_prepared_stmt_count (16382) → ER_MAX_PREPARED_STMT_COUNT_REACHED.
+    const [rows] = await mysqlReadPool.query(sql, queryParams);
     return rows;
   } catch (error) {
     console.error('MySQL Error:', error);
@@ -61,7 +64,7 @@ async function query(sql, params = []) {
 async function execute(sql, params = []) {
   try {
     const queryParams = Array.isArray(params) ? params : [];
-    const [result] = await mysqlReadPool.execute(sql, queryParams);
+    const [result] = await mysqlReadPool.query(sql, queryParams);
     return result;
   } catch (error) {
     const isDup =
@@ -77,7 +80,7 @@ async function execute(sql, params = []) {
 
 async function getAnioActivo(colegioId) {
   try {
-    const [rows] = await mysqlReadPool.execute(
+    const [rows] = await mysqlReadPool.query(
       'SELECT anio_activo FROM colegios WHERE id = ?',
       [colegioId]
     );

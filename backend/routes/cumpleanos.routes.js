@@ -51,7 +51,7 @@ router.get('/bienvenida', async (req, res) => {
     res.json(payload);
   } catch (error) {
     console.error('Error cumpleaños bienvenida:', error);
-    res.status(500).json({ show_modal: false });
+    res.json({ show_modal: false });
   }
 });
 

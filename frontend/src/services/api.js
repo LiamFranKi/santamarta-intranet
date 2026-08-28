@@ -129,7 +129,8 @@ api.interceptors.response.use(
       return Promise.reject(new Error('SESSION_REVOKED'));
     }
 
-    // Errores críticos que requieren cerrar sesión automáticamente
+    // Errores de autenticación: cerrar sesión. Un 500/502/503 es un fallo de API, no sesión inválida
+    // (si se cierra por 500, se borra el token y el resto de peticiones salen 401).
     const criticalErrors = {
       401: {
         reason: 'SESION_EXPIRADA',
@@ -138,18 +139,6 @@ api.interceptors.response.use(
       403: {
         reason: 'SIN_PERMISOS',
         message: 'No tienes permisos para acceder a este recurso. Tu sesión será cerrada.',
-      },
-      500: {
-        reason: 'ERROR_SERVIDOR',
-        message: 'Ha ocurrido un error en el servidor. Por seguridad, tu sesión será cerrada.',
-      },
-      502: {
-        reason: 'SERVIDOR_NO_DISPONIBLE',
-        message: 'El servidor no está disponible temporalmente. Por favor, intenta más tarde.',
-      },
-      503: {
-        reason: 'SERVICIO_NO_DISPONIBLE',
-        message: 'El servicio no está disponible temporalmente. Por favor, intenta más tarde.',
       },
     };
 
@@ -190,6 +179,12 @@ api.interceptors.response.use(
     const isPublicacionesRoute = error.config?.url?.includes('/publicaciones');
     const isPushRoute = error.config?.url?.includes('/push/');
     const isNotificacionesRoute = error.config?.url?.includes('/notificaciones');
+    /** Widgets al entrar al dashboard: un 401 aquí no implica token inválido (carrera / ruta opcional). */
+    const isWidgetSesionRoute =
+      /\/cumpleanos(\/|$)/.test(reqUrl) ||
+      /\/herramientas-examenes\/modal-pendiente/.test(reqUrl) ||
+      /\/encuestas\/modal-pendiente/.test(reqUrl);
+    const skipLogoutWidgetSesion = isWidgetSesionRoute && (status === 401 || status === 403);
     // Exámenes de alumno: errores 403/5xx pueden ser cierre concurrente o validación de intento, no sesión inválida.
     const isAlumnoExamenRoute = /\/alumno\/examenes\//.test(reqUrl);
     /** Eventos institucionales (/api/admin/eventos): 403 por rol desactualizado no debe cerrar la sesión. */
@@ -247,6 +242,7 @@ api.interceptors.response.use(
       !isPublicacionesRoute &&
       !isPushRoute &&
       !isNotificacionesRoute &&
+      !skipLogoutWidgetSesion &&
       !isAdminEventosRoute &&
       !isActividadesRoute &&
       !isGruposRoute &&
