@@ -534,7 +534,9 @@ export default function AdminConexiones() {
 
               <div className="admin-conexiones-row">
                 <span className="admin-conexiones-label">Perfil destino:</span>
-                <label><input type="radio" checked={perfilDestino === 'todos'} onChange={() => setPerfilDestino('todos')} /> Todos</label>
+                <label title="Alumnos y apoderados de los grupos. No incluye a los docentes del aula.">
+                  <input type="radio" checked={perfilDestino === 'todos'} onChange={() => setPerfilDestino('todos')} /> Apoderados y alumnos
+                </label>
                 <label><input type="radio" checked={perfilDestino === 'alumnos'} onChange={() => setPerfilDestino('alumnos')} /> Alumnos</label>
                 <label><input type="radio" checked={perfilDestino === 'docentes'} onChange={() => setPerfilDestino('docentes')} /> Docentes</label>
                 <label><input type="radio" checked={perfilDestino === 'apoderados'} onChange={() => setPerfilDestino('apoderados')} /> Apoderados</label>

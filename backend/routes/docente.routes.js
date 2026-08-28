@@ -36,7 +36,11 @@ const {
 } = require('../utils/mensajesHijoDocenteContexto');
 const {
   obtenerMetaGruposConexiones,
-  enriquecerMensajeConexionesFamiliares
+  enriquecerMensajeConexionesFamiliares,
+  normalizarEnviarA,
+  perfilGrupoIncluyeAlumnos,
+  perfilGrupoIncluyeApoderados,
+  perfilGrupoIncluyeDocentesDelGrupo
 } = require('../utils/mensajesGrupoConexionesContexto');
 const { fetchUsuariosTutoresGrupos } = require('../utils/grupoTutores');
 const { enriquecerMensajeDocenteParaDestinatario } = require('../utils/mensajesDocenteApoderadoContexto');
@@ -15413,10 +15417,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
     const phpBaseMensajes = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
     const contextoAlumnoIdEnvio = primerValorMultipart(contexto_alumno_id);
     const contextoGrupoIdEnvio = primerValorMultipart(contexto_grupo_id);
-    const enviarAValue = String(primerValorMultipart(enviar_a) || 'todos').toLowerCase();
-    const enviarATipo = ['apoderados', 'alumnos', 'docentes', 'todos', 'todo_personal'].includes(enviarAValue)
-      ? enviarAValue
-      : 'todos';
+    const enviarATipo = normalizarEnviarA(primerValorMultipart(enviar_a));
     const alcanceValue = String(primerValorMultipart(alcance) || '').toLowerCase();
     const esConexionManual = primerValorMultipart(modo_conexiones) === 'true' || primerValorMultipart(modo_conexiones) === true;
     const expandApoderadosRoles = expand_apoderados_roles === 'true' || expand_apoderados_roles === true;
@@ -15553,8 +15554,14 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
                  WHERE colegio_id = ? AND estado = 'ACTIVO' AND tipo IN (${ph})`,
                 [colegio_id, ...tiposPersonal]
               );
+            } else if (enviarATipo === 'apoderados_alumnos') {
+              usuariosGlobales = await query(
+                `SELECT id as usuario_id FROM usuarios
+                 WHERE colegio_id = ? AND estado = 'ACTIVO' AND tipo IN ('ALUMNO', 'APODERADO')`,
+                [colegio_id]
+              );
             } else {
-              // TODOS incluye administradores, promotoría, docentes, alumnos y apoderados
+              // TODOS (cobertura colegio): todos los usuarios activos
               usuariosGlobales = await query(
                 `SELECT id as usuario_id FROM usuarios
                  WHERE colegio_id = ? AND estado = 'ACTIVO'`,
@@ -15631,8 +15638,8 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
         // Si hay grupos, obtener destinatarios según perfil seleccionado
         let totalAlumnosGrupos = 0;
         if (gruposArray && gruposArray.length > 0) {
-          // Alumnos: solo si enviar_a es 'todos' o 'alumnos'
-          if (enviarATipo === 'todos' || enviarATipo === 'alumnos') {
+          // Alumnos del grupo: todos / apoderados_alumnos / alumnos (no docentes del aula)
+          if (perfilGrupoIncluyeAlumnos(enviarATipo)) {
             const alumnosGrupos = await query(
               `SELECT DISTINCT u.id as usuario_id
                FROM grupos g
@@ -15651,8 +15658,9 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
             });
           }
 
-          // Apoderados y docentes-apoderados: solo si enviar_a es 'todos' o 'apoderados'
-          if (enviarATipo === 'todos' || enviarATipo === 'apoderados') {
+          // Apoderados del grupo (cuenta APODERADO). Un docente que también es padre/madre
+          // lo recibe en su usuario APODERADO, no en la bandeja de docente.
+          if (perfilGrupoIncluyeApoderados(enviarATipo)) {
           try {
             const apoderadosGrupo = await query(
               `SELECT DISTINCT u.id as usuario_id, ap.nro_documento, ap.email
@@ -15666,7 +15674,6 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
               [colegio_id, colegio_id, ...gruposArray]
             );
             const apoderadoIds = [];
-            const apoderadoDnis = [];
             const apoderadosUnicos = [];
             const vistos = new Set();
             for (const ap of apoderadosGrupo || []) {
@@ -15674,36 +15681,21 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
               vistos.add(ap.usuario_id);
               apoderadosUnicos.push(ap);
               apoderadoIds.push(ap.usuario_id);
-              if (ap.nro_documento) apoderadoDnis.push(ap.nro_documento);
             }
             apoderadoIds.forEach(id => {
               if (!usuariosDestinatarios.includes(id)) usuariosDestinatarios.push(id);
             });
-            // Docentes que también son apoderados (mismo DNI): reciben mensaje en bandeja docente
-            if (apoderadoDnis.length > 0) {
-              const placeholdersDni = apoderadoDnis.map(() => '?').join(',');
-              let sqlDocApod = `SELECT DISTINCT u.id FROM usuarios u
-                INNER JOIN personal p ON p.id = u.personal_id
-                WHERE u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'DOCENTE'
-                  AND p.nro_documento IN (${placeholdersDni})`;
-              const paramsDocApod = [colegio_id, ...apoderadoDnis];
-              if (apoderadoIds.length > 0) {
-                sqlDocApod += ` AND u.id NOT IN (${apoderadoIds.map(() => '?').join(',')})`;
-                paramsDocApod.push(...apoderadoIds);
-              }
-              const docentesApoderados = await query(sqlDocApod, paramsDocApod);
-              (docentesApoderados || []).forEach(d => {
-                if (!usuariosDestinatarios.includes(d.id)) usuariosDestinatarios.push(d.id);
-              });
-              console.log(`📨 [ENVIAR MENSAJE] Apoderados: ${apoderadosUnicos.length}, docentes-apoderados: ${(docentesApoderados || []).length}`);
-            }
+            // No copiar a cuentas DOCENTE por DNI: el apoderado que también es docente
+            // lo recibe en su usuario APODERADO. La bandeja docente solo entra con "Solo Docentes".
+            console.log(`📨 [ENVIAR MENSAJE] Apoderados del grupo: ${apoderadosUnicos.length}`);
           } catch (errApod) {
             console.warn('⚠️ [ENVIAR MENSAJE] Error obteniendo apoderados para bandeja:', errApod.message);
           }
           }
 
-          // Docentes del grupo (asignaturas y tutoría): solo si enviar_a es 'todos' o 'docentes'
-          if (enviarATipo === 'todos' || enviarATipo === 'docentes') {
+          // Docentes del grupo (asignaturas y tutoría): solo "Solo Docentes".
+          // "Todos" / "Apoderados y Alumnos" no deben llegar al staff del aula.
+          if (perfilGrupoIncluyeDocentesDelGrupo(enviarATipo)) {
             try {
               const docentesGrupo = await query(
                 `SELECT DISTINCT u.id as usuario_id

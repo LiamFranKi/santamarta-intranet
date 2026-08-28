@@ -149,7 +149,7 @@ function DocenteTutoria({
   const [contenidoMensajeGrupo, setContenidoMensajeGrupo] = useState('');
   const [archivosAdjuntosMensajeGrupo, setArchivosAdjuntosMensajeGrupo] = useState([]);
   const [enviandoMensajeGrupo, setEnviandoMensajeGrupo] = useState(false);
-  const [enviarAMensajeGrupo, setEnviarAMensajeGrupo] = useState('todos'); // 'todos' | 'apoderados' | 'alumnos'
+  const [enviarAMensajeGrupo, setEnviarAMensajeGrupo] = useState('apoderados_alumnos');
   const quillRefMensajeGrupo = useRef(null);
   
   // Estados para modal de asistencias (tutoría)
@@ -2907,7 +2907,7 @@ function DocenteTutoria({
       setAsuntoMensajeGrupo('');
       setContenidoMensajeGrupo('');
       setArchivosAdjuntosMensajeGrupo([]);
-      setEnviarAMensajeGrupo('todos');
+      setEnviarAMensajeGrupo('apoderados_alumnos');
       setMostrarModalMensajeGrupo(false);
       setGrupoParaMensaje(null);
     } catch (error) {
@@ -4173,7 +4173,7 @@ function DocenteTutoria({
                 setAsuntoMensajeGrupo('');
                 setContenidoMensajeGrupo('');
                 setArchivosAdjuntosMensajeGrupo([]);
-                setEnviarAMensajeGrupo('todos');
+                setEnviarAMensajeGrupo('apoderados_alumnos');
                 setGrupoParaMensaje(null);
               }
             }}
@@ -4195,7 +4195,7 @@ function DocenteTutoria({
                   setAsuntoMensajeGrupo('');
                   setContenidoMensajeGrupo('');
                   setArchivosAdjuntosMensajeGrupo([]);
-                  setEnviarAMensajeGrupo('todos');
+                  setEnviarAMensajeGrupo('apoderados_alumnos');
                   setGrupoParaMensaje(null);
                 }}
                 type="button"
@@ -4222,9 +4222,10 @@ function DocenteTutoria({
                   onChange={(e) => setEnviarAMensajeGrupo(e.target.value)}
                   className="cf-enviar-a-select"
                 >
-                  <option value="todos">👥 Todos (Apoderados y Alumnos)</option>
+                  <option value="apoderados_alumnos">👥 Apoderados y Alumnos</option>
                   <option value="apoderados">👨‍👩‍👧 Solo Apoderados</option>
                   <option value="alumnos">🎓 Solo Alumnos</option>
+                  <option value="docentes">🧑‍🏫 Solo Docentes</option>
                 </select>
               </div>
 
@@ -4318,7 +4319,7 @@ function DocenteTutoria({
                     setAsuntoMensajeGrupo('');
                     setContenidoMensajeGrupo('');
                     setArchivosAdjuntosMensajeGrupo([]);
-                    setEnviarAMensajeGrupo('todos');
+                    setEnviarAMensajeGrupo('apoderados_alumnos');
                     setGrupoParaMensaje(null);
                   }}
                   type="button"

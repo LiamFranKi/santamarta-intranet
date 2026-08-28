@@ -32,7 +32,7 @@ function DocenteConexionesFamiliares() {
   const [contenidoMensaje, setContenidoMensaje] = useState('');
   const [archivosAdjuntos, setArchivosAdjuntos] = useState([]);
   const [enviandoMensaje, setEnviandoMensaje] = useState(false);
-  const [enviarA, setEnviarA] = useState('todos'); // 'todos' | 'apoderados' | 'alumnos'
+  const [enviarA, setEnviarA] = useState('apoderados_alumnos');
   const quillRef = useRef(null);
 
   // Modal Ver mensaje
@@ -299,7 +299,7 @@ function DocenteConexionesFamiliares() {
                 setAsuntoMensaje('');
                 setContenidoMensaje('');
                 setArchivosAdjuntos([]);
-                setEnviarA('todos');
+                setEnviarA('apoderados_alumnos');
                 setMostrarModalEnviar(true);
               }}
               type="button"
@@ -381,9 +381,10 @@ function DocenteConexionesFamiliares() {
                   onChange={(e) => setEnviarA(e.target.value)}
                   className="cf-enviar-a-select"
                 >
-                  <option value="todos">👥 Todos (Apoderados y Alumnos)</option>
+                  <option value="apoderados_alumnos">👥 Apoderados y Alumnos</option>
                   <option value="apoderados">👨‍👩‍👧 Solo Apoderados</option>
                   <option value="alumnos">🎓 Solo Alumnos</option>
+                  <option value="docentes">🧑‍🏫 Solo Docentes</option>
                 </select>
               </div>
               <div className="form-group">

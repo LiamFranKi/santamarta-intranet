@@ -106,7 +106,43 @@ function enriquecerMensajeConexionesFamiliares({
   };
 }
 
+const PERFILES_ENVIAR_A = [
+  'apoderados',
+  'alumnos',
+  'docentes',
+  'todos',
+  'todo_personal',
+  'apoderados_alumnos'
+];
+
+function normalizarEnviarA(value) {
+  const v = String(value || 'todos').toLowerCase();
+  return PERFILES_ENVIAR_A.includes(v) ? v : 'todos';
+}
+
+/** Alumnos del aula: "todos" / "apoderados_alumnos" / "alumnos". */
+function perfilGrupoIncluyeAlumnos(tipo) {
+  return tipo === 'todos' || tipo === 'apoderados_alumnos' || tipo === 'alumnos';
+}
+
+/** Apoderados del aula (cuenta APODERADO). No incluye docentes del grupo. */
+function perfilGrupoIncluyeApoderados(tipo) {
+  return tipo === 'todos' || tipo === 'apoderados_alumnos' || tipo === 'apoderados';
+}
+
+/**
+ * Docentes que enseñan en el grupo (asignaturas + tutores).
+ * Solo "docentes". "todos" / "apoderados_alumnos" son familias, no el staff del aula.
+ */
+function perfilGrupoIncluyeDocentesDelGrupo(tipo) {
+  return tipo === 'docentes';
+}
+
 module.exports = {
   obtenerMetaGruposConexiones,
-  enriquecerMensajeConexionesFamiliares
+  enriquecerMensajeConexionesFamiliares,
+  normalizarEnviarA,
+  perfilGrupoIncluyeAlumnos,
+  perfilGrupoIncluyeApoderados,
+  perfilGrupoIncluyeDocentesDelGrupo
 };

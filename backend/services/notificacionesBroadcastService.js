@@ -7,6 +7,12 @@ const { urlDashboardPorTipoUsuario } = require('../utils/notificacionUrls');
 const { enviarPushNotificacionesIndividuales } = require('./pushNotificationService');
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
 const { fetchUsuariosTutoresGrupos } = require('../utils/grupoTutores');
+const {
+  normalizarEnviarA,
+  perfilGrupoIncluyeAlumnos,
+  perfilGrupoIncluyeApoderados,
+  perfilGrupoIncluyeDocentesDelGrupo
+} = require('../utils/mensajesGrupoConexionesContexto');
 
 const TIPOS_PERSONAL = ['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA', 'PSICOLOGA', 'DOCENTE', 'ASISTENCIA'];
 
@@ -73,7 +79,7 @@ async function resolverDestinatariosBroadcast(query, params) {
     gruposIds = [],
   } = params;
 
-  const enviarATipo = String(perfilDestino || 'todos').toLowerCase();
+  const enviarATipo = normalizarEnviarA(perfilDestino);
   const alcanceEnvio = alcance === 'grupos' ? 'grupos' : 'todos';
   const gruposArray = (gruposIds || [])
     .map((x) => parseInt(x, 10))
@@ -108,6 +114,12 @@ async function resolverDestinatariosBroadcast(query, params) {
          WHERE colegio_id = ? AND estado = 'ACTIVO' AND tipo IN (${ph})`,
         [colegio_id, ...TIPOS_PERSONAL]
       );
+    } else if (enviarATipo === 'apoderados_alumnos') {
+      usuariosGlobales = await query(
+        `SELECT id AS usuario_id FROM usuarios
+         WHERE colegio_id = ? AND estado = 'ACTIVO' AND tipo IN ('ALUMNO', 'APODERADO')`,
+        [colegio_id]
+      );
     } else {
       usuariosGlobales = await query(
         `SELECT id AS usuario_id FROM usuarios
@@ -123,7 +135,7 @@ async function resolverDestinatariosBroadcast(query, params) {
   }
 
   if (gruposArray.length > 0) {
-    if (enviarATipo === 'todos' || enviarATipo === 'alumnos') {
+    if (perfilGrupoIncluyeAlumnos(enviarATipo)) {
       const alumnosGrupos = await query(
         `SELECT DISTINCT u.id AS usuario_id
          FROM grupos g
@@ -140,9 +152,9 @@ async function resolverDestinatariosBroadcast(query, params) {
       });
     }
 
-    if (enviarATipo === 'todos' || enviarATipo === 'apoderados') {
+    if (perfilGrupoIncluyeApoderados(enviarATipo)) {
       const apoderadosGrupo = await query(
-        `SELECT DISTINCT u.id AS usuario_id, ap.nro_documento
+        `SELECT DISTINCT u.id AS usuario_id
          FROM grupos g
          INNER JOIN matriculas m ON m.grupo_id = g.id AND (m.estado = 0)
          INNER JOIN alumnos a ON a.id = m.alumno_id
@@ -152,31 +164,14 @@ async function resolverDestinatariosBroadcast(query, params) {
          WHERE g.id IN (${gruposArray.map(() => '?').join(',')})`,
         [colegio_id, colegio_id, ...gruposArray]
       );
-      const apoderadoDnis = [];
       for (const ap of apoderadosGrupo || []) {
         if (!usuariosDestinatarios.includes(ap.usuario_id)) {
           usuariosDestinatarios.push(ap.usuario_id);
         }
-        if (ap.nro_documento) apoderadoDnis.push(ap.nro_documento);
-      }
-      if (apoderadoDnis.length > 0) {
-        const docentesApoderados = await query(
-          `SELECT DISTINCT u.id AS usuario_id
-           FROM usuarios u
-           INNER JOIN personal p ON p.id = u.personal_id
-           WHERE u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'DOCENTE'
-             AND p.nro_documento IN (${apoderadoDnis.map(() => '?').join(',')})`,
-          [colegio_id, ...apoderadoDnis]
-        );
-        (docentesApoderados || []).forEach((d) => {
-          if (!usuariosDestinatarios.includes(d.usuario_id)) {
-            usuariosDestinatarios.push(d.usuario_id);
-          }
-        });
       }
     }
 
-    if (enviarATipo === 'todos' || enviarATipo === 'docentes') {
+    if (perfilGrupoIncluyeDocentesDelGrupo(enviarATipo)) {
       const docentesGrupo = await query(
         `SELECT DISTINCT u.id AS usuario_id
          FROM asignaturas a
