@@ -31,6 +31,7 @@ const {
   compararDatetimeMysql,
   esDatetimeMysqlValido
 } = require('../utils/actividadesFecha');
+const { mezclarReunionesEnActividades } = require('../utils/reunionesHelper');
 const {
   obtenerContextoAlumnoGrupoParaMensaje,
   enriquecerMensajeApoderadoADocente
@@ -1692,7 +1693,12 @@ router.get('/dashboard', async (req, res) => {
       },
       proximosExamenes: proximosExamenes || [],
       proximasTareas: proximasTareas || [],
-      actividades: actividades || [],
+      actividades: await mezclarReunionesEnActividades(query, actividades, {
+        colegio_id,
+        usuario_id,
+        anio: añoActual,
+        soloFuturas: true,
+      }),
       comunicadoHome: comunicadoHomeData,
       comunicadosHome: comunicadosHomeData
     });
@@ -14841,7 +14847,7 @@ router.delete('/actividades/:id', async (req, res) => {
  */
 router.get('/actividades', async (req, res) => {
   try {
-    const { colegio_id } = req.user;
+    const { colegio_id, usuario_id } = req.user;
     const { fecha, mes, anio } = req.query;
 
     // Si no se especifica año, usar año actual (para el menú Actividades)
@@ -14875,11 +14881,18 @@ router.get('/actividades', async (req, res) => {
     querySql += ` ORDER BY a.fecha_inicio ASC, a.fecha_fin ASC`;
 
     const actividades = await query(querySql, params);
+    const actividadesConReuniones = await mezclarReunionesEnActividades(query, actividades, {
+      colegio_id,
+      usuario_id,
+      anio: añoFiltro,
+      mes,
+      fecha,
+    });
 
-    console.log(`📅 Actividades del año ${añoFiltro}${mes ? `, mes ${mes}` : ''}:`, actividades.length);
+    console.log(`📅 Actividades del año ${añoFiltro}${mes ? `, mes ${mes}` : ''}:`, actividadesConReuniones.length);
 
     res.json({ 
-      actividades: actividades || [],
+      actividades: actividadesConReuniones || [],
       anio: añoFiltro
     });
   } catch (error) {

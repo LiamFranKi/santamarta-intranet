@@ -374,6 +374,8 @@ app.use('/api/herramientas-examenes', herramientasExamenesRoutes);
 app.use('/api/vocabularios', vocabulariosRoutes);
 app.use('/api/elecciones', eleccionesRoutes);
 app.use('/api/fichas-ia', fichasIaRoutes);
+const reunionesRoutes = require('./routes/reuniones.routes');
+app.use('/api/reuniones', reunionesRoutes);
 
 // Rutas de prueba (solo desarrollo)
 if (process.env.NODE_ENV === 'development') {
@@ -539,4 +541,26 @@ app.listen(PORT, () => {
     }
   };
   iniciarAvisosInicioClase();
+
+  const iniciarRecordatorioReuniones = () => {
+    try {
+      const { enviarRecordatoriosReunionesHoy } = require('./services/reunionesRecordatorioService');
+      const correr = async (etiqueta) => {
+        try {
+          const r = await enviarRecordatoriosReunionesHoy();
+          if (r && r.enviadas) {
+            console.log(`📅 [REUNIONES] Recordatorios del día (${etiqueta}): ${r.enviadas}`);
+          }
+        } catch (e) {
+          console.error(`❌ [REUNIONES] Error recordatorio (${etiqueta}):`, e);
+        }
+      };
+      setTimeout(() => correr('primera'), 180000);
+      setInterval(() => correr('periodica'), 60 * 60 * 1000);
+      console.log('📅 [REUNIONES] Recordatorio del día: primera ~3 min, luego cada 1 h');
+    } catch (error) {
+      console.error('❌ [REUNIONES] Error configurando recordatorio:', error);
+    }
+  };
+  iniciarRecordatorioReuniones();
 });

@@ -258,6 +258,8 @@ api.interceptors.response.use(
     /** Diseñador de fichas: 500 por bug o Gemini no debe cerrar sesión. */
     const isFichasIaRoute = /\/fichas-ia\//.test(reqUrl);
     const skipLogoutFichasIa500 = isFichasIaRoute && status === 500;
+    const isReunionesRoute = /\/reuniones(\/|$|\?)/.test(reqUrl);
+    const skipLogoutReuniones = isReunionesRoute && (status === 403 || status === 500 || status === 503);
 
     if (
       status &&
@@ -286,6 +288,7 @@ api.interceptors.response.use(
       !skipLogoutEleccionesAdmin403 &&
       !skipLogoutPublicColegioServerErrors &&
       !skipLogoutFichasIa500 &&
+      !skipLogoutReuniones &&
       !isPublicEventosRoute
     ) {
       const errorInfo = criticalErrors[status];

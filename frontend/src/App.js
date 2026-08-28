@@ -64,6 +64,7 @@ import HerramientasExamenMiResultado from './pages/herramientas/HerramientasExam
 import DisenadorFichas from './pages/herramientas/DisenadorFichas';
 import AdminSupervision from './pages/admin/AdminSupervision';
 import AdminTardanzas from './pages/admin/AdminTardanzas';
+import ReunionesPage from './pages/reuniones/ReunionesPage';
 import AdminEncuestas from './pages/admin/AdminEncuestas';
 import AdminEncuestaEditor from './pages/admin/AdminEncuestaEditor';
 import AdminEncuestaEstadisticas from './pages/admin/AdminEncuestaEstadisticas';
@@ -616,6 +617,30 @@ function AppRoutes() {
           </PrivateRoute>
         }
       />
+      <Route
+        path="/admin/herramientas/reuniones/:id/:accion"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA']}>
+            <ReunionesPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/herramientas/reuniones/:id"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA']}>
+            <ReunionesPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/herramientas/reuniones"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA']}>
+            <ReunionesPage />
+          </PrivateRoute>
+        }
+      />
       <Route path="/admin/supervision" element={<Navigate to="/admin/herramientas/supervision" replace />} />
       <Route path="/admin/examenes-personal" element={<Navigate to="/admin/herramientas/examenes" replace />} />
       <Route path="/admin/encuestas" element={<Navigate to="/admin/herramientas/encuestas" replace />} />
@@ -723,6 +748,30 @@ function AppRoutes() {
         element={
           <PrivateRoute requiredType="DOCENTE">
             <AdminSupervision />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/herramientas/reuniones/:id/:accion"
+        element={
+          <PrivateRoute requiredType="DOCENTE">
+            <ReunionesPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/herramientas/reuniones/:id"
+        element={
+          <PrivateRoute requiredType="DOCENTE">
+            <ReunionesPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/herramientas/reuniones"
+        element={
+          <PrivateRoute requiredType="DOCENTE">
+            <ReunionesPage />
           </PrivateRoute>
         }
       />
@@ -1003,6 +1052,22 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/alumno/reuniones/:id"
+        element={
+          <PrivateRoute requiredType="ALUMNO">
+            <ReunionesPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/alumno/reuniones"
+        element={
+          <PrivateRoute requiredType="ALUMNO">
+            <ReunionesPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/alumno/mensajes"
         element={
           <PrivateRoute requiredType="ALUMNO">
@@ -1163,6 +1228,22 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <ApoderadoActividades />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/apoderado/reuniones/:id"
+        element={
+          <PrivateRoute requiredType="APODERADO">
+            <ReunionesPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/apoderado/reuniones"
+        element={
+          <PrivateRoute requiredType="APODERADO">
+            <ReunionesPage />
           </PrivateRoute>
         }
       />

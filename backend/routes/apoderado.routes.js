@@ -18,6 +18,7 @@ const {
 } = require('../utils/mensajesHijoDocenteContexto');
 const { fechaHoraMySQLLima, fechaMySQLLima } = require('../utils/fechaHoraLima');
 const { ACTIVIDADES_SELECT_SQL, ACTIVIDADES_SELECT_CON_EVENTO_SQL } = require('../utils/actividadesFecha');
+const { mezclarReunionesEnActividades } = require('../utils/reunionesHelper');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 const {
   fetchMatriculaAnioActivoOperativa,
@@ -548,7 +549,13 @@ router.get('/dashboard', async (req, res) => {
       },
       proximosExamenes: proximosExamenes || [],
       proximasTareas: proximasTareas || [],
-      proximasActividades: actividades || [],
+      proximasActividades: await mezclarReunionesEnActividades(query, actividades, {
+        colegio_id,
+        usuario_id,
+        anio: añoActual,
+        soloFuturas: true,
+        limite: 10,
+      }),
       comunicadoHome: comunicadoHomeData,
       comunicadosHome: comunicadosHomeData
     };
@@ -1040,7 +1047,7 @@ router.get('/comunicados', async (req, res) => {
  */
 router.get('/actividades', async (req, res) => {
   try {
-    const { colegio_id } = req.user;
+    const { colegio_id, usuario_id } = req.user;
     const { anio } = req.query;
     const añoFiltro = anio ? parseInt(anio) : new Date().getFullYear();
 
@@ -1052,8 +1059,14 @@ router.get('/actividades', async (req, res) => {
       [colegio_id, añoFiltro]
     );
 
+    const actividadesConReuniones = await mezclarReunionesEnActividades(query, actividades, {
+      colegio_id,
+      usuario_id,
+      anio: añoFiltro,
+    });
+
     res.json({
-      actividades: actividades || [],
+      actividades: actividadesConReuniones || [],
       anio: añoFiltro
     });
   } catch (error) {

@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import './EventoModal.css';
 import { crearFechaLima } from '../utils/fechaLima';
+import { useAuth } from '../context/AuthContext';
+import { rutaBaseReuniones } from '../utils/reunionesRutas';
 
 function EventoModal({ actividades, fechaSeleccionada, actividadInicial, onClose }) {
+  const { user } = useAuth();
   const [actividadSeleccionada, setActividadSeleccionada] = useState(
     actividadInicial || (actividades && actividades.length > 0 ? actividades[0] : null)
   );
@@ -76,6 +80,14 @@ function EventoModal({ actividades, fechaSeleccionada, actividadInicial, onClose
                         <div className="evento-detalle-item">
                           <span className="evento-detalle-icon">📝</span>
                           <p>{act.detalles}</p>
+                        </div>
+                      )}
+                      {(act.tipo === 'reunion' || act.reunion_id) && (
+                        <div className="evento-detalle-item">
+                          <span className="evento-detalle-icon">🤝</span>
+                          <Link to={`${rutaBaseReuniones(user?.tipo)}/${act.reunion_id}`}>
+                            Abrir reunión
+                          </Link>
                         </div>
                       )}
                       {fechaInicioAct.getTime() !== (fechaFinAct ? fechaFinAct.getTime() : fechaInicioAct.getTime()) && (

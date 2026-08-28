@@ -1,0 +1,351 @@
+.reuniones-page {
+  --re-blue: #1d4ed8;
+  --re-teal: #0f766e;
+  --re-border: #cbd5e1;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.re-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.15rem;
+  padding: 1.35rem 1.5rem;
+  border-radius: 18px;
+  color: #fff;
+  background: linear-gradient(135deg, #1d4ed8 0%, #0e7490 55%, #0f766e 100%);
+  box-shadow: 0 12px 32px rgba(14, 116, 144, 0.28);
+}
+
+.re-hero h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.45rem;
+}
+
+.re-hero p {
+  margin: 0;
+  opacity: 0.92;
+  font-size: 0.92rem;
+  max-width: 42rem;
+}
+
+.re-hero-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.re-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 0.55rem 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.re-btn-primary {
+  background: #fff;
+  color: #0f766e;
+}
+
+.re-btn-ghost {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.re-btn-solid {
+  background: #0f766e;
+  color: #fff;
+}
+
+.re-btn-danger {
+  background: #b91c1c;
+  color: #fff;
+}
+
+.re-btn-asistio {
+  background: #15803d;
+  color: #fff;
+  font-size: 1.05rem;
+  padding: 0.75rem 1.4rem;
+}
+
+.re-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.re-filters {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.re-chip {
+  border: 1px solid var(--re-border);
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.re-chip.active {
+  background: #0f766e;
+  color: #fff;
+  border-color: #0f766e;
+}
+
+.re-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.re-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1rem 1.15rem;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+}
+
+.re-card:hover {
+  border-color: #94a3b8;
+}
+
+.re-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.re-card h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+}
+
+.re-meta {
+  color: #475569;
+  font-size: 0.85rem;
+}
+
+.re-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.re-badge-BORRADOR { background: #e2e8f0; color: #334155; }
+.re-badge-CONVOCADA { background: #dbeafe; color: #1e40af; }
+.re-badge-EN_CURSO { background: #dcfce7; color: #166534; }
+.re-badge-CERRADA { background: #f1f5f9; color: #475569; }
+.re-badge-CANCELADA { background: #fee2e2; color: #991b1b; }
+
+.re-form, .re-detalle {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1.25rem;
+}
+
+.re-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+}
+
+.re-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.re-field.full {
+  grid-column: 1 / -1;
+}
+
+.re-field label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.re-field input,
+.re-field select,
+.re-field textarea {
+  border: 1px solid var(--re-border);
+  border-radius: 10px;
+  padding: 0.5rem 0.7rem;
+  font: inherit;
+}
+
+.re-field textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.re-hint {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.re-invitados {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.re-tag {
+  background: #f1f5f9;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem 0.2rem 0.7rem;
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.re-tag button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #64748b;
+}
+
+.re-search-drop {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  max-height: 220px;
+  overflow: auto;
+  margin-top: 0.35rem;
+}
+
+.re-search-item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: #fff;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+}
+
+.re-search-item:hover {
+  background: #f8fafc;
+}
+
+.re-search-item small {
+  display: block;
+  color: #64748b;
+}
+
+.re-actions-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.re-asist-banner {
+  background: #ecfdf5;
+  border: 1px solid #86efac;
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.re-part-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.re-part-table th,
+.re-part-table td {
+  padding: 0.45rem 0.4rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+
+.re-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: #64748b;
+}
+
+.re-grupo-picker {
+  margin-top: 0.65rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #bae6fd;
+  background: #f0f9ff;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.re-grupo-picker label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.re-html {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #1e293b;
+}
+
+.re-html img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.re-html p {
+  margin: 0 0 0.5rem;
+}
+
+.reuniones-page .admin-mensaje-quill-wrap {
+  border-radius: 10px;
+}
+
+.re-link-ext {
+  display: inline-block;
+  margin-top: 0.35rem;
+  color: #1d4ed8;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+@media (max-width: 720px) {
+  .re-hero {
+    flex-direction: column;
+  }
+  .re-grid {
+    grid-template-columns: 1fr;
+  }
+  .re-asist-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

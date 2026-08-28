@@ -12,6 +12,7 @@ const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = requ
 const phpSerialize = require('php-serialize');
 const { fechaHoraMySQLLima, fechaMySQLLima, horaMySQLLima } = require('../utils/fechaHoraLima');
 const { ACTIVIDADES_SELECT_SQL, ACTIVIDADES_SELECT_CON_EVENTO_SQL } = require('../utils/actividadesFecha');
+const { mezclarReunionesEnActividades } = require('../utils/reunionesHelper');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 const { fetchMatriculaAnioActivoOperativa } = require('../utils/matriculaAnioActivo');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
@@ -565,7 +566,13 @@ router.get('/dashboard', async (req, res) => {
       asignaturas: asignaturas || [],
       proximosExamenes: proximosExamenes || [],
       proximasTareas: proximasTareas || [],
-      proximasActividades: actividades || [],
+      proximasActividades: await mezclarReunionesEnActividades(query, actividades, {
+        colegio_id,
+        usuario_id,
+        anio: añoActual,
+        soloFuturas: true,
+        limite: 10,
+      }),
       comunicadoHome: comunicadoHomeData,
       comunicadosHome: comunicadosHomeData
     };
@@ -1760,7 +1767,7 @@ router.put('/avatares-bimestre/equipar', async (req, res) => {
  */
 router.get('/actividades', async (req, res) => {
   try {
-    const { colegio_id } = req.user;
+    const { colegio_id, usuario_id } = req.user;
     const { anio } = req.query;
 
     // Si no se especifica año, usar año actual
@@ -1775,8 +1782,14 @@ router.get('/actividades', async (req, res) => {
       [colegio_id, añoFiltro]
     );
 
+    const actividadesConReuniones = await mezclarReunionesEnActividades(query, actividades, {
+      colegio_id,
+      usuario_id,
+      anio: añoFiltro,
+    });
+
     res.json({
-      actividades: actividades || [],
+      actividades: actividadesConReuniones || [],
       anio: añoFiltro
     });
   } catch (error) {

@@ -111,6 +111,7 @@ export default function DashboardLayout({ children }) {
           path.startsWith('/docente/herramientas')
           || path.startsWith('/herramientas-examenes')
           || path.startsWith('/encuestas')
+          || path.startsWith('/admin/herramientas/reuniones')
         ) && user?.tipo === 'PSICOLOGA'
           ? { psicologaHerramientas: true }
           : {}
@@ -666,6 +667,15 @@ export default function DashboardLayout({ children }) {
                     </NavLink>
                   ) : null}
                   <NavLink
+                    className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                    to="/docente/herramientas/reuniones"
+                  >
+                    <span className="sidebar-icon" aria-hidden>
+                      🤝
+                    </span>
+                    <span className="sidebar-label">Reuniones</span>
+                  </NavLink>
+                  <NavLink
                     className={({ isActive }) =>
                       `sidebar-sublink ${isActive || location.pathname.startsWith('/elecciones-campana') ? 'active' : ''}`
                     }
@@ -913,6 +923,12 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/reuniones">
+                  <span className="sidebar-icon">🤝</span>
+                  <span className="sidebar-label">Reuniones</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/mensajes">
                   <span className="sidebar-icon">✉️</span>
                   <span className="sidebar-label">Mensajes</span>
@@ -979,6 +995,12 @@ export default function DashboardLayout({ children }) {
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/herramientas/encuestas">
                   <span className="sidebar-icon">📋</span>
                   <span className="sidebar-label">Encuestas</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/herramientas/reuniones">
+                  <span className="sidebar-icon">🤝</span>
+                  <span className="sidebar-label">Reuniones</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">
@@ -1108,6 +1130,12 @@ export default function DashboardLayout({ children }) {
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/actividades">
                   <span className="sidebar-icon">📆</span>
                   <span className="sidebar-label">Actividades</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/reuniones">
+                  <span className="sidebar-icon">🤝</span>
+                  <span className="sidebar-label">Reuniones</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">
@@ -1278,6 +1306,12 @@ export default function DashboardLayout({ children }) {
                       📚
                     </span>
                     <span className="sidebar-label">Vocabularios</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/reuniones">
+                    <span className="sidebar-icon" aria-hidden>
+                      🤝
+                    </span>
+                    <span className="sidebar-label">Reuniones</span>
                   </NavLink>
                 </div>
               </div>
@@ -1522,6 +1556,10 @@ export default function DashboardLayout({ children }) {
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/tardanzas">
                     <span className="sidebar-icon" aria-hidden>⏱️</span>
                     <span className="sidebar-label">Tardanzas</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/reuniones">
+                    <span className="sidebar-icon" aria-hidden>🤝</span>
+                    <span className="sidebar-label">Reuniones</span>
                   </NavLink>
                   {false && (
                   <NavLink

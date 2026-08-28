@@ -310,5 +310,14 @@ export function normalizarUrlNotificacion(notif, user) {
     return '/apoderado/hijos';
   }
 
+  if (tipoAccion === 'reunion') {
+    const rid = payload.reunion_id;
+    const t = String(user?.tipo || '').toUpperCase();
+    if (t === 'ALUMNO') return rid ? `/alumno/reuniones/${rid}` : '/alumno/reuniones';
+    if (t === 'APODERADO') return rid ? `/apoderado/reuniones/${rid}` : '/apoderado/reuniones';
+    if (t === 'DOCENTE') return rid ? `/docente/herramientas/reuniones/${rid}` : '/docente/herramientas/reuniones';
+    return rid ? `/admin/herramientas/reuniones/${rid}` : '/admin/herramientas/reuniones';
+  }
+
   return dashboardPorTipoUsuario(user?.tipo);
 }
