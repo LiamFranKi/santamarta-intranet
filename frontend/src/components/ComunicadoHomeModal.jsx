@@ -7,6 +7,8 @@ import { normalizeStaticFileUrl } from '../config/staticFiles';
 import { procesarHTMLMensaje } from '../utils/mensajesHtml';
 import './ComunicadoHomeModal.css';
 
+const COLORES_MAZO = ['ambar', 'azul', 'verde', 'violeta'];
+
 function storageKey(userId, comunicadoId) {
   return `comunicado_home_u${userId || 'x'}_${comunicadoId}`;
 }
@@ -67,13 +69,14 @@ function abrirArchivo(archivoUrl) {
 
 /**
  * Ventanas de comunicados con "Mostrar en inicio".
- * Varios a la vez (lista en un solo modal). Clave de visto por usuario, no por navegador.
+ * Varios: mazo de cartas (una al frente; al cerrar aparece la de atrás, corrida y de otro color).
  */
 function ComunicadoHomeModal() {
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const location = useLocation();
   const [comunicados, setComunicados] = useState([]);
   const [abierto, setAbierto] = useState(false);
+  const [totalInicio, setTotalInicio] = useState(0);
 
   const userId = user?.id || user?.usuario_id;
 
@@ -82,6 +85,7 @@ function ComunicadoHomeModal() {
     if (authLoading || !isAuthenticated || !user || path.startsWith('/login')) {
       setAbierto(false);
       setComunicados([]);
+      setTotalInicio(0);
       return undefined;
     }
 
@@ -93,10 +97,12 @@ function ComunicadoHomeModal() {
         const lista = Array.isArray(data?.comunicados) ? data.comunicados : [];
         const pendientes = lista.filter((c) => c?.id != null && !yaVisto(userId, c.id));
         setComunicados(pendientes);
+        setTotalInicio(pendientes.length);
         setAbierto(pendientes.length > 0);
       } catch {
         if (!cancel) {
           setComunicados([]);
+          setTotalInicio(0);
           setAbierto(false);
         }
       }
@@ -107,80 +113,104 @@ function ComunicadoHomeModal() {
     };
   }, [authLoading, isAuthenticated, user, userId, location.pathname]);
 
-  const cerrar = () => {
-    comunicados.forEach((c) => {
-      if (c?.id != null) marcarVisto(userId, c.id);
-    });
-    setAbierto(false);
-    setComunicados([]);
+  const cerrarActual = () => {
+    const actual = comunicados[0];
+    if (actual?.id != null) marcarVisto(userId, actual.id);
+    const resto = comunicados.slice(1);
+    setComunicados(resto);
+    if (!resto.length) {
+      setAbierto(false);
+      setTotalInicio(0);
+    }
   };
 
   if (!abierto || comunicados.length === 0) return null;
 
-  const varios = comunicados.length > 1;
+  const actual = comunicados[0];
+  const atras = comunicados.slice(1, 4);
+  const varios = totalInicio > 1;
+  const indice = totalInicio - comunicados.length + 1;
 
   return createPortal(
     <div
       className="comunicado-home-overlay"
-      onClick={cerrar}
+      onClick={cerrarActual}
       role="presentation"
     >
       <div
-        className="comunicado-home-modal"
+        className={`comunicado-home-mazo${atras.length ? ' comunicado-home-mazo--stack' : ''}`}
         onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="modal-comunicado-home-title"
       >
-        <div className="comunicado-home-modal__header">
-          <h2 id="modal-comunicado-home-title">
-            {varios ? `📢 Comunicados importantes (${comunicados.length})` : '📢 Comunicado importante'}
-          </h2>
-          <button
-            className="comunicado-home-modal__close"
-            onClick={cerrar}
-            type="button"
-            aria-label="Cerrar"
-          >
-            ✕
-          </button>
-        </div>
+        {atras.map((_, i) => {
+          const profundidad = atras.length - i;
+          const tono = COLORES_MAZO[(profundidad - 1) % COLORES_MAZO.length];
+          return (
+            <div
+              key={`back-${i}`}
+              className={`comunicado-home-mazo__carta comunicado-home-mazo__carta--${tono}`}
+              style={{
+                '--offset': profundidad,
+              }}
+              aria-hidden="true"
+            />
+          );
+        })}
 
-        <div className="comunicado-home-modal__body">
-          {comunicados.map((com, idx) => (
-            <article
-              key={com.id || idx}
-              className={`comunicado-home-item${varios ? ' comunicado-home-item--varios' : ''}`}
+        <div
+          className="comunicado-home-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-comunicado-home-title"
+        >
+          <div className="comunicado-home-modal__header">
+            <h2 id="modal-comunicado-home-title">
+              {varios
+                ? `📢 Comunicado ${indice} de ${totalInicio}`
+                : '📢 Comunicado importante'}
+            </h2>
+            <button
+              className="comunicado-home-modal__close"
+              onClick={cerrarActual}
+              type="button"
+              aria-label="Cerrar"
             >
-              {varios && (
-                <div className="comunicado-home-item__n">Comunicado {idx + 1} de {comunicados.length}</div>
-              )}
-              <h3 className="comunicado-home-item__titulo">{com.descripcion}</h3>
-              {com.contenido ? (
+              ✕
+            </button>
+          </div>
+
+          <div className="comunicado-home-modal__body">
+            <article className="comunicado-home-item">
+              {varios && comunicados.length > 1 ? (
+                <div className="comunicado-home-item__n">
+                  Quedan {comunicados.length - 1} más detrás
+                </div>
+              ) : null}
+              <h3 className="comunicado-home-item__titulo">{actual.descripcion}</h3>
+              {actual.contenido ? (
                 <div
                   className="comunicado-home-item__contenido"
-                  dangerouslySetInnerHTML={{ __html: procesarHTMLMensaje(com.contenido) }}
+                  dangerouslySetInnerHTML={{ __html: procesarHTMLMensaje(actual.contenido) }}
                 />
               ) : null}
-              {com.fecha_hora ? (
-                <div className="comunicado-home-item__fecha">📅 {formatearFecha(com.fecha_hora)}</div>
+              {actual.fecha_hora ? (
+                <div className="comunicado-home-item__fecha">📅 {formatearFecha(actual.fecha_hora)}</div>
               ) : null}
-              {com.archivo_url ? (
+              {actual.archivo_url ? (
                 <button
                   type="button"
                   className="comunicado-home-item__archivo"
-                  onClick={() => abrirArchivo(com.archivo_url)}
+                  onClick={() => abrirArchivo(actual.archivo_url)}
                 >
                   📎 Ver archivo adjunto
                 </button>
               ) : null}
             </article>
-          ))}
 
-          <div className="comunicado-home-modal__acciones">
-            <button type="button" className="comunicado-home-modal__ok" onClick={cerrar}>
-              Entendido
-            </button>
+            <div className="comunicado-home-modal__acciones">
+              <button type="button" className="comunicado-home-modal__ok" onClick={cerrarActual}>
+                {comunicados.length > 1 ? 'Entendido, ver el siguiente' : 'Entendido'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -25,13 +25,12 @@
 /* Header */
 .escaneo-header {
   background: rgba(255, 255, 255, 0.95);
-  padding: 1rem 1.5rem;
+  padding: 0.85rem 1rem;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  flex-wrap: wrap;
-  gap: 1rem;
 }
 
 .header-left {
@@ -71,63 +70,82 @@
 }
 
 .header-right {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem;
+  align-items: stretch;
+  width: 100%;
+}
+
+.escaneo-toolbar-btn {
   display: flex;
-  gap: 0.75rem;
+  flex-direction: column;
   align-items: center;
-  flex-wrap: wrap;
-}
-
-.modo-select {
-  padding: 0.5rem 1rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  background: white;
+  justify-content: center;
+  gap: 0.28rem;
+  min-height: 4.35rem;
+  padding: 0.45rem 0.28rem;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  text-align: center;
   cursor: pointer;
-  transition: all 0.3s;
+  box-sizing: border-box;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
 }
 
-.modo-select:hover {
-  border-color: #667eea;
+.escaneo-toolbar-btn:active {
+  transform: scale(0.97);
 }
 
-.btn-cambiar-camara,
-.btn-buscar,
-.btn-olvido-qr,
-.btn-cerrar-sesion {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s;
+.escaneo-btn-icon {
+  display: block;
+  font-size: 1.2rem;
+  line-height: 1;
+  height: 1.25rem;
+}
+
+.escaneo-btn-label {
+  display: block;
+  width: 100%;
+  text-align: center;
+  white-space: normal;
+  overflow: visible;
+  word-break: keep-all;
 }
 
 .btn-cambiar-camara {
   background: #10b981;
-  color: white;
-  font-size: 1.2rem;
-  padding: 0.5rem 0.75rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  color: #fff;
 }
 
 .btn-cambiar-camara:hover {
   background: #059669;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+}
+
+.btn-modo {
+  background: #fff;
+  color: #3730a3;
+  border: 2px solid #c7d2fe;
+}
+
+.btn-modo:hover {
+  background: #eef2ff;
+  border-color: #818cf8;
 }
 
 .btn-buscar {
   background: #3b82f6;
-  color: white;
+  color: #fff;
 }
 
 .btn-buscar:hover {
   background: #2563eb;
-  transform: translateY(-2px);
 }
 
 .btn-buscar.is-activo {
@@ -136,12 +154,11 @@
 
 .btn-olvido-qr {
   background: #ea580c;
-  color: white;
+  color: #fff;
 }
 
 .btn-olvido-qr:hover {
   background: #c2410c;
-  transform: translateY(-2px);
 }
 
 .btn-olvido-qr.is-activo {
@@ -150,12 +167,11 @@
 
 .btn-cerrar-sesion {
   background: #ef4444;
-  color: white;
+  color: #fff;
 }
 
 .btn-cerrar-sesion:hover {
   background: #dc2626;
-  transform: translateY(-2px);
 }
 
 /* Búsqueda Manual */
@@ -512,26 +528,43 @@
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (min-width: 900px) {
   .escaneo-header {
-    padding: 1rem;
-  }
-
-  .header-left h1 {
-    font-size: 1.2rem;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
   }
 
   .header-right {
-    width: 100%;
-    justify-content: space-between;
+    width: auto;
+    display: flex;
+    gap: 0.55rem;
   }
 
-  .modo-select,
-  .btn-buscar,
-  .btn-olvido-qr,
-  .btn-cerrar-sesion {
-    flex: 1;
-    min-width: 0;
+  .escaneo-toolbar-btn {
+    flex-direction: row;
+    min-height: 2.75rem;
+    min-width: auto;
+    padding: 0.45rem 0.95rem;
+    font-size: 0.88rem;
+    gap: 0.4rem;
+    white-space: nowrap;
+  }
+
+  .escaneo-btn-label {
+    width: auto;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 768px) {
+  .escaneo-header {
+    padding: 0.75rem 0.75rem 0.85rem;
+  }
+
+  .header-left h1 {
+    font-size: 1.15rem;
   }
 
   .escaneo-container {
@@ -556,6 +589,21 @@
 @media (max-width: 480px) {
   .header-left h1 {
     font-size: 1rem;
+  }
+
+  .header-right {
+    gap: 0.4rem;
+  }
+
+  .escaneo-toolbar-btn {
+    min-height: 4.15rem;
+    padding: 0.4rem 0.18rem;
+    font-size: 0.68rem;
+    border-radius: 10px;
+  }
+
+  .escaneo-btn-icon {
+    font-size: 1.1rem;
   }
 
   #qr-reader {

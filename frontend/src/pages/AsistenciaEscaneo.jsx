@@ -7,6 +7,20 @@ import Swal from 'sweetalert2';
 import AsistenciaConfirmModal from '../components/AsistenciaConfirmModal';
 import './AsistenciaEscaneo.css';
 
+function etiquetaCamara(cam) {
+  return String(cam?.label || '').toLowerCase();
+}
+
+function idCamaraPreferida(cameras, prefer) {
+  if (!cameras?.length) return null;
+  const esTrasera = (c) => /back|rear|environment|trasera|posterior|wide|ultra/i.test(etiquetaCamara(c));
+  const esFrontal = (c) => /front|user|frontal|face|selfie/i.test(etiquetaCamara(c));
+  if (prefer === 'user') {
+    return (cameras.find(esFrontal) || cameras[0]).id;
+  }
+  return (cameras.find(esTrasera) || cameras[cameras.length - 1]).id;
+}
+
 function AsistenciaEscaneo() {
   const navigate = useNavigate();
   const { logout, user, loading: authLoading } = useAuth();
@@ -33,7 +47,8 @@ function AsistenciaEscaneo() {
   const tiempoUltimoQR = useRef(0);
   const registroCompletoThrottleUntil = useRef(0);
   const registroCompletoQR = useRef(null); // QR que dio "registro completo" (throttle 5s)
-  const cambiandoCamara = useRef(false); // Prevenir múltiples cambios de cámara simultáneos
+  const cambiandoCamara = useRef(false);
+  const iniciandoScanRef = useRef(false);
 
   // Solo docentes con al menos un grupo como tutor acceden; ASISTENCIA/ADMIN entran directo
   useEffect(() => {
@@ -161,89 +176,134 @@ function AsistenciaEscaneo() {
   };
 
   const iniciarEscaneo = async () => {
-    // Prevenir iniciar si ya está escaneando o procesando
-    if (escaneando) {
-      console.log('⚠️ Ya está escaneando, ignorando inicio...');
+    if (escaneando || procesando || iniciandoScanRef.current) {
       return;
     }
-    
-    if (procesando) {
-      console.log('⚠️ Hay un proceso en curso, esperando...');
+    if (typeof window !== 'undefined' && !window.isSecureContext) {
+      Swal.fire({
+        title: 'Cámara no disponible',
+        text: 'El escáner necesita una conexión segura (https). Abre el sitio con https.',
+        icon: 'warning',
+      });
       return;
     }
 
-    try {
-      // Limpiar cualquier instancia anterior
+    iniciandoScanRef.current = true;
+    const qrReaderElement = document.getElementById('qr-reader');
+    if (!qrReaderElement) {
+      iniciandoScanRef.current = false;
+      return;
+    }
+
+    const scanConfig = {
+      fps: 10,
+      qrbox: (viewfinderWidth, viewfinderHeight) => {
+        const lado = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.7);
+        const size = Math.max(Math.min(lado, 360), 160);
+        return { width: size, height: size };
+      },
+    };
+    const onSuccess = (decodedText) => {
+      if (!procesando) procesarQR(decodedText);
+    };
+    const onScanError = () => {};
+
+    const limpiarInstancia = async () => {
       if (html5QrCodeRef.current) {
         try {
           await html5QrCodeRef.current.stop();
-        } catch (e) {
-          // Ignorar errores al detener instancia anterior
+        } catch {
+          /* ignore */
+        }
+        html5QrCodeRef.current = null;
+      }
+      qrReaderElement.innerHTML = '';
+    };
+
+    const intentarStart = async (cameraConfig) => {
+      await limpiarInstancia();
+      const inst = new Html5Qrcode('qr-reader');
+      html5QrCodeRef.current = inst;
+      await inst.start(cameraConfig, scanConfig, onSuccess, onScanError);
+    };
+
+    try {
+      await limpiarInstancia();
+
+      let cameras = [];
+      try {
+        cameras = await Html5Qrcode.getCameras();
+      } catch (eList) {
+        console.warn('No se pudieron listar cámaras:', eList);
+      }
+
+      if (!cameras.length && navigator.mediaDevices?.getUserMedia) {
+        const pedirStream = async (video) => {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video });
+          stream.getTracks().forEach((t) => t.stop());
+        };
+        try {
+          try {
+            await pedirStream({ facingMode: { ideal: camaraSeleccionada } });
+          } catch {
+            await pedirStream(true);
+          }
+          cameras = await Html5Qrcode.getCameras();
+        } catch (eWarm) {
+          console.warn('No se pudo pedir permiso de cámara:', eWarm);
         }
       }
-      
-      const html5QrCode = new Html5Qrcode('qr-reader');
-      html5QrCodeRef.current = html5QrCode;
 
-      // Calcular tamaño del qrbox basado en el tamaño del contenedor
-      const qrReaderElement = document.getElementById('qr-reader');
-      const containerWidth = qrReaderElement ? qrReaderElement.offsetWidth : 500;
-      const containerHeight = qrReaderElement ? qrReaderElement.offsetHeight : 500;
-      
-      // Usar 70% del tamaño del contenedor, mínimo 300px, máximo 500px
-      const qrboxSize = Math.min(Math.max(Math.floor(Math.min(containerWidth, containerHeight) * 0.7), 300), 500);
-      
-      await html5QrCode.start(
-        {
-          facingMode: camaraSeleccionada // Usar la cámara seleccionada
-        },
-        {
-          fps: 10,
-          qrbox: { width: qrboxSize, height: qrboxSize },
-          aspectRatio: 1.0 // Mantener aspecto cuadrado
-        },
-        (decodedText) => {
-          // QR escaneado exitosamente - procesar solo si no está procesando otro
-          if (!procesando) {
-            procesarQR(decodedText);
-          }
-        },
-        (errorMessage) => {
-          // Ignorar errores de escaneo (solo log en desarrollo)
-          // No hacer nada para evitar spam de errores
+      cameras = (cameras || []).filter((c) => c && c.id);
+
+      const intentos = [];
+      if (cameras.length) {
+        const preferida = idCamaraPreferida(cameras, camaraSeleccionada);
+        if (preferida) intentos.push(preferida);
+        cameras.forEach((c) => {
+          if (c.id && !intentos.includes(c.id)) intentos.push(c.id);
+        });
+      }
+      intentos.push({ facingMode: { ideal: camaraSeleccionada } });
+      intentos.push({
+        facingMode: { ideal: camaraSeleccionada === 'environment' ? 'user' : 'environment' },
+      });
+      intentos.push({ facingMode: { ideal: 'environment' } });
+      intentos.push({ facingMode: { ideal: 'user' } });
+
+      let ultimoError = null;
+      for (const cfg of intentos) {
+        try {
+          await intentarStart(cfg);
+          setEscaneando(true);
+          iniciandoScanRef.current = false;
+          return;
+        } catch (eTry) {
+          ultimoError = eTry;
+          console.warn('Intento de cámara falló:', cfg, eTry);
         }
-      );
+      }
 
-      setEscaneando(true);
+      setEscaneando(false);
+      const msg = String(ultimoError?.message || ultimoError || '');
+      const denegado = /notallowed|permission|denied|permiso/i.test(msg);
+      Swal.fire({
+        title: denegado ? 'Permiso de cámara' : 'No se encontró la cámara',
+        text: denegado
+          ? 'Permite el acceso a la cámara en el navegador (candado de la barra de dirección) e inténtalo de nuevo.'
+          : 'El celular no entregó la cámara. Cierra otras apps que la usen, recarga la página y, si pide permiso, elige Permitir.',
+        icon: 'error',
+      });
     } catch (error) {
       console.error('Error iniciando escáner:', error);
       setEscaneando(false);
-      
-      // Si es un error de cámara, intentar con la otra cámara como fallback
-      if (error.message && (error.message.includes('camera') || error.message.includes('permission'))) {
-        const otraCamara = camaraSeleccionada === 'environment' ? 'user' : 'environment';
-        console.log(`⚠️ Intentando con cámara alternativa: ${otraCamara}`);
-        
-        // Intentar una vez más con la cámara alternativa después de un delay
-        setTimeout(async () => {
-          try {
-            setCamaraSeleccionada(otraCamara);
-            // El useEffect se encargará de reiniciar el escaneo
-          } catch (e) {
-            Swal.fire({
-              title: 'Error',
-              text: 'No se pudo acceder a ninguna cámara. Verifica los permisos.',
-              icon: 'error'
-            });
-          }
-        }, 1000);
-      } else {
-        Swal.fire({
-          title: 'Error',
-          text: 'No se pudo acceder a la cámara. Verifica los permisos.',
-          icon: 'error'
-        });
-      }
+      Swal.fire({
+        title: 'Error',
+        text: 'No se pudo iniciar el escáner. Recarga la página e inténtalo de nuevo.',
+        icon: 'error',
+      });
+    } finally {
+      iniciandoScanRef.current = false;
     }
   };
 
@@ -596,45 +656,56 @@ function AsistenciaEscaneo() {
         </div>
         <div className="header-right">
           <button
-            className="btn-cambiar-camara"
+            type="button"
+            className="escaneo-toolbar-btn btn-cambiar-camara"
             onClick={() => {
               setCamaraSeleccionada(prev => prev === 'environment' ? 'user' : 'environment');
             }}
             title={camaraSeleccionada === 'environment' ? 'Cambiar a cámara frontal' : 'Cambiar a cámara trasera'}
           >
-            {camaraSeleccionada === 'environment' ? '📷' : '🤳'}
-          </button>
-          <select 
-            className="modo-select"
-            value={modo}
-            onChange={(e) => {
-              setModo(e.target.value);
-              if (escaneando) {
-                detenerEscaneo();
-              }
-            }}
-          >
-            <option value="continuo">Modo Continuo</option>
-            <option value="manual">Modo Manual</option>
-          </select>
-          <button 
-            className={`btn-buscar${mostrarBusqueda && modoBusqueda === 'buscar' ? ' is-activo' : ''}`}
-            onClick={() => togglePanelBusqueda('buscar')}
-          >
-            🔍 Buscar
+            <span className="escaneo-btn-icon" aria-hidden="true">
+              {camaraSeleccionada === 'environment' ? '📷' : '🤳'}
+            </span>
+            <span className="escaneo-btn-label">Cámara</span>
           </button>
           <button
             type="button"
-            className={`btn-olvido-qr${mostrarBusqueda && modoBusqueda === 'olvido_qr' ? ' is-activo' : ''}`}
+            className="escaneo-toolbar-btn btn-modo"
+            onClick={() => {
+              const siguiente = modo === 'continuo' ? 'manual' : 'continuo';
+              setModo(siguiente);
+              if (escaneando) detenerEscaneo();
+            }}
+            title={modo === 'continuo' ? 'Cambiar a modo manual' : 'Cambiar a modo continuo'}
+          >
+            <span className="escaneo-btn-icon" aria-hidden="true">
+              {modo === 'continuo' ? '🔁' : '✋'}
+            </span>
+            <span className="escaneo-btn-label">{modo === 'continuo' ? 'Continuo' : 'Manual'}</span>
+          </button>
+          <button
+            type="button"
+            className={`escaneo-toolbar-btn btn-buscar${mostrarBusqueda && modoBusqueda === 'buscar' ? ' is-activo' : ''}`}
+            onClick={() => togglePanelBusqueda('buscar')}
+          >
+            <span className="escaneo-btn-icon" aria-hidden="true">🔍</span>
+            <span className="escaneo-btn-label">Buscar</span>
+          </button>
+          <button
+            type="button"
+            className={`escaneo-toolbar-btn btn-olvido-qr${mostrarBusqueda && modoBusqueda === 'olvido_qr' ? ' is-activo' : ''}`}
             onClick={() => togglePanelBusqueda('olvido_qr')}
           >
-            📱 Olvidé QR
+            <span className="escaneo-btn-icon" aria-hidden="true">📱</span>
+            <span className="escaneo-btn-label">Olvidé QR</span>
           </button>
-          <button 
-            className="btn-cerrar-sesion"
+          <button
+            type="button"
+            className="escaneo-toolbar-btn btn-cerrar-sesion"
             onClick={handleCerrarSesion}
           >
-            🚪 Salir
+            <span className="escaneo-btn-icon" aria-hidden="true">🚪</span>
+            <span className="escaneo-btn-label">Salir</span>
           </button>
         </div>
       </div>
