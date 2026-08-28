@@ -8,7 +8,6 @@ import { procesarHTMLMensaje } from '../../utils/mensajesHtml';
 import {
   REGLA_CONDUCTA_DEFAULT,
   normalizarReglaConducta,
-  textoReglaConducta,
   textoReglaCorta,
   ejemplosReglaBloque,
   CASILLEROS_CONDUCTA,
@@ -1019,10 +1018,10 @@ function AdminConfiguracion() {
   const handleReglaConductaPromedioChange = (checked) => {
     setConfig((prev) => ({
       ...prev,
-      regla_conducta: {
-        ...normalizarReglaConducta(prev.regla_conducta),
+      regla_conducta: normalizarReglaConducta({
+        ...prev.regla_conducta,
         redondear_promedio: checked,
-      },
+      }),
     }));
   };
 
@@ -1032,7 +1031,6 @@ function AdminConfiguracion() {
       icon: 'question',
       title: 'Guardar regla de conducta',
       html:
-        `<p style="text-align:left;margin:0 0 0.75rem;">${textoReglaConducta(regla)}</p>` +
         '<p style="text-align:left;margin:0;color:#b45309;font-weight:650;">Al guardar se recalcularán las notas de conducta de <strong>todos los alumnos del año activo</strong> (4 bimestres).</p>',
       showCancelButton: true,
       confirmButtonText: 'Guardar y recalcular',
@@ -1264,11 +1262,6 @@ function AdminConfiguracion() {
               Conducta
             </div>
             <div className="config-section">
-              <p className="config-section-hint">
-                Cuatro casilleros independientes (incidencias, presentación, tardanzas y olvido QR). Cada uno parte de su nota máxima
-                y resta el descuento por registro. La nota de conducta es el promedio de los cuatro.
-                Al guardar se recalcula a todos los alumnos del año activo.
-              </p>
               <div className="conducta-casilleros">
                 {CASILLEROS_CONDUCTA.map((key) => {
                   const bloque = config.regla_conducta?.[key] || {};
@@ -1309,17 +1302,12 @@ function AdminConfiguracion() {
                             onChange={(e) => handleReglaConductaBloqueChange(key, 'descuento', e.target.value)}
                           />
                         </div>
-                        <label className="config-check-label conducta-casillero-check">
-                          <input
-                            type="checkbox"
-                            checked={!!bloque.redondear}
-                            onChange={(e) => handleReglaConductaBloqueChange(key, 'redondear', e.target.checked)}
-                          />
-                          Redondear .5 ↑
-                        </label>
                       </div>
                       <div className="conducta-ejemplos conducta-ejemplos--mini">
-                        {ejemplosReglaBloque(bloque).slice(0, 4).map((ej) => (
+                        {ejemplosReglaBloque({
+                          ...bloque,
+                          redondear: !!config.regla_conducta?.redondear_promedio,
+                        }).slice(0, 4).map((ej) => (
                           <span key={`${key}-${ej.registros}`}>
                             {ej.registros}→<strong>{ej.nota}</strong>
                           </span>
@@ -1336,11 +1324,8 @@ function AdminConfiguracion() {
                     checked={!!config.regla_conducta?.redondear_promedio}
                     onChange={(e) => handleReglaConductaPromedioChange(e.target.checked)}
                   />
-                  Redondear el promedio final .5 hacia arriba
+                  Redondear .5 hacia arriba
                 </label>
-              </div>
-              <div className="conducta-ejemplos">
-                <p className="conducta-ejemplos-texto">{textoReglaConducta(config.regla_conducta)}</p>
               </div>
               <div className="card-actions">
                 <button

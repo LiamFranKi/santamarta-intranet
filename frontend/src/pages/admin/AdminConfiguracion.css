@@ -946,18 +946,6 @@
   border-radius: 7px;
 }
 
-.conducta-casillero-check {
-  margin-top: 0.1rem;
-  font-size: 0.7rem;
-  font-weight: 650;
-  color: #334155;
-}
-
-.conducta-casillero-check input {
-  width: 0.9rem;
-  height: 0.9rem;
-}
-
 .conducta-ejemplos--mini {
   margin-top: 0.4rem;
   padding: 0.35rem 0.4rem;

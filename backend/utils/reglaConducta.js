@@ -100,15 +100,20 @@ function normalizarReglaConducta(raw) {
   const src = raw && typeof raw === 'object' ? raw : {};
   const legado = esFormatoPlanoLegacy(src) ? normalizarReglaBloque(src) : null;
   const base = legado || REGLA_BLOQUE_DEFAULT;
+  const redondear_promedio = parseRedondear(
+    src.redondear_promedio !== undefined ? src.redondear_promedio : (legado ? legado.redondear : true),
+    true
+  );
+  const bloque = (rawBloque) => {
+    const b = normalizarReglaBloque(rawBloque);
+    return { ...b, redondear: redondear_promedio };
+  };
   return {
-    incidencias: normalizarReglaBloque(src.incidencias || base),
-    presentacion: normalizarReglaBloque(src.presentacion || base),
-    tardanzas: normalizarReglaBloque(src.tardanzas || base),
-    olvido_qr: normalizarReglaBloque(src.olvido_qr || base),
-    redondear_promedio: parseRedondear(
-      src.redondear_promedio !== undefined ? src.redondear_promedio : (legado ? legado.redondear : true),
-      true
-    ),
+    incidencias: bloque(src.incidencias || base),
+    presentacion: bloque(src.presentacion || base),
+    tardanzas: bloque(src.tardanzas || base),
+    olvido_qr: bloque(src.olvido_qr || base),
+    redondear_promedio,
   };
 }
 
