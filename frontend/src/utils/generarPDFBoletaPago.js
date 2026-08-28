@@ -427,15 +427,6 @@ export async function generarPDFBoletaDesdeDatos(datosBoleta) {
   doc.line(margin, y, pageWidth - margin, y);
 
   y += 5;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(...mute);
-  const footerText =
-    'NO ES VÁLIDO PARA CRÉDITO FISCAL. PUEDE SER CANJEADO POR BOLETA DE VENTA SI ES REQUERIDO.';
-  const footerLines = doc.splitTextToSize(footerText, contentW);
-  doc.text(footerLines, pageWidth / 2, y, { align: 'center' });
-
-  y += footerLines.length * 3.5 + 3;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(...accent);
