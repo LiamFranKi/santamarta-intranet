@@ -182,6 +182,7 @@ api.interceptors.response.use(
     /** Widgets al entrar al dashboard: un 401 aquí no implica token inválido (carrera / ruta opcional). */
     const isWidgetSesionRoute =
       /\/cumpleanos(\/|$)/.test(reqUrl) ||
+      /\/comunicados\/inicio/.test(reqUrl) ||
       /\/herramientas-examenes\/modal-pendiente/.test(reqUrl) ||
       /\/encuestas\/modal-pendiente/.test(reqUrl);
     const skipLogoutWidgetSesion = isWidgetSesionRoute && (status === 401 || status === 403);

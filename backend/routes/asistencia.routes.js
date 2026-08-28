@@ -258,12 +258,19 @@ router.post('/escaneo', async (req, res) => {
  * POST /api/asistencia/registrar
  * Registrar asistencia (entrada o salida)
  */
-const MOTIVOS_PRESENTACION = new Set(['PRESENTACION']);
+const MOTIVOS_DESCUENTO_ESCANEO = new Set(['PRESENTACION', 'OLVIDO_QR']);
 
 function tieneDescuentoPresentacion(descuentosPresentacion) {
   return (
     Array.isArray(descuentosPresentacion) &&
     descuentosPresentacion.includes('PRESENTACION')
+  );
+}
+
+function tieneDescuentoOlvidoQr(descuentosPresentacion) {
+  return (
+    Array.isArray(descuentosPresentacion) &&
+    descuentosPresentacion.includes('OLVIDO_QR')
   );
 }
 
@@ -276,6 +283,67 @@ function buildAvisoVestimenta({ nombreAlumno, fechaFormateada, horaFormateada, c
     `Se descontó ${tag.replace(/^−/, '')} a ${nombre} por vestimenta / presentación escolar ` +
     `(uniforme incompleto o presentación no adecuada) el ${fechaFormateada} a las ${horaFormateada}. ` +
     `Le pedimos reforzar el cumplimiento del uniforme y la presentación requerida por el colegio.`;
+  contenido = construirMensajeFamiliaConAlumnoYGrupo(contenido, contextoAlumno);
+  return { titulo, contenido };
+}
+
+function htmlCorreoOlvidoQr({ nombreAlumno, fecha, hora, colegioNombre, mensaje, descuento = 0.5 }) {
+  const colegio = colegioNombre || 'Vanguard Schools';
+  const tag = formatDescuentoLabel(descuento);
+  return `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#f3f4f6;padding:20px;">
+  <tr><td align="center">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 14px rgba(15,23,42,0.08);">
+      <tr>
+        <td style="background:linear-gradient(135deg,#ea580c 0%,#c2410c 100%);padding:26px 22px;text-align:center;">
+          <div style="font-size:28px;margin-bottom:8px;">📱</div>
+          <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">Olvido QR ${tag}</h1>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:28px 26px;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1f2937;font-size:15px;line-height:1.6;">
+          <p style="margin:0 0 16px;">Estimado(a) apoderado(a),</p>
+          <p style="margin:0 0 16px;">${mensaje}</p>
+          <div style="background:#fff7ed;border:1px solid #fdba74;border-radius:10px;padding:14px 16px;margin:18px 0;">
+            <table role="presentation" width="100%" style="border-collapse:collapse;font-size:14px;">
+              <tr>
+                <td style="padding:6px 0;color:#9a3412;font-weight:600;">Estudiante</td>
+                <td style="padding:6px 0;color:#7c2d12;font-weight:700;text-align:right;">${nombreAlumno}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0;color:#9a3412;font-weight:600;">Motivo</td>
+                <td style="padding:6px 0;color:#7c2d12;font-weight:700;text-align:right;">Olvido de QR</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0;color:#9a3412;font-weight:600;">Descuento</td>
+                <td style="padding:6px 0;color:#c2410c;font-weight:800;text-align:right;">${tag}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0;color:#9a3412;font-weight:600;">Fecha</td>
+                <td style="padding:6px 0;color:#7c2d12;text-align:right;">${fecha}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0;color:#9a3412;font-weight:600;">Hora</td>
+                <td style="padding:6px 0;color:#7c2d12;text-align:right;">${hora}</td>
+              </tr>
+            </table>
+          </div>
+          <p style="margin:16px 0 0;font-size:13px;color:#6b7280;">Mensaje automático de ${colegio}.</p>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>`;
+}
+
+function buildAvisoOlvidoQr({ nombreAlumno, fechaFormateada, horaFormateada, contextoAlumno, descuento = 0.5 }) {
+  const nombre = String(nombreAlumno || 'Su hijo(a)').trim() || 'Su hijo(a)';
+  const tag = formatDescuentoLabel(descuento);
+  const titulo = `📱 Olvido QR ${tag}`;
+  let contenido =
+    `Se descontó ${tag.replace(/^−/, '')} a ${nombre} por olvidar el QR / carné de asistencia ` +
+    `el ${fechaFormateada} a las ${horaFormateada}. ` +
+    `Le pedimos recordar portar el QR todos los días.`;
   contenido = construirMensajeFamiliaConAlumnoYGrupo(contenido, contextoAlumno);
   return { titulo, contenido };
 }
@@ -343,7 +411,7 @@ router.post('/registrar', async (req, res) => {
 
     let descuentosPresentacion = [];
     if (Array.isArray(rawDescuentos)) {
-      descuentosPresentacion = [...new Set(rawDescuentos.filter((d) => MOTIVOS_PRESENTACION.has(d)))];
+      descuentosPresentacion = [...new Set(rawDescuentos.filter((d) => MOTIVOS_DESCUENTO_ESCANEO.has(d)))];
     }
 
     if (!usuario_id || !tipo_usuario || !tipo_registro) {
@@ -695,10 +763,15 @@ router.post('/registrar', async (req, res) => {
           console.error(`❌ [ASISTENCIA] No se encontró configuración de mensaje para tipo_registro: ${tipo_registro}`);
         }
         let descuentoVestimenta = 0.5;
-        if (tipo_registro === 'ENTRADA' && tieneDescuentoPresentacion(descuentosPresentacion)) {
+        let descuentoOlvidoQr = 0.5;
+        if (
+          tipo_registro === 'ENTRADA' &&
+          (tieneDescuentoPresentacion(descuentosPresentacion) || tieneDescuentoOlvidoQr(descuentosPresentacion))
+        ) {
           try {
             const reglaV = await fetchReglaConducta(query);
             descuentoVestimenta = reglaV.presentacion?.descuento ?? 0.5;
+            descuentoOlvidoQr = reglaV.olvido_qr?.descuento ?? 0.5;
           } catch (_) { /* default */ }
         }
         let contextoAlumnoNotificacion = null;
@@ -757,12 +830,45 @@ router.post('/registrar', async (req, res) => {
                 descuento: descuentoVestimenta,
               })
             : null;
+        const avisoOlvidoQr =
+          tipo_registro === 'ENTRADA' && tieneDescuentoOlvidoQr(descuentosPresentacion)
+            ? buildAvisoOlvidoQr({
+                nombreAlumno: datosUsuario.nombre_completo,
+                fechaFormateada,
+                horaFormateada,
+                contextoAlumno: contextoAlumnoNotificacion,
+                descuento: descuentoOlvidoQr,
+              })
+            : null;
+        const avisosExtraScan = [];
+        if (avisoVestimenta) {
+          avisosExtraScan.push({
+            ...avisoVestimenta,
+            accion_tipo: 'presentacion_vestimenta',
+            motivo: 'PRESENTACION',
+            descuento: descuentoVestimenta,
+            htmlFn: htmlCorreoVestimenta,
+            pushTag: `vestimenta-${datosUsuario.id}-${fechaHoy}`,
+            logTag: 'VESTIMENTA',
+          });
+        }
+        if (avisoOlvidoQr) {
+          avisosExtraScan.push({
+            ...avisoOlvidoQr,
+            accion_tipo: 'olvido_qr',
+            motivo: 'OLVIDO_QR',
+            descuento: descuentoOlvidoQr,
+            htmlFn: htmlCorreoOlvidoQr,
+            pushTag: `olvido-qr-${datosUsuario.id}-${fechaHoy}`,
+            logTag: 'OLVIDO_QR',
+          });
+        }
         
         console.log(`📧 [ASISTENCIA] Título notificación: ${tituloNotificacion}`);
         console.log(`📧 [ASISTENCIA] Mensaje notificación: ${mensajeNotificacion}`);
-        if (avisoVestimenta) {
-          console.log(`👔 [VESTIMENTA] Aviso aparte: ${avisoVestimenta.titulo}`);
-        }
+        avisosExtraScan.forEach((av) => {
+          console.log(`📣 [${av.logTag}] Aviso aparte: ${av.titulo}`);
+        });
 
         const idsPushTipos = [...new Set((subscriptions || []).map((s) => parseInt(s.usuario_id, 10)))];
         let tipoPorUsuarioAsistenciaPush = new Map();
@@ -826,7 +932,9 @@ router.post('/registrar', async (req, res) => {
               try {
                 const uidNum = parseInt(usuarioId, 10);
                 const tipoDest = tipoPorDestAsistencia.get(uidNum) || 'APODERADO';
-                const urlDestinoAsist = urlPortalHijoPorTipoUsuario(tipoDest, datosUsuario.id);
+                const urlDestinoAsist = urlPortalHijoPorTipoUsuario(tipoDest, datosUsuario.id, {
+                  abrir: tipoAsistenciaParaNotificacion === 'TARDANZA' ? 'incidencias' : 'asistencias',
+                });
                 await insertNotificacionUsuario(execute, {
                   usuario_id: asistencia_usuario_id,
                   destinatario_id: usuarioId,
@@ -837,27 +945,30 @@ router.post('/registrar', async (req, res) => {
                   accion_payload: {
                     alumno_id: datosUsuario.id,
                     tipo_registro,
+                    tipo_asistencia: tipoAsistenciaParaNotificacion || null,
                   },
                   url_destino: urlDestinoAsist
                 });
                 console.log(`✅ [ASISTENCIA] Notificación creada en BD para usuario ID: ${usuarioId}`);
 
-                if (avisoVestimenta) {
+                for (const aviso of avisosExtraScan) {
                   await insertNotificacionUsuario(execute, {
                     usuario_id: asistencia_usuario_id,
                     destinatario_id: usuarioId,
-                    asunto: avisoVestimenta.titulo,
-                    contenido: avisoVestimenta.contenido,
+                    asunto: aviso.titulo,
+                    contenido: aviso.contenido,
                     estado: 'ENVIADO',
-                    accion_tipo: 'presentacion_vestimenta',
+                    accion_tipo: aviso.accion_tipo,
                     accion_payload: {
                       alumno_id: datosUsuario.id,
                       puntos: -1,
-                      motivo: 'PRESENTACION',
+                      motivo: aviso.motivo,
                     },
-                    url_destino: urlDestinoAsist,
+                    url_destino: urlPortalHijoPorTipoUsuario(tipoDest, datosUsuario.id, {
+                      abrir: 'incidencias',
+                    }),
                   });
-                  console.log(`✅ [VESTIMENTA] Notificación aparte creada para usuario ID: ${usuarioId}`);
+                  console.log(`✅ [${aviso.logTag}] Notificación aparte creada para usuario ID: ${usuarioId}`);
                 }
               } catch (error) {
                 console.error(`❌ [ASISTENCIA] Error creando notificación para usuario ${usuarioId}:`, error);
@@ -894,25 +1005,25 @@ router.post('/registrar', async (req, res) => {
                     tipoAsistencia: tipo_registro === 'ENTRADA' ? tipoAsistenciaParaNotificacion : null,
                     descuentosPresentacion: []
                   });
-                  if (avisoVestimenta) {
+                  for (const aviso of avisosExtraScan) {
                     try {
                       await enviarCorreoHtml(
                         email,
-                        avisoVestimenta.titulo,
-                        htmlCorreoVestimenta({
+                        aviso.titulo,
+                        aviso.htmlFn({
                           nombreAlumno: datosUsuario.nombre_completo,
                           fecha: fechaFormateada,
                           hora: horaFormateada,
                           colegioNombre,
-                          mensaje: avisoVestimenta.contenido,
-                          descuento: descuentoVestimenta,
+                          mensaje: aviso.contenido,
+                          descuento: aviso.descuento,
                         }),
                         colegioNombre,
                         'ASISTENCIA'
                       );
-                      console.log(`✅ [VESTIMENTA] Correo aparte enviado a ${email}`);
+                      console.log(`✅ [${aviso.logTag}] Correo aparte enviado a ${email}`);
                     } catch (errV) {
-                      console.error(`❌ [VESTIMENTA] Correo a ${email}:`, errV.message);
+                      console.error(`❌ [${aviso.logTag}] Correo a ${email}:`, errV.message);
                     }
                   }
                   if (resultadoCorreo.success) {
@@ -950,7 +1061,9 @@ router.post('/registrar', async (req, res) => {
               const pushItemsAsist = subscriptions.map((sub) => {
                 const uid = parseInt(sub.usuario_id, 10);
                 const tipoD = tipoPorUsuarioAsistenciaPush.get(uid) || 'APODERADO';
-                const url = urlPortalHijoPorTipoUsuario(tipoD, datosUsuario.id);
+                const url = urlPortalHijoPorTipoUsuario(tipoD, datosUsuario.id, {
+                  abrir: tipoAsistenciaParaNotificacion === 'TARDANZA' ? 'incidencias' : 'asistencias',
+                });
                 return {
                   subscription: { endpoint: sub.endpoint, keys: sub.keys },
                   payload: {
@@ -989,34 +1102,38 @@ router.post('/registrar', async (req, res) => {
                     }
                   }
 
-                  if (avisoVestimenta && subscriptions.length > 0) {
-                    const pushItemsVest = subscriptions.map((sub) => {
-                      const uid = parseInt(sub.usuario_id, 10);
-                      const tipoD = tipoPorUsuarioAsistenciaPush.get(uid) || 'APODERADO';
-                      const url = urlPortalHijoPorTipoUsuario(tipoD, datosUsuario.id);
-                      return {
-                        subscription: { endpoint: sub.endpoint, keys: sub.keys },
-                        payload: {
-                          title: avisoVestimenta.titulo,
-                          body: avisoVestimenta.contenido,
-                          icon: '/icons/icon-192x192.png',
-                          badge: '/icons/icon-192x192.png',
-                          vibrate: [200, 100, 200, 100, 200],
-                          tag: `vestimenta-${datosUsuario.id}-${fechaHoy}`,
-                          data: {
-                            url,
-                            tipo: 'presentacion_vestimenta',
-                            alumno_id: datosUsuario.id,
+                  if (avisosExtraScan.length > 0 && subscriptions.length > 0) {
+                    for (const aviso of avisosExtraScan) {
+                      const pushItemsExtra = subscriptions.map((sub) => {
+                        const uid = parseInt(sub.usuario_id, 10);
+                        const tipoD = tipoPorUsuarioAsistenciaPush.get(uid) || 'APODERADO';
+                        const url = urlPortalHijoPorTipoUsuario(tipoD, datosUsuario.id, {
+                          abrir: 'incidencias',
+                        });
+                        return {
+                          subscription: { endpoint: sub.endpoint, keys: sub.keys },
+                          payload: {
+                            title: aviso.titulo,
+                            body: aviso.contenido,
+                            icon: '/icons/icon-192x192.png',
+                            badge: '/icons/icon-192x192.png',
+                            vibrate: [200, 100, 200, 100, 200],
+                            tag: aviso.pushTag,
+                            data: {
+                              url,
+                              tipo: aviso.accion_tipo,
+                              alumno_id: datosUsuario.id,
+                            },
                           },
-                        },
-                      };
-                    });
-                    try {
-                      const rV = await enviarPushNotificacionesIndividuales(pushItemsVest);
-                      const okV = rV.filter((r) => r.resultado && r.resultado.success).length;
-                      console.log(`✅ [VESTIMENTA] Push aparte: ${okV}/${rV.length}`);
-                    } catch (ePushV) {
-                      console.error('❌ [VESTIMENTA] Push:', ePushV.message);
+                        };
+                      });
+                      try {
+                        const rV = await enviarPushNotificacionesIndividuales(pushItemsExtra);
+                        const okV = rV.filter((r) => r.resultado && r.resultado.success).length;
+                        console.log(`✅ [${aviso.logTag}] Push aparte: ${okV}/${rV.length}`);
+                      } catch (ePushV) {
+                        console.error(`❌ [${aviso.logTag}] Push:`, ePushV.message);
+                      }
                     }
                   }
                 })
@@ -1179,26 +1296,48 @@ router.post('/registrar', async (req, res) => {
         }
 
         for (const motivo of descuentosPresentacion) {
-          const ins = await execute(
-            `INSERT INTO presentacion_escolar_descuentos
-             (colegio_id, anio, alumno_usuario_id, asistencia_registro_id, motivo, puntos, fecha, hora, registrado_por_usuario_id, created_at)
-             VALUES (?, ?, ?, ?, ?, -1, ?, ?, ?, NOW())`,
-            [
-              colegio_id,
-              anio_activo,
-              usuario_id,
-              resultado.id,
-              motivo,
-              fechaHoy,
-              horaActual,
-              asistencia_usuario_id
-            ]
-          );
-          if (matriculaIdEspejo) {
+          if (motivo === 'OLVIDO_QR') {
+            try {
+              const ya = await query(
+                `SELECT id FROM presentacion_escolar_descuentos
+                 WHERE colegio_id = ? AND alumno_usuario_id = ? AND fecha = ? AND motivo = 'OLVIDO_QR'
+                 LIMIT 1`,
+                [colegio_id, usuario_id, fechaHoy]
+              );
+              if (ya?.length) {
+                console.log(`ℹ️ [OLVIDO_QR] Ya existe descuento hoy para usuario ${usuario_id}, no se duplica`);
+                continue;
+              }
+            } catch (eDup) {
+              console.warn('[OLVIDO_QR] check duplicado:', eDup.message);
+            }
+          }
+          let ins;
+          try {
+            ins = await execute(
+              `INSERT INTO presentacion_escolar_descuentos
+               (colegio_id, anio, alumno_usuario_id, asistencia_registro_id, motivo, puntos, fecha, hora, registrado_por_usuario_id, created_at)
+               VALUES (?, ?, ?, ?, ?, -1, ?, ?, ?, NOW())`,
+              [
+                colegio_id,
+                anio_activo,
+                usuario_id,
+                resultado.id,
+                motivo,
+                fechaHoy,
+                horaActual,
+                asistencia_usuario_id
+              ]
+            );
+          } catch (errIns) {
+            console.error(`❌ [ASISTENCIA] Insert descuento ${motivo}:`, errIns.message);
+            continue;
+          }
+          if (matriculaIdEspejo && motivo !== 'OLVIDO_QR') {
             try {
               await asegurarIncidenciaVestimenta(query, execute, {
                 matriculaId: matriculaIdEspejo,
-              workerId: workerIdEspejo || null,
+                workerId: workerIdEspejo || null,
                 fechaYmd: fechaHoy,
                 hora: horaActual,
                 motivo,
@@ -1210,7 +1349,7 @@ router.post('/registrar', async (req, res) => {
           }
         }
         console.log(
-          `✅ [ASISTENCIA] Registrados ${descuentosPresentacion.length} descuento(s) presentación escolar para usuario ${usuario_id}`
+          `✅ [ASISTENCIA] Registrados descuento(s) de escaneo para usuario ${usuario_id}: ${descuentosPresentacion.join(', ')}`
         );
 
         if (matriculaIdEspejo) {

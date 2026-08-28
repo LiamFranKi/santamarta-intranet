@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import { useColegio } from '../context/ColegioContext';
+import { rutaPostLoginSegunRol } from '../utils/hijosDeepLink';
 import './Login.css';
 
 function Login() {
@@ -14,6 +15,11 @@ function Login() {
   const { login, isAuthenticated, user } = useAuth();
   const { loading: loadingColegio, error: errorColegio } = useColegio();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const irTrasLogin = (tipo) => {
+    navigate(rutaPostLoginSegunRol(tipo, searchParams.get('next')));
+  };
 
   // Resolver URL base en tiempo de ejecución (no en compilación)
   const apiBaseUrl = useMemo(() => {
@@ -33,24 +39,9 @@ function Login() {
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      // Redirigir según el tipo de usuario
-      if (user.tipo === 'DOCENTE') {
-        navigate('/docente/dashboard');
-      } else if (user.tipo === 'ALUMNO') {
-        navigate('/alumno/dashboard');
-      } else if (user.tipo === 'APODERADO') {
-        navigate('/apoderado/dashboard');
-      } else if (user.tipo === 'ADMINISTRADOR') {
-        navigate('/admin/dashboard');
-      } else if (user.tipo === 'ASISTENCIA') {
-        navigate('/asistencia/escaneo');
-      } else if (user.tipo === 'PROMOTORIA') {
-        navigate('/promotoria/dashboard');
-      } else {
-        navigate('/admin/dashboard');
-      }
+      irTrasLogin(user.tipo);
     }
-  }, [isAuthenticated, user, navigate]);
+  }, [isAuthenticated, user, navigate, searchParams]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -97,22 +88,7 @@ function Login() {
         timerProgressBar: true,
       });
 
-      // Redirigir según el tipo de usuario
-      if (result.user?.tipo === 'DOCENTE') {
-        navigate('/docente/dashboard');
-      } else if (result.user?.tipo === 'ALUMNO') {
-        navigate('/alumno/dashboard');
-      } else if (result.user?.tipo === 'APODERADO') {
-        navigate('/apoderado/dashboard');
-      } else if (result.user?.tipo === 'ADMINISTRADOR') {
-        navigate('/admin/dashboard');
-      } else if (result.user?.tipo === 'ASISTENCIA') {
-        navigate('/asistencia/escaneo');
-      } else if (result.user?.tipo === 'PROMOTORIA') {
-        navigate('/promotoria/dashboard');
-      } else {
-        navigate('/admin/dashboard');
-      }
+      irTrasLogin(result.user?.tipo);
     } catch (error) {
       Swal.fire({
         icon: 'error',

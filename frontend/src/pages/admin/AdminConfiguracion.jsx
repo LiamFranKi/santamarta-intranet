@@ -1265,8 +1265,8 @@ function AdminConfiguracion() {
             </div>
             <div className="config-section">
               <p className="config-section-hint">
-                Tres casilleros independientes (incidencias, presentación y tardanzas). Cada uno parte de su nota máxima
-                y resta el descuento por registro. La nota de conducta es el promedio de los tres.
+                Cuatro casilleros independientes (incidencias, presentación, tardanzas y olvido QR). Cada uno parte de su nota máxima
+                y resta el descuento por registro. La nota de conducta es el promedio de los cuatro.
                 Al guardar se recalcula a todos los alumnos del año activo.
               </p>
               <div className="conducta-casilleros">
@@ -1275,7 +1275,7 @@ function AdminConfiguracion() {
                   return (
                     <div key={key} className="conducta-casillero">
                       <h4 className="conducta-casillero-title">{LABELS_CASILLERO[key]}</h4>
-                      <div className="form-grid form-grid--narrow">
+                      <div className="conducta-casillero-fields">
                         <div className="form-group">
                           <label>Nota máxima</label>
                           <input
@@ -1297,10 +1297,9 @@ function AdminConfiguracion() {
                             value={bloque.min ?? 6}
                             onChange={(e) => handleReglaConductaBloqueChange(key, 'min', e.target.value)}
                           />
-                          <small>No baja de este valor.</small>
                         </div>
                         <div className="form-group">
-                          <label>Descuento por registro</label>
+                          <label>Descuento</label>
                           <input
                             type="number"
                             min="0.1"
@@ -1310,26 +1309,21 @@ function AdminConfiguracion() {
                             onChange={(e) => handleReglaConductaBloqueChange(key, 'descuento', e.target.value)}
                           />
                         </div>
-                        <div className="form-group">
-                          <label className="config-check-label">
-                            <input
-                              type="checkbox"
-                              checked={!!bloque.redondear}
-                              onChange={(e) => handleReglaConductaBloqueChange(key, 'redondear', e.target.checked)}
-                            />
-                            Redondear .5 hacia arriba
-                          </label>
-                        </div>
+                        <label className="config-check-label conducta-casillero-check">
+                          <input
+                            type="checkbox"
+                            checked={!!bloque.redondear}
+                            onChange={(e) => handleReglaConductaBloqueChange(key, 'redondear', e.target.checked)}
+                          />
+                          Redondear .5 ↑
+                        </label>
                       </div>
                       <div className="conducta-ejemplos conducta-ejemplos--mini">
-                        <p className="conducta-ejemplos-title">Vista previa</p>
-                        <ul>
-                          {ejemplosReglaBloque(bloque).slice(0, 4).map((ej) => (
-                            <li key={`${key}-${ej.registros}`}>
-                              {ej.registros} → <strong>{ej.nota}</strong>
-                            </li>
-                          ))}
-                        </ul>
+                        {ejemplosReglaBloque(bloque).slice(0, 4).map((ej) => (
+                          <span key={`${key}-${ej.registros}`}>
+                            {ej.registros}→<strong>{ej.nota}</strong>
+                          </span>
+                        ))}
                       </div>
                     </div>
                   );

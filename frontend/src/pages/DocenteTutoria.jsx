@@ -11,7 +11,7 @@ import 'react-quill/dist/quill.snow.css';
 import { generarPDFNotasTutoria } from '../utils/pdfNotasTutoria';
 import { exportIncidenciasPresentacionPdf } from '../utils/exportIncidenciasPresentacionPdf';
 import { exportConductaGrupoPdf } from '../utils/exportConductaGrupoPdf';
-import { textoReglaConducta, textoReglaCorta, REGLA_CONDUCTA_DEFAULT, captionDescuentosConducta, etiquetaOrigenConducta, claseOrigenConducta, notaMaxReferencia } from '../utils/reglaConducta';
+import { textoReglaConducta, textoReglaCorta, REGLA_CONDUCTA_DEFAULT, captionDescuentosConducta, etiquetaOrigenConducta, claseOrigenConducta, notaMaxReferencia, esOrigenIncidenciaDocente } from '../utils/reglaConducta';
 import jsPDF from 'jspdf';
 import './DocenteTutoria.css';
 import './DocenteCursos.css';
@@ -2390,6 +2390,62 @@ function DocenteTutoria({
     }
   };
 
+  const parseIdRegistroConducta = (raw) => {
+    const s = String(raw || '');
+    const m = s.match(/^(ped|tard)-(\d+)$/);
+    if (!m) return null;
+    return { tipo: m[1], id: parseInt(m[2], 10) };
+  };
+
+  const eliminarRegistroConductaDetalle = async (inc) => {
+    const parsed = parseIdRegistroConducta(inc?.id);
+    if (!parsed || !grupoParaConducta?.id || soloLectura) return;
+    const esPed = parsed.tipo === 'ped';
+    const esOlvido = inc?.origen === 'olvido_qr';
+    const confirm = await Swal.fire({
+      icon: 'warning',
+      title: esOlvido ? '¿Quitar olvido QR?' : esPed ? '¿Quitar presentación?' : '¿Quitar tardanza?',
+      text: esOlvido
+        ? 'Se eliminará este descuento por olvido de QR y se recalculará la nota de conducta.'
+        : esPed
+        ? 'Se eliminará este descuento por presentación y se recalculará la nota de conducta.'
+        : 'La tardanza pasará a PRESENTE y se recalculará la nota de conducta.',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, quitar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!confirm.isConfirmed) return;
+    const url = esPed
+      ? `/docente/grupos/${grupoParaConducta.id}/presentacion-descuentos/${parsed.id}`
+      : `/docente/grupos/${grupoParaConducta.id}/tardanzas-asistencia/${parsed.id}`;
+    try {
+      await api.delete(url);
+      const res = await api.get(`${apiPrefix}/grupos/${grupoParaConducta.id}/conducta`, {
+        params: { ciclo: conductaCiclo },
+      });
+      const alumnosAct = res.data.alumnos || [];
+      setConductaAlumnos(alumnosAct);
+      if (res.data.regla) setReglaConducta(res.data.regla);
+      const mid = detalleConductaAlumno?.alumno?.matricula_id;
+      const actualizado = alumnosAct.find((a) => Number(a.matricula_id) === Number(mid));
+      if (actualizado) await abrirDetalleConductaAlumno(actualizado);
+      Swal.fire({
+        icon: 'success',
+        title: 'Listo',
+        text: 'La nota de conducta se actualizó.',
+        timer: 1800,
+        showConfirmButton: false,
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo quitar el registro',
+      });
+    }
+  };
+
   const aplicarFiltrosIncidenciasYResumen = async () => {
     await cargarReporteIncidenciasGrupo();
   };
@@ -3524,6 +3580,7 @@ function DocenteTutoria({
                       <th style={{ width: 62, textAlign: 'center' }}>Incid.</th>
                       <th style={{ width: 72, textAlign: 'center' }}>Present.</th>
                       <th style={{ width: 62, textAlign: 'center' }}>Tard.</th>
+                      <th style={{ width: 72, textAlign: 'center' }}>Olvido QR</th>
                       <th style={{ width: 90, textAlign: 'center' }}>NOTA</th>
                       <th style={{ width: 70, textAlign: 'center' }}>Ver</th>
                     </tr>
@@ -3536,6 +3593,7 @@ function DocenteTutoria({
                         <td style={{ textAlign: 'center' }}>{a.total_incidencias ?? 0}</td>
                         <td style={{ textAlign: 'center' }}>{a.total_presentacion ?? 0}</td>
                         <td style={{ textAlign: 'center' }}>{a.total_tardanzas ?? 0}</td>
+                        <td style={{ textAlign: 'center' }}>{a.total_olvido_qr ?? 0}</td>
                         <td style={{ textAlign: 'center' }}>
                           <span className="input-conducta input-conducta--readonly">{a.nota_conducta ?? notaMaxReferencia(reglaConducta)}</span>
                         </td>
@@ -3587,9 +3645,10 @@ function DocenteTutoria({
                   <span className="conducta-detalle-chip">
                     {formatearSoloFecha(detalleConductaAlumno.fecha_desde)} → {formatearSoloFecha(detalleConductaAlumno.fecha_hasta)}
                   </span>
-                  <span className="conducta-detalle-chip">Incid. {detalleConductaAlumno.alumno?.total_incidencias ?? (detalleConductaAlumno.incidencias || []).filter((x) => x.origen !== 'vestimenta' && x.origen !== 'tardanza').length}</span>
+                  <span className="conducta-detalle-chip">Incid. {detalleConductaAlumno.alumno?.total_incidencias ?? (detalleConductaAlumno.incidencias || []).filter((x) => esOrigenIncidenciaDocente(x.origen)).length}</span>
                   <span className="conducta-detalle-chip">Present. {detalleConductaAlumno.alumno?.total_presentacion ?? (detalleConductaAlumno.incidencias || []).filter((x) => x.origen === 'vestimenta').length}</span>
                   <span className="conducta-detalle-chip">Tard. {detalleConductaAlumno.alumno?.total_tardanzas ?? (detalleConductaAlumno.incidencias || []).filter((x) => x.origen === 'tardanza').length}</span>
+                  <span className="conducta-detalle-chip">Olvido QR {detalleConductaAlumno.alumno?.total_olvido_qr ?? (detalleConductaAlumno.incidencias || []).filter((x) => x.origen === 'olvido_qr').length}</span>
                 </div>
               </div>
               <button type="button" className="tutor-evidencias-close" onClick={() => setDetalleConductaAlumno(null)} aria-label="Cerrar">✕</button>
@@ -3605,7 +3664,7 @@ function DocenteTutoria({
               {loadingDetalleConducta ? (
                 <div className="modal-registro-asistencia-loading"><div className="loading-spinner" /><p>Cargando…</p></div>
               ) : !(detalleConductaAlumno.incidencias || []).length ? (
-                <p className="tutor-evidencias-empty tutor-evidencias-empty--destacado">Sin incidencias, presentación ni tardanzas en este bimestre</p>
+                <p className="tutor-evidencias-empty tutor-evidencias-empty--destacado">Sin incidencias, presentación, tardanzas ni olvido QR en este bimestre</p>
               ) : (
                 <div className="tutor-evidencia-cards-scroll">
                   <ul className="tutor-evidencia-lineas tutor-evidencia-lineas--inci">
@@ -3613,9 +3672,20 @@ function DocenteTutoria({
                       <li key={inc.id} className="tutor-inc-card">
                         <div className="tutor-inc-card-top">
                           <time className="tutor-inc-fecha">{formatearFechaHoraPeru(inc.created_at)}</time>
-                          <span className={`tutor-inc-origen ${claseOrigenConducta(inc.origen)}`}>
-                            {etiquetaOrigenConducta(inc.origen)}
-                          </span>
+                          <div className="tutor-inc-card-top-acciones">
+                            <span className={`tutor-inc-origen ${claseOrigenConducta(inc.origen)}`}>
+                              {etiquetaOrigenConducta(inc.origen)}
+                            </span>
+                            {!soloLectura && (inc.origen === 'vestimenta' || inc.origen === 'tardanza' || inc.origen === 'olvido_qr') ? (
+                              <button
+                                type="button"
+                                className="btn-eliminar-conducta-item"
+                                onClick={() => eliminarRegistroConductaDetalle(inc)}
+                              >
+                                🗑️ Quitar
+                              </button>
+                            ) : null}
+                          </div>
                         </div>
                         <div className="tutor-inc-card-meta">
                           <div className="tutor-inc-meta-item">

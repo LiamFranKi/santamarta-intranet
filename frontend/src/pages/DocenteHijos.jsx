@@ -24,7 +24,11 @@ import AlumnoPerfilExtra from '../components/AlumnoPerfilExtra';
 import { exportIncidenciasHijoBimestresPdf, exportEstrellasHijoBimestresPdf } from '../utils/exportIncidenciasPresentacionPdf';
 import { textoReglaCorta, REGLA_CONDUCTA_DEFAULT, captionDescuentosConducta, etiquetaOrigenConducta, claseOrigenConducta, notaMaxReferencia, conteosOrigenConducta } from '../utils/reglaConducta';
 import './DocenteHijos.css';
-import './AlumnoCursos.css';
+import {
+  aplicarDeepLinkHijos,
+  incidenciaCoincideItem,
+  cicloBimestreDeItem,
+} from '../utils/hijosDeepLink';
 
 // Función para obtener iniciales del nombre
 function getInitials(nombre) {
@@ -76,6 +80,8 @@ function DocenteHijos() {
   const [anioIncidencias, setAnioIncidencias] = useState(null);
   const [reglaIncidencias, setReglaIncidencias] = useState({ ...REGLA_CONDUCTA_DEFAULT });
   const [loadingIncidencias, setLoadingIncidencias] = useState(false);
+  const [incidenciaResaltadaId, setIncidenciaResaltadaId] = useState(null);
+  const deepLinkHijosConsumed = useRef(false);
   const [showModalEstrellas, setShowModalEstrellas] = useState(false);
   const [estrellas, setEstrellas] = useState([]);
   const [bimestresEstrellas, setBimestresEstrellas] = useState([]);
@@ -543,7 +549,7 @@ function DocenteHijos() {
     }
   };
 
-  const handleVerIncidencias = async (hijo) => {
+  const handleVerIncidencias = async (hijo, opts = {}) => {
     try {
       setLoadingIncidencias(true);
       setHijoSeleccionado(hijo);
@@ -554,8 +560,15 @@ function DocenteHijos() {
       setBimestresIncidencias(response.data.bimestres || []);
       {
         const bims = Array.isArray(response.data.bimestres) ? response.data.bimestres : [];
-        const conInc = bims.find((b) => (b.incidencias || []).length > 0);
-        setCicloFiltroIncidenciasHijo(conInc ? Number(conInc.ciclo) : 1);
+        const highlightId = opts && opts.highlightId ? opts.highlightId : null;
+        const cicloItem = cicloBimestreDeItem(bims, highlightId);
+        if (cicloItem) {
+          setCicloFiltroIncidenciasHijo(cicloItem);
+        } else {
+          const conInc = bims.find((b) => (b.incidencias || []).length > 0);
+          setCicloFiltroIncidenciasHijo(conInc ? Number(conInc.ciclo) : 1);
+        }
+        setIncidenciaResaltadaId(highlightId || null);
       }
       setAnioIncidencias(response.data.anio || null);
       if (response.data.regla) setReglaIncidencias(response.data.regla);
@@ -627,6 +640,34 @@ function DocenteHijos() {
       setLoadingAsistencias(false);
     }
   };
+
+  useEffect(() => {
+    aplicarDeepLinkHijos({
+      search: location.search,
+      hijos,
+      loading,
+      navigate,
+      pathname: location.pathname,
+      handleVerIncidencias,
+      handleVerAsistencias,
+      consumedRef: deepLinkHijosConsumed,
+    });
+  }, [loading, hijos, location.search, location.pathname, navigate]);
+
+  useEffect(() => {
+    if (!showModalIncidencias || !incidenciaResaltadaId) return undefined;
+    const t = setTimeout(() => {
+      const el = document.querySelector('[data-inc-resaltada="1"]');
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [showModalIncidencias, incidenciaResaltadaId, cicloFiltroIncidenciasHijo]);
+
+  useEffect(() => {
+    if (!showModalIncidencias) setIncidenciaResaltadaId(null);
+  }, [showModalIncidencias]);
 
   const handleVerCursos = async (hijo) => {
     try {
@@ -2219,6 +2260,7 @@ function DocenteHijos() {
       const condIncB = []; for (let c = 1; c <= 4; c++) condIncB.push(c <= cicloSel ? resumen.conducta_incidencias?.[`b${c}`] : null);
       const condPresB = []; for (let c = 1; c <= 4; c++) condPresB.push(c <= cicloSel ? resumen.conducta_presentacion?.[`b${c}`] : null);
       const condTardNotaB = []; for (let c = 1; c <= 4; c++) condTardNotaB.push(c <= cicloSel ? resumen.conducta_tardanzas?.[`b${c}`] : null);
+      const condOlvidoB = []; for (let c = 1; c <= 4; c++) condOlvidoB.push(c <= cicloSel ? resumen.conducta_olvido_qr?.[`b${c}`] : null);
       const ordB = []; for (let c = 1; c <= 4; c++) ordB.push(c <= cicloSel ? resumen.orden_merito[`b${c}`] : null);
       const inasB = []; for (let c = 1; c <= 4; c++) inasB.push(c <= cicloSel ? resumen.inasistencias[`b${c}`] : null);
       const tardB = []; for (let c = 1; c <= 4; c++) tardB.push(c <= cicloSel ? resumen.tardanzas[`b${c}`] : null);
@@ -2280,6 +2322,7 @@ function DocenteHijos() {
       dibFila('COND. INCIDENCIAS', condIncB, '-');
       dibFila('COND. PRESENTACIÓN', condPresB, '-');
       dibFila('COND. TARDANZAS', condTardNotaB, '-');
+      dibFila('COND. OLVIDO QR', condOlvidoB, '-');
       dibFila('ORDEN DE MÉRITO', ordB);
       dibFila('N° DE INASISTENCIAS', inasB, '0');
       dibFila('N° DE TARDANZAS', tardB, '0');
@@ -4009,11 +4052,11 @@ function DocenteHijos() {
                       {(() => {
                         const all = bimestresIncidencias.length
                           ? bimestresIncidencias
-                          : [{ ciclo: 1, incidencias, nota_conducta: null, total_incidencias: 0, total_presentacion: 0, total_tardanzas: 0 }];
+                          : [{ ciclo: 1, incidencias, nota_conducta: null, total_incidencias: 0, total_presentacion: 0, total_tardanzas: 0, total_olvido_qr: 0 }];
                         const filtered = all.filter((b) => Number(b.ciclo) === Number(cicloFiltroIncidenciasHijo));
                         const list = filtered.length
                           ? filtered
-                          : [{ ciclo: cicloFiltroIncidenciasHijo, incidencias: [], nota_conducta: notaMaxReferencia(reglaIncidencias), fecha_desde: '', fecha_hasta: '', total_incidencias: 0, total_presentacion: 0, total_tardanzas: 0 }];
+                          : [{ ciclo: cicloFiltroIncidenciasHijo, incidencias: [], nota_conducta: notaMaxReferencia(reglaIncidencias), fecha_desde: '', fecha_hasta: '', total_incidencias: 0, total_presentacion: 0, total_tardanzas: 0, total_olvido_qr: 0 }];
                         return list;
                       })().map((bim) => {
                         const regs = bim.incidencias || [];
@@ -4037,8 +4080,14 @@ function DocenteHijos() {
                               <p className="hijo-inc-empty">Sin registros en este bimestre</p>
                             ) : (
                               <ul className="hijo-inc-list">
-                                {regs.map((incidencia) => (
-                                  <li key={incidencia.id} className="hijo-inc-card">
+                                {regs.map((incidencia) => {
+                                  const resaltada = incidenciaCoincideItem(incidencia, incidenciaResaltadaId);
+                                  return (
+                                  <li
+                                    key={incidencia.id}
+                                    className={`hijo-inc-card${resaltada ? ' es-resaltada' : ''}`}
+                                    data-inc-resaltada={resaltada ? '1' : undefined}
+                                  >
                                     <div className="hijo-inc-card-top">
                                       <time className="hijo-inc-fecha">{formatearFecha(incidencia.created_at)}</time>
                                       <span className={`hijo-inc-origen ${claseOrigenConducta(incidencia.origen)}`}>
@@ -4059,7 +4108,8 @@ function DocenteHijos() {
                                       <p className="hijo-inc-detalle">{incidencia.description}</p>
                                     ) : null}
                                   </li>
-                                ))}
+                                  );
+                                })}
                               </ul>
                             )}
 
@@ -4069,14 +4119,15 @@ function DocenteHijos() {
                                 const nInc = bim.total_incidencias ?? c.incidencias;
                                 const nPres = bim.total_presentacion ?? c.presentacion;
                                 const nTard = bim.total_tardanzas ?? c.tardanzas;
+                                const nOlvido = bim.total_olvido_qr ?? c.olvido_qr;
                                 return (
                                   <>
-                                    Resumen: {nInc} incidencia(s) + {nPres} presentación(es) + {nTard} tardanza(s)
+                                    Resumen: {nInc} incidencia(s) + {nPres} presentación(es) + {nTard} tardanza(s) + {nOlvido} olvido QR
                                     {' → promedio '}
                                     <strong>{bim.nota_conducta ?? notaMaxReferencia(reglaIncidencias)}</strong>
-                                    {(bim.nota_incidencias || bim.nota_presentacion || bim.nota_tardanzas) ? (
+                                    {(bim.nota_incidencias || bim.nota_presentacion || bim.nota_tardanzas || bim.nota_olvido_qr) ? (
                                       <span>
-                                        {' '}(Incid. {bim.nota_incidencias ?? '—'} · Present. {bim.nota_presentacion ?? '—'} · Tard. {bim.nota_tardanzas ?? '—'})
+                                        {' '}(Incid. {bim.nota_incidencias ?? '—'} · Present. {bim.nota_presentacion ?? '—'} · Tard. {bim.nota_tardanzas ?? '—'} · Olvido QR {bim.nota_olvido_qr ?? '—'})
                                       </span>
                                     ) : null}
                                     <br />

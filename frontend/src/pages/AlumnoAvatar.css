@@ -410,26 +410,6 @@
   text-align: center;
 }
 
-.avatar-hero-masculino .avatar-hero-bimestre {
-  background: rgba(99, 102, 241, 0.2);
-  color: #4338ca;
-}
-
-.avatar-hero-femenino .avatar-hero-bimestre {
-  background: rgba(236, 72, 153, 0.2);
-  color: #be185d;
-}
-
-.avatar-hero-bimestre {
-  display: inline-block;
-  padding: 0.35rem 1rem;
-  border-radius: 999px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  margin-bottom: 1rem;
-  letter-spacing: 0.05em;
-}
-
 .avatar-hero-masculino .avatar-hero-imagen-wrap {
   border-color: rgba(99, 102, 241, 0.35);
   box-shadow: 0 12px 32px rgba(99, 102, 241, 0.2);

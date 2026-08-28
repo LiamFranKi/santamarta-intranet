@@ -96,9 +96,11 @@ async function listarAlumnosConductaPorGrupo(query, execute, { grupoId, colegio_
       nota_incidencias: notas.incidencias,
       nota_presentacion: notas.presentacion,
       nota_tardanzas: notas.tardanzas,
+      nota_olvido_qr: notas.olvido_qr,
       total_incidencias: conteos.incidencias,
       total_presentacion: conteos.presentacion,
       total_tardanzas: conteos.tardanzas,
+      total_olvido_qr: conteos.olvido_qr,
     });
   }
 

@@ -275,6 +275,10 @@
   letter-spacing: 0.5px;
 }
 
+.comunicado-badge-inactivo {
+  background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
+}
+
 .comunicado-badge-nuevo {
   padding: 0.4rem 0.8rem;
   background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);

@@ -24,11 +24,12 @@ export async function exportConductaGrupoPdf({ alumnos, grupo, ciclo, regla }) {
   const colorPrimario = [102, 126, 234];
   const colorBlanco = [255, 255, 255];
   const wNum = 14;
-  const wInc = 18;
-  const wPres = 20;
-  const wTard = 18;
-  const wNota = 22;
-  const wName = pageWidth - 2 * margin - wNum - wInc - wPres - wTard - wNota;
+  const wInc = 16;
+  const wPres = 18;
+  const wTard = 16;
+  const wOlvido = 20;
+  const wNota = 20;
+  const wName = pageWidth - 2 * margin - wNum - wInc - wPres - wTard - wOlvido - wNota;
   const notaMax = notaMaxReferencia(regla);
 
   try {
@@ -74,7 +75,8 @@ export async function exportConductaGrupoPdf({ alumnos, grupo, ciclo, regla }) {
     inc: margin + wNum + wName,
     pres: margin + wNum + wName + wInc,
     tard: margin + wNum + wName + wInc + wPres,
-    nota: margin + wNum + wName + wInc + wPres + wTard,
+    olvido: margin + wNum + wName + wInc + wPres + wTard,
+    nota: margin + wNum + wName + wInc + wPres + wTard + wOlvido,
   };
 
   const dibujarCabeceraTablaConducta = (yStart) => {
@@ -86,6 +88,7 @@ export async function exportConductaGrupoPdf({ alumnos, grupo, ciclo, regla }) {
     doc.rect(xs.inc, y, wInc, 8, 'FD');
     doc.rect(xs.pres, y, wPres, 8, 'FD');
     doc.rect(xs.tard, y, wTard, 8, 'FD');
+    doc.rect(xs.olvido, y, wOlvido, 8, 'FD');
     doc.rect(xs.nota, y, wNota, 8, 'FD');
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
@@ -95,6 +98,7 @@ export async function exportConductaGrupoPdf({ alumnos, grupo, ciclo, regla }) {
     doc.text('Incid.', xs.inc + wInc / 2, y + 5.5, { align: 'center' });
     doc.text('Present.', xs.pres + wPres / 2, y + 5.5, { align: 'center' });
     doc.text('Tard.', xs.tard + wTard / 2, y + 5.5, { align: 'center' });
+    doc.text('Olvido QR', xs.olvido + wOlvido / 2, y + 5.5, { align: 'center' });
     doc.text('NOTA', xs.nota + wNota / 2, y + 5.5, { align: 'center' });
     y += 8;
     return y;
@@ -118,6 +122,7 @@ export async function exportConductaGrupoPdf({ alumnos, grupo, ciclo, regla }) {
     doc.rect(xs.inc, yPos, wInc, rowH, 'FD');
     doc.rect(xs.pres, yPos, wPres, rowH, 'FD');
     doc.rect(xs.tard, yPos, wTard, rowH, 'FD');
+    doc.rect(xs.olvido, yPos, wOlvido, rowH, 'FD');
     doc.rect(xs.nota, yPos, wNota, rowH, 'FD');
     doc.setTextColor(30, 41, 59);
     doc.setFontSize(8);
@@ -126,6 +131,7 @@ export async function exportConductaGrupoPdf({ alumnos, grupo, ciclo, regla }) {
     doc.text(String(a.total_incidencias ?? 0), xs.inc + wInc / 2, yPos + 4.5, { align: 'center' });
     doc.text(String(a.total_presentacion ?? 0), xs.pres + wPres / 2, yPos + 4.5, { align: 'center' });
     doc.text(String(a.total_tardanzas ?? 0), xs.tard + wTard / 2, yPos + 4.5, { align: 'center' });
+    doc.text(String(a.total_olvido_qr ?? 0), xs.olvido + wOlvido / 2, yPos + 4.5, { align: 'center' });
     doc.text(a.nota_conducta || formatNotaConducta(notaMax), xs.nota + wNota / 2, yPos + 4.5, { align: 'center' });
     yPos += rowH;
   });

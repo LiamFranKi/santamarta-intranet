@@ -366,6 +366,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/apoderado', apoderadoRoutes);
 app.use('/api/promotoria', promotoriaRoutes);
 app.use('/api/cumpleanos', cumpleanosRoutes);
+const comunicadosHomeRoutes = require('./routes/comunicadosHome.routes');
+app.use('/api/comunicados', comunicadosHomeRoutes);
 app.use('/api/supervision', supervisionRoutes);
 app.use('/api/encuestas', encuestasRoutes);
 app.use('/api/herramientas-examenes', herramientasExamenesRoutes);

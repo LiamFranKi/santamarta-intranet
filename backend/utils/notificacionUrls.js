@@ -98,18 +98,38 @@ async function obtenerUrlExamenActivado(query, destinatarioUsuarioId, ctx) {
 
 /**
  * Portal hijos según rol del destinatario (evita enviar a /apoderado/* a un usuario con sesión DOCENTE).
+ * extra.abrir: incidencias | asistencias — extra.item: id de fila (inc-12, ped-3, tard-9).
  */
-function urlPortalHijoPorTipoUsuario(tipoDestinatario, alumno_id) {
+function urlPortalHijoPorTipoUsuario(tipoDestinatario, alumno_id, extra = {}) {
   const td = String(tipoDestinatario || '').toUpperCase();
-  // En el frontend NO existe ruta /docente/hijos/:id ni /apoderado/hijos/:id.
-  // Para evitar páginas en blanco, siempre apuntamos al portal de hijos (listado).
-  if (td === 'DOCENTE') {
-    return '/docente/hijos';
+  let base = '/';
+  if (td === 'DOCENTE') base = '/docente/hijos';
+  else if (td === 'APODERADO') base = '/apoderado/hijos';
+  else return '/';
+
+  const abrir = extra && extra.abrir ? String(extra.abrir) : '';
+  const item = extra && extra.item != null && extra.item !== '' ? String(extra.item) : '';
+  const hijo = alumno_id != null && alumno_id !== '' ? String(alumno_id) : '';
+  if (!abrir && !hijo && !item) return base;
+  const q = [];
+  if (abrir) q.push(`abrir=${encodeURIComponent(abrir)}`);
+  if (hijo) q.push(`hijo=${encodeURIComponent(hijo)}`);
+  if (item) q.push(`item=${encodeURIComponent(item)}`);
+  return q.length ? `${base}?${q.join('&')}` : base;
+}
+
+function itemIncidenciaDesdeExtra(dataExtra) {
+  if (!dataExtra || typeof dataExtra !== 'object') return '';
+  if (dataExtra.incident_id != null && dataExtra.incident_id !== '') {
+    return `inc-${dataExtra.incident_id}`;
   }
-  if (td === 'APODERADO') {
-    return '/apoderado/hijos';
+  if (dataExtra.presentacion_id != null && dataExtra.presentacion_id !== '') {
+    return `ped-${dataExtra.presentacion_id}`;
   }
-  return '/';
+  if (dataExtra.asistencia_id != null && dataExtra.asistencia_id !== '') {
+    return `tard-${dataExtra.asistencia_id}`;
+  }
+  return '';
 }
 
 /**
@@ -123,7 +143,8 @@ function inferirUrlNotificacionFamiliaPorDestinatario(
 ) {
   const tipo = String(tipoNotificacion || '');
   const td = String(tipoDestinatario || 'APODERADO').toUpperCase();
-  if (tipo.includes('mensaje') || tipo === 'conexion' || (dataExtra && dataExtra.mensaje_id)) {
+  const extra = dataExtra && typeof dataExtra === 'object' ? dataExtra : {};
+  if (tipo.includes('mensaje') || tipo === 'conexion' || extra.mensaje_id) {
     if (td === 'DOCENTE') return '/docente/mensajes';
     return '/apoderado/mensajes';
   }
@@ -131,8 +152,25 @@ function inferirUrlNotificacionFamiliaPorDestinatario(
     if (td === 'DOCENTE') return '/docente/comunicados';
     return '/apoderado/comunicados';
   }
-  if (tipo.includes('asistencia') || tipo === 'presentacion_vestimenta') {
-    return urlPortalHijoPorTipoUsuario(td, alumno_id);
+  if (tipo === 'incidencia' || tipo.includes('incidencia')) {
+    return urlPortalHijoPorTipoUsuario(td, alumno_id, {
+      abrir: 'incidencias',
+      item: itemIncidenciaDesdeExtra(extra),
+    });
+  }
+  if (tipo === 'presentacion_vestimenta' || tipo === 'olvido_qr') {
+    return urlPortalHijoPorTipoUsuario(td, alumno_id, {
+      abrir: 'incidencias',
+      item: itemIncidenciaDesdeExtra(extra),
+    });
+  }
+  if (tipo.includes('asistencia') || tipo.startsWith('asistencia_manual')) {
+    const tr = String(extra.tipo_asistencia || extra.tipo_registro || '').toUpperCase();
+    const esTardanza = tr === 'TARDANZA' || tipo.includes('tardanza');
+    return urlPortalHijoPorTipoUsuario(td, alumno_id, {
+      abrir: esTardanza ? 'incidencias' : 'asistencias',
+      item: esTardanza ? itemIncidenciaDesdeExtra(extra) : '',
+    });
   }
   if (tipo === 'examen_finalizado') {
     return urlPortalHijoPorTipoUsuario(td, alumno_id);

@@ -379,6 +379,7 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
       const condIncB = []; for (let c = 1; c <= 4; c++) condIncB.push(c <= cicloSel ? resumen.conducta_incidencias?.[`b${c}`] : null);
       const condPresB = []; for (let c = 1; c <= 4; c++) condPresB.push(c <= cicloSel ? resumen.conducta_presentacion?.[`b${c}`] : null);
       const condTardNotaB = []; for (let c = 1; c <= 4; c++) condTardNotaB.push(c <= cicloSel ? resumen.conducta_tardanzas?.[`b${c}`] : null);
+      const condOlvidoB = []; for (let c = 1; c <= 4; c++) condOlvidoB.push(c <= cicloSel ? resumen.conducta_olvido_qr?.[`b${c}`] : null);
       const ordB = []; for (let c = 1; c <= 4; c++) ordB.push(c <= cicloSel ? resumen.orden_merito[`b${c}`] : null);
       const inasB = []; for (let c = 1; c <= 4; c++) inasB.push(c <= cicloSel ? resumen.inasistencias[`b${c}`] : null);
       const tardB = []; for (let c = 1; c <= 4; c++) tardB.push(c <= cicloSel ? resumen.tardanzas[`b${c}`] : null);
@@ -440,6 +441,7 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
       dibFila('COND. INCIDENCIAS', condIncB, '-');
       dibFila('COND. PRESENTACIÓN', condPresB, '-');
       dibFila('COND. TARDANZAS', condTardNotaB, '-');
+      dibFila('COND. OLVIDO QR', condOlvidoB, '-');
       dibFila('ORDEN DE MÉRITO', ordB);
       dibFila('N° DE INASISTENCIAS', inasB, '0');
       dibFila('N° DE TARDANZAS', tardB, '0');

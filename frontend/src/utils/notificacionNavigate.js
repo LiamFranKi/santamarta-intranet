@@ -189,6 +189,35 @@ export function normalizarUrlNotificacion(notif, user) {
     }
   }
 
+  // Incidencia / tardanza / presentación: si la URL guardada es genérica (dashboard o listado), abrir el modal del hijo.
+  if (
+    (tipoAccion === 'incidencia' ||
+      tipoAccion === 'presentacion_vestimenta' ||
+      tipoAccion === 'olvido_qr' ||
+      tipoAccion === 'asistencia_alumno') &&
+    (user?.tipo === 'APODERADO' || user?.tipo === 'DOCENTE')
+  ) {
+    const urlCorta = (url || '').split('?')[0];
+    const esGenerica =
+      !urlCorta ||
+      urlCorta === '/apoderado/dashboard' ||
+      urlCorta === '/docente/dashboard' ||
+      urlCorta === '/apoderado/hijos' ||
+      urlCorta === '/docente/hijos';
+    if (esGenerica) {
+      const qs = new URLSearchParams();
+      const abrir =
+        tipoAccion === 'asistencia_alumno' && String(payload.tipo_asistencia || '').toUpperCase() !== 'TARDANZA'
+          ? 'asistencias'
+          : 'incidencias';
+      qs.set('abrir', abrir);
+      if (payload.alumno_id) qs.set('hijo', String(payload.alumno_id));
+      if (payload.incident_id) qs.set('item', `inc-${payload.incident_id}`);
+      const base = user?.tipo === 'DOCENTE' ? '/docente/hijos' : '/apoderado/hijos';
+      url = `${base}?${qs.toString()}`;
+    }
+  }
+
   if (url) return url;
 
   // ——— Respaldo: sin url_destino (datos viejos o respuesta parcial) ———
@@ -252,11 +281,19 @@ export function normalizarUrlNotificacion(notif, user) {
     return '/alumno/mensajes';
   }
 
-  if (tipoAccion === 'asistencia_alumno' || tipoAccion === 'presentacion_vestimenta') {
-    // No existe ruta /hijos/:id en App; usar listado de hijos.
-    if (user?.tipo === 'DOCENTE') return '/docente/hijos';
-    return '/apoderado/hijos';
+  if (tipoAccion === 'incidencia' || tipoAccion === 'presentacion_vestimenta' || tipoAccion === 'olvido_qr' || tipoAccion === 'asistencia_alumno') {
+    const qs = new URLSearchParams();
+    const abrir =
+      tipoAccion === 'asistencia_alumno' && String(payload.tipo_asistencia || '').toUpperCase() !== 'TARDANZA'
+        ? 'asistencias'
+        : 'incidencias';
+    qs.set('abrir', abrir);
+    if (aid) qs.set('hijo', String(aid));
+    if (payload.incident_id) qs.set('item', `inc-${payload.incident_id}`);
+    const base = user?.tipo === 'DOCENTE' ? '/docente/hijos' : '/apoderado/hijos';
+    return `${base}?${qs.toString()}`;
   }
+
   if (tipoAccion === 'asistencia_docente') return '/docente/dashboard';
 
   if ((tipoAccion === 'tarea_por_vencer' || tipoAccion === 'tarea_vencida_sin_entrega') && payload.asignatura_id) {

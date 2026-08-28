@@ -201,7 +201,6 @@ function AlumnoAvatar() {
             <div className={`avatar-hero ${esFemenino ? 'avatar-hero-femenino' : 'avatar-hero-masculino'}`}>
               <div className="avatar-hero-bg" />
               <div className="avatar-hero-content">
-                <span className="avatar-hero-bimestre">Bimestre {bimestre}</span>
                 <div
                   className="avatar-hero-imagen-wrap avatar-hero-imagen-clickable"
                   onClick={() => imagenMostrar && setMostrarImagenGrande(true)}

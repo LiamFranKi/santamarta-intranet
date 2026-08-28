@@ -32,6 +32,7 @@ export default function AsistenciaConfirmModal({
   usuario,
   tipoRegistro,
   processing,
+  aplicarOlvidoQr = false,
   onCancel,
   onConfirm
 }) {
@@ -48,12 +49,14 @@ export default function AsistenciaConfirmModal({
   const esEntrada = tipoRegistro === 'ENTRADA';
   const esAlumno = usuario.tipo === 'ALUMNO';
   const mostrarPresentacion = esEntrada && esAlumno;
+  const mostrarOlvidoQr = esEntrada && esAlumno && aplicarOlvidoQr;
 
   const tipoTexto = tipoRegistro === 'ENTRADA' ? 'Entrada' : 'Salida';
   const tituloIcono = tipoRegistro === 'ENTRADA' ? '✅' : '👋';
 
   const handleConfirm = () => {
     const descuentos = [];
+    if (mostrarOlvidoQr) descuentos.push('OLVIDO_QR');
     if (mostrarPresentacion) {
       if (presentacion) descuentos.push('PRESENTACION');
     }
@@ -89,6 +92,13 @@ export default function AsistenciaConfirmModal({
               <strong>DNI:</strong> {usuario.nro_documento || 'N/A'}
             </p>
           </div>
+
+          {mostrarOlvidoQr && (
+            <div className="asistencia-confirm-modal__olvido" role="status">
+              <strong>Olvido QR.</strong> Al confirmar se descontará conducta por no traer el QR.
+              La presentación sigue siendo opcional abajo.
+            </div>
+          )}
 
           {mostrarPresentacion && (
             <div className="asistencia-confirm-modal__presentacion">

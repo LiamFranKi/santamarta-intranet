@@ -16,6 +16,7 @@ const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlter
 const { fetchMatriculaAnioActivoOperativa } = require('../utils/matriculaAnioActivo');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const { urlStaticFotos } = require('../utils/staticStorage');
+const { listarComunicadosInicio } = require('../utils/comunicadosHome');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 const { esCompletarCorrecto } = require('../utils/examenCompletar');
 const { programarNotificacionApoderadosExamen } = require('../utils/examenNotificarApoderados');
@@ -423,49 +424,8 @@ router.get('/dashboard', async (req, res) => {
       [colegio_id, añoActual]
     );
 
-    // Obtener comunicado con show_in_home activo (más reciente)
-    const comunicadoHome = await query(
-      `SELECT c.*
-       FROM comunicados c
-       WHERE c.colegio_id = ? AND c.estado = 'ACTIVO' AND c.show_in_home = 1
-       ORDER BY c.fecha_hora DESC
-       LIMIT 1`,
-      [colegio_id]
-    );
-
-    // Construir URL del archivo del comunicado si existe
-    let comunicadoHomeData = null;
-    if (comunicadoHome.length > 0) {
-      const com = comunicadoHome[0];
-      let archivoUrl = null;
-      
-      if (com.archivo && com.archivo.trim() !== '') {
-        const nombreArchivo = com.archivo.trim();
-        const esSistemaNuevo = nombreArchivo.startsWith('/uploads/comunicados/') || 
-                               nombreArchivo.startsWith('uploads/comunicados/');
-        const isProduction = process.env.NODE_ENV === 'production';
-        const dominioBase = 'https://sistema.vanguardschools.edu.pe';
-        
-        if (esSistemaNuevo) {
-          archivoUrl = isProduction
-            ? `https://sistema.vanguardschools.edu.pe${nombreArchivo.startsWith('/') ? nombreArchivo : '/' + nombreArchivo}`
-            : `http://localhost:5000${nombreArchivo.startsWith('/') ? nombreArchivo : '/' + nombreArchivo}`;
-        } else {
-          if (nombreArchivo.startsWith('/Static/')) {
-            archivoUrl = `${dominioBase}${nombreArchivo}`;
-          } else if (nombreArchivo.startsWith('Static/')) {
-            archivoUrl = `${dominioBase}/${nombreArchivo}`;
-          } else {
-            archivoUrl = `${dominioBase}/Static/Archivos/${nombreArchivo}`;
-          }
-        }
-      }
-      
-      comunicadoHomeData = {
-        ...com,
-        archivo_url: archivoUrl
-      };
-    }
+    const comunicadosHomeData = await listarComunicadosInicio(query, colegio_id);
+    const comunicadoHomeData = comunicadosHomeData[0] || null;
 
     // Total estrellas (enrollment_incidents type=2) - acumulativas del año activo
     const matriculasAlumno = await query(
@@ -606,7 +566,8 @@ router.get('/dashboard', async (req, res) => {
       proximosExamenes: proximosExamenes || [],
       proximasTareas: proximasTareas || [],
       proximasActividades: actividades || [],
-      comunicadoHome: comunicadoHomeData
+      comunicadoHome: comunicadoHomeData,
+      comunicadosHome: comunicadosHomeData
     };
     
     console.log('✅ [ALUMNO DASHBOARD] Datos cargados exitosamente:', {

@@ -771,7 +771,7 @@ function Dashboard() {
 
   return (
     <DashboardLayout>
-      <BirthdayWidget comunicadoAbierto={false} />
+      <BirthdayWidget />
       <EleccionesCampanaBanner />
       <div className="dashboard-container">
         <TarjetasTardanzaAdminColegio />

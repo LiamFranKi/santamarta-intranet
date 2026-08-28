@@ -29,6 +29,7 @@ const {
 } = require('../utils/matriculaAnioActivo');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const { urlStaticFotos } = require('../utils/staticStorage');
+const { listarComunicadosInicio } = require('../utils/comunicadosHome');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 const { getBoletaPdfJsonForPago } = require('../utils/boletaPdfData');
 const { obtenerRangosLetrasColegio } = require('../utils/rangosLetrasColegio');
@@ -516,49 +517,8 @@ router.get('/dashboard', async (req, res) => {
       [colegio_id, añoActual]
     );
 
-    // Obtener comunicado con show_in_home activo
-    const comunicadoHome = await query(
-      `SELECT c.*
-       FROM comunicados c
-       WHERE c.colegio_id = ? AND c.estado = 'ACTIVO' AND c.show_in_home = 1
-       ORDER BY c.fecha_hora DESC
-       LIMIT 1`,
-      [colegio_id]
-    );
-
-    // Construir URL del archivo del comunicado si existe
-    let comunicadoHomeData = null;
-    if (comunicadoHome.length > 0) {
-      const com = comunicadoHome[0];
-      let archivoUrl = null;
-      
-      if (com.archivo && com.archivo.trim() !== '') {
-        const nombreArchivo = com.archivo.trim();
-        const esSistemaNuevo = nombreArchivo.startsWith('/uploads/comunicados/') || 
-                               nombreArchivo.startsWith('uploads/comunicados/');
-        const isProduction = process.env.NODE_ENV === 'production';
-        const dominioBase = 'https://sistema.vanguardschools.edu.pe';
-        
-        if (esSistemaNuevo) {
-          archivoUrl = isProduction
-            ? `https://sistema.vanguardschools.edu.pe${nombreArchivo.startsWith('/') ? nombreArchivo : '/' + nombreArchivo}`
-            : `http://localhost:5000${nombreArchivo.startsWith('/') ? nombreArchivo : '/' + nombreArchivo}`;
-        } else {
-          if (nombreArchivo.startsWith('/Static/')) {
-            archivoUrl = `${dominioBase}${nombreArchivo}`;
-          } else if (nombreArchivo.startsWith('Static/')) {
-            archivoUrl = `${dominioBase}/${nombreArchivo}`;
-          } else {
-            archivoUrl = `${dominioBase}/Static/Archivos/${nombreArchivo}`;
-          }
-        }
-      }
-      
-      comunicadoHomeData = {
-        ...com,
-        archivo_url: archivoUrl
-      };
-    }
+    const comunicadosHomeData = await listarComunicadosInicio(query, colegio_id);
+    const comunicadoHomeData = comunicadosHomeData[0] || null;
 
     // Construir URL de foto
     let fotoUrl = null;
@@ -589,7 +549,8 @@ router.get('/dashboard', async (req, res) => {
       proximosExamenes: proximosExamenes || [],
       proximasTareas: proximasTareas || [],
       proximasActividades: actividades || [],
-      comunicadoHome: comunicadoHomeData
+      comunicadoHome: comunicadoHomeData,
+      comunicadosHome: comunicadosHomeData
     };
     
     console.log('✅ [APODERADO DASHBOARD] Datos cargados exitosamente:', {
@@ -2911,6 +2872,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         conducta_incidencias: desgloseConducta.conducta_incidencias,
         conducta_presentacion: desgloseConducta.conducta_presentacion,
         conducta_tardanzas: desgloseConducta.conducta_tardanzas,
+        conducta_olvido_qr: desgloseConducta.conducta_olvido_qr,
         orden_merito: { b1: null, b2: null, b3: null, b4: null },
         inasistencias: { b1: inasistenciasB1, b2: inasistenciasB2, b3: inasistenciasB3, b4: inasistenciasB4 },
         tardanzas: { b1: tardanzasB1, b2: tardanzasB2, b3: tardanzasB3, b4: tardanzasB4 }
@@ -2992,6 +2954,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     const conductaIncidenciasMap = mapaNotaCasillero(-104);
     const conductaPresentacionMap = mapaNotaCasillero(-105);
     const conductaTardanzasMap = mapaNotaCasillero(-106);
+    const conductaOlvidoQrMap = mapaNotaCasillero(-107);
 
     // Recomendaciones: solo la del bimestre seleccionado (sin prefijo "Bimestre X:")
     let recomendacionesTexto = '';
@@ -3255,6 +3218,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       conducta_incidencias: conductaIncidenciasMap,
       conducta_presentacion: conductaPresentacionMap,
       conducta_tardanzas: conductaTardanzasMap,
+      conducta_olvido_qr: conductaOlvidoQrMap,
       orden_merito: {
         b1: ordenMerito.b1,
         b2: ordenMerito.b2,

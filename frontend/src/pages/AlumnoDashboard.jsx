@@ -12,7 +12,6 @@ import PublicacionesCardFeed from '../components/PublicacionesCardFeed';
 import BirthdayWidget from '../components/BirthdayWidget';
 import EleccionesCampanaBanner from '../components/EleccionesCampanaBanner';
 import { useAvatarWidget } from '../context/AvatarWidgetContext';
-import { normalizeStaticFileUrl } from '../config/staticFiles';
 import { mapHexExamenesToEventos } from './herramientas/hexEventosDashboard';
 import './AlumnoDashboard.css';
 import './DocenteGrupos.css';
@@ -29,7 +28,6 @@ function AlumnoDashboard() {
   const [paginaActual, setPaginaActual] = useState(1);
   const [eventoSeleccionado, setEventoSeleccionado] = useState(null);
   const [tipoEventoSeleccionado, setTipoEventoSeleccionado] = useState(null);
-  const [mostrarComunicadoHome, setMostrarComunicadoHome] = useState(false);
   
   // Estados para modales
   const [mostrarModalCursos, setMostrarModalCursos] = useState(false);
@@ -122,74 +120,7 @@ function AlumnoDashboard() {
   }, [dashboardData?.avatar_widget, setAvatarWidget]);
 
   // Extraer datos del dashboard (con valores por defecto para evitar errores)
-  const { alumno, matricula, tutor, estadisticas, asignaturas, proximosExamenes, proximasTareas, proximasActividades, comunicadoHome } = dashboardData || {};
-
-  // Mostrar modal de comunicado home si existe
-  useEffect(() => {
-    if (comunicadoHome && !loading) {
-      // Verificar si ya se mostró este comunicado en esta sesión
-      const comunicadoMostrado = sessionStorage.getItem(`comunicado_home_${comunicadoHome.id}`);
-      if (!comunicadoMostrado) {
-        setMostrarComunicadoHome(true);
-      }
-    }
-  }, [comunicadoHome, loading]);
-
-  const cerrarComunicadoHome = () => {
-    if (comunicadoHome) {
-      sessionStorage.setItem(`comunicado_home_${comunicadoHome.id}`, 'true');
-    }
-    setMostrarComunicadoHome(false);
-  };
-
-  const formatearFecha = (fechaHora) => {
-    if (!fechaHora) return '';
-    const fecha = new Date(fechaHora);
-    const dia = String(fecha.getDate()).padStart(2, '0');
-    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
-    const año = fecha.getFullYear();
-    let horas = fecha.getHours();
-    const minutos = String(fecha.getMinutes()).padStart(2, '0');
-    const ampm = horas >= 12 ? 'PM' : 'AM';
-    horas = horas % 12;
-    horas = horas ? horas : 12;
-    return `${dia}-${mes}-${año} ${String(horas).padStart(2, '0')}:${minutos} ${ampm}`;
-  };
-
-  const handleVerArchivo = (archivoUrl) => {
-    if (archivoUrl) {
-      let urlFinal = archivoUrl.trim();
-      
-      if (!urlFinal.startsWith('http://') && !urlFinal.startsWith('https://')) {
-        urlFinal = normalizeStaticFileUrl(archivoUrl);
-      }
-      
-      if (!urlFinal) {
-        alert('Error: No se pudo construir la URL del archivo');
-        return;
-      }
-      
-      try {
-        const urlObj = new URL(urlFinal);
-        const nuevaVentana = window.open(urlObj.href, '_blank', 'noopener,noreferrer');
-        
-        if (!nuevaVentana) {
-          const link = document.createElement('a');
-          link.href = urlObj.href;
-          link.target = '_blank';
-          link.rel = 'noopener noreferrer';
-          document.body.appendChild(link);
-          link.click();
-          setTimeout(() => {
-            document.body.removeChild(link);
-          }, 100);
-        }
-      } catch (error) {
-        console.error('Error al procesar URL:', error);
-        alert(`Error al abrir el archivo.\nURL: ${urlFinal}\n\nError: ${error.message}`);
-      }
-    }
-  };
+  const { alumno, matricula, tutor, estadisticas, asignaturas, proximosExamenes, proximasTareas, proximasActividades } = dashboardData || {};
 
   // Obtener el mes actual en español
   const meses = [
@@ -973,124 +904,6 @@ function AlumnoDashboard() {
         />
       )}
 
-      {/* Modal de Comunicado Home */}
-      {mostrarComunicadoHome && comunicadoHome && createPortal(
-        <div 
-          className="modal-mensaje-overlay" 
-          onClick={cerrarComunicadoHome}
-          style={{ zIndex: 100001 }}
-        >
-          <div 
-            className="modal-mensaje-container" 
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="modal-comunicado-home-title"
-            style={{ maxWidth: '700px' }}
-          >
-            <div className="modal-mensaje-header">
-              <h2 id="modal-comunicado-home-title">
-                📢 Comunicado Importante
-              </h2>
-              <button
-                className="modal-mensaje-close"
-                onClick={cerrarComunicadoHome}
-                type="button"
-                aria-label="Cerrar modal"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="modal-mensaje-body">
-              <div style={{ marginBottom: '1.5rem' }}>
-                <h3 style={{ 
-                  margin: '0 0 1rem 0', 
-                  fontSize: '1.5rem', 
-                  color: '#1f2937',
-                  fontWeight: '700'
-                }}>
-                  {comunicadoHome.descripcion}
-                </h3>
-                {comunicadoHome.contenido && (
-                  <div 
-                    style={{ 
-                      marginBottom: '1rem',
-                      color: '#374151',
-                      lineHeight: '1.6'
-                    }}
-                    dangerouslySetInnerHTML={{ __html: comunicadoHome.contenido }}
-                  />
-                )}
-                <div style={{ 
-                  fontSize: '0.9rem', 
-                  color: '#6b7280',
-                  marginTop: '1rem'
-                }}>
-                  📅 {formatearFecha(comunicadoHome.fecha_hora)}
-                </div>
-              </div>
-              {comunicadoHome.archivo_url && (
-                <div style={{ 
-                  marginTop: '1.5rem',
-                  padding: '1rem',
-                  background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
-                  borderRadius: '10px',
-                  border: '2px solid #bae6fd'
-                }}>
-                  <button
-                    onClick={() => handleVerArchivo(comunicadoHome.archivo_url)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.75rem',
-                      padding: '0.75rem 1.5rem',
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontSize: '1rem',
-                      fontWeight: '600',
-                      width: '100%',
-                      justifyContent: 'center',
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
-                    onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
-                  >
-                    <span style={{ fontSize: '1.2rem' }}>📎</span>
-                    Ver Archivo Adjunto
-                  </button>
-                </div>
-              )}
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'center', 
-                marginTop: '1.5rem' 
-              }}>
-                <button
-                  onClick={cerrarComunicadoHome}
-                  style={{
-                    padding: '0.75rem 2rem',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '1rem',
-                    fontWeight: '600'
-                  }}
-                >
-                  Entendido
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
       {/* Modal Mis Cursos */}
       {mostrarModalCursos && createPortal(
         <div 
@@ -1424,7 +1237,7 @@ function AlumnoDashboard() {
       )}
 
       {/* Widget flotante de cumpleaños (z-index menor que comunicado para evitar conflictos) */}
-      <BirthdayWidget comunicadoAbierto={mostrarComunicadoHome} />
+      <BirthdayWidget />
     </DashboardLayout>
   );
 }

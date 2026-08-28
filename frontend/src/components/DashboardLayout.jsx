@@ -12,6 +12,7 @@ import PWAInstallPrompt from './PWAInstallPrompt';
 import PWAUpdateNotification from './PWAUpdateNotification';
 import ModalAsistencias from './ModalAsistencias';
 import BirthdayWelcomeModal from './BirthdayWelcomeModal';
+import ComunicadoHomeModal from './ComunicadoHomeModal';
 import EncuestaActivacionModal from './EncuestaActivacionModal';
 import HerramientasExamenActivacionModal from './HerramientasExamenActivacionModal';
 import '../styles/CumpleMarcoFestivo.css';
@@ -1862,6 +1863,9 @@ export default function DashboardLayout({ children }) {
 
         {/* Examen herramientas activo: mismo estilo; si hay encuesta pendiente, no compite (el otro componente espera) */}
         <HerramientasExamenActivacionModal />
+
+        {/* Comunicados con "Mostrar en inicio" (puede haber varios; z-index sobre encuesta/cumpleaños) */}
+        <ComunicadoHomeModal />
 
         {/* Modal de bienvenida cumpleaños (plantilla ventana; z-index bajo comunicado home) */}
         <BirthdayWelcomeModal />

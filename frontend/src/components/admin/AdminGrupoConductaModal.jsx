@@ -4,7 +4,7 @@ import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { exportConductaGrupoPdf } from '../../utils/exportConductaGrupoPdf';
 import { exportIncidenciasPresentacionPdf } from '../../utils/exportIncidenciasPresentacionPdf';
-import { textoReglaConducta, textoReglaCorta, REGLA_CONDUCTA_DEFAULT, captionDescuentosConducta, etiquetaOrigenConducta, claseOrigenConducta, notaMaxReferencia } from '../../utils/reglaConducta';
+import { textoReglaConducta, textoReglaCorta, REGLA_CONDUCTA_DEFAULT, captionDescuentosConducta, etiquetaOrigenConducta, claseOrigenConducta, notaMaxReferencia, esOrigenIncidenciaDocente } from '../../utils/reglaConducta';
 import '../../pages/DocenteTutoria.css';
 
 const API_BASE = '/admin/academico/grupos';
@@ -167,6 +167,59 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
     }
   };
 
+  const parseIdRegistroConducta = (raw) => {
+    const s = String(raw || '');
+    const m = s.match(/^(ped|tard)-(\d+)$/);
+    if (!m) return null;
+    return { tipo: m[1], id: parseInt(m[2], 10) };
+  };
+
+  const eliminarRegistroConductaDetalle = async (inc) => {
+    const parsed = parseIdRegistroConducta(inc?.id);
+    if (!parsed || !grupo?.id) return;
+    const esPed = parsed.tipo === 'ped';
+    const esOlvido = inc?.origen === 'olvido_qr';
+    const confirm = await Swal.fire({
+      icon: 'warning',
+      title: esOlvido ? '¿Quitar olvido QR?' : esPed ? '¿Quitar presentación?' : '¿Quitar tardanza?',
+      text: esOlvido
+        ? 'Se eliminará este descuento por olvido de QR y se recalculará la nota de conducta.'
+        : esPed
+        ? 'Se eliminará este descuento por presentación y se recalculará la nota de conducta.'
+        : 'La tardanza pasará a PRESENTE y se recalculará la nota de conducta.',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, quitar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!confirm.isConfirmed) return;
+    const url = esPed
+      ? `${REPORTE_BASE}/${grupo.id}/presentacion-descuentos/${parsed.id}`
+      : `${REPORTE_BASE}/${grupo.id}/tardanzas-asistencia/${parsed.id}`;
+    try {
+      await api.delete(url);
+      const res = await api.get(`${API_BASE}/${grupo.id}/conducta`, { params: { ciclo: conductaCiclo } });
+      const alumnosAct = res.data.alumnos || [];
+      setConductaAlumnos(alumnosAct);
+      const mid = detalleAlumno?.alumno?.matricula_id;
+      const actualizado = alumnosAct.find((a) => Number(a.matricula_id) === Number(mid));
+      if (actualizado) await abrirDetalle(actualizado);
+      Swal.fire({
+        icon: 'success',
+        title: 'Listo',
+        text: 'La nota de conducta se actualizó.',
+        timer: 1800,
+        showConfirmButton: false,
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo quitar el registro',
+      });
+    }
+  };
+
   const exportPdfIncidencias = async () => {
     if (!dataIncidencias.length) {
       Swal.fire({ icon: 'info', title: 'Sin registros', text: 'No hay incidencias ni presentación en el bimestre.' });
@@ -303,6 +356,7 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
                       <th style={{ width: 62, textAlign: 'center' }}>Incid.</th>
                       <th style={{ width: 72, textAlign: 'center' }}>Present.</th>
                       <th style={{ width: 62, textAlign: 'center' }}>Tard.</th>
+                      <th style={{ width: 72, textAlign: 'center' }}>Olvido QR</th>
                       <th style={{ width: 90, textAlign: 'center' }}>NOTA</th>
                       <th style={{ width: 70, textAlign: 'center' }}>Ver</th>
                     </tr>
@@ -315,6 +369,7 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
                         <td style={{ textAlign: 'center' }}>{a.total_incidencias ?? 0}</td>
                         <td style={{ textAlign: 'center' }}>{a.total_presentacion ?? 0}</td>
                         <td style={{ textAlign: 'center' }}>{a.total_tardanzas ?? 0}</td>
+                        <td style={{ textAlign: 'center' }}>{a.total_olvido_qr ?? 0}</td>
                         <td style={{ textAlign: 'center' }}>
                           <span className="input-conducta input-conducta--readonly">{a.nota_conducta ?? notaMaxReferencia(reglaConducta)}</span>
                         </td>
@@ -358,9 +413,10 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
                     <span className="conducta-detalle-chip conducta-detalle-chip--nota">
                       Nota {detalleAlumno.alumno?.nota_conducta ?? '—'}
                     </span>
-                    <span className="conducta-detalle-chip">Incid. {detalleAlumno.alumno?.total_incidencias ?? (detalleAlumno.incidencias || []).filter((x) => x.origen !== 'vestimenta' && x.origen !== 'tardanza').length}</span>
+                    <span className="conducta-detalle-chip">Incid. {detalleAlumno.alumno?.total_incidencias ?? (detalleAlumno.incidencias || []).filter((x) => esOrigenIncidenciaDocente(x.origen)).length}</span>
                     <span className="conducta-detalle-chip">Present. {detalleAlumno.alumno?.total_presentacion ?? (detalleAlumno.incidencias || []).filter((x) => x.origen === 'vestimenta').length}</span>
                     <span className="conducta-detalle-chip">Tard. {detalleAlumno.alumno?.total_tardanzas ?? (detalleAlumno.incidencias || []).filter((x) => x.origen === 'tardanza').length}</span>
+                    <span className="conducta-detalle-chip">Olvido QR {detalleAlumno.alumno?.total_olvido_qr ?? (detalleAlumno.incidencias || []).filter((x) => x.origen === 'olvido_qr').length}</span>
                   </div>
                 </div>
                 <button type="button" className="tutor-evidencias-close" onClick={() => setDetalleAlumno(null)}>
@@ -389,9 +445,20 @@ function AdminGrupoConductaModal({ open, grupo, onClose }) {
                         <li key={inc.id} className="tutor-inc-card">
                           <div className="tutor-inc-card-top">
                             <time className="tutor-inc-fecha">{formatearFechaHoraPeru(inc.created_at)}</time>
-                            <span className={`tutor-inc-origen ${claseOrigenConducta(inc.origen)}`}>
-                              {etiquetaOrigenConducta(inc.origen)}
-                            </span>
+                            <div className="tutor-inc-card-top-acciones">
+                              <span className={`tutor-inc-origen ${claseOrigenConducta(inc.origen)}`}>
+                                {etiquetaOrigenConducta(inc.origen)}
+                              </span>
+                              {(inc.origen === 'vestimenta' || inc.origen === 'tardanza' || inc.origen === 'olvido_qr') ? (
+                                <button
+                                  type="button"
+                                  className="btn-eliminar-conducta-item"
+                                  onClick={() => eliminarRegistroConductaDetalle(inc)}
+                                >
+                                  🗑️ Quitar
+                                </button>
+                              ) : null}
+                            </div>
                           </div>
                           <div className="tutor-inc-card-meta">
                             <div className="tutor-inc-meta-item">

@@ -17,6 +17,7 @@ function AsistenciaEscaneo() {
   const [modo, setModo] = useState('continuo'); // 'continuo' o 'manual'
   const [escaneando, setEscaneando] = useState(false);
   const [mostrarBusqueda, setMostrarBusqueda] = useState(false);
+  const [modoBusqueda, setModoBusqueda] = useState(null); // 'buscar' | 'olvido_qr'
   const [busqueda, setBusqueda] = useState('');
   const [resultadosBusqueda, setResultadosBusqueda] = useState([]);
   const [procesando, setProcesando] = useState(false);
@@ -343,7 +344,11 @@ function AsistenciaEscaneo() {
 
   const abrirModalConfirmacion = (data) => {
     modalBloqueaScanRef.current = true;
-    setModalConfirmacion({ usuario: data.usuario, tipo_registro: data.tipo_registro });
+    setModalConfirmacion({
+      usuario: data.usuario,
+      tipo_registro: data.tipo_registro,
+      aplicarOlvidoQr: !!data.aplicarOlvidoQr,
+    });
   };
 
   const cerrarModalConfirmacion = () => {
@@ -488,15 +493,36 @@ function AsistenciaEscaneo() {
     };
   }, [busqueda]);
 
-  const seleccionarUsuarioManual = (usuario) => {
+  const cerrarPanelBusqueda = () => {
     setMostrarBusqueda(false);
+    setModoBusqueda(null);
     setBusqueda('');
     setResultadosBusqueda([]);
+    if (busquedaTimeoutRef.current) {
+      clearTimeout(busquedaTimeoutRef.current);
+    }
+  };
+
+  const togglePanelBusqueda = (modo) => {
+    if (mostrarBusqueda && modoBusqueda === modo) {
+      cerrarPanelBusqueda();
+      return;
+    }
+    setModoBusqueda(modo);
+    setMostrarBusqueda(true);
+    setBusqueda('');
+    setResultadosBusqueda([]);
+  };
+
+  const seleccionarUsuarioManual = (usuario) => {
+    const aplicarOlvidoQr = modoBusqueda === 'olvido_qr' && usuario?.tipo === 'ALUMNO';
+    cerrarPanelBusqueda();
 
     const tipoRegistro = 'ENTRADA';
     abrirModalConfirmacion({
       usuario,
-      tipo_registro: tipoRegistro
+      tipo_registro: tipoRegistro,
+      aplicarOlvidoQr,
     });
   };
 
@@ -537,6 +563,7 @@ function AsistenciaEscaneo() {
         open={!!modalConfirmacion}
         usuario={modalConfirmacion?.usuario}
         tipoRegistro={modalConfirmacion?.tipo_registro}
+        aplicarOlvidoQr={!!modalConfirmacion?.aplicarOlvidoQr}
         processing={procesando}
         onCancel={() => {
           cerrarModalConfirmacion();
@@ -591,10 +618,17 @@ function AsistenciaEscaneo() {
             <option value="manual">Modo Manual</option>
           </select>
           <button 
-            className="btn-buscar"
-            onClick={() => setMostrarBusqueda(!mostrarBusqueda)}
+            className={`btn-buscar${mostrarBusqueda && modoBusqueda === 'buscar' ? ' is-activo' : ''}`}
+            onClick={() => togglePanelBusqueda('buscar')}
           >
             🔍 Buscar
+          </button>
+          <button
+            type="button"
+            className={`btn-olvido-qr${mostrarBusqueda && modoBusqueda === 'olvido_qr' ? ' is-activo' : ''}`}
+            onClick={() => togglePanelBusqueda('olvido_qr')}
+          >
+            📱 Olvidé QR
           </button>
           <button 
             className="btn-cerrar-sesion"
@@ -607,12 +641,21 @@ function AsistenciaEscaneo() {
 
       {/* Búsqueda Manual */}
       {mostrarBusqueda && (
-        <div className="busqueda-manual">
+        <div className={`busqueda-manual${modoBusqueda === 'olvido_qr' ? ' busqueda-manual--olvido' : ''}`}>
+          {modoBusqueda === 'olvido_qr' ? (
+            <p className="busqueda-manual-aviso">
+              Olvido QR: busca al alumno. Al confirmar se registra la entrada y se descuenta conducta.
+            </p>
+          ) : null}
           <div className="busqueda-input-container">
             <input
               type="text"
               className="busqueda-input"
-              placeholder="Buscar por DNI, nombres o apellidos... (mínimo 2 caracteres)"
+              placeholder={
+                modoBusqueda === 'olvido_qr'
+                  ? 'Olvido QR — DNI, nombres o apellidos (mínimo 2 caracteres)'
+                  : 'Buscar por DNI, nombres o apellidos... (mínimo 2 caracteres)'
+              }
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               autoFocus
@@ -622,14 +665,7 @@ function AsistenciaEscaneo() {
             )}
             <button 
               className="btn-cerrar-busqueda"
-              onClick={() => {
-                setMostrarBusqueda(false);
-                setBusqueda('');
-                setResultadosBusqueda([]);
-                if (busquedaTimeoutRef.current) {
-                  clearTimeout(busquedaTimeoutRef.current);
-                }
-              }}
+              onClick={cerrarPanelBusqueda}
             >
               ✕
             </button>
@@ -642,9 +678,15 @@ function AsistenciaEscaneo() {
                   <div className="spinner-pequeño"></div>
                   <span>Buscando...</span>
                 </div>
-              ) : resultadosBusqueda.length > 0 ? (
+              ) : (modoBusqueda === 'olvido_qr'
+                ? resultadosBusqueda.filter((u) => u.tipo === 'ALUMNO')
+                : resultadosBusqueda
+              ).length > 0 ? (
                 <div className="resultados-busqueda">
-                  {resultadosBusqueda.map((usuario, idx) => (
+                  {(modoBusqueda === 'olvido_qr'
+                    ? resultadosBusqueda.filter((u) => u.tipo === 'ALUMNO')
+                    : resultadosBusqueda
+                  ).map((usuario, idx) => (
                     <div 
                       key={idx}
                       className="resultado-item"
@@ -660,7 +702,9 @@ function AsistenciaEscaneo() {
                 </div>
               ) : busqueda.trim().length >= 2 ? (
                 <div className="resultado-vacio">
-                  No se encontraron resultados
+                  {modoBusqueda === 'olvido_qr'
+                    ? 'No se encontraron alumnos'
+                    : 'No se encontraron resultados'}
                 </div>
               ) : null}
             </div>

@@ -133,13 +133,15 @@ const ELECCIONES_CAMPANA_RUTA_TIPOS = ['ALUMNO', 'APODERADO', 'DOCENTE', ...ELEC
 // `requiredType` (string): un solo tipo; si no se pasa `requiredTypes`, se interpreta como [requiredType].
 function PrivateRoute({ children, requiredType = null, requiredTypes = null }) {
   const { isAuthenticated, loading, user } = useAuth();
+  const loc = useLocation();
 
   if (loading) {
     return <div>Cargando...</div>;
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" />;
+    const next = encodeURIComponent(`${loc.pathname}${loc.search || ''}${loc.hash || ''}`);
+    return <Navigate to={`/login?next=${next}`} replace />;
   }
 
   const allowedTipos = Array.isArray(requiredTypes) && requiredTypes.length

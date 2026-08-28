@@ -20,6 +20,14 @@ const swalSobreModal = {
   }
 };
 
+function esMostrarEnInicio(valor) {
+  if (valor === true || valor === 1 || valor === '1' || valor === 'true') return true;
+  if (valor && typeof valor === 'object' && Array.isArray(valor.data)) {
+    return Number(valor.data[0]) === 1;
+  }
+  return Number(valor) === 1;
+}
+
 function AdminComunicados() {
   const { user } = useAuth();
   const puedeGestionarComunicados =
@@ -148,7 +156,7 @@ function AdminComunicados() {
       contenido: procesarHTMLMensaje(comunicado.contenido || ''),
       tipo: comunicado.tipo || 'TEXTO',
       privacidad: comunicado.privacidad || '',
-      show_in_home: comunicado.show_in_home === 1 || comunicado.show_in_home === true,
+      show_in_home: esMostrarEnInicio(comunicado.show_in_home),
       estado: comunicado.estado || 'ACTIVO'
     });
     setArchivoSeleccionado(null);
@@ -507,6 +515,7 @@ function AdminComunicados() {
             <div className="comunicados-grid">
               {comunicados.map((comunicado) => {
                 const esNuevo = esComunicadoNuevo(comunicado.id, comunicado.fecha_hora);
+                const enInicio = esMostrarEnInicio(comunicado.show_in_home);
                 return (
                 <div 
                   key={comunicado.id} 
@@ -521,8 +530,8 @@ function AdminComunicados() {
                       {esNuevo && (
                         <div className="comunicado-badge-nuevo">NUEVO</div>
                       )}
-                      <div className="comunicado-badge">
-                        {comunicado.estado === 'ACTIVO' ? 'ACTIVO' : 'INACTIVO'}
+                      <div className={`comunicado-badge ${enInicio ? '' : 'comunicado-badge-inactivo'}`}>
+                        {enInicio ? 'ACTIVO' : 'INACTIVO'}
                       </div>
                     </div>
                   </div>
@@ -810,11 +819,12 @@ function AdminComunicados() {
                 }}>
                   <label style={{ 
                     display: 'flex', 
-                    alignItems: 'center', 
+                    alignItems: 'flex-start', 
                     gap: '0.75rem', 
                     cursor: 'pointer',
                     margin: 0,
-                    userSelect: 'none'
+                    userSelect: 'none',
+                    maxWidth: '420px'
                   }}>
                     <input
                       type="checkbox"
@@ -824,15 +834,22 @@ function AdminComunicados() {
                         width: '20px',
                         height: '20px',
                         cursor: 'pointer',
-                        accentColor: '#667eea'
+                        accentColor: '#667eea',
+                        marginTop: '2px'
                       }}
                     />
-                    <span style={{ 
-                      fontSize: '1rem', 
-                      fontWeight: '600',
-                      color: '#374151'
-                    }}>
-                      Mostrar en inicio
+                    <span>
+                      <span style={{ 
+                        display: 'block',
+                        fontSize: '1rem', 
+                        fontWeight: '600',
+                        color: '#374151'
+                      }}>
+                        Mostrar en inicio
+                      </span>
+                      <span style={{ display: 'block', fontSize: '0.8rem', color: '#6b7280', fontWeight: 400, marginTop: '0.2rem' }}>
+                        Sale como ACTIVO en la lista y se muestra al iniciar sesión. Puedes marcar varios a la vez.
+                      </span>
                     </span>
                   </label>
                 </div>

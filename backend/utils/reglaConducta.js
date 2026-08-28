@@ -1,8 +1,8 @@
 /**
  * Regla de conducta (Configuración → General).
- * Tres casilleros independientes (incidencias, presentación, tardanzas).
+ * Cuatro casilleros independientes (incidencias, presentación, tardanzas, olvido QR).
  * Cada uno: clamp(mín, máx, máx − N × descuento); si redondear, .5 hacia arriba.
- * La nota final es el promedio de los tres.
+ * La nota final es el promedio de los cuatro.
  * Se guarda en config.clave = 'regla_conducta' (JSON).
  */
 
@@ -17,15 +17,17 @@ const REGLA_CONDUCTA_DEFAULT = Object.freeze({
   incidencias: { ...REGLA_BLOQUE_DEFAULT },
   presentacion: { ...REGLA_BLOQUE_DEFAULT },
   tardanzas: { ...REGLA_BLOQUE_DEFAULT },
+  olvido_qr: { ...REGLA_BLOQUE_DEFAULT },
   redondear_promedio: true,
 });
 
-const CASILLEROS_CONDUCTA = Object.freeze(['incidencias', 'presentacion', 'tardanzas']);
+const CASILLEROS_CONDUCTA = Object.freeze(['incidencias', 'presentacion', 'tardanzas', 'olvido_qr']);
 
 const LABELS_CASILLERO = Object.freeze({
   incidencias: 'Incidencias',
   presentacion: 'Presentación',
   tardanzas: 'Tardanzas',
+  olvido_qr: 'Olvido QR',
 });
 
 function toNum(value, fallback) {
@@ -102,6 +104,7 @@ function normalizarReglaConducta(raw) {
     incidencias: normalizarReglaBloque(src.incidencias || base),
     presentacion: normalizarReglaBloque(src.presentacion || base),
     tardanzas: normalizarReglaBloque(src.tardanzas || base),
+    olvido_qr: normalizarReglaBloque(src.olvido_qr || base),
     redondear_promedio: parseRedondear(
       src.redondear_promedio !== undefined ? src.redondear_promedio : (legado ? legado.redondear : true),
       true
@@ -137,8 +140,12 @@ function notasDesdeConteos(conteos, reglaRaw) {
   const incidencias = notaDesdeCantidad(conteos?.incidencias || 0, regla.incidencias);
   const presentacion = notaDesdeCantidad(conteos?.presentacion || 0, regla.presentacion);
   const tardanzas = notaDesdeCantidad(conteos?.tardanzas || 0, regla.tardanzas);
-  const final = promedioCasilleros([incidencias, presentacion, tardanzas], regla.redondear_promedio);
-  return { incidencias, presentacion, tardanzas, final, regla };
+  const olvido_qr = notaDesdeCantidad(conteos?.olvido_qr || 0, regla.olvido_qr);
+  const final = promedioCasilleros(
+    [incidencias, presentacion, tardanzas, olvido_qr],
+    regla.redondear_promedio
+  );
+  return { incidencias, presentacion, tardanzas, olvido_qr, final, regla };
 }
 
 function textoReglaConducta(reglaRaw) {
@@ -147,7 +154,7 @@ function textoReglaConducta(reglaRaw) {
     const b = r[k];
     return `${LABELS_CASILLERO[k]}: parte de ${formatNotaAlmacenada(b.max)}, ${formatDescuentoLabel(b.descuento)} por registro (mín. ${formatNotaAlmacenada(b.min)})`;
   });
-  let t = `${partes.join('. ')}. La nota de conducta es el promedio de los tres casilleros.`;
+  let t = `${partes.join('. ')}. La nota de conducta es el promedio de los cuatro casilleros.`;
   if (r.redondear_promedio) t += ' El promedio redondea .5 hacia arriba.';
   t += ' No se edita a mano.';
   return t;
@@ -161,7 +168,7 @@ function textoReglaCorta(reglaRaw) {
 
 function captionDescuentosConducta(reglaRaw) {
   const r = normalizarReglaConducta(reglaRaw);
-  return `Incid. ${formatDescuentoLabel(r.incidencias.descuento)} · Present. ${formatDescuentoLabel(r.presentacion.descuento)} · Tard. ${formatDescuentoLabel(r.tardanzas.descuento)}. La nota es el promedio de los tres casilleros.`;
+  return `Incid. ${formatDescuentoLabel(r.incidencias.descuento)} · Present. ${formatDescuentoLabel(r.presentacion.descuento)} · Tard. ${formatDescuentoLabel(r.tardanzas.descuento)} · Olvido QR ${formatDescuentoLabel(r.olvido_qr.descuento)}. La nota es el promedio de los cuatro casilleros.`;
 }
 
 async function fetchReglaConducta(query) {

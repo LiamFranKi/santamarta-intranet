@@ -2432,6 +2432,28 @@
   border-bottom: 1px solid #f1eef8;
 }
 
+.tutor-inc-card-top-acciones {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-eliminar-conducta-item {
+  border: none;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.28rem 0.55rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.btn-eliminar-conducta-item:hover {
+  background: #fecaca;
+}
+
 .tutor-inc-fecha {
   font-size: 0.9rem;
   font-weight: 700;
@@ -2565,6 +2587,12 @@
   background: #dbeafe;
   color: #1e40af;
   border: 1px solid #93c5fd;
+}
+
+.tutor-inc-origen.es-olvido-qr {
+  background: #ffedd5;
+  color: #9a3412;
+  border: 1px solid #fb923c;
 }
 
 .conducta-caption-descuentos {

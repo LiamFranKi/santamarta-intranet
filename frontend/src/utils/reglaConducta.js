@@ -9,15 +9,17 @@ export const REGLA_CONDUCTA_DEFAULT = Object.freeze({
   incidencias: { ...REGLA_BLOQUE_DEFAULT },
   presentacion: { ...REGLA_BLOQUE_DEFAULT },
   tardanzas: { ...REGLA_BLOQUE_DEFAULT },
+  olvido_qr: { ...REGLA_BLOQUE_DEFAULT },
   redondear_promedio: true,
 });
 
-export const CASILLEROS_CONDUCTA = ['incidencias', 'presentacion', 'tardanzas'];
+export const CASILLEROS_CONDUCTA = ['incidencias', 'presentacion', 'tardanzas', 'olvido_qr'];
 
 export const LABELS_CASILLERO = {
   incidencias: 'Incidencias',
   presentacion: 'Presentación',
   tardanzas: 'Tardanzas',
+  olvido_qr: 'Olvido QR',
 };
 
 function toNum(value, fallback) {
@@ -78,6 +80,7 @@ export function normalizarReglaConducta(raw) {
     incidencias: normalizarReglaBloque(src.incidencias || base),
     presentacion: normalizarReglaBloque(src.presentacion || base),
     tardanzas: normalizarReglaBloque(src.tardanzas || base),
+    olvido_qr: normalizarReglaBloque(src.olvido_qr || base),
     redondear_promedio: parseRedondear(
       src.redondear_promedio !== undefined ? src.redondear_promedio : (legado ? legado.redondear : true),
       true
@@ -112,7 +115,7 @@ export function textoReglaConducta(reglaRaw) {
     const b = r[k];
     return `${LABELS_CASILLERO[k]}: parte de ${formatNotaConducta(b.max)}, ${formatDescuentoLabel(b.descuento)} por registro (mín. ${formatNotaConducta(b.min)})`;
   });
-  let t = `${partes.join('. ')}. La nota de conducta es el promedio de los tres casilleros.`;
+  let t = `${partes.join('. ')}. La nota de conducta es el promedio de los cuatro casilleros.`;
   if (r.redondear_promedio) t += ' El promedio redondea .5 hacia arriba.';
   t += ' No se edita a mano.';
   return t;
@@ -126,7 +129,7 @@ export function textoReglaCorta(reglaRaw) {
 
 export function captionDescuentosConducta(reglaRaw) {
   const r = normalizarReglaConducta(reglaRaw);
-  return `Incid. ${formatDescuentoLabel(r.incidencias.descuento)} · Present. ${formatDescuentoLabel(r.presentacion.descuento)} · Tard. ${formatDescuentoLabel(r.tardanzas.descuento)}. La nota es el promedio de los tres casilleros.`;
+  return `Incid. ${formatDescuentoLabel(r.incidencias.descuento)} · Present. ${formatDescuentoLabel(r.presentacion.descuento)} · Tard. ${formatDescuentoLabel(r.tardanzas.descuento)} · Olvido QR ${formatDescuentoLabel(r.olvido_qr.descuento)}. La nota es el promedio de los cuatro casilleros.`;
 }
 
 export function ejemplosReglaBloque(reglaBloque) {
@@ -152,26 +155,34 @@ export function notaMaxReferencia(reglaRaw) {
   return formatNotaConducta(r.incidencias.max);
 }
 
+export function esOrigenIncidenciaDocente(origen) {
+  return origen !== 'vestimenta' && origen !== 'tardanza' && origen !== 'olvido_qr';
+}
+
 export function conteosOrigenConducta(regs = []) {
   let incidencias = 0;
   let presentacion = 0;
   let tardanzas = 0;
+  let olvido_qr = 0;
   (regs || []).forEach((x) => {
     if (x.origen === 'vestimenta') presentacion += 1;
     else if (x.origen === 'tardanza') tardanzas += 1;
+    else if (x.origen === 'olvido_qr') olvido_qr += 1;
     else incidencias += 1;
   });
-  return { incidencias, presentacion, tardanzas };
+  return { incidencias, presentacion, tardanzas, olvido_qr };
 }
 
 export function etiquetaOrigenConducta(origen) {
   if (origen === 'vestimenta') return 'Presentación';
   if (origen === 'tardanza') return 'Tardanza';
+  if (origen === 'olvido_qr') return 'Olvido QR';
   return 'Incidencia';
 }
 
 export function claseOrigenConducta(origen) {
   if (origen === 'vestimenta') return 'es-vestimenta';
   if (origen === 'tardanza') return 'es-tardanza';
+  if (origen === 'olvido_qr') return 'es-olvido-qr';
   return 'es-incidencia';
 }

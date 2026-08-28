@@ -19,6 +19,7 @@ const {
   urlMensajesPorTipoUsuario
 } = require('../utils/notificacionUrls');
 const { notificarComunicadoNuevo } = require('../utils/comunicadosNotificar');
+const { listarComunicadosInicio, flagShowInHome } = require('../utils/comunicadosHome');
 const { enviarCorreoNotificacion, isEmailEnvioHabilitado } = require('../services/emailService');
 const mensajesConfig = require('../config/mensajes.json');
 const moment = require('moment-timezone');
@@ -85,6 +86,8 @@ const {
   listarIncidenciasUnificadasGrupo,
   sincronizarConductaMatriculaBimestre,
   sincronizarConductaMatriculaPorFecha,
+  borrarDescuentoPresentacionGrupo,
+  corregirTardanzaAsistenciaGrupo,
   cicloQueContieneFecha,
   asegurarIncidenciaVestimenta,
   listarIncidenciasUnificadasMatricula,
@@ -1610,49 +1613,8 @@ router.get('/dashboard', async (req, res) => {
       hora_entrada_config: docente.hora_entrada,
     });
 
-    // Obtener comunicado con show_in_home activo (más reciente)
-    const comunicadoHome = await query(
-      `SELECT c.*
-       FROM comunicados c
-       WHERE c.colegio_id = ? AND c.estado = 'ACTIVO' AND c.show_in_home = 1
-       ORDER BY c.fecha_hora DESC
-       LIMIT 1`,
-      [colegio_id]
-    );
-
-    // Construir URL del archivo del comunicado si existe
-    let comunicadoHomeData = null;
-    if (comunicadoHome.length > 0) {
-      const com = comunicadoHome[0];
-      let archivoUrl = null;
-      
-      if (com.archivo && com.archivo.trim() !== '') {
-        const nombreArchivo = com.archivo.trim();
-        const esSistemaNuevo = nombreArchivo.startsWith('/uploads/comunicados/') || 
-                               nombreArchivo.startsWith('uploads/comunicados/');
-        const isProduction = process.env.NODE_ENV === 'production';
-        const dominioBase = 'https://sistema.vanguardschools.edu.pe';
-        
-        if (esSistemaNuevo) {
-          archivoUrl = isProduction
-            ? `https://sistema.vanguardschools.edu.pe${nombreArchivo.startsWith('/') ? nombreArchivo : '/' + nombreArchivo}`
-            : `http://localhost:5000${nombreArchivo.startsWith('/') ? nombreArchivo : '/' + nombreArchivo}`;
-        } else {
-          if (nombreArchivo.startsWith('/Static/')) {
-            archivoUrl = `${dominioBase}${nombreArchivo}`;
-          } else if (nombreArchivo.startsWith('Static/')) {
-            archivoUrl = `${dominioBase}/${nombreArchivo}`;
-          } else {
-            archivoUrl = `${dominioBase}/Static/Archivos/${nombreArchivo}`;
-          }
-        }
-      }
-      
-      comunicadoHomeData = {
-        ...com,
-        archivo_url: archivoUrl
-      };
-    }
+    const comunicadosHomeData = await listarComunicadosInicio(query, colegio_id);
+    const comunicadoHomeData = comunicadosHomeData[0] || null;
 
     // Verificar roles adicionales (apoderado y tutor)
     // Verificar si es apoderado (tiene hijos estudiando en el colegio)
@@ -1730,7 +1692,8 @@ router.get('/dashboard', async (req, res) => {
       proximosExamenes: proximosExamenes || [],
       proximasTareas: proximasTareas || [],
       actividades: actividades || [],
-      comunicadoHome: comunicadoHomeData
+      comunicadoHome: comunicadoHomeData,
+      comunicadosHome: comunicadosHomeData
     });
   } catch (error) {
     console.error('Error en dashboard docente:', error);
@@ -2541,6 +2504,7 @@ router.get('/grupos/:grupoId/reporte-descuentos-presentacion', async (req, res) 
          LEFT JOIN alumnos alrp ON alrp.id = ur.alumno_id
          WHERE ped.colegio_id = ? AND ped.anio = ?
            AND DATE(ped.fecha) BETWEEN ? AND ?
+           AND COALESCE(ped.motivo, '') <> 'OLVIDO_QR'
          ORDER BY al.apellido_paterno, al.apellido_materno, al.nombres, ped.fecha DESC, ped.hora DESC`,
         [grupoId, colegio_id, anioEsc, fechaDesde, fechaHasta]
       );
@@ -2645,6 +2609,48 @@ router.get('/grupos/:grupoId/reporte-incidencias-grupo', async (req, res) => {
   } catch (e) {
     console.error('[grupos/reporte-incidencias-grupo]', e);
     res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/**
+ * DELETE /api/docente/grupos/:grupoId/presentacion-descuentos/:id
+ * Quita un descuento de presentación (QR) y recalcula conducta.
+ */
+router.delete('/grupos/:grupoId/presentacion-descuentos/:id', async (req, res) => {
+  try {
+    const acc = await assertAccesoReporteGrupoGeneral(req, req.params.grupoId);
+    if (!acc.ok) return res.status(acc.status).json({ error: acc.error });
+    const r = await borrarDescuentoPresentacionGrupo(query, execute, {
+      descuentoId: req.params.id,
+      grupoId: req.params.grupoId,
+      colegio_id: req.user.colegio_id,
+    });
+    if (!r.ok) return res.status(r.status).json({ error: r.error });
+    res.json({ success: true, message: 'Descuento de presentación eliminado. Se actualizó la nota de conducta.' });
+  } catch (e) {
+    console.error('[grupos/presentacion-descuentos DELETE]', e);
+    res.status(500).json({ error: e.message || 'Error al eliminar presentación' });
+  }
+});
+
+/**
+ * DELETE /api/docente/grupos/:grupoId/tardanzas-asistencia/:id
+ * Corrige tardanza a PRESENTE y recalcula conducta.
+ */
+router.delete('/grupos/:grupoId/tardanzas-asistencia/:id', async (req, res) => {
+  try {
+    const acc = await assertAccesoReporteGrupoGeneral(req, req.params.grupoId);
+    if (!acc.ok) return res.status(acc.status).json({ error: acc.error });
+    const r = await corregirTardanzaAsistenciaGrupo(query, execute, {
+      asistenciaId: req.params.id,
+      grupoId: req.params.grupoId,
+      colegio_id: req.user.colegio_id,
+    });
+    if (!r.ok) return res.status(r.status).json({ error: r.error });
+    res.json({ success: true, message: 'Tardanza corregida a presente. Se actualizó la nota de conducta.' });
+  } catch (e) {
+    console.error('[grupos/tardanzas-asistencia DELETE]', e);
+    res.status(500).json({ error: e.message || 'Error al corregir tardanza' });
   }
 });
 
@@ -3333,7 +3339,7 @@ router.get('/cursos/:cursoId/alumnos', async (req, res) => {
                  AND p.promedio IS NOT NULL
                  AND p.promedio != ''
                  AND p.promedio != '-'
-                 AND p.promedio REGEXP '^[0-9]+\.?[0-9]*$') as promedio_final
+                 AND p.promedio REGEXP '^[0-9]+(\\.[0-9]*){0,1}$') as promedio_final
        FROM alumnos a
        INNER JOIN matriculas m ON m.alumno_id = a.id
        INNER JOIN grupos g ON g.id = m.grupo_id
@@ -9472,7 +9478,8 @@ router.get('/tutoria/grupos/:grupoId/evidencias-tutor/resumen', async (req, res)
          INNER JOIN matriculas m ON m.alumno_id = ua.alumno_id AND m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0)
          INNER JOIN grupos gx ON gx.id = m.grupo_id AND gx.anio = ped.anio
          WHERE ped.colegio_id = ? AND ped.anio = ?
-           AND DATE(ped.fecha) BETWEEN ? AND ?`,
+           AND DATE(ped.fecha) BETWEEN ? AND ?
+           AND COALESCE(ped.motivo, '') <> 'OLVIDO_QR'`,
         [colegio_id, grupoId, colegio_id, colegio_id, anioEsc, fechaDesde, fechaHasta]
       );
       cuentaDescuentos = Number(d?.c || 0);
@@ -9575,6 +9582,7 @@ router.get('/tutoria/grupos/:grupoId/reporte-descuentos-presentacion', async (re
          LEFT JOIN alumnos alrp ON alrp.id = ur.alumno_id
          WHERE ped.colegio_id = ? AND ped.anio = ?
            AND DATE(ped.fecha) BETWEEN ? AND ?
+           AND COALESCE(ped.motivo, '') <> 'OLVIDO_QR'
          ORDER BY al.apellido_paterno, al.apellido_materno, al.nombres, ped.fecha DESC, ped.hora DESC`,
         [grupoId, colegio_id, anioEsc, fechaDesde, fechaHasta]
       );
@@ -13697,6 +13705,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         conducta_incidencias: desgloseConducta.conducta_incidencias,
         conducta_presentacion: desgloseConducta.conducta_presentacion,
         conducta_tardanzas: desgloseConducta.conducta_tardanzas,
+        conducta_olvido_qr: desgloseConducta.conducta_olvido_qr,
         orden_merito: { b1: null, b2: null, b3: null, b4: null },
         inasistencias: { b1: inasistenciasB1, b2: inasistenciasB2, b3: inasistenciasB3, b4: inasistenciasB4 },
         tardanzas: { b1: tardanzasB1, b2: tardanzasB2, b3: tardanzasB3, b4: tardanzasB4 }
@@ -13960,6 +13969,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       conducta_incidencias: desgloseConducta.conducta_incidencias,
       conducta_presentacion: desgloseConducta.conducta_presentacion,
       conducta_tardanzas: desgloseConducta.conducta_tardanzas,
+      conducta_olvido_qr: desgloseConducta.conducta_olvido_qr,
       orden_merito: {
         b1: ordenMerito.b1,
         b2: ordenMerito.b2,
@@ -14566,6 +14576,7 @@ router.get('/comunicados', async (req, res) => {
 
       return {
         ...com,
+        show_in_home: flagShowInHome(com.show_in_home),
         archivo_url: archivoUrl, // Siempre devolver la URL (el sistema PHP puede manejarla aunque no exista físicamente)
         archivo_existe: archivoExiste // Información adicional para debugging
       };

@@ -448,7 +448,7 @@ export async function exportIncidenciasHijoBimestresPdf({
     doc.setFontSize(9);
     doc.setTextColor(146, 64, 14);
     doc.text(
-      `Resumen B${bim.ciclo}: ${bim.total_incidencias || 0} incidencia(s) + ${bim.total_presentacion || 0} presentación(es) + ${bim.total_tardanzas || 0} tardanza(s) = promedio ${bim.nota_conducta ?? notaMax}`,
+      `Resumen B${bim.ciclo}: ${bim.total_incidencias || 0} incidencia(s) + ${bim.total_presentacion || 0} presentación(es) + ${bim.total_tardanzas || 0} tardanza(s) + ${bim.total_olvido_qr || 0} olvido QR = promedio ${bim.nota_conducta ?? notaMax}`,
       mm + 3,
       y + 7.5
     );

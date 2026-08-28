@@ -93,6 +93,7 @@
 
 .btn-cambiar-camara,
 .btn-buscar,
+.btn-olvido-qr,
 .btn-cerrar-sesion {
   padding: 0.5rem 1rem;
   border: none;
@@ -129,6 +130,24 @@
   transform: translateY(-2px);
 }
 
+.btn-buscar.is-activo {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.35);
+}
+
+.btn-olvido-qr {
+  background: #ea580c;
+  color: white;
+}
+
+.btn-olvido-qr:hover {
+  background: #c2410c;
+  transform: translateY(-2px);
+}
+
+.btn-olvido-qr.is-activo {
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.4);
+}
+
 .btn-cerrar-sesion {
   background: #ef4444;
   color: white;
@@ -144,6 +163,19 @@
   background: white;
   padding: 1rem 1.5rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.busqueda-manual--olvido {
+  background: #fff7ed;
+  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.18);
+}
+
+.busqueda-manual-aviso {
+  margin: 0 0 0.65rem;
+  font-size: 0.88rem;
+  font-weight: 650;
+  color: #9a3412;
+  line-height: 1.4;
 }
 
 .busqueda-input-container {
@@ -496,6 +528,7 @@
 
   .modo-select,
   .btn-buscar,
+  .btn-olvido-qr,
   .btn-cerrar-sesion {
     flex: 1;
     min-width: 0;

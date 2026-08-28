@@ -1,0 +1,132 @@
+.comunicado-home-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100002;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.comunicado-home-modal {
+  width: min(100%, 720px);
+  max-height: min(88vh, 820px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.45);
+}
+
+.comunicado-home-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  border-bottom: 1px solid #e5e7eb;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 1;
+}
+
+.comunicado-home-modal__header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: #1f2937;
+}
+
+.comunicado-home-modal__close {
+  border: none;
+  background: #f3f4f6;
+  color: #374151;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.comunicado-home-modal__body {
+  padding: 1.25rem;
+}
+
+.comunicado-home-item--varios {
+  padding-bottom: 1.25rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.comunicado-home-item--varios:last-of-type {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.comunicado-home-item__n {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #667eea;
+  margin-bottom: 0.4rem;
+}
+
+.comunicado-home-item__titulo {
+  margin: 0 0 0.75rem;
+  font-size: 1.35rem;
+  color: #1f2937;
+  font-weight: 700;
+}
+
+.comunicado-home-item__contenido {
+  color: #374151;
+  line-height: 1.6;
+  margin-bottom: 0.75rem;
+}
+
+.comunicado-home-item__contenido img {
+  max-width: 100%;
+  height: auto;
+}
+
+.comunicado-home-item__fecha {
+  font-size: 0.9rem;
+  color: #6b7280;
+}
+
+.comunicado-home-item__archivo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.comunicado-home-modal__acciones {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.25rem;
+}
+
+.comunicado-home-modal__ok {
+  padding: 0.75rem 2rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+}
