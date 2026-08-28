@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
-import { generarPdfTardanzasPersonal } from '../../utils/pdfTardanzasPersonal';
+import { generarPdfTardanzasPersonal, generarPdfFaltasPersonal } from '../../utils/pdfTardanzasPersonal';
 import './AdminEstadisticas.css';
 import './AdminTardanzas.css';
 
@@ -68,6 +68,45 @@ function escapeHtmlAttr(s) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/"/g, '&quot;');
+}
+
+function IconExcel() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+      <path
+        fill="#0f9d58"
+        d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"
+      />
+      <path fill="#e8f5e9" d="M13 3.5V9h5.5L13 3.5z" />
+      <path fill="#fff" d="M8.2 12.2h2.1l1.15 2.15 1.2-2.15h2.05l-2.2 3.35 2.35 3.55h-2.15l-1.25-2.25-1.3 2.25H8.1l2.4-3.5-2.3-3.4z" />
+    </svg>
+  );
+}
+
+function IconPdf() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+      <path
+        fill="#dc2626"
+        d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"
+      />
+      <path fill="#fecaca" d="M13 3.5V9h5.5L13 3.5z" />
+      <text x="12" y="17.5" textAnchor="middle" fill="#fff" fontSize="6.5" fontWeight="800" fontFamily="Arial,sans-serif">
+        PDF
+      </text>
+    </svg>
+  );
+}
+
+function IconHoy() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M3 10h18" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8 3v4M16 3v4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="12" cy="15.5" r="1.6" fill="currentColor" />
+    </svg>
+  );
 }
 
 /** Botones de mantenimiento biométrico (ocultos en UI; no eliminar el código). */
@@ -683,6 +722,70 @@ export default function AdminTardanzas() {
     }
   };
 
+  const exportExcelFaltas = async () => {
+    const filas = faltas?.filas || [];
+    if (!filas.length) {
+      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay faltas para exportar con los filtros actuales.' });
+      return;
+    }
+    setExportLoading(true);
+    try {
+      const ExcelJS = (await import('exceljs')).default;
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('Faltas');
+      ws.columns = [
+        { header: 'Fecha', key: 'fecha', width: 14 },
+        { header: 'Personal', key: 'personal', width: 38 },
+        { header: 'Cargo', key: 'cargo', width: 24 },
+      ];
+      filas.forEach((f) => {
+        ws.addRow({
+          fecha: fmtFecha(f.fecha),
+          personal: f.personal_nombre || '',
+          cargo: f.cargo || '—',
+        });
+      });
+      const buf = await wb.xlsx.writeBuffer();
+      const url = window.URL.createObjectURL(new Blob([buf]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `faltas-personal-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      Swal.fire({ icon: 'error', title: 'Excel', text: 'No se pudo exportar.' });
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const exportPdfFaltas = async () => {
+    const filas = faltas?.filas || [];
+    if (!filas.length) {
+      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay faltas para exportar con los filtros actuales.' });
+      return;
+    }
+    try {
+      await generarPdfFaltasPersonal({
+        colegioNombre: faltas.colegio_nombre || meta?.colegio_nombre,
+        anio: faltas.anio || meta?.anio,
+        filtroEtiqueta: buildFiltroEtiqueta({
+          personalId: faltasPersonalId,
+          personal: faltas?.personal_comun || meta?.personal_comun || meta?.personal || [],
+          desde: faltasDesde,
+          hasta: faltasHasta,
+        }),
+        filas: filas.map((f) => ({
+          fecha: fmtFecha(f.fecha),
+          personal_nombre: f.personal_nombre,
+          cargo: f.cargo,
+        })),
+      });
+    } catch {
+      Swal.fire({ icon: 'error', title: 'PDF', text: 'No se pudo generar el PDF.' });
+    }
+  };
+
   const filtroEtiqueta = buildFiltroEtiqueta({
     personalId,
     personal: meta?.personal || [],
@@ -723,7 +826,7 @@ export default function AdminTardanzas() {
                 ? 'Biométrico en vivo'
                 : tabActiva === 'faltas'
                   ? 'Faltas del personal'
-                  : 'Registros de importación'}
+                  : 'Importación'}
             </h2>
             <p>
               {tabActiva === 'biometrico'
@@ -762,7 +865,7 @@ export default function AdminTardanzas() {
               className={`admin-tz-tab admin-tz-tab--amber${tabActiva === 'importacion' ? ' is-active' : ''}`}
               onClick={() => setTabActiva('importacion')}
             >
-              Registros de importación
+              Importación
             </button>
           </nav>
         </div>
@@ -907,7 +1010,7 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
 
                 <h3 className="admin-tz-bio__sub">Marcaciones (entrada / salida)</h3>
                 <p className="admin-tz-bio__hint">
-                  Por defecto: <strong>solo hoy</strong>. Elija Desde y Hasta y pulse <strong>Filtrar</strong> (no
+                  Por defecto: <strong>solo hoy</strong>. Elija Desde y Hasta y pulse <strong>Buscar</strong> (no
                   aplica al cambiar solo una fecha). Una fila por persona: entrada = primera; salida = última. Orden:
                   hora de entrada (más reciente → más temprano).
                 </p>
@@ -932,69 +1035,78 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                     Hasta
                     <input type="date" value={bioHasta} onChange={(e) => setBioHasta(e.target.value)} />
                   </label>
-                  <div className="admin-tardanzas-toolbar-locks" role="group" aria-label="Ajuste de registros">
-                    <button
-                      type="button"
-                      className="admin-tardanzas-lock-btn"
-                      title="Ajustar horario (día, personal, entrada y salida)"
-                      aria-label="Ajustar horario"
-                      disabled={rowActionId != null}
-                      onClick={ajustarHorarioDesdeToolbar}
-                    >
-                      🔒
-                    </button>
-                    <button
-                      type="button"
-                      className="admin-tardanzas-lock-btn admin-tardanzas-lock-btn--quitar"
-                      title="Quitar registro (día y personal)"
-                      aria-label="Quitar registro"
-                      disabled={rowActionId != null}
-                      onClick={quitarRegistroDesdeToolbar}
-                    >
-                      ✖️
-                    </button>
-                  </div>
-                  <div className="admin-tardanzas-toolbar__actions">
-                    <button
-                      type="button"
-                      className="admin-tardanzas-btn admin-tardanzas-btn--add"
-                      onClick={agregarIngresoManual}
-                    >
-                      + Agregar ingreso
-                    </button>
-                    <button
-                      type="button"
-                      className="admin-tardanzas-btn"
-                      onClick={() => {
-                        const hoy = hoyLimaISO();
-                        setBioPersonalId('');
-                        setBioDesde(hoy);
-                        setBioHasta(hoy);
-                        loadBioEstado({ personal_id: '', desde: hoy, hasta: hoy });
-                      }}
-                    >
-                      Solo hoy
-                    </button>
-                    <button type="button" className="admin-tardanzas-btn" onClick={() => loadBioEstado()}>
-                      Filtrar
-                    </button>
-                    <button
-                      type="button"
-                      className="admin-tardanzas-btn"
-                      onClick={exportExcelBio}
-                      disabled={exportLoading || !bioFilas.length}
-                    >
-                      {exportLoading ? '…' : 'Excel'}
-                    </button>
-                    <button
-                      type="button"
-                      className="admin-tardanzas-btn admin-tardanzas-btn--primary"
-                      onClick={exportPdfBio}
-                      disabled={!bioFilas.length}
-                    >
-                      PDF
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    className="admin-tardanzas-btn admin-tardanzas-btn--primary"
+                    onClick={() => loadBioEstado()}
+                  >
+                    Buscar
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-tardanzas-lock-btn"
+                    title="Ajustar horario (día, personal, entrada y salida)"
+                    aria-label="Ajustar horario"
+                    disabled={rowActionId != null}
+                    onClick={ajustarHorarioDesdeToolbar}
+                  >
+                    🔒
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-tardanzas-lock-btn admin-tardanzas-lock-btn--quitar"
+                    title="Quitar registro (día y personal)"
+                    aria-label="Quitar registro"
+                    disabled={rowActionId != null}
+                    onClick={quitarRegistroDesdeToolbar}
+                  >
+                    ✖️
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-tardanzas-lock-btn admin-tardanzas-lock-btn--add"
+                    title="Agregar ingreso"
+                    aria-label="Agregar ingreso"
+                    onClick={agregarIngresoManual}
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-tardanzas-btn admin-tardanzas-btn--hoy"
+                    title="Ver solo el día de hoy"
+                    onClick={() => {
+                      const hoy = hoyLimaISO();
+                      setBioPersonalId('');
+                      setBioDesde(hoy);
+                      setBioHasta(hoy);
+                      loadBioEstado({ personal_id: '', desde: hoy, hasta: hoy });
+                    }}
+                  >
+                    <IconHoy />
+                    Solo hoy
+                  </button>
+                  <span className="admin-tardanzas-toolbar__sep" aria-hidden="true" />
+                  <button
+                    type="button"
+                    className="admin-tardanzas-lock-btn admin-tardanzas-lock-btn--excel"
+                    title="Exportar Excel"
+                    aria-label="Exportar Excel"
+                    onClick={exportExcelBio}
+                    disabled={exportLoading || !bioFilas.length}
+                  >
+                    {exportLoading ? '…' : <IconExcel />}
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-tardanzas-lock-btn admin-tardanzas-lock-btn--pdf"
+                    title="Exportar PDF"
+                    aria-label="Exportar PDF"
+                    onClick={exportPdfBio}
+                    disabled={!bioFilas.length}
+                  >
+                    <IconPdf />
+                  </button>
                 </div>
 
                 <p className="admin-tardanzas-meta">
@@ -1095,29 +1207,79 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                 Hasta
                 <input type="date" value={faltasHasta} onChange={(e) => setFaltasHasta(e.target.value)} />
               </label>
-              <div className="admin-tardanzas-toolbar__actions">
-                <button
-                  type="button"
-                  className="admin-tardanzas-btn"
-                  onClick={() => {
-                    const hoy = hoyLimaISO();
-                    setFaltasPersonalId('');
-                    setFaltasDesde(hoy);
-                    setFaltasHasta(hoy);
-                    loadFaltas({ personal_id: '', desde: hoy, hasta: hoy });
-                  }}
-                >
-                  Solo hoy
-                </button>
-                <button
-                  type="button"
-                  className="admin-tardanzas-btn admin-tardanzas-btn--primary"
-                  disabled={faltasLoading}
-                  onClick={() => loadFaltas()}
-                >
-                  {faltasLoading ? 'Cargando…' : 'Filtrar'}
-                </button>
-              </div>
+              <button
+                type="button"
+                className="admin-tardanzas-btn admin-tardanzas-btn--primary"
+                disabled={faltasLoading}
+                onClick={() => loadFaltas()}
+              >
+                {faltasLoading ? '…' : 'Buscar'}
+              </button>
+              <button
+                type="button"
+                className="admin-tardanzas-lock-btn"
+                title="Ajustar horario (día, personal, entrada y salida)"
+                aria-label="Ajustar horario"
+                disabled={rowActionId != null}
+                onClick={ajustarHorarioDesdeToolbar}
+              >
+                🔒
+              </button>
+              <button
+                type="button"
+                className="admin-tardanzas-lock-btn admin-tardanzas-lock-btn--quitar"
+                title="Quitar registro (día y personal)"
+                aria-label="Quitar registro"
+                disabled={rowActionId != null}
+                onClick={quitarRegistroDesdeToolbar}
+              >
+                ✖️
+              </button>
+              <button
+                type="button"
+                className="admin-tardanzas-lock-btn admin-tardanzas-lock-btn--add"
+                title="Agregar ingreso"
+                aria-label="Agregar ingreso"
+                onClick={agregarIngresoManual}
+              >
+                +
+              </button>
+              <button
+                type="button"
+                className="admin-tardanzas-btn admin-tardanzas-btn--hoy"
+                title="Ver solo el día de hoy"
+                onClick={() => {
+                  const hoy = hoyLimaISO();
+                  setFaltasPersonalId('');
+                  setFaltasDesde(hoy);
+                  setFaltasHasta(hoy);
+                  loadFaltas({ personal_id: '', desde: hoy, hasta: hoy });
+                }}
+              >
+                <IconHoy />
+                Solo hoy
+              </button>
+              <span className="admin-tardanzas-toolbar__sep" aria-hidden="true" />
+              <button
+                type="button"
+                className="admin-tardanzas-lock-btn admin-tardanzas-lock-btn--excel"
+                title="Exportar Excel"
+                aria-label="Exportar Excel"
+                onClick={exportExcelFaltas}
+                disabled={exportLoading || !faltas?.filas?.length}
+              >
+                {exportLoading ? '…' : <IconExcel />}
+              </button>
+              <button
+                type="button"
+                className="admin-tardanzas-lock-btn admin-tardanzas-lock-btn--pdf"
+                title="Exportar PDF"
+                aria-label="Exportar PDF"
+                onClick={exportPdfFaltas}
+                disabled={!faltas?.filas?.length}
+              >
+                <IconPdf />
+              </button>
             </div>
 
             <p className="admin-tardanzas-meta">
@@ -1129,7 +1291,7 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                         ? ` · ${fmtFecha(faltas.desde)} – ${fmtFecha(faltas.hasta)}`
                         : ''
                     }`
-                  : 'Elija fechas y pulse Filtrar.'}
+                  : 'Elija fechas y pulse Buscar.'}
             </p>
 
             <div className="admin-tardanzas-table-wrap">
@@ -1244,7 +1406,7 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
 
             <section className="admin-tardanzas-toolbar" aria-label="Filtros">
               <label>
-                Empleado
+                Persona
                 <select value={personalId} onChange={(e) => setPersonalId(e.target.value)}>
                   <option value="">Todos</option>
                   {(meta?.personal || []).map((p) => (
@@ -1262,56 +1424,79 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                 Hasta
                 <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
               </label>
-              <div className="admin-tardanzas-toolbar-locks" role="group" aria-label="Ajuste de registros">
-                <button
-                  type="button"
-                  className="admin-tardanzas-lock-btn"
-                  title="Ajustar horario (día, personal, entrada y salida)"
-                  aria-label="Ajustar horario"
-                  disabled={rowActionId != null}
-                  onClick={ajustarHorarioDesdeToolbar}
-                >
-                  🔒
-                </button>
-                <button
-                  type="button"
-                  className="admin-tardanzas-lock-btn admin-tardanzas-lock-btn--quitar"
-                  title="Quitar registro (día y personal)"
-                  aria-label="Quitar registro"
-                  disabled={rowActionId != null}
-                  onClick={quitarRegistroDesdeToolbar}
-                >
-                  ✖️
-                </button>
-              </div>
-              <div className="admin-tardanzas-toolbar__actions">
-                <button
-                  type="button"
-                  className="admin-tardanzas-btn admin-tardanzas-btn--add"
-                  onClick={agregarIngresoManual}
-                >
-                  + Agregar ingreso
-                </button>
-                <button type="button" className="admin-tardanzas-btn" onClick={loadLista} disabled={listaLoading}>
-                  {listaLoading ? '…' : 'Actualizar'}
-                </button>
-                <button
-                  type="button"
-                  className="admin-tardanzas-btn"
-                  onClick={exportExcel}
-                  disabled={exportLoading || !lista?.filas?.length}
-                >
-                  {exportLoading ? '…' : 'Excel'}
-                </button>
-                <button
-                  type="button"
-                  className="admin-tardanzas-btn admin-tardanzas-btn--primary"
-                  onClick={exportPdf}
-                  disabled={!lista?.filas?.length}
-                >
-                  PDF
-                </button>
-              </div>
+              <button
+                type="button"
+                className="admin-tardanzas-btn admin-tardanzas-btn--primary"
+                onClick={loadLista}
+                disabled={listaLoading}
+              >
+                {listaLoading ? '…' : 'Buscar'}
+              </button>
+              <button
+                type="button"
+                className="admin-tardanzas-lock-btn"
+                title="Ajustar horario (día, personal, entrada y salida)"
+                aria-label="Ajustar horario"
+                disabled={rowActionId != null}
+                onClick={ajustarHorarioDesdeToolbar}
+              >
+                🔒
+              </button>
+              <button
+                type="button"
+                className="admin-tardanzas-lock-btn admin-tardanzas-lock-btn--quitar"
+                title="Quitar registro (día y personal)"
+                aria-label="Quitar registro"
+                disabled={rowActionId != null}
+                onClick={quitarRegistroDesdeToolbar}
+              >
+                ✖️
+              </button>
+              <button
+                type="button"
+                className="admin-tardanzas-lock-btn admin-tardanzas-lock-btn--add"
+                title="Agregar ingreso"
+                aria-label="Agregar ingreso"
+                onClick={agregarIngresoManual}
+              >
+                +
+              </button>
+              <button
+                type="button"
+                className="admin-tardanzas-btn admin-tardanzas-btn--hoy"
+                title="Ver solo el día de hoy"
+                onClick={() => {
+                  const hoy = hoyLimaISO();
+                  setPersonalId('');
+                  setDesde(hoy);
+                  setHasta(hoy);
+                  loadLista({ personal_id: '', desde: hoy, hasta: hoy });
+                }}
+              >
+                <IconHoy />
+                Solo hoy
+              </button>
+              <span className="admin-tardanzas-toolbar__sep" aria-hidden="true" />
+              <button
+                type="button"
+                className="admin-tardanzas-lock-btn admin-tardanzas-lock-btn--excel"
+                title="Exportar Excel"
+                aria-label="Exportar Excel"
+                onClick={exportExcel}
+                disabled={exportLoading || !lista?.filas?.length}
+              >
+                {exportLoading ? '…' : <IconExcel />}
+              </button>
+              <button
+                type="button"
+                className="admin-tardanzas-lock-btn admin-tardanzas-lock-btn--pdf"
+                title="Exportar PDF"
+                aria-label="Exportar PDF"
+                onClick={exportPdf}
+                disabled={!lista?.filas?.length}
+              >
+                <IconPdf />
+              </button>
             </section>
 
             <p className="admin-tardanzas-meta">

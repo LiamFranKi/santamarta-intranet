@@ -296,14 +296,16 @@
 
 .admin-tardanzas-toolbar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: flex-end;
-  gap: 0.65rem 1rem;
-  padding: 0.85rem 1rem;
+  gap: 0.45rem 0.55rem;
+  padding: 0.75rem 0.85rem;
   background: #fff;
   border: 1px solid var(--tz-border);
   border-radius: 12px;
   margin-bottom: 1rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .admin-tardanzas-toolbar label {
@@ -313,16 +315,17 @@
   font-size: 0.75rem;
   font-weight: 600;
   color: #475569;
+  flex: 0 0 auto;
 }
 
 .admin-tardanzas-toolbar select,
 .admin-tardanzas-toolbar input[type='date'] {
-  min-height: 2.25rem;
-  padding: 0.3rem 0.5rem;
+  min-height: 2.35rem;
+  padding: 0.3rem 0.45rem;
   border: 1px solid var(--tz-border);
   border-radius: 8px;
   font-size: 0.85rem;
-  min-width: 10rem;
+  min-width: 8.5rem;
 }
 
 .admin-tardanzas-toolbar-locks {
@@ -334,6 +337,7 @@
 .admin-tardanzas-lock-btn {
   width: 2.35rem;
   height: 2.35rem;
+  flex: 0 0 2.35rem;
   border: 1px solid #cbd5e1;
   border-radius: 10px;
   background: #fff;
@@ -355,9 +359,51 @@
   background: #f1f5f9;
 }
 
+.admin-tardanzas-lock-btn--add {
+  background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+  border-color: #0f766e;
+  color: #fff;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.admin-tardanzas-lock-btn--add:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0d9488 0%, #2dd4bf 100%);
+  border-color: #0d9488;
+  color: #fff;
+}
+
+.admin-tardanzas-lock-btn--excel:hover:not(:disabled) {
+  border-color: #0f9d58;
+  background: #f0fdf4;
+}
+
+.admin-tardanzas-lock-btn--pdf:hover:not(:disabled) {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+
 .admin-tardanzas-lock-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.admin-tardanzas-btn--hoy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+  padding: 0.4rem 0.7rem;
+}
+
+.admin-tardanzas-toolbar__sep {
+  width: 1px;
+  height: 2rem;
+  background: #cbd5e1;
+  margin: 0 0.25rem 0.15rem;
+  flex: 0 0 1px;
+  align-self: flex-end;
 }
 
 .admin-tardanzas-table-wrap {
@@ -624,9 +670,25 @@
 .admin-tz-bio__st--error { color: #b91c1c; }
 .admin-tz-bio__st--duplicado { color: #64748b; }
 
+.admin-tardanzas-toolbar .admin-tardanzas-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 @media (max-width: 700px) {
-  .admin-tardanzas-toolbar__actions {
-    margin-left: 0;
-    width: 100%;
+  .admin-tardanzas-toolbar {
+    gap: 0.4rem;
+    padding: 0.65rem 0.7rem;
+  }
+
+  .admin-tardanzas-toolbar select,
+  .admin-tardanzas-toolbar input[type='date'] {
+    min-width: 7.25rem;
+    font-size: 0.8rem;
+  }
+
+  .admin-tardanzas-btn--hoy span,
+  .admin-tardanzas-btn--hoy {
+    font-size: 0.78rem;
   }
 }

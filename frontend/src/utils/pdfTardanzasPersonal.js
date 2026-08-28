@@ -162,3 +162,83 @@ export async function generarPdfTardanzasPersonal({
 
   doc.save(`tardanzas-personal-${new Date().toISOString().slice(0, 10)}.pdf`);
 }
+
+export async function generarPdfFaltasPersonal({
+  colegioNombre,
+  anio,
+  filtroEtiqueta,
+  filas = [],
+}) {
+  const logoData = await obtenerLogoColegioDataUrl();
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const tableW = pageW - MARGIN * 2;
+  const widths = [tableW * 0.22, tableW * 0.5, tableW * 0.28];
+  const labels = ['Fecha', 'Personal', 'Cargo'];
+
+  const logoH = dibujarLogoEsquina(doc, logoData, { margin: MARGIN, size: 14 });
+  let y = Math.max(MARGIN, MARGIN + logoH);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.text('Faltas del personal', pageW - MARGIN, y, { align: 'right' });
+  y += 5.5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text(safeTxt(colegioNombre || ''), pageW - MARGIN, y, { align: 'right' });
+  y += 4.5;
+  doc.setFontSize(8.5);
+  doc.setTextColor(80, 80, 80);
+  doc.text(
+    [`Año ${anio || '—'}`, filtroEtiqueta, `${filas.length} falta(s)`].filter(Boolean).join(' · '),
+    pageW - MARGIN,
+    y,
+    { align: 'right' }
+  );
+  doc.setTextColor(0, 0, 0);
+  y += 8;
+
+  const drawHead = () => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setFillColor(190, 18, 60);
+    doc.setTextColor(255, 255, 255);
+    doc.rect(MARGIN, y, tableW, HEAD_H, 'F');
+    let x = MARGIN;
+    labels.forEach((lab, i) => {
+      doc.text(lab, x + widths[i] / 2, y + 5.4, { align: 'center' });
+      x += widths[i];
+    });
+    doc.setTextColor(0, 0, 0);
+    y += HEAD_H;
+  };
+
+  drawHead();
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  filas.forEach((f, idx) => {
+    if (y + ROW_H > pageH - 14) {
+      doc.addPage();
+      y = MARGIN + 8;
+      drawHead();
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+    }
+    if (idx % 2 === 1) {
+      doc.setFillColor(255, 241, 242);
+      doc.rect(MARGIN, y, tableW, ROW_H, 'F');
+    }
+    const cells = [f.fecha, f.personal_nombre, f.cargo || '—'];
+    let x = MARGIN;
+    cells.forEach((txt, i) => {
+      doc.text(safeTxt(txt), x + widths[i] / 2, y + 4.5, {
+        align: 'center',
+        maxWidth: Math.max(widths[i] - 2, 4),
+      });
+      x += widths[i];
+    });
+    y += ROW_H;
+  });
+
+  doc.save(`faltas-personal-${new Date().toISOString().slice(0, 10)}.pdf`);
+}
