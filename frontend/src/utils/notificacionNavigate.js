@@ -288,7 +288,7 @@ export function normalizarUrlNotificacion(notif, user) {
         ? 'asistencias'
         : 'incidencias';
     qs.set('abrir', abrir);
-    if (aid) qs.set('hijo', String(aid));
+    if (payload.alumno_id) qs.set('hijo', String(payload.alumno_id));
     if (payload.incident_id) qs.set('item', `inc-${payload.incident_id}`);
     const base = user?.tipo === 'DOCENTE' ? '/docente/hijos' : '/apoderado/hijos';
     return `${base}?${qs.toString()}`;
