@@ -1,5 +1,6 @@
 import axios from 'axios';
 import Swal from 'sweetalert2';
+import { limpiarStorageSesion, PUSH_ENDPOINT_STORAGE_KEY } from '../utils/limpiarSesionLocal';
 
 // Detectar si estamos en desarrollo o producción
 const hostname = window.location.hostname || '';
@@ -34,29 +35,58 @@ let isLoggingOut = false;
  * @param {string} message - Mensaje a mostrar al usuario
  */
 const forceLogout = (reason, message) => {
-  // Evitar múltiples cierres de sesión simultáneos
   if (isLoggingOut) {
     return;
   }
   isLoggingOut = true;
 
-  // Limpiar datos de sesión
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
+  const token = localStorage.getItem('token');
+  let endpoint = null;
+  try {
+    endpoint = localStorage.getItem(PUSH_ENDPOINT_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
 
-  // Mostrar mensaje amigable al usuario
-  Swal.fire({
-    icon: 'info',
-    title: 'Sesión cerrada',
-    text: message || 'Tu sesión ha expirado o ha ocurrido un problema. Por favor, inicia sesión nuevamente.',
-    confirmButtonText: 'Ir al inicio de sesión',
-    allowOutsideClick: false,
-    allowEscapeKey: false,
-    showCloseButton: false,
-  }).then(() => {
-    // Redirigir al login
-    window.location.href = '/login';
-  });
+  const terminar = () => {
+    limpiarStorageSesion();
+    Swal.fire({
+      icon: 'info',
+      title: 'Sesión cerrada',
+      text: message || 'Tu sesión ha expirado o ha ocurrido un problema. Por favor, inicia sesión nuevamente.',
+      confirmButtonText: 'Ir al inicio de sesión',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showCloseButton: false,
+    }).then(() => {
+      window.location.href = '/login';
+    });
+  };
+
+  const tareas = [];
+  if (token && endpoint) {
+    tareas.push(
+      fetch(`${apiUrl}/push/unsubscribe`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ endpoint }),
+        keepalive: true,
+      }).catch(() => {})
+    );
+  }
+  if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
+    tareas.push(
+      navigator.serviceWorker.ready
+        .then((reg) => reg.pushManager.getSubscription())
+        .then((sub) => (sub ? sub.unsubscribe() : null))
+        .catch(() => {})
+    );
+  }
+
+  Promise.all(tareas).finally(terminar);
 };
 
 const api = axios.create({

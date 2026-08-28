@@ -1745,7 +1745,7 @@ export default function DashboardLayout({ children }) {
           )}
 
           <div className="sidebar-item">
-            <button className="sidebar-link sidebar-link-button" type="button" onClick={logout}>
+            <button className="sidebar-link sidebar-link-button" type="button" onClick={() => logout()}>
               <span className="sidebar-icon sidebar-icon-logout" aria-hidden="true">🚪</span>
               <span className="sidebar-label">Cerrar sesión</span>
             </button>
@@ -1815,7 +1815,7 @@ export default function DashboardLayout({ children }) {
             >
               👤
             </button>
-            <button className="header-btn header-btn-logout" type="button" title="Cerrar sesión" onClick={logout}>
+            <button className="header-btn header-btn-logout" type="button" title="Cerrar sesión" onClick={() => logout()}>
               <svg className="logout-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="12" cy="12" r="9" stroke="#ef4444" strokeWidth="2" fill="none"/>
                 <line x1="12" y1="3" x2="12" y2="12" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"/>

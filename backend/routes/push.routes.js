@@ -68,16 +68,15 @@ router.post('/subscribe', authenticateToken, async (req, res) => {
 router.post('/unsubscribe', authenticateToken, async (req, res) => {
   try {
     const { endpoint } = req.body;
-    const { usuario_id } = req.user;
 
     if (!endpoint) {
       return res.status(400).json({ error: 'Endpoint requerido' });
     }
 
     await execute(
-      `UPDATE push_subscriptions SET activo = 0, fecha_actualizacion = NOW() 
-       WHERE endpoint = ? AND usuario_id = ?`,
-      [endpoint, usuario_id]
+      `UPDATE push_subscriptions SET activo = 0, fecha_actualizacion = NOW()
+       WHERE endpoint = ?`,
+      [endpoint]
     );
 
     res.json({ success: true, message: 'Desuscripción exitosa' });

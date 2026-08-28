@@ -598,7 +598,7 @@ function AsistenciaEscaneo() {
 
     if (result.isConfirmed) {
       await detenerEscaneo();
-      logout();
+      await logout();
       navigate('/login');
     }
   };

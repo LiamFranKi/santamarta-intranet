@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api';
-import { suscribirNotificacionesPush } from '../services/pushNotificationService';
+import { suscribirNotificacionesPush, desuscribirPushEsteDispositivo } from '../services/pushNotificationService';
+import { limpiarStorageSesion } from '../utils/limpiarSesionLocal';
 
 /** Perfiles que registran Web Push al iniciar sesión (incluye staff que recibe derivaciones psicología, encuestas, etc.). */
 const TIPOS_CON_PUSH_AUTOMATICO = new Set([
@@ -62,17 +63,20 @@ export const AuthProvider = ({ children }) => {
             }, 2000);
           }
         })
-        .catch((error) => {
-          // Solo limpiar token si es un error 401 (no autorizado)
-          // Si es error de red, mantener el token y el usuario
+        .catch(async (error) => {
           if (error.response?.status === 401) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
+            try {
+              await desuscribirPushEsteDispositivo();
+            } catch {
+              /* ignore */
+            }
+            limpiarStorageSesion();
+            setUser(null);
+            setIsAuthenticated(false);
+          } else if (error.message === 'SESION_EXPIRADA' || error.message === 'SESSION_REVOKED' || error.message === 'SIN_PERMISOS') {
             setUser(null);
             setIsAuthenticated(false);
           } else {
-            // Error de red u otro error: mantener el estado actual
-            // El usuario seguirá autenticado con los datos guardados
             console.warn('Error al verificar token (posible error de red):', error.message);
           }
         })
@@ -131,10 +135,13 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('anio_consulta_apoderado');
+  const logout = async () => {
+    try {
+      await desuscribirPushEsteDispositivo();
+    } catch (e) {
+      console.warn('No se pudo quitar push al cerrar sesión:', e);
+    }
+    limpiarStorageSesion();
     setUser(null);
     setIsAuthenticated(false);
   };

@@ -1,4 +1,5 @@
 import api from './api';
+import { PUSH_ENDPOINT_STORAGE_KEY } from '../utils/limpiarSesionLocal';
 
 /**
  * Solicitar permiso de notificaciones y suscribirse automáticamente
@@ -68,6 +69,12 @@ export async function suscribirNotificacionesPush() {
       }
     });
 
+    try {
+      localStorage.setItem(PUSH_ENDPOINT_STORAGE_KEY, subscription.endpoint);
+    } catch {
+      /* ignore */
+    }
+
     console.log('✅ Suscripción a push notifications exitosa');
     return { success: true, subscription };
   } catch (error) {
@@ -107,27 +114,63 @@ function arrayBufferToBase64(buffer) {
 }
 
 /**
- * Desuscribir de notificaciones push (para renovar suscripción expirada 410)
- * Llama a pushManager.unsubscribe() y notifica al backend
+ * Quita el push de ESTE navegador (al cerrar sesión).
+ * No toca el celular ni otros PCs de esa cuenta.
+ */
+export async function desuscribirPushEsteDispositivo() {
+  let endpoint = null;
+  try {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) {
+        endpoint = subscription.endpoint;
+        try {
+          await api.post('/push/unsubscribe', { endpoint });
+        } catch (e) {
+          console.warn('No se pudo desactivar push en el servidor:', e?.message || e);
+        }
+        try {
+          await subscription.unsubscribe();
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Error al desuscribir push local:', e?.message || e);
+  }
+
+  if (!endpoint) {
+    try {
+      endpoint = localStorage.getItem(PUSH_ENDPOINT_STORAGE_KEY);
+    } catch {
+      endpoint = null;
+    }
+    if (endpoint) {
+      try {
+        await api.post('/push/unsubscribe', { endpoint });
+      } catch (e) {
+        console.warn('No se pudo desactivar push guardado:', e?.message || e);
+      }
+    }
+  }
+
+  try {
+    localStorage.removeItem(PUSH_ENDPOINT_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+  return { success: true };
+}
+
+/**
+ * Desuscribir push de este navegador (perfil: renovar, o cierre de sesión).
  */
 export async function desuscribirNotificacionesPush() {
   try {
-    if (!('serviceWorker' in navigator)) {
-      return { success: false, error: 'Service Worker no disponible' };
-    }
-
-    const registration = await navigator.serviceWorker.ready;
-    const subscription = await registration.pushManager.getSubscription();
-
-    if (subscription) {
-      await subscription.unsubscribe();
-      await api.post('/push/unsubscribe', { endpoint: subscription.endpoint });
-      console.log('✅ Desuscripción push exitosa');
-      return { success: true };
-    }
-
-    // No hay suscripción local: marcar todas las del usuario como inactivas (cleanup)
-    await api.post('/push/unsubscribe-all');
+    await desuscribirPushEsteDispositivo();
+    console.log('✅ Desuscripción push exitosa');
     return { success: true };
   } catch (error) {
     console.error('❌ Error desuscribiendo push:', error);
