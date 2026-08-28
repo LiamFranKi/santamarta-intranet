@@ -106,9 +106,11 @@ function DocenteTutoria({
   apiPrefix = '/docente/tutoria',
   basePath = '/docente/tutoria',
   soloLectura = false,
+  puedeQuitarDescuentosConducta,
   titulo = 'Tutoría',
   subtitulo = 'Gestiona tus grupos como tutor',
 } = {}) {
+  const puedeQuitarConducta = puedeQuitarDescuentosConducta ?? !soloLectura;
   const navigate = useNavigate();
   const location = useLocation();
   const reportesGrupoPrefix = String(apiPrefix || '/docente/tutoria').replace(/^\//, '') + '/grupos';
@@ -2399,7 +2401,7 @@ function DocenteTutoria({
 
   const eliminarRegistroConductaDetalle = async (inc) => {
     const parsed = parseIdRegistroConducta(inc?.id);
-    if (!parsed || !grupoParaConducta?.id || soloLectura) return;
+    if (!parsed || !grupoParaConducta?.id || !puedeQuitarConducta) return;
     const esPed = parsed.tipo === 'ped';
     const esOlvido = inc?.origen === 'olvido_qr';
     const confirm = await Swal.fire({
@@ -3676,7 +3678,7 @@ function DocenteTutoria({
                             <span className={`tutor-inc-origen ${claseOrigenConducta(inc.origen)}`}>
                               {etiquetaOrigenConducta(inc.origen)}
                             </span>
-                            {!soloLectura && (inc.origen === 'vestimenta' || inc.origen === 'tardanza' || inc.origen === 'olvido_qr') ? (
+                            {puedeQuitarConducta && (inc.origen === 'vestimenta' || inc.origen === 'tardanza' || inc.origen === 'olvido_qr') ? (
                               <button
                                 type="button"
                                 className="btn-eliminar-conducta-item"
@@ -3699,6 +3701,17 @@ function DocenteTutoria({
                         </div>
                         {(inc.description || '').trim() ? (
                           <p className="tutor-inc-detalle">{inc.description}</p>
+                        ) : null}
+                        {puedeQuitarConducta && (inc.origen === 'vestimenta' || inc.origen === 'tardanza' || inc.origen === 'olvido_qr') ? (
+                          <div className="tutor-inc-card-quitar">
+                            <button
+                              type="button"
+                              className="btn-eliminar-conducta-item"
+                              onClick={() => eliminarRegistroConductaDetalle(inc)}
+                            >
+                              🗑️ Quitar
+                            </button>
+                          </div>
                         ) : null}
                       </li>
                     ))}

@@ -2454,6 +2454,17 @@
   background: #fecaca;
 }
 
+.tutor-inc-card-quitar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 0.9rem 0.7rem;
+}
+
+.tutor-inc-card-quitar .btn-eliminar-conducta-item {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.75rem;
+}
+
 .tutor-inc-fecha {
   font-size: 0.9rem;
   font-weight: 700;

@@ -345,7 +345,8 @@ async function assertAccesoReporteGrupoGeneral(req, grupoId) {
     return { ok: true, anioEsc: Number(gRow[0].anio) };
   }
 
-  const personalId = req.user.personal_id;
+  const { resolvePersonalId } = require('../utils/tutoriaGeneral');
+  const personalId = await resolvePersonalId(req);
   if (!personalId) return { ok: false, status: 404, error: 'Docente no encontrado' };
 
   const tieneAccesoAsignatura = await query(
@@ -2626,7 +2627,13 @@ router.delete('/grupos/:grupoId/presentacion-descuentos/:id', async (req, res) =
       colegio_id: req.user.colegio_id,
     });
     if (!r.ok) return res.status(r.status).json({ error: r.error });
-    res.json({ success: true, message: 'Descuento de presentación eliminado. Se actualizó la nota de conducta.' });
+    const esOlvido = r.motivo === 'OLVIDO_QR';
+    res.json({
+      success: true,
+      message: esOlvido
+        ? 'Descuento por olvido QR eliminado. Se actualizó la nota de conducta.'
+        : 'Descuento de presentación eliminado. Se actualizó la nota de conducta.',
+    });
   } catch (e) {
     console.error('[grupos/presentacion-descuentos DELETE]', e);
     res.status(500).json({ error: e.message || 'Error al eliminar presentación' });

@@ -248,7 +248,7 @@ async function borrarDescuentoPresentacionGrupo(query, execute, {
   let rows = [];
   try {
     rows = await query(
-      `SELECT ped.id, ped.fecha, m.id AS matricula_id, gx.anio
+      `SELECT ped.id, ped.fecha, ped.motivo, m.id AS matricula_id, gx.anio
        FROM presentacion_escolar_descuentos ped
        INNER JOIN usuarios ua ON ua.id = ped.alumno_usuario_id AND ua.colegio_id = ped.colegio_id
        INNER JOIN matriculas m ON m.alumno_id = ua.alumno_id AND m.grupo_id = ? AND m.colegio_id = ped.colegio_id AND (m.estado = 0)
@@ -268,16 +268,19 @@ async function borrarDescuentoPresentacionGrupo(query, execute, {
   }
 
   const row = rows[0];
+  const esOlvido = esMotivoOlvidoQr(row.motivo);
   await execute(`DELETE FROM presentacion_escolar_descuentos WHERE id = ?`, [id]);
-  try {
-    await execute(
-      `DELETE FROM enrollment_incidents
-       WHERE enrollment_id = ? AND type = 1 AND assignment_id = ?
-         AND description LIKE ?`,
-      [row.matricula_id, ASSIGNMENT_ID_VESTIMENTA, `%#ped:${id}%`]
-    );
-  } catch (eDel) {
-    console.warn('[conducta] borrar espejo vestimenta:', eDel.message);
+  if (!esOlvido) {
+    try {
+      await execute(
+        `DELETE FROM enrollment_incidents
+         WHERE enrollment_id = ? AND type = 1 AND assignment_id = ?
+           AND description LIKE ?`,
+        [row.matricula_id, ASSIGNMENT_ID_VESTIMENTA, `%#ped:${id}%`]
+      );
+    } catch (eDel) {
+      console.warn('[conducta] borrar espejo vestimenta:', eDel.message);
+    }
   }
 
   await sincronizarConductaMatriculaPorFecha(query, execute, {
@@ -286,7 +289,7 @@ async function borrarDescuentoPresentacionGrupo(query, execute, {
     anioEscolar: row.anio,
     fechaYmd: toFechaYmd(row.fecha),
   });
-  return { ok: true, matriculaId: row.matricula_id };
+  return { ok: true, matriculaId: row.matricula_id, motivo: esOlvido ? MOTIVO_OLVIDO_QR : 'PRESENTACION' };
 }
 
 /**
