@@ -226,11 +226,15 @@ function calcTardanza(horaEntradaConfig, horaMarcacion) {
   };
 }
 
+/** Muestra HH:mm:ss (el descuento de tardanza sigue calculándose por minuto, sin segundos). */
 function formatHoraDisplay(timeStr) {
-  if (!timeStr) return '—';
-  const p = String(timeStr).split(':');
-  if (p.length < 2) return String(timeStr);
-  return `${p[0].padStart(2, '0')}:${p[1].padStart(2, '0')}`;
+  if (timeStr == null || timeStr === '') return '—';
+  const parsed = parseHoraMarcacion(timeStr);
+  if (parsed) return parsed;
+  const raw = String(timeStr).trim();
+  const m = raw.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return raw || '—';
+  return `${String(m[1]).padStart(2, '0')}:${m[2]}:${(m[3] || '00').padStart(2, '0')}`;
 }
 
 function nombrePersonal(p) {
@@ -1320,7 +1324,7 @@ async function buildExportWorkbook(lista) {
     'Descuento S/.',
     'Hora salida',
   ];
-  const colWidths = [36, 12, 16, 14, 13, 14, 12];
+  const colWidths = [36, 12, 18, 16, 13, 14, 14];
   colWidths.forEach((w, i) => {
     ws.getColumn(i + 1).width = w;
   });
@@ -1371,7 +1375,7 @@ async function buildExportWorkbook(lista) {
       f.hora_salida_fmt && f.hora_salida_fmt !== '—'
         ? f.hora_salida_fmt
         : f.hora_salida
-          ? String(f.hora_salida).slice(0, 5)
+          ? formatHoraDisplay(f.hora_salida)
           : '—';
     const vals = [
       f.personal_nombre || '',
