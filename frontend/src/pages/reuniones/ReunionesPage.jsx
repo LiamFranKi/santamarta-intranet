@@ -12,6 +12,7 @@ import ReunionPizarra from './ReunionPizarra';
 import ReunionVideoDaily from './ReunionVideoDaily';
 import ReunionChat from './ReunionChat';
 import ReunionActaViva from './ReunionActaViva';
+import ReunionArchivosLista from './ReunionArchivoIcono';
 import './ReunionesPage.css';
 
 const ESTADOS = {
@@ -776,19 +777,7 @@ function DetalleReunion({ reunionId, base }) {
   );
 
   const bloqueArchivos = (
-    <div className="re-detalle" style={{ marginBottom: '1rem' }}>
-      <h3 style={{ marginTop: 0 }}>Archivos compartidos</h3>
-      <p className="re-hint">Todos los participantes pueden verlos y subir material (PDF, imágenes, etc.).</p>
-      <div className="re-archivos-lista">
-        {(pack.archivos || []).map((a) => (
-          <a key={a.id} className="re-archivo-item" href={a.url} target="_blank" rel="noopener noreferrer">
-            {a.nombre_original}
-          </a>
-        ))}
-        {(pack.archivos || []).length === 0 ? <p className="re-hint">Aún no hay archivos.</p> : null}
-      </div>
-      {p.puede_archivos ? <input type="file" style={{ marginTop: '0.75rem' }} onChange={subirArchivo} /> : null}
-    </div>
+    <ReunionArchivosLista archivos={pack.archivos} onSubir={subirArchivo} puedeSubir={!!p.puede_archivos} />
   );
 
   const bloqueActa = enCurso || p.puede_escribir_acta || r.acta || r.acuerdos || p.puede_acta ? (

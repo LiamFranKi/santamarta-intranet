@@ -70,6 +70,7 @@ export default function ReunionChat({ reunionId, yoId, soloLectura }) {
               {m.mensaje ? <div className="re-chat-txt">{m.mensaje}</div> : null}
               {m.url ? (
                 <a className="re-chat-file" href={m.url} target="_blank" rel="noopener noreferrer">
+                  {String(m.nombre_original || '').toLowerCase().endsWith('.pdf') ? 'PDF · ' : '📎 '}
                   {m.nombre_original || 'Archivo'}
                 </a>
               ) : null}
