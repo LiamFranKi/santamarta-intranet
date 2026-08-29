@@ -213,12 +213,14 @@ function BuscadorInvitados({ invitados, onChange, grupos, onGrupos }) {
   };
 
   return (
-    <div className="re-field full">
-      <label>Convocados (personas o un aula con alumnos, apoderados y/o docentes)</label>
+    <div className="re-buscador">
+      <label>Convocados</label>
+      <p className="re-hint">Personas o un aula (alumnos, apoderados y/o docentes). Escribe al menos 2 letras.</p>
       <input
+        className="re-buscador-input"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Buscar por nombre o aula (mín. 2 letras). Ej. 3° A"
+        placeholder="Buscar nombre o aula…  Ej. 3° A"
       />
       {res.length > 0 ? (
         <div className="re-search-drop">
@@ -243,11 +245,11 @@ function BuscadorInvitados({ invitados, onChange, grupos, onGrupos }) {
                 setRes([]);
               }}
             >
-              {r.nombre_completo}
-              <small>
+              <span className="re-search-name">{r.nombre_completo}</span>
+              <span className="re-search-meta">
                 {etiquetaTipo(r.tipo)}
                 {r.info_adicional ? ` · ${r.info_adicional}` : ''}
-              </small>
+              </span>
             </button>
           ))}
         </div>
@@ -292,7 +294,7 @@ function BuscadorInvitados({ invitados, onChange, grupos, onGrupos }) {
       ) : null}
       <div className="re-invitados">
         {invitados.map((i) => (
-          <span key={`u-${i.usuario_id}`} className="re-tag">
+          <span key={`u-${i.usuario_id}`} className="re-tag re-tag-lg">
             {i.nombre_completo}
             <button
               type="button"
@@ -304,7 +306,7 @@ function BuscadorInvitados({ invitados, onChange, grupos, onGrupos }) {
           </span>
         ))}
         {grupos.map((g) => (
-          <span key={`g-${g.grupo_id}`} className="re-tag">
+          <span key={`g-${g.grupo_id}`} className="re-tag re-tag-lg">
             Aula: {g.nombre_completo} · {etiquetaAudienciaGrupo(g)}
             <button
               type="button"
@@ -341,20 +343,20 @@ function BuscadorQuienAbre({ value, onChange }) {
   }, [q]);
 
   return (
-    <div className="re-field full">
+    <div className="re-buscador">
       <label>Quién puede abrir la reunión</label>
-      <span className="re-hint">
-        El administrador crea la convocatoria. Aquí asignas a un docente o personal para que el día de la reunión la abra, tome asistencia y redacte el acta.
-      </span>
+      <p className="re-hint">
+        El administrador convoca. Aquí eliges a un docente o personal para que el día de la reunión la abra y redacte el acta.
+      </p>
       {value ? (
         <div className="re-invitados">
-          <span className="re-tag">
+          <span className="re-tag re-tag-lg">
             {value.nombre_completo || value.nombre}
             <button type="button" aria-label="Quitar" onClick={() => onChange(null)}>×</button>
           </span>
         </div>
       ) : (
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar personal o docente…" />
+        <input className="re-buscador-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar personal o docente…" />
       )}
       {!value && res.length > 0 ? (
         <div className="re-search-drop">
@@ -369,11 +371,11 @@ function BuscadorQuienAbre({ value, onChange }) {
                 setRes([]);
               }}
             >
-              {r.nombre_completo}
-              <small>
+              <span className="re-search-name">{r.nombre_completo}</span>
+              <span className="re-search-meta">
                 {etiquetaTipo(r.tipo)}
                 {r.info_adicional ? ` · ${r.info_adicional}` : ''}
-              </small>
+              </span>
             </button>
           ))}
         </div>
@@ -471,67 +473,68 @@ function FormularioReunion({ base, reunion, esGestor }) {
           </button>
         </div>
         <div className="re-form">
-          <div className="re-grid">
-            <div className="re-field full">
-              <label>Título</label>
-              <input value={form.titulo} onChange={(e) => setCampo('titulo', e.target.value)} maxLength={255} />
-            </div>
-            <div className="re-field">
+          <div className="re-field">
+            <label>Título</label>
+            <input value={form.titulo} onChange={(e) => setCampo('titulo', e.target.value)} maxLength={255} />
+          </div>
+          <div className="re-row-3">
+            <div className="re-field compact">
               <label>Fecha</label>
               <input type="date" value={form.fecha} onChange={(e) => setCampo('fecha', e.target.value)} />
             </div>
-            <div className="re-field">
+            <div className="re-field compact">
               <label>Hora inicio</label>
               <input type="time" value={form.hora_inicio} onChange={(e) => setCampo('hora_inicio', e.target.value)} />
             </div>
-            <div className="re-field">
-              <label>Hora fin (opcional)</label>
+            <div className="re-field compact">
+              <label>Hora fin</label>
               <input type="time" value={form.hora_fin} onChange={(e) => setCampo('hora_fin', e.target.value)} />
             </div>
-            <div className="re-field">
+          </div>
+          <div className={`re-row-mod ${form.modalidad === 'HIBRIDA' ? 'tres' : 'dos'}`}>
+            <div className="re-field compact">
               <label>Modalidad</label>
               <select value={form.modalidad} onChange={(e) => setCampo('modalidad', e.target.value)}>
                 <option value="PRESENCIAL">Presencial</option>
-                <option value="VIRTUAL">Virtual (enlace Meet / Zoom / etc.)</option>
+                <option value="VIRTUAL">Virtual</option>
                 <option value="HIBRIDA">Híbrida</option>
               </select>
             </div>
             {presencial ? (
-              <div className="re-field">
+              <div className="re-field compact">
                 <label>Lugar</label>
                 <input
                   value={form.lugar}
                   onChange={(e) => setCampo('lugar', e.target.value)}
-                  placeholder="Sala de profesores, dirección…"
+                  placeholder="Sala, dirección…"
                 />
               </div>
             ) : null}
             {virtual ? (
-              <div className="re-field full">
-                <label>Enlace externo (opcional)</label>
+              <div className="re-field compact">
+                <label>Enlace (opcional)</label>
                 <input
                   value={form.enlace_videollamada}
                   onChange={(e) => setCampo('enlace_videollamada', e.target.value)}
-                  placeholder="https://meet.google.com/… (solo si quieres un respaldo)"
+                  placeholder="Meet / Zoom de respaldo"
                 />
-                <span className="re-hint">La sala de video la crea el sistema con Daily al abrir la reunión. Este enlace es solo un respaldo.</span>
               </div>
             ) : null}
-            <div className="re-field full">
-              <label>Agenda / descripción</label>
-              <AdminMensajeQuillEditor
-                value={form.descripcion}
-                onChange={(v) => setCampo('descripcion', v)}
-                placeholder="Agenda, puntos a tratar…"
-              />
-            </div>
-            {esGestor ? (
-              <>
-                <BuscadorQuienAbre value={quienAbre} onChange={setQuienAbre} />
-                <BuscadorInvitados invitados={invitados} onChange={setInvitados} grupos={grupos} onGrupos={setGrupos} />
-              </>
-            ) : null}
           </div>
+          <div className="re-field">
+            <label>Agenda / descripción</label>
+            <AdminMensajeQuillEditor
+              value={form.descripcion}
+              onChange={(v) => setCampo('descripcion', v)}
+              placeholder="Agenda, puntos a tratar…"
+            />
+          </div>
+          {esGestor ? (
+            <>
+              <BuscadorQuienAbre value={quienAbre} onChange={setQuienAbre} />
+              <BuscadorInvitados invitados={invitados} onChange={setInvitados} grupos={grupos} onGrupos={setGrupos} />
+            </>
+          ) : null}
           <div className="re-actions-row">
             <button type="button" className="re-btn re-btn-ghost" style={{ background: '#e2e8f0', color: '#0f172a' }} onClick={() => guardar(false)} disabled={saving}>
               Guardar borrador

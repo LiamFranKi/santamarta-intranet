@@ -167,6 +167,69 @@
   gap: 0.85rem;
 }
 
+.re-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.re-row-3,
+.re-row-mod {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.re-row-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.re-row-mod.dos {
+  grid-template-columns: 180px minmax(0, 1fr);
+}
+
+.re-row-mod.tres {
+  grid-template-columns: 160px minmax(0, 1fr) minmax(0, 1.2fr);
+}
+
+.re-field.compact label {
+  font-size: 0.74rem;
+}
+
+.re-field.compact input,
+.re-field.compact select {
+  padding: 0.38rem 0.55rem;
+  font-size: 0.88rem;
+}
+
+.re-buscador {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 14px;
+  padding: 0.95rem 1rem 1rem;
+}
+
+.re-buscador > label {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 0.2rem;
+}
+
+.re-buscador-input {
+  width: 100%;
+  border: 1px solid #94a3b8;
+  border-radius: 12px;
+  padding: 0.7rem 0.85rem;
+  font-size: 0.98rem;
+  background: #fff;
+}
+
+.re-tag-lg {
+  font-size: 0.92rem;
+  padding: 0.4rem 0.55rem 0.4rem 0.85rem;
+}
+
 .re-field {
   display: flex;
   flex-direction: column;
@@ -227,24 +290,45 @@
 }
 
 .re-search-drop {
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  max-height: 220px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  max-height: 280px;
   overflow: auto;
-  margin-top: 0.35rem;
+  margin-top: 0.5rem;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
 }
 
 .re-search-item {
   width: 100%;
   text-align: left;
   border: none;
+  border-bottom: 1px solid #f1f5f9;
   background: #fff;
-  padding: 0.5rem 0.75rem;
+  padding: 0.75rem 0.95rem;
   cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.re-search-item:last-child {
+  border-bottom: none;
 }
 
 .re-search-item:hover {
-  background: #f8fafc;
+  background: #ecfdf5;
+}
+
+.re-search-name {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.re-search-meta {
+  font-size: 0.82rem;
+  color: #64748b;
 }
 
 .re-search-item small {
@@ -711,7 +795,10 @@
   .re-hero {
     flex-direction: column;
   }
-  .re-grid {
+  .re-grid,
+  .re-row-3,
+  .re-row-mod.dos,
+  .re-row-mod.tres {
     grid-template-columns: 1fr;
   }
   .re-asist-banner {
