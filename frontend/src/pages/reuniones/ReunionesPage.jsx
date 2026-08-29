@@ -29,6 +29,22 @@ const MODALIDAD = {
   HIBRIDA: 'Híbrida',
 };
 
+function IconoLapiz() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+      <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm17.71-10.04a1 1 0 0 0 0-1.41l-2.51-2.51a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 2-1.66z" />
+    </svg>
+  );
+}
+
+function IconoBasura() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+      <path fill="currentColor" d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+    </svg>
+  );
+}
+
 function fmtFecha(iso) {
   if (!iso) return '—';
   const [y, m, d] = String(iso).slice(0, 10).split('-');
@@ -197,17 +213,21 @@ function ListaReuniones({ base, esGestor, navigate }) {
                       <button
                         type="button"
                         className="re-card-edit"
+                        title="Editar fecha, hora y datos"
+                        aria-label="Editar"
                         onClick={(e) => {
                           e.stopPropagation();
                           navigate(`${base}/${r.id}/editar`);
                         }}
                       >
-                        Editar
+                        <IconoLapiz />
                       </button>
                     ) : null}
                     <button
                       type="button"
                       className="re-card-del"
+                      title="Eliminar reunión"
+                      aria-label="Eliminar"
                       onClick={async (e) => {
                         e.stopPropagation();
                         try {
@@ -217,7 +237,7 @@ function ListaReuniones({ base, esGestor, navigate }) {
                         }
                       }}
                     >
-                      Eliminar
+                      <IconoBasura />
                     </button>
                   </div>
                 ) : null}
