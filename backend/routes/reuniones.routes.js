@@ -1,6 +1,6 @@
 /**
- * Reuniones institucionales: convocatoria, acta, asistencia el mismo día al abrir,
- * enlace externo de videollamada (Meet/Zoom/etc.). No crea sala en el sistema.
+ * Reuniones institucionales: convocatoria, acta, asistencia al ingresar,
+ * video Daily embebido (LiveKit queda previsto), pizarra y firma de sesión.
  */
 const express = require('express');
 const path = require('path');
@@ -29,7 +29,14 @@ const {
   notificarParticipantesReunion,
   puedeDirigirReunion,
   sanitizarHtmlReunion,
+  nombreSqlUsuario,
 } = require('../utils/reunionesHelper');
+const {
+  dailyConfigurado,
+  urlSalaDaily,
+  asegurarSalaDaily,
+  tokenDaily,
+} = require('../utils/reunionesDaily');
 
 router.use(authenticateToken);
 
@@ -99,9 +106,7 @@ function validarCamposCuerpo(body, { convocando } = {}) {
   if (body.enlace_videollamada && String(body.enlace_videollamada).trim() && !enlace) {
     return { error: 'El enlace de videollamada debe ser una URL http(s) (Meet, Zoom, Teams, etc.).' };
   }
-  if (convocando && (modalidad === 'VIRTUAL' || modalidad === 'HIBRIDA') && !enlace) {
-    return { error: 'Para una reunión virtual o híbrida indica el enlace de Meet, Zoom u otra sala externa.' };
-  }
+  // Virtual/híbrida: la sala Daily se crea al abrir. El enlace externo queda opcional.
   return {
     titulo,
     descripcion: sanitizarHtmlReunion(body.descripcion),
@@ -148,7 +153,9 @@ async function aplicarResponsableAbrir(req, reunionId) {
 }
 
 async function payloadReunion(reunion, req) {
-  const participantes = await listarParticipantes(query, reunion.id);
+  const participantes = await listarParticipantes(query, reunion.id, {
+    incluirFirmas: ['EN_CURSO', 'CERRADA'].includes(reunion.estado),
+  });
   const archivosRows = await query(
     `SELECT id, nombre_original, nombre_archivo, mime_type, tamano, subido_por,
             DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at
@@ -166,11 +173,7 @@ async function payloadReunion(reunion, req) {
   const puedeDirigir = puedeDirigirReunion(reunion, uid, req.user.tipo);
   const hoy = esHoyLima(reunion.fecha);
   const puedeAbrir = puedeDirigir && reunion.estado === 'CONVOCADA' && hoy;
-  const puedeAsistir =
-    !!yo &&
-    reunion.estado === 'EN_CURSO' &&
-    hoy &&
-    yo.asistencia === 'PENDIENTE';
+  const yoFirmo = !!(yo && (yo.firmado_en || yo.tiene_firma));
   let abrir = null;
   if (reunion.abrir_usuario_id) {
     const resp = await resolverUsuarioPersonal(query, req.user.colegio_id, reunion.abrir_usuario_id);
@@ -188,14 +191,34 @@ async function payloadReunion(reunion, req) {
       puede_editar: (esGestor || esCreador) && ['BORRADOR', 'CONVOCADA'].includes(reunion.estado),
       puede_convocar: (esGestor || esCreador) && reunion.estado === 'BORRADOR',
       puede_abrir: puedeAbrir,
-      puede_cerrar: puedeDirigir && reunion.estado === 'EN_CURSO',
+      puede_cerrar: puedeDirigir && reunion.estado === 'EN_CURSO' && yoFirmo,
+      falta_firma_para_cerrar: puedeDirigir && reunion.estado === 'EN_CURSO' && !yoFirmo,
       puede_cancelar: (esGestor || esCreador) && ['BORRADOR', 'CONVOCADA'].includes(reunion.estado),
       puede_acta: puedeDirigir && ['EN_CURSO', 'CERRADA'].includes(reunion.estado),
-      puede_asistir: puedeAsistir,
-      puede_marcar_asistencia: puedeDirigir && reunion.estado === 'EN_CURSO' && hoy,
-      puede_archivos: puedeDirigir,
+      puede_asistir: false,
+      asistencia_automatica: true,
+      puede_marcar_asistencia: false,
+      puede_firmar: !!yo && reunion.estado === 'EN_CURSO' && !yoFirmo,
+      ya_firmo: yoFirmo,
+      puede_archivos:
+        !!yo && ['CONVOCADA', 'EN_CURSO', 'CERRADA'].includes(reunion.estado),
+      puede_pizarra: !!yo && ['EN_CURSO', 'CERRADA'].includes(reunion.estado),
+      puede_chat: !!yo && ['EN_CURSO', 'CERRADA'].includes(reunion.estado),
+      puede_escribir_chat: !!yo && reunion.estado === 'EN_CURSO',
       asistencia_solo_hoy: true,
       es_hoy: hoy,
+      daily_configurado: dailyConfigurado(),
+    },
+    video: {
+      proveedor: reunion.video_proveedor || 'DAILY',
+      daily_room_name: reunion.daily_room_name || null,
+      daily_url: reunion.daily_room_name ? urlSalaDaily(reunion.daily_room_name) : null,
+    },
+    pizarra: {
+      json: reunion.pizarra_json || null,
+      imagen: reunion.pizarra_imagen || null,
+      imagen_url: reunion.pizarra_imagen ? urlArchivoMensajeStatic(reunion.pizarra_imagen) : null,
+      updated_at: reunion.pizarra_updated_at || null,
     },
     mi_participacion: yo,
   };
@@ -459,13 +482,21 @@ router.post('/:id/abrir', async (req, res) => {
        WHERE reunion_id = ? AND usuario_id = ? AND asistencia = 'PENDIENTE'`,
       [ahora, reunion.id, uidDe(req)]
     );
+    try {
+      const sala = await asegurarSalaDaily({ ...reunion, estado: 'EN_CURSO' });
+      if (sala.ok && sala.room) {
+        await execute(`UPDATE reuniones SET daily_room_name = ? WHERE id = ?`, [sala.room, reunion.id]);
+      }
+    } catch (e) {
+      console.error('[reuniones] daily sala', e.message);
+    }
     const actual = await obtenerReunion(query, reunion.id, req.user.colegio_id);
     await notificarParticipantesReunion({
       colegio_id: req.user.colegio_id,
       reunion: actual,
       emisor_usuario_id: uidDe(req),
       asunto: 'La reunión ya comenzó',
-      contenido: `«${actual.titulo}» está en curso. Confirma tu asistencia (ASISTÍ) hoy.`,
+      contenido: `«${actual.titulo}» está en curso. Entra a la reunión: la asistencia se registra al ingresar.`,
       tagSuffix: 'abierta',
     });
     res.json(await payloadReunion(actual, req));
@@ -484,6 +515,21 @@ router.post('/:id/cerrar', async (req, res) => {
     }
     if (reunion.estado !== 'EN_CURSO') {
       return res.status(400).json({ error: 'La reunión no está en curso.' });
+    }
+    let firmaRows;
+    try {
+      firmaRows = await query(
+        `SELECT firmado_en FROM reuniones_participantes WHERE reunion_id = ? AND usuario_id = ? LIMIT 1`,
+        [reunion.id, uidDe(req)]
+      );
+    } catch (e) {
+      if (e && (e.code === 'ER_BAD_FIELD_ERROR' || e.errno === 1054)) {
+        return res.status(503).json({ error: 'Falta ejecutar la migración 072 de reuniones (firma).' });
+      }
+      throw e;
+    }
+    if (!firmaRows || !firmaRows[0] || !firmaRows[0].firmado_en) {
+      return res.status(400).json({ error: 'Debes firmar la sesión antes de cerrar la reunión.' });
     }
     const ahora = fechaHoraMySQLLima();
     await execute(
@@ -628,8 +674,13 @@ router.post('/:id/archivos', upload.single('archivo'), async (req, res) => {
   try {
     const reunion = await obtenerReunion(query, req.params.id, req.user.colegio_id);
     if (!reunion) return res.status(404).json({ error: 'Reunión no encontrada' });
-    if (!puedeDirigirReunion(reunion, uidDe(req), req.user.tipo)) {
-      return res.status(403).json({ error: 'No autorizado' });
+    const okVer = await puedeVerReunion(query, reunion, uidDe(req), req.user.tipo);
+    if (!okVer) return res.status(403).json({ error: 'No autorizado' });
+    const puedeSubir =
+      puedeDirigirReunion(reunion, uidDe(req), req.user.tipo) ||
+      ['CONVOCADA', 'EN_CURSO'].includes(reunion.estado);
+    if (!puedeSubir || reunion.estado === 'CANCELADA') {
+      return res.status(403).json({ error: 'No se pueden subir archivos en este estado.' });
     }
     if (!req.file) return res.status(400).json({ error: 'Adjunta un archivo.' });
     await execute(
@@ -651,6 +702,244 @@ router.post('/:id/archivos', upload.single('archivo'), async (req, res) => {
   } catch (e) {
     console.error('[reuniones] archivo', e);
     res.status(500).json({ error: 'Error al subir el archivo' });
+  }
+});
+
+router.post('/:id/entrar', async (req, res) => {
+  try {
+    const reunion = await obtenerReunion(query, req.params.id, req.user.colegio_id);
+    if (!reunion) return res.status(404).json({ error: 'Reunión no encontrada' });
+    const uid = uidDe(req);
+    const ok = await puedeVerReunion(query, reunion, uid, req.user.tipo);
+    if (!ok) return res.status(403).json({ error: 'No estás convocado a esta reunión.' });
+    if (reunion.estado === 'EN_CURSO' && esHoyLima(reunion.fecha)) {
+      const ahora = fechaHoraMySQLLima();
+      await execute(
+        `UPDATE reuniones_participantes SET asistencia = 'ASISTIO', asistencia_en = COALESCE(asistencia_en, ?)
+         WHERE reunion_id = ? AND usuario_id = ? AND asistencia = 'PENDIENTE'`,
+        [ahora, reunion.id, uid]
+      );
+    }
+    const actual = await obtenerReunion(query, reunion.id, req.user.colegio_id);
+    res.json(await payloadReunion(actual, req));
+  } catch (e) {
+    console.error('[reuniones] entrar', e);
+    res.status(500).json({ error: 'Error al ingresar a la reunión' });
+  }
+});
+
+router.post('/:id/firmar', async (req, res) => {
+  try {
+    const reunion = await obtenerReunion(query, req.params.id, req.user.colegio_id);
+    if (!reunion) return res.status(404).json({ error: 'Reunión no encontrada' });
+    if (reunion.estado !== 'EN_CURSO') {
+      return res.status(400).json({ error: 'La firma se registra mientras la reunión está en curso.' });
+    }
+    const uid = uidDe(req);
+    const ok = await puedeVerReunion(query, reunion, uid, req.user.tipo);
+    if (!ok) return res.status(403).json({ error: 'No estás convocado a esta reunión.' });
+    const firma = String(req.body.firma_data || '');
+    if (!/^data:image\/(png|jpeg);base64,/.test(firma) || firma.length < 80 || firma.length > 400000) {
+      return res.status(400).json({ error: 'Dibuja tu firma en el recuadro.' });
+    }
+    const ahora = fechaHoraMySQLLima();
+    await execute(
+      `UPDATE reuniones_participantes
+       SET firma_data = ?, firmado_en = ?, asistencia = 'ASISTIO', asistencia_en = COALESCE(asistencia_en, ?)
+       WHERE reunion_id = ? AND usuario_id = ?`,
+      [firma, ahora, ahora, reunion.id, uid]
+    );
+    const actual = await obtenerReunion(query, reunion.id, req.user.colegio_id);
+    res.json(await payloadReunion(actual, req));
+  } catch (e) {
+    console.error('[reuniones] firmar', e);
+    if (e && (e.code === 'ER_BAD_FIELD_ERROR' || e.errno === 1054)) {
+      return res.status(503).json({ error: 'Falta ejecutar la migración 072 de reuniones (firma).' });
+    }
+    res.status(500).json({ error: 'Error al guardar la firma' });
+  }
+});
+
+router.patch('/:id/pizarra', async (req, res) => {
+  try {
+    const reunion = await obtenerReunion(query, req.params.id, req.user.colegio_id);
+    if (!reunion) return res.status(404).json({ error: 'Reunión no encontrada' });
+    const uid = uidDe(req);
+    const ok = await puedeVerReunion(query, reunion, uid, req.user.tipo);
+    if (!ok) return res.status(403).json({ error: 'No autorizado' });
+    if (reunion.estado !== 'EN_CURSO') {
+      return res.status(400).json({ error: 'La pizarra se edita solo con la reunión en curso.' });
+    }
+    const raw = req.body.json == null ? '' : (typeof req.body.json === 'string' ? req.body.json : JSON.stringify(req.body.json));
+    if (raw.length > 1500000) return res.status(400).json({ error: 'La pizarra es demasiado grande.' });
+    const ahora = fechaHoraMySQLLima();
+    await execute(
+      `UPDATE reuniones SET pizarra_json = ?, pizarra_updated_at = ?, updated_at = ? WHERE id = ?`,
+      [raw || null, ahora, ahora, reunion.id]
+    );
+    res.json({ ok: true, updated_at: ahora });
+  } catch (e) {
+    console.error('[reuniones] pizarra', e);
+    if (e && (e.code === 'ER_BAD_FIELD_ERROR' || e.errno === 1054)) {
+      return res.status(503).json({ error: 'Falta ejecutar la migración 072 de reuniones (pizarra).' });
+    }
+    res.status(500).json({ error: 'Error al guardar la pizarra' });
+  }
+});
+
+router.post('/:id/pizarra/guardar', async (req, res) => {
+  try {
+    const reunion = await obtenerReunion(query, req.params.id, req.user.colegio_id);
+    if (!reunion) return res.status(404).json({ error: 'Reunión no encontrada' });
+    const uid = uidDe(req);
+    const ok = await puedeVerReunion(query, reunion, uid, req.user.tipo);
+    if (!ok) return res.status(403).json({ error: 'No autorizado' });
+    const imagen = String(req.body.imagen || '');
+    if (!/^data:image\/png;base64,/.test(imagen) || imagen.length > 2500000) {
+      return res.status(400).json({ error: 'No se pudo guardar la imagen de la pizarra.' });
+    }
+    const fs = require('fs');
+    const dest = staticFsSubdir('Archivos');
+    const filename = `reunion-pizarra-${reunion.id}-${Date.now()}.png`;
+    const b64 = imagen.split(',')[1];
+    fs.writeFileSync(path.join(dest, filename), Buffer.from(b64, 'base64'));
+    const ahora = fechaHoraMySQLLima();
+    await execute(`UPDATE reuniones SET pizarra_imagen = ?, updated_at = ? WHERE id = ?`, [filename, ahora, reunion.id]);
+    await execute(
+      `INSERT INTO reuniones_archivos
+        (reunion_id, nombre_original, nombre_archivo, mime_type, tamano, subido_por, created_at)
+       VALUES (?, ?, ?, 'image/png', ?, ?, ?)`,
+      [reunion.id, `Pizarra ${reunion.titulo || reunion.id}.png`.slice(0, 255), filename, Buffer.from(b64, 'base64').length, uid, ahora]
+    );
+    const actual = await obtenerReunion(query, reunion.id, req.user.colegio_id);
+    res.json(await payloadReunion(actual, req));
+  } catch (e) {
+    console.error('[reuniones] pizarra guardar', e);
+    res.status(500).json({ error: 'Error al guardar la pizarra' });
+  }
+});
+
+async function listarChatReunion(reunionId) {
+  const nombre = nombreSqlUsuario();
+  try {
+    const rows = await query(
+      `SELECT c.id, c.usuario_id, c.mensaje, c.nombre_original, c.nombre_archivo, c.mime_type,
+              DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
+              ${nombre} AS nombre
+       FROM reuniones_chat c
+       INNER JOIN usuarios u ON u.id = c.usuario_id
+       LEFT JOIN alumnos a ON a.id = u.alumno_id
+       LEFT JOIN personal p ON p.id = u.personal_id
+       LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
+       WHERE c.reunion_id = ?
+       ORDER BY c.id ASC
+       LIMIT 400`,
+      [reunionId]
+    );
+    return (rows || []).map((m) => ({
+      ...m,
+      url: m.nombre_archivo ? urlArchivoMensajeStatic(m.nombre_archivo) : null,
+    }));
+  } catch (e) {
+    if (e && (e.code === 'ER_NO_SUCH_TABLE' || e.errno === 1146)) return [];
+    throw e;
+  }
+}
+
+router.get('/:id/chat', async (req, res) => {
+  try {
+    const reunion = await obtenerReunion(query, req.params.id, req.user.colegio_id);
+    if (!reunion) return res.status(404).json({ error: 'Reunión no encontrada' });
+    const ok = await puedeVerReunion(query, reunion, uidDe(req), req.user.tipo);
+    if (!ok) return res.status(403).json({ error: 'No autorizado' });
+    if (!['EN_CURSO', 'CERRADA'].includes(reunion.estado)) {
+      return res.json({ mensajes: [] });
+    }
+    res.json({ mensajes: await listarChatReunion(reunion.id) });
+  } catch (e) {
+    console.error('[reuniones] chat get', e);
+    res.status(500).json({ error: 'Error al leer el chat' });
+  }
+});
+
+router.post('/:id/chat', upload.single('archivo'), async (req, res) => {
+  try {
+    const reunion = await obtenerReunion(query, req.params.id, req.user.colegio_id);
+    if (!reunion) return res.status(404).json({ error: 'Reunión no encontrada' });
+    const uid = uidDe(req);
+    const ok = await puedeVerReunion(query, reunion, uid, req.user.tipo);
+    if (!ok) return res.status(403).json({ error: 'No autorizado' });
+    if (reunion.estado !== 'EN_CURSO') {
+      return res.status(400).json({ error: 'El chat se usa mientras la reunión está en curso.' });
+    }
+    const mensaje = String(req.body.mensaje || '').trim().slice(0, 2000);
+    if (!mensaje && !req.file) {
+      return res.status(400).json({ error: 'Escribe un mensaje o adjunta un archivo.' });
+    }
+    await execute(
+      `INSERT INTO reuniones_chat
+        (reunion_id, usuario_id, mensaje, nombre_original, nombre_archivo, mime_type, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        reunion.id,
+        uid,
+        mensaje || null,
+        req.file ? String(req.file.originalname || 'archivo').slice(0, 255) : null,
+        req.file ? req.file.filename : null,
+        req.file ? req.file.mimetype || null : null,
+        fechaHoraMySQLLima(),
+      ]
+    );
+    res.json({ mensajes: await listarChatReunion(reunion.id) });
+  } catch (e) {
+    console.error('[reuniones] chat post', e);
+    if (e && (e.code === 'ER_NO_SUCH_TABLE' || e.errno === 1146)) {
+      return res.status(503).json({ error: 'Falta ejecutar la migración 073 de reuniones (chat).' });
+    }
+    res.status(500).json({ error: 'Error al enviar el mensaje' });
+  }
+});
+
+router.get('/:id/video-token', async (req, res) => {
+  try {
+    const reunion = await obtenerReunion(query, req.params.id, req.user.colegio_id);
+    if (!reunion) return res.status(404).json({ error: 'Reunión no encontrada' });
+    const uid = uidDe(req);
+    const ok = await puedeVerReunion(query, reunion, uid, req.user.tipo);
+    if (!ok) return res.status(403).json({ error: 'No autorizado' });
+    if (reunion.estado !== 'EN_CURSO') {
+      return res.status(400).json({ error: 'El video está disponible cuando la reunión está en curso.' });
+    }
+    if (!dailyConfigurado()) {
+      return res.status(503).json({ error: 'Daily no está configurado. Falta DAILY_API_KEY y DAILY_DOMAIN en el servidor.' });
+    }
+    let room = reunion.daily_room_name;
+    if (!room) {
+      const sala = await asegurarSalaDaily(reunion);
+      if (sala.ok && sala.room) {
+        room = sala.room;
+        await execute(`UPDATE reuniones SET daily_room_name = ? WHERE id = ?`, [room, reunion.id]);
+      }
+    }
+    if (!room) return res.status(503).json({ error: 'No se pudo crear la sala de video.' });
+    const parts = await listarParticipantes(query, reunion.id);
+    const yo = (parts || []).find((p) => Number(p.usuario_id) === Number(uid));
+    const token = await tokenDaily({
+      roomName: room,
+      userName: yo?.nombre || req.user.usuario || 'Participante',
+      isOwner: puedeDirigirReunion(reunion, uid, req.user.tipo),
+      userId: uid,
+    });
+    res.json({
+      proveedor: 'DAILY',
+      room,
+      token,
+      url: urlSalaDaily(room),
+      embed: `${urlSalaDaily(room)}${token ? `?t=${encodeURIComponent(token)}` : ''}`,
+    });
+  } catch (e) {
+    console.error('[reuniones] video-token', e);
+    res.status(e.status || 500).json({ error: e.message || 'Error al crear el acceso de video' });
   }
 });
 

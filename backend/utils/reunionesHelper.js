@@ -119,11 +119,17 @@ async function obtenerReunion(queryFn, reunionId, colegio_id) {
   return rows && rows[0] ? rows[0] : null;
 }
 
-async function listarParticipantes(queryFn, reunionId) {
+async function listarParticipantes(queryFn, reunionId, { incluirFirmas } = {}) {
   const nombre = nombreSqlUsuario();
-  return queryFn(
-    `SELECT rp.id, rp.reunion_id, rp.usuario_id, rp.tipo, rp.rol, rp.asistencia,
-            DATE_FORMAT(rp.asistencia_en, '%Y-%m-%d %H:%i:%s') AS asistencia_en,
+  const firmaCols = incluirFirmas
+    ? `, DATE_FORMAT(rp.firmado_en, '%Y-%m-%d %H:%i:%s') AS firmado_en,
+       rp.firma_data,
+       (rp.firma_data IS NOT NULL AND rp.firma_data <> '') AS tiene_firma`
+    : `, DATE_FORMAT(rp.firmado_en, '%Y-%m-%d %H:%i:%s') AS firmado_en,
+       (rp.firma_data IS NOT NULL AND rp.firma_data <> '') AS tiene_firma`;
+  const sql = `SELECT rp.id, rp.reunion_id, rp.usuario_id, rp.tipo, rp.rol, rp.asistencia,
+            DATE_FORMAT(rp.asistencia_en, '%Y-%m-%d %H:%i:%s') AS asistencia_en
+            ${firmaCols},
             ${nombre} AS nombre,
             COALESCE(a.foto, p.foto) AS foto
      FROM reuniones_participantes rp
@@ -132,9 +138,28 @@ async function listarParticipantes(queryFn, reunionId) {
      LEFT JOIN personal p ON p.id = u.personal_id
      LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
      WHERE rp.reunion_id = ?
-     ORDER BY rp.rol ASC, nombre ASC`,
-    [reunionId]
-  );
+     ORDER BY rp.rol ASC, nombre ASC`;
+  try {
+    return await queryFn(sql, [reunionId]);
+  } catch (e) {
+    if (e && (e.code === 'ER_BAD_FIELD_ERROR' || e.errno === 1054)) {
+      return queryFn(
+        `SELECT rp.id, rp.reunion_id, rp.usuario_id, rp.tipo, rp.rol, rp.asistencia,
+                DATE_FORMAT(rp.asistencia_en, '%Y-%m-%d %H:%i:%s') AS asistencia_en,
+                ${nombre} AS nombre,
+                COALESCE(a.foto, p.foto) AS foto
+         FROM reuniones_participantes rp
+         INNER JOIN usuarios u ON u.id = rp.usuario_id
+         LEFT JOIN alumnos a ON a.id = u.alumno_id
+         LEFT JOIN personal p ON p.id = u.personal_id
+         LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
+         WHERE rp.reunion_id = ?
+         ORDER BY rp.rol ASC, nombre ASC`,
+        [reunionId]
+      );
+    }
+    throw e;
+  }
 }
 
 async function asegurarConvocante(executeFn, queryFn, reunionId, usuarioId, tipo) {
@@ -572,4 +597,5 @@ module.exports = {
   mezclarReunionesEnActividades,
   notificarParticipantesReunion,
   fechaHoraMySQLLima,
+  nombreSqlUsuario,
 };

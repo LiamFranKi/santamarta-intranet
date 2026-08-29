@@ -7,6 +7,10 @@ import { useAuth } from '../../context/AuthContext';
 import { esGestorReunionesFront, rutaBaseReuniones } from '../../utils/reunionesRutas';
 import AdminMensajeQuillEditor from '../../components/admin/AdminMensajeQuillEditor';
 import { procesarHTMLMensaje } from '../../utils/mensajesHtml';
+import ReunionFirmaModal from './ReunionFirmaModal';
+import ReunionPizarra from './ReunionPizarra';
+import ReunionVideoDaily from './ReunionVideoDaily';
+import ReunionChat from './ReunionChat';
 import './ReunionesPage.css';
 
 const ESTADOS = {
@@ -435,10 +439,6 @@ function FormularioReunion({ base, reunion, esGestor }) {
       Swal.fire('Reunión', 'Completa título, fecha y hora de inicio.', 'warning');
       return;
     }
-    if (virtual && convocar && !String(form.enlace_videollamada || '').trim()) {
-      Swal.fire('Reunión', 'Para modalidad virtual o híbrida indica el enlace de Meet, Zoom u otra sala.', 'warning');
-      return;
-    }
     setSaving(true);
     try {
       if (reunion?.id) {
@@ -508,13 +508,13 @@ function FormularioReunion({ base, reunion, esGestor }) {
             ) : null}
             {virtual ? (
               <div className="re-field full">
-                <label>Enlace de videollamada (externo)</label>
+                <label>Enlace externo (opcional)</label>
                 <input
                   value={form.enlace_videollamada}
                   onChange={(e) => setCampo('enlace_videollamada', e.target.value)}
-                  placeholder="https://meet.google.com/… o https://zoom.us/j/…"
+                  placeholder="https://meet.google.com/… (solo si quieres un respaldo)"
                 />
-                <span className="re-hint">No se crea una sala en el sistema: pega el link de Meet, Zoom, Teams u otra herramienta.</span>
+                <span className="re-hint">La sala de video la crea el sistema con Daily al abrir la reunión. Este enlace es solo un respaldo.</span>
               </div>
             ) : null}
             <div className="re-field full">
@@ -552,6 +552,11 @@ function DetalleReunion({ reunionId, base }) {
   const [acta, setActa] = useState('');
   const [acuerdos, setAcuerdos] = useState('');
   const [loading, setLoading] = useState(true);
+  const [pizarraAbierta, setPizarraAbierta] = useState(false);
+  const [firmaAbierta, setFirmaAbierta] = useState(false);
+  const [firmaParaSalir, setFirmaParaSalir] = useState(false);
+  const [firmando, setFirmando] = useState(false);
+  const [tab, setTab] = useState('chat');
 
   const cargar = useCallback(async () => {
     try {
@@ -559,6 +564,14 @@ function DetalleReunion({ reunionId, base }) {
       setPack(data);
       setActa(data.reunion?.acta || '');
       setAcuerdos(data.reunion?.acuerdos || '');
+      if (data.reunion?.estado === 'EN_CURSO') {
+        try {
+          const ent = await api.post(`/reuniones/${reunionId}/entrar`);
+          setPack(ent.data);
+        } catch {
+          /* ya está cargado */
+        }
+      }
     } catch (e) {
       Swal.fire('Reunión', e.response?.data?.error || 'No se pudo abrir la reunión.', 'error');
       navigate(base);
@@ -584,12 +597,48 @@ function DetalleReunion({ reunionId, base }) {
   const r = pack?.reunion;
   const p = pack?.permisos || {};
   const parts = pack?.participantes || [];
+  const enCurso = r?.estado === 'EN_CURSO';
+  const cerrada = r?.estado === 'CERRADA';
 
-  const marcar = (usuarioId, asistencia) =>
-    run(async () => {
-      const { data } = await api.post(`/reuniones/${reunionId}/asistencia`, { usuario_id: usuarioId, asistencia });
-      return data;
-    });
+  const intentarSalir = () => {
+    if (enCurso && !p.ya_firmo) {
+      setFirmaParaSalir(true);
+      setFirmaAbierta(true);
+      return;
+    }
+    navigate(base);
+  };
+
+  const firmar = async (firma_data) => {
+    setFirmando(true);
+    try {
+      const { data } = await api.post(`/reuniones/${reunionId}/firmar`, { firma_data });
+      setPack(data);
+      setFirmaAbierta(false);
+      const salir = firmaParaSalir;
+      setFirmaParaSalir(false);
+      Swal.fire({ toast: true, position: 'top-end', timer: 1800, showConfirmButton: false, icon: 'success', title: 'Firma guardada' });
+      if (salir) navigate(base);
+    } catch (e) {
+      Swal.fire('Firma', e.response?.data?.error || 'No se pudo guardar la firma.', 'error');
+    } finally {
+      setFirmando(false);
+    }
+  };
+
+  const subirArchivo = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('archivo', file);
+    try {
+      const { data } = await api.post(`/reuniones/${r.id}/archivos`, fd);
+      setPack(data);
+    } catch (err) {
+      Swal.fire('Archivo', err.response?.data?.error || 'No se pudo subir.', 'error');
+    }
+  };
 
   if (loading || !r) {
     return (
@@ -599,222 +648,317 @@ function DetalleReunion({ reunionId, base }) {
     );
   }
 
+  const acciones = (
+    <div className="re-actions-row">
+      {p.puede_editar ? (
+        <button type="button" className="re-btn re-btn-ghost" style={{ background: '#e2e8f0', color: '#0f172a' }} onClick={() => navigate(`${base}/${r.id}/editar`)}>
+          Editar
+        </button>
+      ) : null}
+      {p.puede_convocar ? (
+        <button type="button" className="re-btn re-btn-solid" onClick={() => run(async () => (await api.post(`/reuniones/${r.id}/convocar`)).data, 'Convocada')}>
+          Convocar
+        </button>
+      ) : null}
+      {p.puede_abrir ? (
+        <button type="button" className="re-btn re-btn-asistio" onClick={() => run(async () => (await api.post(`/reuniones/${r.id}/abrir`)).data, 'Reunión abierta')}>
+          Abrir reunión
+        </button>
+      ) : null}
+      {p.falta_firma_para_cerrar ? (
+        <button type="button" className="re-btn re-btn-solid" onClick={() => setFirmaAbierta(true)}>
+          Firmar para cerrar
+        </button>
+      ) : null}
+      {p.puede_cerrar ? (
+        <button type="button" className="re-btn re-btn-solid" onClick={() => run(async () => (await api.post(`/reuniones/${r.id}/cerrar`)).data, 'Cerrada')}>
+          Cerrar reunión
+        </button>
+      ) : null}
+      {p.puede_firmar ? (
+        <button type="button" className="re-btn re-btn-asistio" onClick={() => setFirmaAbierta(true)}>
+          Firmar sesión
+        </button>
+      ) : null}
+      {p.ya_firmo && enCurso ? <span className="re-hint">Ya firmaste la sesión.</span> : null}
+      {p.puede_pizarra && !enCurso ? (
+        <button type="button" className="re-btn re-btn-ghost" style={{ background: '#e2e8f0', color: '#0f172a' }} onClick={() => setPizarraAbierta(true)}>
+          Pizarra
+        </button>
+      ) : null}
+      {p.puede_cancelar ? (
+        <button
+          type="button"
+          className="re-btn re-btn-danger"
+          onClick={async () => {
+            const ok = await Swal.fire({
+              title: '¿Cancelar esta reunión?',
+              icon: 'warning',
+              showCancelButton: true,
+              confirmButtonText: 'Sí, cancelar',
+              cancelButtonText: 'No',
+            });
+            if (ok.isConfirmed) run(async () => (await api.post(`/reuniones/${r.id}/cancelar`)).data);
+          }}
+        >
+          Cancelar
+        </button>
+      ) : null}
+    </div>
+  );
+
+  const bloqueArchivos = (
+    <div className="re-detalle" style={{ marginBottom: '1rem' }}>
+      <h3 style={{ marginTop: 0 }}>Archivos compartidos</h3>
+      <p className="re-hint">Todos los participantes pueden verlos y subir material (PDF, imágenes, etc.).</p>
+      <div className="re-archivos-lista">
+        {(pack.archivos || []).map((a) => (
+          <a key={a.id} className="re-archivo-item" href={a.url} target="_blank" rel="noopener noreferrer">
+            {a.nombre_original}
+          </a>
+        ))}
+        {(pack.archivos || []).length === 0 ? <p className="re-hint">Aún no hay archivos.</p> : null}
+      </div>
+      {p.puede_archivos ? <input type="file" style={{ marginTop: '0.75rem' }} onChange={subirArchivo} /> : null}
+    </div>
+  );
+
+  const bloqueActa = (p.puede_acta || r.acta || r.acuerdos) ? (
+    <div className="re-detalle" style={{ marginBottom: '1rem' }}>
+      <h3 style={{ marginTop: 0 }}>Acta y acuerdos</h3>
+      {p.puede_acta ? (
+        <>
+          <div className="re-field full">
+            <label>Desarrollo / minuta</label>
+            <AdminMensajeQuillEditor value={acta} onChange={setActa} placeholder="Redacta el acta…" />
+          </div>
+          <div className="re-field full" style={{ marginTop: '0.75rem' }}>
+            <label>Acuerdos</label>
+            <AdminMensajeQuillEditor value={acuerdos} onChange={setAcuerdos} placeholder="Acuerdos y compromisos…" />
+          </div>
+          <div className="re-actions-row">
+            <button
+              type="button"
+              className="re-btn re-btn-solid"
+              onClick={() => run(async () => (await api.patch(`/reuniones/${r.id}/acta`, { acta, acuerdos })).data, 'Acta guardada')}
+            >
+              Guardar acta
+            </button>
+          </div>
+          <p className="re-hint">Los participantes ven esto en tiempo casi real al recargar; al cerrar queda en el resumen.</p>
+        </>
+      ) : (
+        <>
+          {r.acta ? <div className="re-html" dangerouslySetInnerHTML={{ __html: htmlReunion(r.acta) }} /> : <p className="re-hint">El anfitrión aún no publica el acta.</p>}
+          {r.acuerdos ? (
+            <>
+              <strong>Acuerdos</strong>
+              <div className="re-html" dangerouslySetInnerHTML={{ __html: htmlReunion(r.acuerdos) }} />
+            </>
+          ) : null}
+        </>
+      )}
+    </div>
+  ) : null;
+
+  const tablaAsistencia = (
+    <div className="re-detalle" style={{ marginBottom: '1rem' }}>
+      <h3 style={{ marginTop: 0 }}>{cerrada ? 'Quién participó' : 'Asistencia'}</h3>
+      {!cerrada ? <p className="re-hint">Se marca sola al entrar a la reunión el mismo día. Quien no entre queda ausente al cerrar.</p> : null}
+      <table className="re-part-table">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Rol</th>
+            <th>Asistencia</th>
+            <th>Firma</th>
+          </tr>
+        </thead>
+        <tbody>
+          {parts.map((row) => (
+            <tr key={row.usuario_id}>
+              <td>
+                {row.nombre}
+                <div className="re-hint">{etiquetaTipo(row.tipo)}</div>
+              </td>
+              <td>
+                {row.rol === 'CONVOCANTE' ? 'Convocante' : 'Invitado'}
+                {pack.abrir && Number(pack.abrir.usuario_id) === Number(row.usuario_id) ? (
+                  <div className="re-hint">Puede abrirla</div>
+                ) : null}
+              </td>
+              <td>{row.asistencia === 'ASISTIO' ? 'Asistió' : row.asistencia === 'AUSENTE' ? 'Ausente' : row.asistencia === 'JUSTIFICADO' ? 'Justificado' : 'Pendiente'}</td>
+              <td>
+                {row.tiene_firma || row.firmado_en || row.firma_data ? (
+                  <div className="re-firma-evidencia">
+                    <span>Firmó</span>
+                    {row.firma_data ? <img src={row.firma_data} alt={`Firma de ${row.nombre}`} className="re-firma-mini" /> : null}
+                    {row.firmado_en ? <div className="re-hint">{String(row.firmado_en).slice(11, 16)}</div> : null}
+                  </div>
+                ) : (
+                  'Pendiente'
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
   return (
     <DashboardLayout>
-      <div className="reuniones-page">
-        <div className="re-hero">
-          <div>
-            <h1>{r.titulo}</h1>
-            <p>
-              {fmtFecha(r.fecha)} · {String(r.hora_inicio || '').slice(0, 5)}
-              {r.hora_fin ? ` – ${String(r.hora_fin).slice(0, 5)}` : ''} · {MODALIDAD[r.modalidad] || r.modalidad}
-              {r.lugar ? ` · ${r.lugar}` : ''}
-            </p>
-          </div>
-          <div className="re-hero-actions">
-            <span className={`re-badge re-badge-${r.estado}`}>{ESTADOS[r.estado] || r.estado}</span>
-            <button type="button" className="re-btn re-btn-ghost" onClick={() => navigate(base)}>
-              Volver
-            </button>
-          </div>
-        </div>
-
-        {p.puede_asistir ? (
-          <div className="re-asist-banner">
+      <div className={`reuniones-page ${enCurso ? 'reuniones-page-live' : ''} ${cerrada ? 'reuniones-page-resumen' : ''}`}>
+        {enCurso ? null : (
+          <div className="re-hero">
             <div>
-              <strong>La reunión está abierta hoy.</strong>
-              <div className="re-hint">Confirma tu presencia. La asistencia solo se registra el mismo día.</div>
+              <h1>{cerrada ? `Resumen · ${r.titulo}` : r.titulo}</h1>
+              <p>
+                {fmtFecha(r.fecha)} · {String(r.hora_inicio || '').slice(0, 5)}
+                {r.hora_fin ? ` – ${String(r.hora_fin).slice(0, 5)}` : ''} · {MODALIDAD[r.modalidad] || r.modalidad}
+                {r.lugar ? ` · ${r.lugar}` : ''}
+              </p>
+              {cerrada ? <p>Registro de lo trabajado: acuerdos, asistencia, firmas, chat y archivos.</p> : null}
             </div>
-            <button type="button" className="re-btn re-btn-asistio" onClick={() => marcar(pack.mi_participacion?.usuario_id, 'ASISTIO')}>
-              ASISTÍ
-            </button>
+            <div className="re-hero-actions">
+              <span className={`re-badge re-badge-${r.estado}`}>{ESTADOS[r.estado] || r.estado}</span>
+              <button type="button" className="re-btn re-btn-ghost" onClick={intentarSalir}>
+                Volver
+              </button>
+            </div>
           </div>
-        ) : null}
+        )}
 
         {r.estado === 'CONVOCADA' && !p.es_hoy ? (
           <p className="re-hint" style={{ marginBottom: '1rem' }}>
-            La reunión se abre el día programado. Ese día el organizador la inicia y recién ahí se puede marcar ASISTÍ.
+            La reunión se abre el día programado. Ese día el organizador la inicia y al entrar se registra tu asistencia.
           </p>
         ) : null}
 
         {r.estado === 'CONVOCADA' && p.es_hoy && !p.puede_abrir ? (
           <p className="re-hint" style={{ marginBottom: '1rem' }}>
-            Hoy es el día. Cuando el organizador abra la reunión podrás confirmar ASISTÍ.
+            Hoy es el día. Cuando el organizador abra la reunión podrás entrar; tu asistencia se marca sola.
           </p>
         ) : null}
 
-        <div className="re-detalle" style={{ marginBottom: '1rem' }}>
-          {r.descripcion ? (
-            <div className="re-html" dangerouslySetInnerHTML={{ __html: htmlReunion(r.descripcion) }} />
-          ) : null}
-          {pack.abrir ? (
-            <p className="re-hint">
-              Puede abrirla: <strong>{pack.abrir.nombre}</strong>
-            </p>
-          ) : null}
-          {r.enlace_videollamada ? (
-            <div>
-              <strong>Videollamada (externa):</strong>
-              <a className="re-link-ext" href={r.enlace_videollamada} target="_blank" rel="noopener noreferrer">
-                {r.enlace_videollamada}
-              </a>
-            </div>
-          ) : null}
-
-          <div className="re-actions-row">
-            {p.puede_editar ? (
-              <button type="button" className="re-btn re-btn-ghost" style={{ background: '#e2e8f0', color: '#0f172a' }} onClick={() => navigate(`${base}/${r.id}/editar`)}>
-                Editar
-              </button>
-            ) : null}
-            {p.puede_convocar ? (
-              <button type="button" className="re-btn re-btn-solid" onClick={() => run(async () => (await api.post(`/reuniones/${r.id}/convocar`)).data, 'Convocada')}>
-                Convocar
-              </button>
-            ) : null}
-            {p.puede_abrir ? (
-              <button
-                type="button"
-                className="re-btn re-btn-asistio"
-                onClick={() =>
-                  run(async () => (await api.post(`/reuniones/${r.id}/abrir`)).data, 'Reunión abierta')
-                }
-              >
-                Abrir reunión
-              </button>
-            ) : null}
-            {p.puede_cerrar ? (
-              <button type="button" className="re-btn re-btn-solid" onClick={() => run(async () => (await api.post(`/reuniones/${r.id}/cerrar`)).data, 'Cerrada')}>
-                Cerrar reunión
-              </button>
-            ) : null}
-            {p.puede_cancelar ? (
-              <button
-                type="button"
-                className="re-btn re-btn-danger"
-                onClick={async () => {
-                  const ok = await Swal.fire({
-                    title: '¿Cancelar esta reunión?',
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonText: 'Sí, cancelar',
-                    cancelButtonText: 'No',
-                  });
-                  if (ok.isConfirmed) run(async () => (await api.post(`/reuniones/${r.id}/cancelar`)).data);
-                }}
-              >
-                Cancelar
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="re-detalle" style={{ marginBottom: '1rem' }}>
-          <h3 style={{ marginTop: 0 }}>Asistencia</h3>
-          <table className="re-part-table">
-            <thead>
-              <tr>
-                <th>Nombre</th>
-                <th>Rol</th>
-                <th>Estado</th>
-                {p.puede_marcar_asistencia ? <th></th> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {parts.map((row) => (
-                <tr key={row.usuario_id}>
-                  <td>
-                    {row.nombre}
-                    <div className="re-hint">{etiquetaTipo(row.tipo)}</div>
-                  </td>
-                  <td>
-                    {row.rol === 'CONVOCANTE' ? 'Convocante' : 'Invitado'}
-                    {pack.abrir && Number(pack.abrir.usuario_id) === Number(row.usuario_id) ? (
-                      <div className="re-hint">Puede abrirla</div>
-                    ) : null}
-                  </td>
-                  <td>{row.asistencia === 'ASISTIO' ? 'Asistió' : row.asistencia === 'AUSENTE' ? 'Ausente' : row.asistencia === 'JUSTIFICADO' ? 'Justificado' : 'Pendiente'}</td>
-                  {p.puede_marcar_asistencia ? (
-                    <td>
-                      <button type="button" className="re-chip" onClick={() => marcar(row.usuario_id, 'ASISTIO')}>
-                        Presente
-                      </button>
-                    </td>
-                  ) : null}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {p.puede_acta || r.acta || r.acuerdos ? (
-          <div className="re-detalle" style={{ marginBottom: '1rem' }}>
-            <h3 style={{ marginTop: 0 }}>Acta</h3>
-            {p.puede_acta ? (
-              <>
-                <div className="re-field full">
-                  <label>Desarrollo / minuta</label>
-                  <AdminMensajeQuillEditor value={acta} onChange={setActa} placeholder="Redacta el acta…" />
-                </div>
-                <div className="re-field full" style={{ marginTop: '0.75rem' }}>
-                  <label>Acuerdos</label>
-                  <AdminMensajeQuillEditor value={acuerdos} onChange={setAcuerdos} placeholder="Acuerdos y compromisos…" />
-                </div>
-                <div className="re-actions-row">
-                  <button
-                    type="button"
-                    className="re-btn re-btn-solid"
-                    onClick={() => run(async () => (await api.patch(`/reuniones/${r.id}/acta`, { acta, acuerdos })).data, 'Acta guardada')}
-                  >
-                    Guardar acta
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                {r.acta ? <div className="re-html" dangerouslySetInnerHTML={{ __html: htmlReunion(r.acta) }} /> : null}
-                {r.acuerdos ? (
-                  <>
-                    <strong>Acuerdos</strong>
-                    <div className="re-html" dangerouslySetInnerHTML={{ __html: htmlReunion(r.acuerdos) }} />
-                  </>
-                ) : null}
-              </>
-            )}
-          </div>
-        ) : null}
-
-        {(pack.archivos || []).length > 0 || p.puede_archivos ? (
-          <div className="re-detalle">
-            <h3 style={{ marginTop: 0 }}>Archivos</h3>
-            {(pack.archivos || []).map((a) => (
-              <div key={a.id}>
-                <a href={a.url} target="_blank" rel="noopener noreferrer">
-                  {a.nombre_original}
-                </a>
+        {enCurso ? (
+          <div className="re-sala">
+            <div className="re-sala-bar">
+              <div>
+                <div className="re-sala-kicker">Sala en vivo</div>
+                <strong>{r.titulo}</strong>
               </div>
-            ))}
-            {p.puede_archivos && ['BORRADOR', 'CONVOCADA', 'EN_CURSO', 'CERRADA'].includes(r.estado) ? (
-              <input
-                type="file"
-                style={{ marginTop: '0.75rem' }}
-                onChange={async (e) => {
-                  const file = e.target.files && e.target.files[0];
-                  e.target.value = '';
-                  if (!file) return;
-                  const fd = new FormData();
-                  fd.append('archivo', file);
-                  try {
-                    const { data } = await api.post(`/reuniones/${r.id}/archivos`, fd);
-                    setPack(data);
-                  } catch (err) {
-                    Swal.fire('Archivo', err.response?.data?.error || 'No se pudo subir.', 'error');
-                  }
-                }}
-              />
-            ) : null}
+              <div className="re-sala-bar-actions">
+                <span className={`re-badge re-badge-${r.estado}`}>En curso</span>
+                <button type="button" className="re-btn re-btn-ghost" onClick={intentarSalir}>Salir</button>
+                {!p.ya_firmo ? (
+                  <button type="button" className="re-btn re-btn-asistio" onClick={() => { setFirmaParaSalir(false); setFirmaAbierta(true); }}>
+                    Firmar
+                  </button>
+                ) : (
+                  <span className="re-pill-ok">Firmaste</span>
+                )}
+                {p.falta_firma_para_cerrar ? (
+                  <button type="button" className="re-btn re-btn-solid" onClick={() => setFirmaAbierta(true)}>Firmar para cerrar</button>
+                ) : null}
+                {p.puede_cerrar ? (
+                  <button type="button" className="re-btn re-btn-solid" onClick={() => run(async () => (await api.post(`/reuniones/${r.id}/cerrar`)).data, 'Cerrada')}>
+                    Cerrar
+                  </button>
+                ) : null}
+              </div>
+            </div>
+            <div className="re-live">
+              <div className="re-live-video">
+                <ReunionVideoDaily reunionId={r.id} dailyListo={p.daily_configurado} />
+              </div>
+              <div className="re-live-side">
+                <div className="re-tabs">
+                  {[
+                    ['chat', 'Chat'],
+                    ['acta', 'Acta'],
+                    ['archivos', 'Archivos'],
+                    ['personas', 'Lista'],
+                    ['pizarra', 'Pizarra'],
+                  ].map(([id, label]) => (
+                    <button key={id} type="button" className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="re-tab-body">
+                  {tab === 'chat' ? (
+                    <ReunionChat reunionId={r.id} yoId={pack.mi_participacion?.usuario_id} />
+                  ) : null}
+                  {tab === 'acta' ? bloqueActa : null}
+                  {tab === 'archivos' ? bloqueArchivos : null}
+                  {tab === 'personas' ? tablaAsistencia : null}
+                  {tab === 'pizarra' ? (
+                    <ReunionPizarra
+                      reunionId={r.id}
+                      inicial={pack.pizarra?.json}
+                      onCerrar={() => setTab('chat')}
+                      onGuardada={(data) => setPack(data)}
+                    />
+                  ) : null}
+                </div>
+              </div>
+            </div>
           </div>
-        ) : null}
+        ) : (
+          <>
+            <div className="re-detalle" style={{ marginBottom: '1rem' }}>
+              {r.descripcion ? <div className="re-html" dangerouslySetInnerHTML={{ __html: htmlReunion(r.descripcion) }} /> : null}
+              {pack.abrir ? (
+                <p className="re-hint">
+                  Puede abrirla: <strong>{pack.abrir.nombre}</strong>
+                </p>
+              ) : null}
+              {r.enlace_videollamada && !enCurso ? (
+                <div>
+                  <strong>Videollamada (externa):</strong>
+                  <a className="re-link-ext" href={r.enlace_videollamada} target="_blank" rel="noopener noreferrer">
+                    {r.enlace_videollamada}
+                  </a>
+                </div>
+              ) : null}
+              {acciones}
+            </div>
+            {tablaAsistencia}
+            {bloqueActa}
+            {bloqueArchivos}
+            {cerrada && pack.pizarra?.imagen_url ? (
+              <div className="re-detalle">
+                <h3 style={{ marginTop: 0 }}>Pizarra guardada</h3>
+                <img src={pack.pizarra.imagen_url} alt="Pizarra" className="re-pizarra-foto" />
+              </div>
+            ) : null}
+            {cerrada && p.puede_pizarra && pack.pizarra?.json ? (
+              <div className="re-actions-row" style={{ marginBottom: '1rem' }}>
+                <button type="button" className="re-btn re-btn-ghost" style={{ background: '#e2e8f0', color: '#0f172a' }} onClick={() => setPizarraAbierta(true)}>
+                  Ver pizarra
+                </button>
+              </div>
+            ) : null}
+            {cerrada && pizarraAbierta ? (
+              <ReunionPizarra reunionId={r.id} inicial={pack.pizarra?.json} soloLectura onCerrar={() => setPizarraAbierta(false)} />
+            ) : null}
+            {cerrada ? (
+              <div className="re-detalle" style={{ marginBottom: '1rem' }}>
+                <h3 style={{ marginTop: 0 }}>Chat de la reunión</h3>
+                <ReunionChat reunionId={r.id} yoId={pack.mi_participacion?.usuario_id} soloLectura />
+              </div>
+            ) : null}
+          </>
+        )}
+
+        <ReunionFirmaModal
+          abierto={firmaAbierta}
+          onCerrar={() => { setFirmaAbierta(false); setFirmaParaSalir(false); }}
+          onFirmar={firmar}
+          guardando={firmando}
+          obligatoria={firmaParaSalir || !!(enCurso && !p.ya_firmo && p.falta_firma_para_cerrar && firmaAbierta)}
+        />
       </div>
     </DashboardLayout>
   );
