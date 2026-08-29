@@ -78,10 +78,26 @@ async function tokenDaily({ roomName, userName, isOwner, userId }) {
   return data.token || null;
 }
 
+async function borrarSalaDaily(roomName) {
+  if (!dailyConfigurado() || !roomName) return;
+  const key = String(process.env.DAILY_API_KEY || '').trim();
+  try {
+    await axios.delete(`${DAILY_API}/rooms/${encodeURIComponent(roomName)}`, {
+      headers: { Authorization: `Bearer ${key}` },
+      timeout: 12000,
+    });
+  } catch (e) {
+    if (e.response?.status !== 404) {
+      console.error('[reuniones] daily borrar sala', e.response?.data || e.message);
+    }
+  }
+}
+
 module.exports = {
   dailyConfigurado,
   dailyDomain,
   urlSalaDaily,
   asegurarSalaDaily,
   tokenDaily,
+  borrarSalaDaily,
 };

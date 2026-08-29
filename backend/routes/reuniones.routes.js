@@ -4,6 +4,7 @@
  */
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const multer = require('multer');
 const router = express.Router();
 const { query, execute, getAnioActivo } = require('../utils/mysql');
@@ -36,6 +37,7 @@ const {
   urlSalaDaily,
   asegurarSalaDaily,
   tokenDaily,
+  borrarSalaDaily,
 } = require('../utils/reunionesDaily');
 
 router.use(authenticateToken);
@@ -188,13 +190,19 @@ async function payloadReunion(reunion, req) {
       es_gestor: esGestor,
       es_creador: esCreador,
       es_responsable_abrir: !!(reunion.abrir_usuario_id && Number(reunion.abrir_usuario_id) === uid),
-      puede_editar: (esGestor || esCreador) && ['BORRADOR', 'CONVOCADA'].includes(reunion.estado),
+      puede_editar: (esGestor || esCreador) && ['BORRADOR', 'CONVOCADA', 'EN_CURSO'].includes(reunion.estado),
       puede_convocar: (esGestor || esCreador) && reunion.estado === 'BORRADOR',
       puede_abrir: puedeAbrir,
       puede_cerrar: puedeDirigir && reunion.estado === 'EN_CURSO' && yoFirmo,
       falta_firma_para_cerrar: puedeDirigir && reunion.estado === 'EN_CURSO' && !yoFirmo,
       puede_cancelar: (esGestor || esCreador) && ['BORRADOR', 'CONVOCADA'].includes(reunion.estado),
+      puede_eliminar: esGestor || esCreador,
       puede_acta: puedeDirigir && ['EN_CURSO', 'CERRADA'].includes(reunion.estado),
+      puede_escribir_acta:
+        ['EN_CURSO', 'CERRADA'].includes(reunion.estado) &&
+        (puedeDirigir || (!!yo && Number(reunion.acta_editable) === 1 && reunion.estado === 'EN_CURSO')),
+      puede_permiso_acta: puedeDirigir && reunion.estado === 'EN_CURSO',
+      acta_editable: Number(reunion.acta_editable) === 1,
       puede_asistir: false,
       asistencia_automatica: true,
       puede_marcar_asistencia: false,
@@ -366,8 +374,8 @@ router.patch('/:id', async (req, res) => {
     if (!esGestorReuniones(req.user.tipo) && !esCreador) {
       return res.status(403).json({ error: 'No puedes editar esta reunión.' });
     }
-    if (!['BORRADOR', 'CONVOCADA'].includes(reunion.estado)) {
-      return res.status(400).json({ error: 'Solo se puede editar una reunión en borrador o convocada.' });
+    if (!['BORRADOR', 'CONVOCADA', 'EN_CURSO'].includes(reunion.estado)) {
+      return res.status(400).json({ error: 'Ya no se puede editar una reunión cerrada o cancelada.' });
     }
     const campos = validarCamposCuerpo({ ...reunion, ...req.body }, { convocando: reunion.estado === 'CONVOCADA' });
     if (campos.error) return res.status(400).json({ error: campos.error });
@@ -549,6 +557,45 @@ router.post('/:id/cerrar', async (req, res) => {
   }
 });
 
+router.delete('/:id', async (req, res) => {
+  try {
+    const reunion = await obtenerReunion(query, req.params.id, req.user.colegio_id);
+    if (!reunion) return res.status(404).json({ error: 'Reunión no encontrada' });
+    const uid = Number(uidDe(req));
+    const esCreador = Number(reunion.creador_usuario_id) === uid;
+    if (!esGestorReuniones(req.user.tipo) && !esCreador) {
+      return res.status(403).json({ error: 'Solo el administrador o quien la creó puede eliminarla.' });
+    }
+    const archivos = await query(
+      `SELECT nombre_archivo FROM reuniones_archivos WHERE reunion_id = ?`,
+      [reunion.id]
+    );
+    const chatFiles = await query(
+      `SELECT nombre_archivo FROM reuniones_chat WHERE reunion_id = ? AND nombre_archivo IS NOT NULL`,
+      [reunion.id]
+    ).catch(() => []);
+    const dest = staticFsSubdir('Archivos');
+    const nombres = [
+      ...(archivos || []).map((a) => a.nombre_archivo),
+      ...(chatFiles || []).map((a) => a.nombre_archivo),
+      reunion.pizarra_imagen,
+    ].filter(Boolean);
+    nombres.forEach((n) => {
+      try {
+        fs.unlinkSync(path.join(dest, n));
+      } catch {
+        /* archivo ya no está */
+      }
+    });
+    await borrarSalaDaily(reunion.daily_room_name);
+    await execute(`DELETE FROM reuniones WHERE id = ? AND colegio_id = ?`, [reunion.id, req.user.colegio_id]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[reuniones] eliminar', e);
+    res.status(500).json({ error: 'Error al eliminar la reunión' });
+  }
+});
+
 router.post('/:id/cancelar', async (req, res) => {
   try {
     const reunion = await obtenerReunion(query, req.params.id, req.user.colegio_id);
@@ -582,15 +629,64 @@ router.post('/:id/cancelar', async (req, res) => {
   }
 });
 
-router.patch('/:id/acta', async (req, res) => {
+router.get('/:id/acta-vivo', async (req, res) => {
+  try {
+    const reunion = await obtenerReunion(query, req.params.id, req.user.colegio_id);
+    if (!reunion) return res.status(404).json({ error: 'Reunión no encontrada' });
+    const ok = await puedeVerReunion(query, reunion, uidDe(req), req.user.tipo);
+    if (!ok) return res.status(403).json({ error: 'No autorizado' });
+    res.json({
+      acta: reunion.acta || '',
+      acuerdos: reunion.acuerdos || '',
+      acta_editable: Number(reunion.acta_editable) === 1,
+    });
+  } catch (e) {
+    console.error('[reuniones] acta-vivo', e);
+    res.status(500).json({ error: 'Error al leer el acta' });
+  }
+});
+
+router.patch('/:id/acta-permiso', async (req, res) => {
   try {
     const reunion = await obtenerReunion(query, req.params.id, req.user.colegio_id);
     if (!reunion) return res.status(404).json({ error: 'Reunión no encontrada' });
     if (!puedeDirigirReunion(reunion, uidDe(req), req.user.tipo)) {
       return res.status(403).json({ error: 'No autorizado' });
     }
+    const on = req.body.acta_editable === true || req.body.acta_editable === 1 || req.body.acta_editable === '1';
+    await execute(`UPDATE reuniones SET acta_editable = ?, updated_at = ? WHERE id = ?`, [
+      on ? 1 : 0,
+      fechaHoraMySQLLima(),
+      reunion.id,
+    ]);
+    res.json({ acta_editable: on });
+  } catch (e) {
+    console.error('[reuniones] acta-permiso', e);
+    if (e && (e.code === 'ER_BAD_FIELD_ERROR' || e.errno === 1054)) {
+      return res.status(503).json({ error: 'Falta ejecutar la migración 074 de reuniones (acta editable).' });
+    }
+    res.status(500).json({ error: 'Error al cambiar el permiso del acta' });
+  }
+});
+
+router.patch('/:id/acta', async (req, res) => {
+  try {
+    const reunion = await obtenerReunion(query, req.params.id, req.user.colegio_id);
+    if (!reunion) return res.status(404).json({ error: 'Reunión no encontrada' });
+    const uid = uidDe(req);
+    const dirige = puedeDirigirReunion(reunion, uid, req.user.tipo);
+    const invitadoPuede =
+      reunion.estado === 'EN_CURSO' &&
+      Number(reunion.acta_editable) === 1 &&
+      (await puedeVerReunion(query, reunion, uid, req.user.tipo));
+    if (!dirige && !invitadoPuede) {
+      return res.status(403).json({ error: 'No autorizado' });
+    }
     if (!['EN_CURSO', 'CERRADA'].includes(reunion.estado)) {
       return res.status(400).json({ error: 'El acta se redacta al abrir o al cerrar la reunión.' });
+    }
+    if (!dirige && reunion.estado === 'CERRADA') {
+      return res.status(403).json({ error: 'El acta cerrada solo la edita el anfitrión.' });
     }
     await execute(
       `UPDATE reuniones SET acta = ?, acuerdos = ?, updated_at = ? WHERE id = ?`,

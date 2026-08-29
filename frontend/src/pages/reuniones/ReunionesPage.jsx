@@ -11,6 +11,7 @@ import ReunionFirmaModal from './ReunionFirmaModal';
 import ReunionPizarra from './ReunionPizarra';
 import ReunionVideoDaily from './ReunionVideoDaily';
 import ReunionChat from './ReunionChat';
+import ReunionActaViva from './ReunionActaViva';
 import './ReunionesPage.css';
 
 const ESTADOS = {
@@ -58,6 +59,21 @@ function htmlReunion(raw) {
   return procesarHTMLMensaje(s.replace(/\n/g, '<br>'));
 }
 
+async function confirmarEliminarReunion(id) {
+  const ok = await Swal.fire({
+    title: '¿Eliminar esta reunión?',
+    text: 'Se borra todo: convocados, acta, chat, pizarra, archivos y la sala de video. No se puede deshacer.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Sí, eliminar todo',
+    cancelButtonText: 'No',
+    confirmButtonColor: '#b91c1c',
+  });
+  if (!ok.isConfirmed) return false;
+  await api.delete(`/reuniones/${id}`);
+  return true;
+}
+
 function formularioVacio() {
   return {
     titulo: '',
@@ -88,6 +104,8 @@ function ReunionesPage() {
 }
 
 function ListaReuniones({ base, esGestor, navigate }) {
+  const { user } = useAuth();
+  const uid = Number(user?.usuario_id ?? user?.id);
   const [filtro, setFiltro] = useState('proximas');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -152,25 +170,57 @@ function ListaReuniones({ base, esGestor, navigate }) {
         ) : (
           <div className="re-card-list">
             {items.map((r) => (
-              <button key={r.id} type="button" className="re-card" onClick={() => navigate(`${base}/${r.id}`)}>
-                <div className="re-card-top">
-                  <div>
-                    <h3>{r.titulo}</h3>
-                    <div className="re-meta">
-                      {fmtFecha(r.fecha)} · {r.hora_inicio || '—'}
-                      {r.hora_fin ? ` – ${r.hora_fin}` : ''} · {MODALIDAD[r.modalidad] || r.modalidad}
-                      {r.lugar ? ` · ${r.lugar}` : ''}
+              <div key={r.id} className="re-card-wrap">
+                <button type="button" className="re-card" onClick={() => navigate(`${base}/${r.id}`)}>
+                  <div className="re-card-top">
+                    <div>
+                      <h3>{r.titulo}</h3>
+                      <div className="re-meta">
+                        {fmtFecha(r.fecha)} · {r.hora_inicio || '—'}
+                        {r.hora_fin ? ` – ${r.hora_fin}` : ''} · {MODALIDAD[r.modalidad] || r.modalidad}
+                        {r.lugar ? ` · ${r.lugar}` : ''}
+                      </div>
+                      <div className="re-meta">
+                        {r.total_invitados || 0} convocados
+                        {r.estado === 'EN_CURSO' || r.estado === 'CERRADA'
+                          ? ` · ${r.total_asistieron || 0} asistieron`
+                          : ''}
+                      </div>
                     </div>
-                    <div className="re-meta">
-                      {r.total_invitados || 0} convocados
-                      {r.estado === 'EN_CURSO' || r.estado === 'CERRADA'
-                        ? ` · ${r.total_asistieron || 0} asistieron`
-                        : ''}
-                    </div>
+                    <span className={`re-badge re-badge-${r.estado}`}>{ESTADOS[r.estado] || r.estado}</span>
                   </div>
-                  <span className={`re-badge re-badge-${r.estado}`}>{ESTADOS[r.estado] || r.estado}</span>
-                </div>
-              </button>
+                </button>
+                {esGestor || Number(r.creador_usuario_id) === uid ? (
+                  <div className="re-card-ops">
+                    {['BORRADOR', 'CONVOCADA', 'EN_CURSO'].includes(r.estado) ? (
+                      <button
+                        type="button"
+                        className="re-card-edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`${base}/${r.id}/editar`);
+                        }}
+                      >
+                        Editar
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="re-card-del"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          if (await confirmarEliminarReunion(r.id)) cargar();
+                        } catch (err) {
+                          Swal.fire('Reunión', err.response?.data?.error || 'No se pudo eliminar.', 'error');
+                        }
+                      }}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             ))}
           </div>
         )}
@@ -707,6 +757,21 @@ function DetalleReunion({ reunionId, base }) {
           Cancelar
         </button>
       ) : null}
+      {p.puede_eliminar ? (
+        <button
+          type="button"
+          className="re-btn re-btn-danger"
+          onClick={async () => {
+            try {
+              if (await confirmarEliminarReunion(r.id)) navigate(base);
+            } catch (err) {
+              Swal.fire('Reunión', err.response?.data?.error || 'No se pudo eliminar.', 'error');
+            }
+          }}
+        >
+          Eliminar
+        </button>
+      ) : null}
     </div>
   );
 
@@ -726,42 +791,15 @@ function DetalleReunion({ reunionId, base }) {
     </div>
   );
 
-  const bloqueActa = (p.puede_acta || r.acta || r.acuerdos) ? (
-    <div className="re-detalle" style={{ marginBottom: '1rem' }}>
-      <h3 style={{ marginTop: 0 }}>Acta y acuerdos</h3>
-      {p.puede_acta ? (
-        <>
-          <div className="re-field full">
-            <label>Desarrollo / minuta</label>
-            <AdminMensajeQuillEditor value={acta} onChange={setActa} placeholder="Redacta el acta…" />
-          </div>
-          <div className="re-field full" style={{ marginTop: '0.75rem' }}>
-            <label>Acuerdos</label>
-            <AdminMensajeQuillEditor value={acuerdos} onChange={setAcuerdos} placeholder="Acuerdos y compromisos…" />
-          </div>
-          <div className="re-actions-row">
-            <button
-              type="button"
-              className="re-btn re-btn-solid"
-              onClick={() => run(async () => (await api.patch(`/reuniones/${r.id}/acta`, { acta, acuerdos })).data, 'Acta guardada')}
-            >
-              Guardar acta
-            </button>
-          </div>
-          <p className="re-hint">Los participantes ven esto en tiempo casi real al recargar; al cerrar queda en el resumen.</p>
-        </>
-      ) : (
-        <>
-          {r.acta ? <div className="re-html" dangerouslySetInnerHTML={{ __html: htmlReunion(r.acta) }} /> : <p className="re-hint">El anfitrión aún no publica el acta.</p>}
-          {r.acuerdos ? (
-            <>
-              <strong>Acuerdos</strong>
-              <div className="re-html" dangerouslySetInnerHTML={{ __html: htmlReunion(r.acuerdos) }} />
-            </>
-          ) : null}
-        </>
-      )}
-    </div>
+  const bloqueActa = enCurso || p.puede_escribir_acta || r.acta || r.acuerdos || p.puede_acta ? (
+    <ReunionActaViva
+      reunionId={r.id}
+      puedeEscribir={!!p.puede_escribir_acta}
+      puedePermiso={!!p.puede_permiso_acta}
+      actaInicial={acta}
+      acuerdosInicial={acuerdos}
+      editableInicial={!!p.acta_editable}
+    />
   ) : null;
 
   const tablaAsistencia = (
@@ -853,6 +891,11 @@ function DetalleReunion({ reunionId, base }) {
               </div>
               <div className="re-sala-bar-actions">
                 <span className={`re-badge re-badge-${r.estado}`}>En curso</span>
+                {p.puede_editar ? (
+                  <button type="button" className="re-btn re-btn-ghost" onClick={() => navigate(`${base}/${r.id}/editar`)}>
+                    Editar
+                  </button>
+                ) : null}
                 <button type="button" className="re-btn re-btn-ghost" onClick={intentarSalir}>Salir</button>
                 {!p.ya_firmo ? (
                   <button type="button" className="re-btn re-btn-asistio" onClick={() => { setFirmaParaSalir(false); setFirmaAbierta(true); }}>
