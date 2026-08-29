@@ -385,6 +385,15 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
       const tardB = []; for (let c = 1; c <= 4; c++) tardB.push(c <= cicloSel ? resumen.tardanzas[`b${c}`] : null);
 
       const dibFila = (label, arr, def = '-') => {
+        // Ocultas en impresión (no borrar: datos y filas siguen calculados).
+        if (
+          label === 'COND. INCIDENCIAS' ||
+          label === 'COND. PRESENTACIÓN' ||
+          label === 'COND. TARDANZAS' ||
+          label === 'COND. OLVIDO QR'
+        ) {
+          return;
+        }
         doc.setFillColor(...colorLabel);
         doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
         doc.setFont('helvetica', 'bold');
