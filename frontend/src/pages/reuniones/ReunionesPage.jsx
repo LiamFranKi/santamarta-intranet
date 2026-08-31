@@ -17,6 +17,7 @@ import ReunionCronometro from './ReunionCronometro';
 import { crearFechaLima } from '../../utils/fechaLima';
 import VanguardRoomMarca from './VanguardRoomMarca';
 import ReunionSalaLayout from './ReunionSalaLayout';
+import ReunionPersonalPicker from './ReunionPersonalPicker';
 import './ReunionesPage.css';
 
 const ESTADOS = {
@@ -294,6 +295,7 @@ function BuscadorInvitados({ invitados, onChange, grupos, onGrupos }) {
   const [q, setQ] = useState('');
   const [res, setRes] = useState([]);
   const [grupoPendiente, setGrupoPendiente] = useState(null);
+  const [modalPersonal, setModalPersonal] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(async () => {
@@ -325,8 +327,15 @@ function BuscadorInvitados({ invitados, onChange, grupos, onGrupos }) {
 
   return (
     <div className="re-buscador">
-      <label>Convocados</label>
-      <p className="re-hint">Personas o un aula (alumnos, apoderados y/o docentes). Escribe al menos 2 letras.</p>
+      <div className="re-buscador-head">
+        <div>
+          <label>Convocados</label>
+          <p className="re-hint">Personas o un aula (alumnos, apoderados y/o docentes). Escribe al menos 2 letras.</p>
+        </div>
+        <button type="button" className="re-btn re-btn-solid re-btn-personal" onClick={() => setModalPersonal(true)}>
+          Elegir personal
+        </button>
+      </div>
       <input
         className="re-buscador-input"
         value={q}
@@ -429,6 +438,22 @@ function BuscadorInvitados({ invitados, onChange, grupos, onGrupos }) {
           </span>
         ))}
       </div>
+      <ReunionPersonalPicker
+        abierto={modalPersonal}
+        invitadosIds={invitados.map((i) => i.usuario_id)}
+        onCerrar={() => setModalPersonal(false)}
+        onAgregar={(nuevos) => {
+          const ids = new Set(invitados.map((i) => Number(i.usuario_id)));
+          const extra = [];
+          (nuevos || []).forEach((p) => {
+            const uid = Number(p.usuario_id);
+            if (!uid || ids.has(uid)) return;
+            ids.add(uid);
+            extra.push(p);
+          });
+          if (extra.length) onChange([...invitados, ...extra]);
+        }}
+      />
     </div>
   );
 }
@@ -436,6 +461,7 @@ function BuscadorInvitados({ invitados, onChange, grupos, onGrupos }) {
 function BuscadorQuienAbre({ value, onChange }) {
   const [q, setQ] = useState('');
   const [res, setRes] = useState([]);
+  const [modalPersonal, setModalPersonal] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(async () => {
@@ -455,10 +481,17 @@ function BuscadorQuienAbre({ value, onChange }) {
 
   return (
     <div className="re-buscador">
-      <label>Quién puede abrir la reunión</label>
-      <p className="re-hint">
-        El administrador convoca. Aquí eliges a un docente o personal para que el día de la reunión la abra y redacte el acta.
-      </p>
+      <div className="re-buscador-head">
+        <div>
+          <label>Quién puede abrir la reunión</label>
+          <p className="re-hint">
+            El administrador convoca. Aquí eliges a un docente o personal para que el día de la reunión la abra y redacte el acta.
+          </p>
+        </div>
+        <button type="button" className="re-btn re-btn-solid re-btn-personal" onClick={() => setModalPersonal(true)}>
+          Elegir personal
+        </button>
+      </div>
       {value ? (
         <div className="re-invitados">
           <span className="re-tag re-tag-lg">
@@ -491,6 +524,18 @@ function BuscadorQuienAbre({ value, onChange }) {
           ))}
         </div>
       ) : null}
+      <ReunionPersonalPicker
+        abierto={modalPersonal}
+        modo="uno"
+        titulo="Quién abre la reunión"
+        kicker="Solo personal"
+        invitadosIds={[]}
+        onCerrar={() => setModalPersonal(false)}
+        onAgregar={(nuevos) => {
+          const elegido = (nuevos || [])[0];
+          if (elegido) onChange(elegido);
+        }}
+      />
     </div>
   );
 }
@@ -609,7 +654,6 @@ function FormularioReunion({ base, reunion, esGestor }) {
                 <option value="PRESENCIAL">Presencial</option>
                 <option value="VIRTUAL">Virtual</option>
               </select>
-              <p className="re-hint">La videollamada es VanguardRoom al abrir la reunión.</p>
             </div>
             {presencial ? (
               <div className="re-field compact">

@@ -425,12 +425,26 @@
   padding: 0.95rem 1rem 1rem;
 }
 
-.re-buscador > label {
+.re-buscador-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.re-buscador > label,
+.re-buscador-head label {
   display: block;
   font-size: 0.92rem;
   font-weight: 800;
   color: #0f172a;
   margin-bottom: 0.2rem;
+}
+
+.re-btn-personal {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .re-buscador-input {
@@ -1147,6 +1161,146 @@
 
 .re-modal h3 {
   margin: 0 0 0.4rem;
+}
+
+.re-personal-modal {
+  width: min(640px, 100%);
+  max-height: min(88vh, 760px);
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.re-personal-head {
+  padding: 1.15rem 1.2rem 0.85rem;
+  background: linear-gradient(125deg, #e0e7ff 0%, #ccfbf1 100%);
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.re-personal-kicker {
+  margin: 0 0 0.2rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #0f766e;
+  font-weight: 800;
+}
+
+.re-personal-head h3 {
+  margin: 0 0 0.35rem;
+  color: #1e1b4b;
+}
+
+.re-personal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.8rem 1.1rem 0.55rem;
+}
+
+.re-personal-toolbar .re-buscador-input {
+  flex: 1;
+}
+
+.re-personal-todos {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  font-weight: 800;
+  color: #0f766e;
+  background: #ccfbf1;
+  border-radius: 999px;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+}
+
+.re-personal-todos.is-disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.re-personal-list {
+  overflow: auto;
+  padding: 0.15rem 0.85rem 0.4rem;
+  min-height: 180px;
+  max-height: 46vh;
+}
+
+.re-personal-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.6rem;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.re-personal-row:hover {
+  background: #f1f5f9;
+}
+
+.re-personal-row.is-on {
+  background: #ecfdf5;
+}
+
+.re-personal-row.is-ya {
+  opacity: 0.62;
+  cursor: default;
+}
+
+.re-personal-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0f766e, #4f46e5);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.re-personal-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.re-personal-meta strong {
+  font-size: 0.92rem;
+  color: #0f172a;
+}
+
+.re-personal-meta small {
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.re-personal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.85rem 1.1rem 1rem;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+@media (max-width: 900px) {
+  .re-buscador-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .re-personal-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .re-personal-todos {
+    justify-content: center;
+  }
 }
 
 .re-firma-canvas {

@@ -27,6 +27,7 @@ const {
   usuariosGrupoPorAudiencia,
   resolverUsuarioPersonal,
   buscarParticipantesReunion,
+  listarPersonalColegio,
   notificarParticipantesReunion,
   puedeDirigirReunion,
   sanitizarHtmlReunion,
@@ -248,6 +249,16 @@ router.get('/buscar-participantes', requireGestor, async (req, res) => {
   } catch (e) {
     console.error('[reuniones] buscar', e);
     res.status(500).json({ error: 'Error al buscar participantes' });
+  }
+});
+
+router.get('/personal', requireGestor, async (req, res) => {
+  try {
+    const personal = await listarPersonalColegio(query, req.user.colegio_id);
+    res.json({ personal });
+  } catch (e) {
+    console.error('[reuniones] personal', e);
+    res.status(500).json({ error: 'Error al listar el personal' });
   }
 });
 

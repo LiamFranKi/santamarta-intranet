@@ -400,6 +400,40 @@ async function buscarParticipantesReunion(queryFn, { colegio_id, anio_activo, q,
   return resultados.slice(0, 50);
 }
 
+async function listarPersonalColegio(queryFn, colegio_id) {
+  const rows = await queryFn(
+    `SELECT u.id as usuario_id,
+            p.id as personal_id,
+            CONCAT(TRIM(p.nombres), ' ', TRIM(p.apellidos)) as nombre_completo,
+            u.tipo as tipo,
+            COALESCE(NULLIF(TRIM(p.cargo), ''), u.tipo, 'Personal') as info_adicional
+     FROM personal p
+     INNER JOIN usuarios u ON u.personal_id = p.id AND u.estado = 'ACTIVO'
+     WHERE p.colegio_id = ?
+     ORDER BY p.apellidos ASC, p.nombres ASC`,
+    [colegio_id]
+  );
+  const vistoPersonal = new Set();
+  const vistoUsuario = new Set();
+  const out = [];
+  (rows || []).forEach((p) => {
+    const pid = Number(p.personal_id);
+    const uid = Number(p.usuario_id);
+    if (!uid || vistoUsuario.has(uid) || (pid && vistoPersonal.has(pid))) return;
+    vistoUsuario.add(uid);
+    if (pid) vistoPersonal.add(pid);
+    const nombre = String(p.nombre_completo || '').replace(/\s+/g, ' ').trim();
+    if (!nombre) return;
+    out.push({
+      usuario_id: uid,
+      nombre_completo: nombre,
+      tipo: p.tipo || 'PERSONAL',
+      info_adicional: p.info_adicional,
+    });
+  });
+  return out;
+}
+
 function reunionAActividad(r) {
   const fecha = fechaYmd(r.fecha);
   const hi = normalizarHora(r.hora_inicio) || '00:00:00';
@@ -593,6 +627,7 @@ module.exports = {
   audienciasDeGrupo,
   resolverUsuarioPersonal,
   buscarParticipantesReunion,
+  listarPersonalColegio,
   listarReunionesComoActividades,
   mezclarReunionesEnActividades,
   notificarParticipantesReunion,
