@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
-import VanguardRoomMarca, { VANGUARDROOM_LOGO } from './VanguardRoomMarca';
+import VanguardRoomMarca from './VanguardRoomMarca';
 
 export default function ReunionVideoDaily({ reunionId, dailyListo }) {
   const [embed, setEmbed] = useState('');
@@ -29,7 +29,7 @@ export default function ReunionVideoDaily({ reunionId, dailyListo }) {
   if (cargando) {
     return (
       <div className="re-video-box re-video-empty">
-        <VanguardRoomMarca invert />
+        <VanguardRoomMarca invert compact />
         <p>Conectando VanguardRoom…</p>
       </div>
     );
@@ -37,7 +37,7 @@ export default function ReunionVideoDaily({ reunionId, dailyListo }) {
   if (error || !embed) {
     return (
       <div className="re-video-box re-video-empty">
-        <VanguardRoomMarca invert />
+        <VanguardRoomMarca invert compact />
         <p>{error || 'La sala aún no está lista.'}</p>
         {!dailyListo ? (
           <p className="re-hint">Cuando Daily esté configurado en el servidor, la videollamada aparece aquí.</p>
@@ -48,10 +48,6 @@ export default function ReunionVideoDaily({ reunionId, dailyListo }) {
 
   return (
     <div className="re-video-box">
-      <div className="vr-watermark" aria-hidden>
-        <img src={VANGUARDROOM_LOGO} alt="" width="22" height="22" />
-        <span>VanguardRoom</span>
-      </div>
       <iframe
         title="VanguardRoom"
         src={embed}

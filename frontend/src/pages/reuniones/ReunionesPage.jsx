@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -14,6 +14,7 @@ import ReunionChat from './ReunionChat';
 import ReunionActaViva from './ReunionActaViva';
 import ReunionArchivosLista from './ReunionArchivoIcono';
 import ReunionCronometro from './ReunionCronometro';
+import { crearFechaLima } from '../../utils/fechaLima';
 import VanguardRoomMarca from './VanguardRoomMarca';
 import './ReunionesPage.css';
 
@@ -659,6 +660,8 @@ function DetalleReunion({ reunionId, base }) {
   const [firmaParaSalir, setFirmaParaSalir] = useState(false);
   const [firmando, setFirmando] = useState(false);
   const [tab, setTab] = useState('chat');
+  const [segCierre, setSegCierre] = useState(null);
+  const avisoCierreRef = useRef(false);
 
   const cargar = useCallback(async () => {
     try {
@@ -685,6 +688,69 @@ function DetalleReunion({ reunionId, base }) {
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  useEffect(() => {
+    avisoCierreRef.current = false;
+  }, [reunionId]);
+
+  useEffect(() => {
+    if (pack?.reunion?.estado !== 'EN_CURSO') return undefined;
+    const t = setInterval(async () => {
+      try {
+        const { data } = await api.get(`/reuniones/${reunionId}`);
+        if (data.reunion?.estado !== 'EN_CURSO') {
+          setPack(data);
+          setActa(data.reunion?.acta || '');
+          setAcuerdos(data.reunion?.acuerdos || '');
+          setFirmaAbierta(false);
+          setFirmaParaSalir(false);
+        }
+      } catch {
+        /* silencio */
+      }
+    }, 3000);
+    return () => clearInterval(t);
+  }, [pack?.reunion?.estado, reunionId]);
+
+  useEffect(() => {
+    const reunion = pack?.reunion;
+    if (!reunion || reunion.estado !== 'CERRADA' || pack?.permisos?.es_anfitrion) {
+      setSegCierre(null);
+      return undefined;
+    }
+    const gracia = Number(pack?.permisos?.cierre_gracia_seg) || 60;
+    const fin = crearFechaLima(reunion.cerrada_en);
+    if (!fin) {
+      setSegCierre(null);
+      return undefined;
+    }
+    const restante = () => Math.ceil((fin.getTime() + gracia * 1000 - Date.now()) / 1000);
+    const s0 = restante();
+    if (s0 <= 0) {
+      setSegCierre(null);
+      return undefined;
+    }
+    setSegCierre(s0);
+    if (!avisoCierreRef.current) {
+      avisoCierreRef.current = true;
+      Swal.fire({
+        icon: 'info',
+        title: 'La reunión terminó',
+        text: 'El anfitrión cerró VanguardRoom. Tienes 1 minuto para salir; después el sistema te saca para no consumir minutos.',
+        confirmButtonText: 'Entendido',
+      });
+    }
+    const t = setInterval(() => {
+      const s = restante();
+      if (s <= 0) {
+        clearInterval(t);
+        navigate(base);
+        return;
+      }
+      setSegCierre(s);
+    }, 1000);
+    return () => clearInterval(t);
+  }, [pack?.reunion?.estado, pack?.reunion?.cerrada_en, pack?.permisos?.es_anfitrion, pack?.permisos?.cierre_gracia_seg, navigate, base]);
 
   const run = async (fn, okMsg) => {
     try {
@@ -722,7 +788,18 @@ function DetalleReunion({ reunionId, base }) {
       Swal.fire({ toast: true, position: 'top-end', timer: 1800, showConfirmButton: false, icon: 'success', title: 'Firma guardada' });
       if (salir) navigate(base);
     } catch (e) {
-      Swal.fire('Firma', e.response?.data?.error || 'No se pudo guardar la firma.', 'error');
+      const msg = e.response?.data?.error || 'No se pudo guardar la firma.';
+      if (/curso|abierta/i.test(msg)) {
+        setFirmaAbierta(false);
+        setFirmaParaSalir(false);
+        Swal.fire({
+          icon: 'info',
+          title: 'La sala ya se cerró',
+          text: 'Ya no hace falta firmar. Te sacamos de VanguardRoom.',
+        }).then(() => navigate(base));
+        return;
+      }
+      Swal.fire('Firma', msg, 'error');
     } finally {
       setFirmando(false);
     }
@@ -887,6 +964,17 @@ function DetalleReunion({ reunionId, base }) {
   return (
     <DashboardLayout>
       <div className={`reuniones-page ${enCurso ? 'reuniones-page-live' : ''} ${cerrada ? 'reuniones-page-resumen' : ''}`}>
+        {segCierre > 0 ? (
+          <div className="re-cierre-banner" role="status">
+            <div>
+              <strong>El anfitrión cerró VanguardRoom.</strong>
+              <span> Sal en {segCierre} s o el sistema te saca para no consumir minutos. Ya no hace falta firmar.</span>
+            </div>
+            <button type="button" className="re-btn re-btn-primary" onClick={() => navigate(base)}>
+              Salir ahora
+            </button>
+          </div>
+        ) : null}
         {enCurso ? null : (
           <div className="re-hero">
             <div>
@@ -1002,7 +1090,6 @@ function DetalleReunion({ reunionId, base }) {
               ) : null}
               {acciones}
             </div>
-            {tablaAsistencia}
             {bloqueActa}
             {bloqueArchivos}
             {cerrada && pack.pizarra?.imagen_url ? (
@@ -1027,6 +1114,7 @@ function DetalleReunion({ reunionId, base }) {
                 <ReunionChat reunionId={r.id} yoId={pack.mi_participacion?.usuario_id} soloLectura />
               </div>
             ) : null}
+            {tablaAsistencia}
           </>
         )}
 

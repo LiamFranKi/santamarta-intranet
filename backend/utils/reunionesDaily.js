@@ -102,6 +102,21 @@ async function tokenDaily({ roomName, userName, isOwner, userId }) {
   return data.token || null;
 }
 
+async function programarCierreSalaDaily(roomName, enSegundos = 60) {
+  if (!dailyConfigurado() || !roomName) return;
+  const seg = Math.max(5, Number(enSegundos) || 60);
+  try {
+    await dailyFetch(`/rooms/${encodeURIComponent(roomName)}`, {
+      properties: {
+        exp: Math.floor(Date.now() / 1000) + seg,
+        eject_at_room_exp: true,
+      },
+    });
+  } catch (e) {
+    console.warn('[reuniones] daily cierre sala', e.message);
+  }
+}
+
 async function borrarSalaDaily(roomName) {
   if (!dailyConfigurado() || !roomName) return;
   const key = String(process.env.DAILY_API_KEY || '').trim();
@@ -123,6 +138,7 @@ module.exports = {
   urlSalaDaily,
   asegurarSalaDaily,
   extenderSalaDaily,
+  programarCierreSalaDaily,
   tokenDaily,
   borrarSalaDaily,
 };

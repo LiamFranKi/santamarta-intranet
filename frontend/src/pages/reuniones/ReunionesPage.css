@@ -217,9 +217,11 @@
 
 .re-tile-body {
   min-width: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  text-align: center;
   gap: 0.35rem;
 }
 
@@ -607,8 +609,30 @@
   word-break: break-all;
 }
 
-.reuniones-page-live {
-  max-width: none;
+.re-cierre-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
+  padding: 0.85rem 1.05rem;
+  border-radius: 14px;
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  color: #92400e;
+  font-size: 0.92rem;
+}
+
+.re-cierre-banner strong {
+  display: block;
+  margin-bottom: 0.15rem;
+}
+
+@media (max-width: 900px) {
+  .re-cierre-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .re-sala {
@@ -638,6 +662,12 @@
 
 .re-sala-meet-meta {
   min-width: 0;
+  text-align: center;
+}
+
+.re-sala-meet-meta .re-crono {
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .vr-marca {
@@ -645,22 +675,6 @@
   align-items: center;
   gap: 0.65rem;
   min-width: 0;
-}
-
-.vr-marca img {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  object-fit: cover;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
-  flex-shrink: 0;
-  background: #0b1220;
-}
-
-.vr-marca-compact img {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
 }
 
 .vr-word {
@@ -685,36 +699,6 @@
 
 .vr-marca-invert .vr-word {
   color: #fff;
-}
-
-.vr-watermark {
-  position: absolute;
-  left: 12px;
-  bottom: 64px;
-  z-index: 3;
-  pointer-events: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.28rem 0.65rem 0.28rem 0.32rem;
-  border-radius: 999px;
-  background: rgba(8, 15, 30, 0.62);
-  color: #fff;
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.01em;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
-}
-
-.vr-watermark img {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  object-fit: cover;
-}
-
-.vr-watermark span {
-  padding-right: 0.1rem;
 }
 
 .re-sala-kicker {
@@ -1233,9 +1217,6 @@
   .re-sala-brand-wrap {
     flex-direction: column;
     align-items: flex-start;
-  }
-  .vr-watermark {
-    bottom: 56px;
   }
   .re-live {
     grid-template-columns: 1fr;

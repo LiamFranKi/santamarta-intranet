@@ -36,6 +36,7 @@ const {
   dailyConfigurado,
   urlSalaDaily,
   asegurarSalaDaily,
+  programarCierreSalaDaily,
   tokenDaily,
   borrarSalaDaily,
 } = require('../utils/reunionesDaily');
@@ -216,6 +217,8 @@ async function payloadReunion(reunion, req) {
       asistencia_solo_hoy: true,
       es_hoy: hoy,
       daily_configurado: dailyConfigurado(),
+      es_anfitrion: puedeDirigir,
+      cierre_gracia_seg: 60,
     },
     video: {
       proveedor: reunion.video_proveedor || 'DAILY',
@@ -549,7 +552,22 @@ router.post('/:id/cerrar', async (req, res) => {
       `UPDATE reuniones SET estado = 'CERRADA', cerrada_en = ?, updated_at = ? WHERE id = ?`,
       [ahora, ahora, reunion.id]
     );
+    if (reunion.daily_room_name) {
+      await programarCierreSalaDaily(reunion.daily_room_name, 60);
+    }
     const actual = await obtenerReunion(query, reunion.id, req.user.colegio_id);
+    try {
+      await notificarParticipantesReunion({
+        colegio_id: req.user.colegio_id,
+        reunion: actual,
+        emisor_usuario_id: uidDe(req),
+        asunto: 'La reunión terminó',
+        contenido: `«${actual.titulo}» fue cerrada. Tienes 1 minuto para salir de VanguardRoom.`,
+        tagSuffix: 'cerrada',
+      });
+    } catch (e) {
+      console.warn('[reuniones] notif cierre', e.message);
+    }
     res.json(await payloadReunion(actual, req));
   } catch (e) {
     console.error('[reuniones] cerrar', e);
