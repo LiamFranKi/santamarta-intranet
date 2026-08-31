@@ -502,7 +502,7 @@ function FormularioReunion({ base, reunion, esGestor }) {
           fecha: String(reunion.fecha || '').slice(0, 10),
           hora_inicio: String(reunion.hora_inicio || '08:00').slice(0, 5),
           hora_fin: reunion.hora_fin ? String(reunion.hora_fin).slice(0, 5) : '',
-          modalidad: reunion.modalidad || 'PRESENCIAL',
+          modalidad: reunion.modalidad === 'VIRTUAL' ? 'VIRTUAL' : 'PRESENCIAL',
           lugar: reunion.lugar || '',
           enlace_videollamada: reunion.enlace_videollamada || '',
           descripcion: reunion.descripcion || '',
@@ -527,8 +527,7 @@ function FormularioReunion({ base, reunion, esGestor }) {
     return null;
   });
   const [saving, setSaving] = useState(false);
-  const virtual = form.modalidad === 'VIRTUAL' || form.modalidad === 'HIBRIDA';
-  const presencial = form.modalidad === 'PRESENCIAL' || form.modalidad === 'HIBRIDA';
+  const presencial = form.modalidad === 'PRESENCIAL';
 
   const setCampo = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
@@ -575,7 +574,7 @@ function FormularioReunion({ base, reunion, esGestor }) {
         <div className="re-hero">
           <div>
             <h1>{reunion ? 'Editar reunión' : 'Nueva reunión'}</h1>
-            <p>Por defecto es presencial. Si hay participantes a distancia, elige virtual o híbrida y pega el enlace de la sala.</p>
+            <p>La videollamada es siempre VanguardRoom. Elige si es presencial o virtual solo como dato.</p>
           </div>
           <button type="button" className="re-btn re-btn-ghost" onClick={() => navigate(base)}>
             Volver
@@ -601,14 +600,14 @@ function FormularioReunion({ base, reunion, esGestor }) {
               <p className="re-hint">No cierra la reunión. Si se pasan de esa hora, sigue hasta que el anfitrión la cierre.</p>
             </div>
           </div>
-          <div className={`re-row-mod ${form.modalidad === 'HIBRIDA' ? 'tres' : 'dos'}`}>
+          <div className={`re-row-mod ${presencial ? 'dos' : ''}`}>
             <div className="re-field compact">
               <label>Modalidad</label>
               <select value={form.modalidad} onChange={(e) => setCampo('modalidad', e.target.value)}>
                 <option value="PRESENCIAL">Presencial</option>
                 <option value="VIRTUAL">Virtual</option>
-                <option value="HIBRIDA">Híbrida</option>
               </select>
+              <p className="re-hint">La videollamada es VanguardRoom al abrir la reunión.</p>
             </div>
             {presencial ? (
               <div className="re-field compact">
@@ -617,16 +616,6 @@ function FormularioReunion({ base, reunion, esGestor }) {
                   value={form.lugar}
                   onChange={(e) => setCampo('lugar', e.target.value)}
                   placeholder="Sala, dirección…"
-                />
-              </div>
-            ) : null}
-            {virtual ? (
-              <div className="re-field compact">
-                <label>Enlace (opcional)</label>
-                <input
-                  value={form.enlace_videollamada}
-                  onChange={(e) => setCampo('enlace_videollamada', e.target.value)}
-                  placeholder="Meet / Zoom de respaldo"
                 />
               </div>
             ) : null}
@@ -1010,14 +999,6 @@ function DetalleReunion({ reunionId, base }) {
                 <p className="re-hint">
                   Puede abrirla: <strong>{pack.abrir.nombre}</strong>
                 </p>
-              ) : null}
-              {r.enlace_videollamada && !enCurso ? (
-                <div>
-                  <strong>Videollamada (externa):</strong>
-                  <a className="re-link-ext" href={r.enlace_videollamada} target="_blank" rel="noopener noreferrer">
-                    {r.enlace_videollamada}
-                  </a>
-                </div>
               ) : null}
               {acciones}
             </div>

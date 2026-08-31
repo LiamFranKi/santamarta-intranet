@@ -406,8 +406,8 @@ function reunionAActividad(r) {
   const hf = normalizarHora(r.hora_fin) || hi;
   const lugar =
     r.modalidad === 'VIRTUAL'
-      ? 'Videollamada (enlace externo)'
-      : r.lugar || (r.modalidad === 'HIBRIDA' ? 'Presencial / virtual' : 'Presencial');
+      ? 'VanguardRoom'
+      : r.lugar || (r.modalidad === 'HIBRIDA' ? 'Presencial / VanguardRoom' : 'Presencial');
   return {
     id: `reunion-${r.id}`,
     reunion_id: r.id,
