@@ -228,7 +228,7 @@ function ListaReuniones({ base, esGestor, navigate }) {
                 <div key={r.id} className="re-tile-wrap">
                   <button
                     type="button"
-                    className={`re-tile ${r.estado === 'EN_CURSO' ? 're-tile-viva' : ''}`}
+                    className={`re-tile re-tile-${r.estado} ${r.estado === 'EN_CURSO' ? 're-tile-viva' : ''}`}
                     onClick={() => navigate(`${base}/${r.id}`)}
                   >
                     <div className={`re-tile-fecha re-tile-fecha-${r.estado}`}>
@@ -860,11 +860,6 @@ function DetalleReunion({ reunionId, base }) {
         </button>
       ) : null}
       {p.ya_firmo && enCurso ? <span className="re-hint">Ya firmaste la sesión.</span> : null}
-      {p.puede_pizarra && !enCurso ? (
-        <button type="button" className="re-btn re-btn-ghost" style={{ background: '#e2e8f0', color: '#0f172a' }} onClick={() => setPizarraAbierta(true)}>
-          Pizarra
-        </button>
-      ) : null}
       {p.puede_cancelar ? (
         <button
           type="button"
@@ -1088,8 +1083,8 @@ function DetalleReunion({ reunionId, base }) {
                   Puede abrirla: <strong>{pack.abrir.nombre}</strong>
                 </p>
               ) : null}
-              {acciones}
             </div>
+            {acciones}
             {bloqueActa}
             {bloqueArchivos}
             {cerrada && pack.pizarra?.imagen_url ? (

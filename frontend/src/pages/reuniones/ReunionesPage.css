@@ -155,10 +155,10 @@
   appearance: none;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
-  padding: 0.9rem 0.9rem 2.55rem;
+  padding: 0.95rem 3.15rem 0.95rem 0.9rem;
   background: #fff;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
-  min-height: 132px;
+  min-height: 118px;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -167,9 +167,31 @@
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
 }
 
+.re-tile-BORRADOR {
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+  border-color: #c7d2fe;
+}
+
+.re-tile-CONVOCADA {
+  background: linear-gradient(135deg, #eff6ff 0%, #e0f2fe 100%);
+  border-color: #93c5fd;
+}
+
+.re-tile-EN_CURSO,
 .re-tile-viva {
-  border-color: #86efac;
-  box-shadow: 0 8px 22px rgba(22, 163, 74, 0.16);
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border-color: #6ee7b7;
+  box-shadow: 0 8px 22px rgba(22, 163, 74, 0.14);
+}
+
+.re-tile-CERRADA {
+  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+  border-color: #cbd5e1;
+}
+
+.re-tile-CANCELADA {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border-color: #fecaca;
 }
 
 .re-tile-fecha {
@@ -261,8 +283,9 @@
 
 .re-card-ops {
   position: absolute;
-  right: 0.75rem;
-  bottom: 0.6rem;
+  right: 0.7rem;
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   gap: 0.4rem;
 }
@@ -528,7 +551,7 @@
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
-  margin-top: 1rem;
+  margin: 0 0 1rem;
 }
 
 .re-asist-banner {
