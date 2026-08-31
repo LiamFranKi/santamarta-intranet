@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
+import VanguardRoomMarca, { VANGUARDROOM_LOGO } from './VanguardRoomMarca';
 
 export default function ReunionVideoDaily({ reunionId, dailyListo }) {
   const [embed, setEmbed] = useState('');
@@ -26,15 +27,20 @@ export default function ReunionVideoDaily({ reunionId, dailyListo }) {
   }, [reunionId]);
 
   if (cargando) {
-    return <div className="re-video-box re-video-empty">Conectando la sala…</div>;
+    return (
+      <div className="re-video-box re-video-empty">
+        <VanguardRoomMarca invert />
+        <p>Conectando VanguardRoom…</p>
+      </div>
+    );
   }
   if (error || !embed) {
     return (
       <div className="re-video-box re-video-empty">
-        <strong>Video Daily</strong>
+        <VanguardRoomMarca invert />
         <p>{error || 'La sala aún no está lista.'}</p>
         {!dailyListo ? (
-          <p className="re-hint">Cuando configures Daily en el servidor, la sala aparecerá aquí (cámara, silenciar y compartir pantalla).</p>
+          <p className="re-hint">Cuando Daily esté configurado en el servidor, la videollamada aparece aquí.</p>
         ) : null}
       </div>
     );
@@ -42,8 +48,12 @@ export default function ReunionVideoDaily({ reunionId, dailyListo }) {
 
   return (
     <div className="re-video-box">
+      <div className="vr-watermark" aria-hidden>
+        <img src={VANGUARDROOM_LOGO} alt="" width="22" height="22" />
+        <span>VanguardRoom</span>
+      </div>
       <iframe
-        title="Sala de videollamada"
+        title="VanguardRoom"
         src={embed}
         allow="camera; microphone; fullscreen; display-capture; autoplay"
         allowFullScreen

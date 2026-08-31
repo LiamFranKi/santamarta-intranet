@@ -4,6 +4,8 @@ import DashboardLayout from '../components/DashboardLayout';
 import useIsMobileViewport from '../hooks/useIsMobileViewport';
 import api from '../services/api';
 import EventoDetalleModal from '../components/EventoDetalleModal';
+import { useAuth } from '../context/AuthContext';
+import { esReunionEnCurso, irAReunionSiEnCurso } from '../utils/reunionesRutas';
 import PublicacionFormCard from '../components/PublicacionFormCard';
 import PublicacionesCardFeed from '../components/PublicacionesCardFeed';
 import BirthdayWidget from '../components/BirthdayWidget';
@@ -16,6 +18,7 @@ import './DocenteGrupos.css';
 function DocenteDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const isMobile = useIsMobileViewport();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
@@ -315,6 +318,7 @@ function DocenteDashboard() {
   const eventosPagina = todosEventos.slice(inicio, fin);
 
   const handleEventoClick = (evento, tipo) => {
+    if (irAReunionSiEnCurso(navigate, user?.tipo, evento)) return;
     setEventoSeleccionado(evento);
     setTipoEventoSeleccionado(tipo);
   };
@@ -325,7 +329,10 @@ function DocenteDashboard() {
     return texto.substring(0, maxLength) + '...';
   };
 
-  const getColorCard = (tipo) => {
+  const getColorCard = (evento, tipo) => {
+    if (evento?.reunion_id || evento?.tipo === 'reunion') {
+      return esReunionEnCurso(evento) ? 'evento-card-reunion-viva' : 'evento-card-reunion';
+    }
     switch (tipo) {
       case 'examen':
       case 'hex_examen':
@@ -339,7 +346,10 @@ function DocenteDashboard() {
     }
   };
 
-  const getTipoTexto = (tipo) => {
+  const getTipoTexto = (evento, tipo) => {
+    if (evento?.reunion_id || evento?.tipo === 'reunion') {
+      return esReunionEnCurso(evento) ? 'Reunión en curso' : 'Reunión';
+    }
     switch (tipo) {
       case 'examen':
         return 'Examen';
@@ -530,7 +540,7 @@ function DocenteDashboard() {
                   return (
                     <div
                       key={`${evento.tipo}-${evento.id}-${index}`}
-                      className={`evento-card ${getColorCard(evento.tipo)}`}
+                      className={`evento-card ${getColorCard(evento, evento.tipo)}`}
                       onClick={() => handleEventoClick(evento, evento.tipo)}
                     >
                       <div className="evento-card-fecha">
@@ -545,7 +555,7 @@ function DocenteDashboard() {
                         {cursoNombre && (
                           <span className="evento-card-curso">📚 {cursoNombre}</span>
                         )}
-                        <span className="evento-card-tipo">{getTipoTexto(evento.tipo)}</span>
+                        <span className="evento-card-tipo">{getTipoTexto(evento, evento.tipo)}</span>
                       </div>
                     </div>
                   );

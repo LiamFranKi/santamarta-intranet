@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import EventoModal from './EventoModal';
 import './CalendarioWidget.css';
 import { crearFechaLima } from '../utils/fechaLima';
+import { esReunionEnCurso, irAReunionSiEnCurso } from '../utils/reunionesRutas';
 
 function CalendarioWidget() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   // Calendario muestra TODAS las actividades de TODOS los años (sin restricción)
   // Usar año actual para la visualización inicial
   const [fechaActual, setFechaActual] = useState(new Date());
@@ -186,12 +189,15 @@ function CalendarioWidget() {
     if (dia) {
       const nuevaFecha = new Date(añoActual, mesActual, dia);
       setFechaSeleccionada(nuevaFecha);
-      
-      // Obtener actividades del día seleccionado
+
       const actividadesDelDia = obtenerActividadesDelDia(dia);
       setActividadesDelDiaSeleccionado(actividadesDelDia);
-      
-      // Si hay actividades, abrir modal con la primera
+
+      if (actividadesDelDia.length === 1 && esReunionEnCurso(actividadesDelDia[0])) {
+        irAReunionSiEnCurso(navigate, user?.tipo, actividadesDelDia[0]);
+        return;
+      }
+
       if (actividadesDelDia.length > 0) {
         setActividadSeleccionada(actividadesDelDia[0]);
         setMostrarModal(true);

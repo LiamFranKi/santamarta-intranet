@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import './EventoModal.css';
 import { crearFechaLima } from '../utils/fechaLima';
 import { useAuth } from '../context/AuthContext';
-import { rutaBaseReuniones } from '../utils/reunionesRutas';
+import { esReunionEnCurso, reunionIdDeEvento, urlFichaReunion } from '../utils/reunionesRutas';
 
 function EventoModal({ actividades, fechaSeleccionada, actividadInicial, onClose }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [actividadSeleccionada, setActividadSeleccionada] = useState(
     actividadInicial || (actividades && actividades.length > 0 ? actividades[0] : null)
   );
@@ -50,7 +51,14 @@ function EventoModal({ actividades, fechaSeleccionada, actividadInicial, onClose
                 <div
                   key={act.id}
                   className={`evento-item ${estaSeleccionado ? 'evento-item-seleccionado' : ''}`}
-                  onClick={() => setActividadSeleccionada(act)}
+                  onClick={() => {
+                    if (esReunionEnCurso(act)) {
+                      onClose?.();
+                      navigate(urlFichaReunion(user?.tipo, reunionIdDeEvento(act)));
+                      return;
+                    }
+                    setActividadSeleccionada(act);
+                  }}
                 >
                   <div className="evento-item-header">
                     <span className="evento-item-hora">
@@ -85,8 +93,8 @@ function EventoModal({ actividades, fechaSeleccionada, actividadInicial, onClose
                       {(act.tipo === 'reunion' || act.reunion_id) && (
                         <div className="evento-detalle-item">
                           <span className="evento-detalle-icon">🤝</span>
-                          <Link to={`${rutaBaseReuniones(user?.tipo)}/${act.reunion_id}`}>
-                            Abrir reunión
+                          <Link to={urlFichaReunion(user?.tipo, reunionIdDeEvento(act))}>
+                            {esReunionEnCurso(act) ? 'Entrar a la reunión' : 'Ver detalle de la reunión'}
                           </Link>
                         </div>
                       )}

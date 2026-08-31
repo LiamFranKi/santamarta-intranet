@@ -523,7 +523,7 @@ async function notificarParticipantesReunion({
         contenido,
         estado: 'ENVIADO',
         accion_tipo: 'reunion',
-        accion_payload: { reunion_id: reunion.id },
+        accion_payload: { reunion_id: reunion.id, estado: reunion.estado },
         url_destino: url,
       });
     } catch (e) {

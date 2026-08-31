@@ -22,6 +22,12 @@ function urlSalaDaily(roomName) {
   return `https://${dailyDomain()}.daily.co/${roomName}`;
 }
 
+const SALA_EXP_SEG = 60 * 60 * 36;
+
+function expUnixSala() {
+  return Math.floor(Date.now() / 1000) + SALA_EXP_SEG;
+}
+
 async function dailyFetch(pathname, body) {
   const key = String(process.env.DAILY_API_KEY || '').trim();
   try {
@@ -39,9 +45,24 @@ async function dailyFetch(pathname, body) {
   }
 }
 
+async function extenderSalaDaily(roomName) {
+  if (!dailyConfigurado() || !roomName) return;
+  try {
+    await dailyFetch(`/rooms/${encodeURIComponent(roomName)}`, {
+      properties: {
+        exp: expUnixSala(),
+        eject_at_room_exp: false,
+      },
+    });
+  } catch (e) {
+    console.warn('[reuniones] daily extender sala', e.message);
+  }
+}
+
 async function asegurarSalaDaily(reunion) {
   if (!dailyConfigurado()) return { ok: false, motivo: 'sin_clave' };
   if (reunion.daily_room_name) {
+    await extenderSalaDaily(reunion.daily_room_name);
     return { ok: true, room: reunion.daily_room_name, url: urlSalaDaily(reunion.daily_room_name) };
   }
   const name = `re-${reunion.colegio_id}-${reunion.id}`.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 80);
@@ -54,11 +75,13 @@ async function asegurarSalaDaily(reunion) {
         enable_chat: false,
         start_audio_off: false,
         start_video_off: false,
-        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 12,
+        exp: expUnixSala(),
+        eject_at_room_exp: false,
       },
     });
   } catch (e) {
     if (!/already exists|taken/i.test(String(e.message || ''))) throw e;
+    await extenderSalaDaily(name);
   }
   return { ok: true, room: name, url: urlSalaDaily(name) };
 }
@@ -73,6 +96,7 @@ async function tokenDaily({ roomName, userName, isOwner, userId }) {
       is_owner: !!isOwner,
       enable_screenshare: true,
       enable_recording: false,
+      exp: expUnixSala(),
     },
   });
   return data.token || null;
@@ -98,6 +122,7 @@ module.exports = {
   dailyDomain,
   urlSalaDaily,
   asegurarSalaDaily,
+  extenderSalaDaily,
   tokenDaily,
   borrarSalaDaily,
 };

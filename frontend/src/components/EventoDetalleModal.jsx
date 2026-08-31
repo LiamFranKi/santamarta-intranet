@@ -3,12 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import './EventoDetalleModal.css';
 import { crearFechaLima } from '../utils/fechaLima';
 import { HEX_DOCENTE_BASE, HEX_ROOT } from '../pages/herramientas/hexExamenesPaths';
+import { useAuth } from '../context/AuthContext';
+import { esReunionEnCurso, reunionIdDeEvento, urlFichaReunion } from '../utils/reunionesRutas';
 
 function EventoDetalleModal({ evento, tipo, onClose }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   if (!evento) return null;
 
   const esHex = tipo === 'hex_examen';
+  const reunionId = reunionIdDeEvento(evento);
+  const esReunion = !!reunionId;
 
   const getFechaEvento = () => {
     if (tipo === 'examen') {
@@ -61,7 +66,7 @@ function EventoDetalleModal({ evento, tipo, onClose }) {
             {tipo === 'examen' && '📋 Examen'}
             {tipo === 'hex_examen' && '📝 Evaluación (Herramientas)'}
             {tipo === 'tarea' && '📝 Proyecto'}
-            {tipo === 'actividad' && '📅 Actividad'}
+            {tipo === 'actividad' && (esReunion ? '🤝 Reunión' : '📅 Actividad')}
           </h2>
           <button className="evento-detalle-modal-close" onClick={onClose}>✕</button>
         </div>
@@ -254,6 +259,32 @@ function EventoDetalleModal({ evento, tipo, onClose }) {
                 }}
               >
                 {evento.puede_intentar !== false ? 'Ir a la evaluación' : 'Ver resultado'}
+              </button>
+            </div>
+          )}
+
+          {esReunion && (
+            <div style={{ marginTop: '1.25rem' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose?.();
+                  navigate(urlFichaReunion(user?.tipo, reunionId));
+                }}
+                style={{
+                  width: '100%',
+                  padding: '0.85rem 1rem',
+                  border: 'none',
+                  borderRadius: 10,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  color: '#fff',
+                  background: esReunionEnCurso(evento)
+                    ? 'linear-gradient(135deg, #15803d 0%, #0f766e 100%)'
+                    : 'linear-gradient(135deg, #1d4ed8 0%, #0e7490 100%)'
+                }}
+              >
+                {esReunionEnCurso(evento) ? 'Entrar a la reunión' : 'Ver detalle de la reunión'}
               </button>
             </div>
           )}

@@ -202,6 +202,28 @@
   background: linear-gradient(145deg, #bfdbfe 0%, #93c5fd 50%, #60a5fa 100%);
 }
 
+.evento-card-reunion {
+  border-left: 4px solid #0e7490;
+  background: linear-gradient(145deg, #ccfbf1 0%, #99f6e4 50%, #5eead4 100%);
+}
+
+.evento-card-reunion:hover {
+  border-color: #0e7490;
+  box-shadow: 0 8px 20px rgba(14, 116, 144, 0.28);
+  background: linear-gradient(145deg, #99f6e4 0%, #5eead4 50%, #2dd4bf 100%);
+}
+
+.evento-card-reunion-viva {
+  border-left: 4px solid #16a34a;
+  background: linear-gradient(145deg, #dcfce7 0%, #bbf7d0 50%, #86efac 100%);
+}
+
+.evento-card-reunion-viva:hover {
+  border-color: #16a34a;
+  box-shadow: 0 8px 20px rgba(22, 163, 74, 0.3);
+  background: linear-gradient(145deg, #bbf7d0 0%, #86efac 50%, #4ade80 100%);
+}
+
 .evento-card-fecha {
   display: flex;
   flex-direction: column;
@@ -277,6 +299,16 @@
 .evento-card-actividad .evento-card-tipo {
   background: rgba(59, 130, 246, 0.1);
   color: #2563eb;
+}
+
+.evento-card-reunion .evento-card-tipo {
+  background: rgba(14, 116, 144, 0.12);
+  color: #0f766e;
+}
+
+.evento-card-reunion-viva .evento-card-tipo {
+  background: rgba(22, 163, 74, 0.14);
+  color: #15803d;
 }
 
 /* Paginación */

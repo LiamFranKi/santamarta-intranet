@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -13,6 +13,8 @@ import ReunionVideoDaily from './ReunionVideoDaily';
 import ReunionChat from './ReunionChat';
 import ReunionActaViva from './ReunionActaViva';
 import ReunionArchivosLista from './ReunionArchivoIcono';
+import ReunionCronometro from './ReunionCronometro';
+import VanguardRoomMarca from './VanguardRoomMarca';
 import './ReunionesPage.css';
 
 const ESTADOS = {
@@ -45,11 +47,23 @@ function IconoBasura() {
   );
 }
 
+const MESES_CORTOS = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+
 function fmtFecha(iso) {
   if (!iso) return '—';
   const [y, m, d] = String(iso).slice(0, 10).split('-');
   if (!d) return iso;
   return `${d}/${m}/${y}`;
+}
+
+function partesFecha(iso) {
+  const [y, m, d] = String(iso || '').slice(0, 10).split('-');
+  const mi = Number(m) - 1;
+  return {
+    dia: d || '—',
+    mes: MESES_CORTOS[mi] || '',
+    anio: y || '',
+  };
 }
 
 function etiquetaTipo(tipo) {
@@ -123,14 +137,15 @@ function ReunionesPage() {
 function ListaReuniones({ base, esGestor, navigate }) {
   const { user } = useAuth();
   const uid = Number(user?.usuario_id ?? user?.id);
-  const [filtro, setFiltro] = useState('proximas');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState('');
+  const [estadoFiltro, setEstadoFiltro] = useState('');
 
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/reuniones', { params: { filtro } });
+      const { data } = await api.get('/reuniones', { params: { filtro: 'todas' } });
       setItems(data.reuniones || []);
     } catch (e) {
       setItems([]);
@@ -138,22 +153,32 @@ function ListaReuniones({ base, esGestor, navigate }) {
     } finally {
       setLoading(false);
     }
-  }, [filtro]);
+  }, []);
 
   useEffect(() => {
     cargar();
   }, [cargar]);
 
+  const visibles = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return items.filter((r) => {
+      if (estadoFiltro && r.estado !== estadoFiltro) return false;
+      if (!needle) return true;
+      const hay = [r.titulo, r.lugar, fmtFecha(r.fecha), ESTADOS[r.estado], r.hora_inicio, r.hora_fin]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return hay.includes(needle);
+    });
+  }, [items, q, estadoFiltro]);
+
   return (
     <DashboardLayout>
       <div className="reuniones-page">
         <div className="re-hero">
-          <div>
-            <h1>Reuniones</h1>
-            <p>
-              Convocatoria y acta digital. La asistencia se marca el mismo día, cuando se abre la reunión.
-              Si es virtual, se usa un enlace de Meet, Zoom u otra sala externa (no se crea videollamada aquí).
-            </p>
+          <div className="re-hero-brand">
+            <VanguardRoomMarca invert />
+            <p>Todas las convocatorias en un mismo lugar. Busca por título o filtra por estado.</p>
           </div>
           <div className="re-hero-actions">
             {esGestor ? (
@@ -163,86 +188,99 @@ function ListaReuniones({ base, esGestor, navigate }) {
             ) : null}
           </div>
         </div>
-        <div className="re-filters">
-          {[
-            ['proximas', 'Próximas'],
-            ['hoy', 'Hoy'],
-            ['todas', 'Todas'],
-            ['pasadas', 'Pasadas'],
-          ].map(([k, lab]) => (
-            <button
-              key={k}
-              type="button"
-              className={`re-chip ${filtro === k ? 'active' : ''}`}
-              onClick={() => setFiltro(k)}
-            >
-              {lab}
-            </button>
-          ))}
+        <div className="re-toolbar">
+          <label className="re-search">
+            <span className="sr-only">Buscar reuniones</span>
+            <input
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Buscar por título, fecha o lugar…"
+              autoComplete="off"
+            />
+          </label>
+          <select
+            className="re-select"
+            value={estadoFiltro}
+            onChange={(e) => setEstadoFiltro(e.target.value)}
+            aria-label="Filtrar por estado"
+          >
+            <option value="">Todos los estados</option>
+            {Object.entries(ESTADOS).map(([k, lab]) => (
+              <option key={k} value={k}>
+                {lab}
+              </option>
+            ))}
+          </select>
         </div>
         {loading ? (
           <p className="re-empty">Cargando…</p>
         ) : items.length === 0 ? (
-          <p className="re-empty">No hay reuniones en este filtro.</p>
+          <p className="re-empty">Aún no hay reuniones.</p>
+        ) : visibles.length === 0 ? (
+          <p className="re-empty">Ninguna reunión coincide con la búsqueda o el filtro.</p>
         ) : (
-          <div className="re-card-list">
-            {items.map((r) => (
-              <div key={r.id} className="re-card-wrap">
-                <button type="button" className="re-card" onClick={() => navigate(`${base}/${r.id}`)}>
-                  <div className="re-card-top">
-                    <div>
-                      <h3>{r.titulo}</h3>
-                      <div className="re-meta">
-                        {fmtFecha(r.fecha)} · {r.hora_inicio || '—'}
-                        {r.hora_fin ? ` – ${r.hora_fin}` : ''} · {MODALIDAD[r.modalidad] || r.modalidad}
-                        {r.lugar ? ` · ${r.lugar}` : ''}
-                      </div>
-                      <div className="re-meta">
-                        {r.total_invitados || 0} convocados
-                        {r.estado === 'EN_CURSO' || r.estado === 'CERRADA'
-                          ? ` · ${r.total_asistieron || 0} asistieron`
-                          : ''}
-                      </div>
+          <div className="re-lista-grid">
+            {visibles.map((r) => {
+              const f = partesFecha(r.fecha);
+              return (
+                <div key={r.id} className="re-tile-wrap">
+                  <button
+                    type="button"
+                    className={`re-tile ${r.estado === 'EN_CURSO' ? 're-tile-viva' : ''}`}
+                    onClick={() => navigate(`${base}/${r.id}`)}
+                  >
+                    <div className={`re-tile-fecha re-tile-fecha-${r.estado}`}>
+                      <span className="re-tile-dia">{f.dia}</span>
+                      <span className="re-tile-mes">{f.mes}</span>
+                      <span className="re-tile-anio">{f.anio}</span>
                     </div>
-                    <span className={`re-badge re-badge-${r.estado}`}>{ESTADOS[r.estado] || r.estado}</span>
-                  </div>
-                </button>
-                {esGestor || Number(r.creador_usuario_id) === uid ? (
-                  <div className="re-card-ops">
-                    {['BORRADOR', 'CONVOCADA', 'EN_CURSO'].includes(r.estado) ? (
+                    <div className="re-tile-body">
+                      <span className={`re-badge re-badge-${r.estado}`}>{ESTADOS[r.estado] || r.estado}</span>
+                      <h3>{r.titulo}</h3>
+                      <p className="re-tile-hora">
+                        {r.hora_inicio || '—'}
+                        {r.hora_fin ? ` – ${r.hora_fin}` : ''}
+                      </p>
+                    </div>
+                  </button>
+                  {esGestor || Number(r.creador_usuario_id) === uid ? (
+                    <div className="re-card-ops">
+                      {['BORRADOR', 'CONVOCADA', 'EN_CURSO'].includes(r.estado) ? (
+                        <button
+                          type="button"
+                          className="re-card-edit"
+                          title="Editar fecha, hora y datos"
+                          aria-label="Editar"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`${base}/${r.id}/editar`);
+                          }}
+                        >
+                          <IconoLapiz />
+                        </button>
+                      ) : null}
                       <button
                         type="button"
-                        className="re-card-edit"
-                        title="Editar fecha, hora y datos"
-                        aria-label="Editar"
-                        onClick={(e) => {
+                        className="re-card-del"
+                        title="Eliminar reunión"
+                        aria-label="Eliminar"
+                        onClick={async (e) => {
                           e.stopPropagation();
-                          navigate(`${base}/${r.id}/editar`);
+                          try {
+                            if (await confirmarEliminarReunion(r.id)) cargar();
+                          } catch (err) {
+                            Swal.fire('Reunión', err.response?.data?.error || 'No se pudo eliminar.', 'error');
+                          }
                         }}
                       >
-                        <IconoLapiz />
+                        <IconoBasura />
                       </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="re-card-del"
-                      title="Eliminar reunión"
-                      aria-label="Eliminar"
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        try {
-                          if (await confirmarEliminarReunion(r.id)) cargar();
-                        } catch (err) {
-                          Swal.fire('Reunión', err.response?.data?.error || 'No se pudo eliminar.', 'error');
-                        }
-                      }}
-                    >
-                      <IconoBasura />
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            ))}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -558,8 +596,9 @@ function FormularioReunion({ base, reunion, esGestor }) {
               <input type="time" value={form.hora_inicio} onChange={(e) => setCampo('hora_inicio', e.target.value)} />
             </div>
             <div className="re-field compact">
-              <label>Hora fin</label>
+              <label>Hora fin (referencial)</label>
               <input type="time" value={form.hora_fin} onChange={(e) => setCampo('hora_fin', e.target.value)} />
+              <p className="re-hint">No cierra la reunión. Si se pasan de esa hora, sigue hasta que el anfitrión la cierre.</p>
             </div>
           </div>
           <div className={`re-row-mod ${form.modalidad === 'HIBRIDA' ? 'tres' : 'dos'}`}>
@@ -894,9 +933,12 @@ function DetalleReunion({ reunionId, base }) {
         {enCurso ? (
           <div className="re-sala">
             <div className="re-sala-bar">
-              <div>
-                <div className="re-sala-kicker">Sala en vivo</div>
-                <strong>{r.titulo}</strong>
+              <div className="re-sala-brand-wrap">
+                <VanguardRoomMarca invert />
+                <div className="re-sala-meet-meta">
+                  <strong>{r.titulo}</strong>
+                  <ReunionCronometro iniciadaEn={r.iniciada_en} />
+                </div>
               </div>
               <div className="re-sala-bar-actions">
                 <span className={`re-badge re-badge-${r.estado}`}>En curso</span>

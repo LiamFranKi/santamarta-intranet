@@ -8,6 +8,8 @@ import Swal from 'sweetalert2';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import EventoDetalleModal from '../components/EventoDetalleModal';
+import { useAuth } from '../context/AuthContext';
+import { esReunionEnCurso, irAReunionSiEnCurso } from '../utils/reunionesRutas';
 import PublicacionesCardFeed from '../components/PublicacionesCardFeed';
 import BirthdayWidget from '../components/BirthdayWidget';
 import EleccionesCampanaBanner from '../components/EleccionesCampanaBanner';
@@ -20,6 +22,7 @@ import './AlumnoCursos.css';
 function AlumnoDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const isMobile = useIsMobileViewport();
   const { setAvatarWidget } = useAvatarWidget();
   const [loading, setLoading] = useState(true);
@@ -331,6 +334,7 @@ function AlumnoDashboard() {
   const eventosPagina = todosEventos.slice(inicio, fin);
 
   const handleEventoClick = (evento, tipo) => {
+    if (irAReunionSiEnCurso(navigate, user?.tipo, evento)) return;
     setEventoSeleccionado(evento);
     setTipoEventoSeleccionado(tipo);
   };
@@ -341,7 +345,10 @@ function AlumnoDashboard() {
     return texto.substring(0, maxLength) + '...';
   };
 
-  const getColorCard = (tipo) => {
+  const getColorCard = (evento, tipo) => {
+    if (evento?.reunion_id || evento?.tipo === 'reunion') {
+      return esReunionEnCurso(evento) ? 'evento-card-reunion-viva' : 'evento-card-reunion';
+    }
     switch (tipo) {
       case 'examen':
       case 'hex_examen':
@@ -355,7 +362,10 @@ function AlumnoDashboard() {
     }
   };
 
-  const getTipoTexto = (tipo) => {
+  const getTipoTexto = (evento, tipo) => {
+    if (evento?.reunion_id || evento?.tipo === 'reunion') {
+      return esReunionEnCurso(evento) ? 'Reunión en curso' : 'Reunión';
+    }
     switch (tipo) {
       case 'examen':
         return 'Examen';
@@ -824,7 +834,7 @@ function AlumnoDashboard() {
                   return (
                     <div
                       key={`${evento.tipo}-${evento.id}-${index}`}
-                      className={`evento-card ${getColorCard(evento.tipo)}`}
+                      className={`evento-card ${getColorCard(evento, evento.tipo)}`}
                       onClick={() => handleEventoClick(evento, evento.tipo)}
                     >
                       <div className="evento-card-fecha">
@@ -842,7 +852,7 @@ function AlumnoDashboard() {
                         {docenteNombre && (
                           <span className="evento-card-docente">👨‍🏫 {docenteNombre}</span>
                         )}
-                        <span className="evento-card-tipo">{getTipoTexto(evento.tipo)}</span>
+                        <span className="evento-card-tipo">{getTipoTexto(evento, evento.tipo)}</span>
                       </div>
                     </div>
                   );
