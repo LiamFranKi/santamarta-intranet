@@ -662,7 +662,9 @@ function DetalleReunion({ reunionId, base }) {
   const [firmando, setFirmando] = useState(false);
   const [tab, setTab] = useState('chat');
   const [segCierre, setSegCierre] = useState(null);
+  const [irAResumen, setIrAResumen] = useState(false);
   const avisoCierreRef = useRef(false);
+  const estabaEnSalaRef = useRef(false);
 
   const cargar = useCallback(async () => {
     try {
@@ -692,6 +694,8 @@ function DetalleReunion({ reunionId, base }) {
 
   useEffect(() => {
     avisoCierreRef.current = false;
+    setIrAResumen(false);
+    estabaEnSalaRef.current = false;
   }, [reunionId]);
 
   useEffect(() => {
@@ -703,8 +707,6 @@ function DetalleReunion({ reunionId, base }) {
           setPack(data);
           setActa(data.reunion?.acta || '');
           setAcuerdos(data.reunion?.acuerdos || '');
-          setFirmaAbierta(false);
-          setFirmaParaSalir(false);
         }
       } catch {
         /* silencio */
@@ -729,29 +731,29 @@ function DetalleReunion({ reunionId, base }) {
     const s0 = restante();
     if (s0 <= 0) {
       setSegCierre(null);
+      if (estabaEnSalaRef.current) setIrAResumen(true);
       return undefined;
     }
     setSegCierre(s0);
     if (!avisoCierreRef.current) {
       avisoCierreRef.current = true;
-      Swal.fire({
-        icon: 'info',
-        title: 'La reunión terminó',
-        text: 'El anfitrión cerró VanguardRoom. Tienes 1 minuto para salir; después el sistema te saca para no consumir minutos.',
-        confirmButtonText: 'Entendido',
-      });
+      if (!pack?.permisos?.ya_firmo) {
+        setFirmaParaSalir(false);
+        setFirmaAbierta(true);
+      }
     }
     const t = setInterval(() => {
       const s = restante();
       if (s <= 0) {
         clearInterval(t);
-        navigate(base);
+        setSegCierre(null);
+        setIrAResumen(true);
         return;
       }
       setSegCierre(s);
     }, 1000);
     return () => clearInterval(t);
-  }, [pack?.reunion?.estado, pack?.reunion?.cerrada_en, pack?.permisos?.es_anfitrion, pack?.permisos?.cierre_gracia_seg, navigate, base]);
+  }, [pack?.reunion?.estado, pack?.reunion?.cerrada_en, pack?.permisos?.es_anfitrion, pack?.permisos?.cierre_gracia_seg, pack?.permisos?.ya_firmo]);
 
   const run = async (fn, okMsg) => {
     try {
@@ -768,11 +770,26 @@ function DetalleReunion({ reunionId, base }) {
   const parts = pack?.participantes || [];
   const enCurso = r?.estado === 'EN_CURSO';
   const cerrada = r?.estado === 'CERRADA';
+  if (enCurso) estabaEnSalaRef.current = true;
+  const enGracia = cerrada && !p.es_anfitrion && segCierre > 0;
+  const salaInmersiva = enCurso || (
+    cerrada && !p.es_anfitrion && estabaEnSalaRef.current && !irAResumen && segCierre !== 0
+  );
+
+  const irAlResumen = () => {
+    setFirmaAbierta(false);
+    setFirmaParaSalir(false);
+    setIrAResumen(true);
+  };
 
   const intentarSalir = () => {
-    if (enCurso && !p.ya_firmo) {
+    if (salaInmersiva && !p.ya_firmo && p.puede_firmar) {
       setFirmaParaSalir(true);
       setFirmaAbierta(true);
+      return;
+    }
+    if (salaInmersiva && cerrada) {
+      irAlResumen();
       return;
     }
     navigate(base);
@@ -787,17 +804,19 @@ function DetalleReunion({ reunionId, base }) {
       const salir = firmaParaSalir;
       setFirmaParaSalir(false);
       Swal.fire({ toast: true, position: 'top-end', timer: 1800, showConfirmButton: false, icon: 'success', title: 'Firma guardada' });
-      if (salir) navigate(base);
+      if (salir) {
+        if (data?.reunion?.estado === 'CERRADA' || cerrada) irAlResumen();
+        else navigate(base);
+      }
     } catch (e) {
       const msg = e.response?.data?.error || 'No se pudo guardar la firma.';
       if (/curso|abierta/i.test(msg)) {
-        setFirmaAbierta(false);
         setFirmaParaSalir(false);
         Swal.fire({
           icon: 'info',
           title: 'La sala ya se cerró',
-          text: 'Ya no hace falta firmar. Te sacamos de VanguardRoom.',
-        }).then(() => navigate(base));
+          text: 'Firma ahora si aún no lo hiciste; luego puedes ver el resumen.',
+        });
         return;
       }
       Swal.fire('Firma', msg, 'error');
@@ -959,13 +978,17 @@ function DetalleReunion({ reunionId, base }) {
 
   const accionesSala = (
     <>
-      <span className={`re-badge re-badge-${r.estado}`}>En curso</span>
-      {p.puede_editar ? (
+      <span className={`re-badge re-badge-${r.estado}`}>{enGracia ? 'Cerrando' : 'En curso'}</span>
+      {enCurso && p.puede_editar ? (
         <button type="button" className="re-btn re-btn-ghost" onClick={() => navigate(`${base}/${r.id}/editar`)}>
           Editar
         </button>
       ) : null}
-      <button type="button" className="re-btn re-btn-ghost" onClick={intentarSalir}>Salir</button>
+      {enGracia ? (
+        <button type="button" className="re-btn re-btn-ghost" onClick={irAlResumen}>Ver resumen</button>
+      ) : (
+        <button type="button" className="re-btn re-btn-ghost" onClick={intentarSalir}>Salir</button>
+      )}
       {!p.ya_firmo ? (
         <button type="button" className="re-btn re-btn-asistio" onClick={() => { setFirmaParaSalir(false); setFirmaAbierta(true); }}>
           Firmar
@@ -973,10 +996,10 @@ function DetalleReunion({ reunionId, base }) {
       ) : (
         <span className="re-pill-ok">Firmaste</span>
       )}
-      {p.falta_firma_para_cerrar ? (
+      {enCurso && p.falta_firma_para_cerrar ? (
         <button type="button" className="re-btn re-btn-solid" onClick={() => setFirmaAbierta(true)}>Firmar para cerrar</button>
       ) : null}
-      {p.puede_cerrar ? (
+      {enCurso && p.puede_cerrar ? (
         <button type="button" className="re-btn re-btn-solid" onClick={() => run(async () => (await api.post(`/reuniones/${r.id}/cerrar`)).data, 'Cerrada')}>
           Cerrar
         </button>
@@ -985,19 +1008,30 @@ function DetalleReunion({ reunionId, base }) {
   );
 
   const pagina = (
-      <div className={`reuniones-page ${enCurso ? 'reuniones-page-live' : ''} ${cerrada ? 'reuniones-page-resumen' : ''}`}>
-        {segCierre > 0 ? (
+      <div className={`reuniones-page ${salaInmersiva ? 'reuniones-page-live' : ''} ${cerrada && !salaInmersiva ? 'reuniones-page-resumen' : ''}`}>
+        {enGracia && salaInmersiva ? (
           <div className="re-cierre-banner" role="status">
             <div>
               <strong>El anfitrión cerró VanguardRoom.</strong>
-              <span> Sal en {segCierre} s o el sistema te saca para no consumir minutos. Ya no hace falta firmar.</span>
+              <span>
+                {p.ya_firmo
+                  ? ` Puedes ver el resumen ahora. El video se apaga en ${segCierre} s.`
+                  : ` Firma ahora si aún no lo hiciste. El video se apaga en ${segCierre} s; el resumen queda disponible.`}
+              </span>
             </div>
-            <button type="button" className="re-btn re-btn-primary" onClick={() => navigate(base)}>
-              Salir ahora
-            </button>
+            <div className="re-cierre-banner-actions">
+              {!p.ya_firmo ? (
+                <button type="button" className="re-btn re-btn-asistio" onClick={() => { setFirmaParaSalir(false); setFirmaAbierta(true); }}>
+                  Firmar
+                </button>
+              ) : null}
+              <button type="button" className="re-btn re-btn-primary" onClick={irAlResumen}>
+                Ver resumen
+              </button>
+            </div>
           </div>
         ) : null}
-        {enCurso ? null : (
+        {salaInmersiva ? null : (
           <div className="re-hero">
             <div>
               <h1>{cerrada ? `Resumen · ${r.titulo}` : r.titulo}</h1>
@@ -1010,6 +1044,11 @@ function DetalleReunion({ reunionId, base }) {
             </div>
             <div className="re-hero-actions">
               <span className={`re-badge re-badge-${r.estado}`}>{ESTADOS[r.estado] || r.estado}</span>
+              {cerrada && p.puede_firmar ? (
+                <button type="button" className="re-btn re-btn-asistio" onClick={() => setFirmaAbierta(true)}>
+                  Firmar
+                </button>
+              ) : null}
               <button type="button" className="re-btn re-btn-ghost" onClick={intentarSalir}>
                 Volver
               </button>
@@ -1029,7 +1068,7 @@ function DetalleReunion({ reunionId, base }) {
           </p>
         ) : null}
 
-        {enCurso ? (
+        {salaInmersiva ? (
           <div className="re-sala re-sala-inmersiva">
             <div className="re-live">
               <div className="re-live-video">
@@ -1117,7 +1156,7 @@ function DetalleReunion({ reunionId, base }) {
       </div>
   );
 
-  if (enCurso) {
+  if (salaInmersiva) {
     return (
       <ReunionSalaLayout
         titulo={r.titulo}

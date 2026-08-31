@@ -11,7 +11,7 @@ const { query, execute, getAnioActivo } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
 const { staticFsSubdir } = require('../utils/staticStorage');
 const { urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
-const { fechaHoraMySQLLima, fechaMySQLLima } = require('../utils/fechaHoraLima');
+const { fechaHoraMySQLLima, fechaMySQLLima, enVentanaGraciaCierre } = require('../utils/fechaHoraLima');
 const {
   esGestorReuniones,
   esHoyLima,
@@ -207,7 +207,7 @@ async function payloadReunion(reunion, req) {
       puede_asistir: false,
       asistencia_automatica: true,
       puede_marcar_asistencia: false,
-      puede_firmar: !!yo && reunion.estado === 'EN_CURSO' && !yoFirmo,
+      puede_firmar: !!yo && !yoFirmo && ['EN_CURSO', 'CERRADA'].includes(reunion.estado),
       ya_firmo: yoFirmo,
       puede_archivos:
         !!yo && ['CONVOCADA', 'EN_CURSO', 'CERRADA'].includes(reunion.estado),
@@ -562,7 +562,7 @@ router.post('/:id/cerrar', async (req, res) => {
         reunion: actual,
         emisor_usuario_id: uidDe(req),
         asunto: 'La reunión terminó',
-        contenido: `«${actual.titulo}» fue cerrada. Tienes 1 minuto para salir de VanguardRoom.`,
+        contenido: `«${actual.titulo}» fue cerrada. Si aún no firmaste, firma ahora. Luego puedes ver el resumen.`,
         tagSuffix: 'cerrada',
       });
     } catch (e) {
@@ -846,8 +846,8 @@ router.post('/:id/firmar', async (req, res) => {
   try {
     const reunion = await obtenerReunion(query, req.params.id, req.user.colegio_id);
     if (!reunion) return res.status(404).json({ error: 'Reunión no encontrada' });
-    if (reunion.estado !== 'EN_CURSO') {
-      return res.status(400).json({ error: 'La firma se registra mientras la reunión está en curso.' });
+    if (!['EN_CURSO', 'CERRADA'].includes(reunion.estado)) {
+      return res.status(400).json({ error: 'La firma se registra en la reunión abierta o en el resumen.' });
     }
     const uid = uidDe(req);
     const ok = await puedeVerReunion(query, reunion, uid, req.user.tipo);
@@ -1021,14 +1021,15 @@ router.get('/:id/video-token', async (req, res) => {
     const uid = uidDe(req);
     const ok = await puedeVerReunion(query, reunion, uid, req.user.tipo);
     if (!ok) return res.status(403).json({ error: 'No autorizado' });
-    if (reunion.estado !== 'EN_CURSO') {
+    const videoEnGracia = reunion.estado === 'CERRADA' && enVentanaGraciaCierre(reunion.cerrada_en, 60);
+    if (reunion.estado !== 'EN_CURSO' && !videoEnGracia) {
       return res.status(400).json({ error: 'El video está disponible cuando la reunión está en curso.' });
     }
     if (!dailyConfigurado()) {
       return res.status(503).json({ error: 'Daily no está configurado. Falta DAILY_API_KEY y DAILY_DOMAIN en el servidor.' });
     }
     let room = reunion.daily_room_name;
-    if (!room) {
+    if (!room && reunion.estado === 'EN_CURSO') {
       const sala = await asegurarSalaDaily(reunion);
       if (sala.ok && sala.room) {
         room = sala.room;

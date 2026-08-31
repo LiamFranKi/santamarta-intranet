@@ -42,11 +42,22 @@ function fechaTextoLima(date) {
   return moment(date).tz(ZONA_LIMA).format('DD/MM/YYYY');
 }
 
+/** Cierre de VanguardRoom: 1 min extra para firmar / salir del video. */
+function enVentanaGraciaCierre(cerradaEn, graciaSeg = 60) {
+  if (!cerradaEn) return false;
+  const raw = String(cerradaEn).trim().replace('T', ' ').slice(0, 19);
+  const fin = moment.tz(raw, 'YYYY-MM-DD HH:mm:ss', ZONA_LIMA);
+  if (!fin.isValid()) return false;
+  const seg = Math.max(1, Number(graciaSeg) || 60);
+  return moment().tz(ZONA_LIMA).isBefore(fin.clone().add(seg, 'seconds'));
+}
+
 module.exports = {
   fechaHoraMySQLLima,
   fechaMySQLLima,
   horaMySQLLima,
   fechaHoraTextoLima,
   fechaTextoLima,
+  enVentanaGraciaCierre,
   ZONA_LIMA
 };
