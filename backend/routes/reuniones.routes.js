@@ -270,7 +270,7 @@ router.get('/', async (req, res) => {
     const filtro = String(req.query.filtro || 'todas');
     const hoy = fechaMySQLLima();
     let sql = `
-      SELECT r.id, r.titulo, r.modalidad, r.lugar, r.estado, r.creador_usuario_id,
+      SELECT r.id, r.titulo, r.modalidad, r.lugar, r.estado, r.creador_usuario_id, r.abrir_usuario_id,
              DATE_FORMAT(r.fecha, '%Y-%m-%d') AS fecha,
              TIME_FORMAT(r.hora_inicio, '%H:%i') AS hora_inicio,
              TIME_FORMAT(r.hora_fin, '%H:%i') AS hora_fin,

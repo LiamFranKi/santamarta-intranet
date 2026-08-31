@@ -59,6 +59,13 @@ function fmtFecha(iso) {
   return `${d}/${m}/${y}`;
 }
 
+function esFechaHoy(iso) {
+  const ymd = String(iso || '').slice(0, 10);
+  const n = new Date();
+  const hoy = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+  return ymd === hoy;
+}
+
 function partesFecha(iso) {
   const [y, m, d] = String(iso || '').slice(0, 10).split('-');
   const mi = Number(m) - 1;
@@ -226,6 +233,11 @@ function ListaReuniones({ base, esGestor, navigate }) {
           <div className="re-lista-grid">
             {visibles.map((r) => {
               const f = partesFecha(r.fecha);
+              const hoy = esFechaHoy(r.fecha);
+              const puedeAbrirFila =
+                r.estado === 'CONVOCADA' &&
+                hoy &&
+                (esGestor || Number(r.creador_usuario_id) === uid || Number(r.abrir_usuario_id) === uid);
               return (
                 <div key={r.id} className="re-tile-wrap">
                   <button
@@ -244,43 +256,66 @@ function ListaReuniones({ base, esGestor, navigate }) {
                       <p className="re-tile-hora">
                         {r.hora_inicio || '—'}
                         {r.hora_fin ? ` – ${r.hora_fin}` : ''}
+                        {r.lugar ? ` · ${r.lugar}` : ''}
                       </p>
+                      {r.estado === 'CONVOCADA' && !hoy ? (
+                        <p className="re-tile-nota">Se abre el {fmtFecha(r.fecha)}, no antes.</p>
+                      ) : null}
                     </div>
                   </button>
-                  {esGestor || Number(r.creador_usuario_id) === uid ? (
-                    <div className="re-card-ops">
-                      {['BORRADOR', 'CONVOCADA', 'EN_CURSO'].includes(r.estado) ? (
-                        <button
-                          type="button"
-                          className="re-card-edit"
-                          title="Editar fecha, hora y datos"
-                          aria-label="Editar"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`${base}/${r.id}/editar`);
-                          }}
-                        >
-                          <IconoLapiz />
-                        </button>
-                      ) : null}
+                  <div className="re-card-ops">
+                    {puedeAbrirFila ? (
                       <button
                         type="button"
-                        className="re-card-del"
-                        title="Eliminar reunión"
-                        aria-label="Eliminar"
+                        className="re-btn re-btn-asistio re-card-abrir"
                         onClick={async (e) => {
                           e.stopPropagation();
                           try {
-                            if (await confirmarEliminarReunion(r.id)) cargar();
+                            await api.post(`/reuniones/${r.id}/abrir`);
+                            navigate(`${base}/${r.id}`);
                           } catch (err) {
-                            Swal.fire('Reunión', err.response?.data?.error || 'No se pudo eliminar.', 'error');
+                            Swal.fire('Reunión', err.response?.data?.error || 'No se pudo abrir.', 'error');
                           }
                         }}
                       >
-                        <IconoBasura />
+                        Abrir
                       </button>
-                    </div>
-                  ) : null}
+                    ) : null}
+                    {esGestor || Number(r.creador_usuario_id) === uid ? (
+                      <>
+                        {['BORRADOR', 'CONVOCADA', 'EN_CURSO'].includes(r.estado) ? (
+                          <button
+                            type="button"
+                            className="re-card-edit"
+                            title="Editar fecha, hora y datos"
+                            aria-label="Editar"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`${base}/${r.id}/editar`);
+                            }}
+                          >
+                            <IconoLapiz />
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="re-card-del"
+                          title="Eliminar reunión"
+                          aria-label="Eliminar"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              if (await confirmarEliminarReunion(r.id)) cargar();
+                            } catch (err) {
+                              Swal.fire('Reunión', err.response?.data?.error || 'No se pudo eliminar.', 'error');
+                            }
+                          }}
+                        >
+                          <IconoBasura />
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
               );
             })}
