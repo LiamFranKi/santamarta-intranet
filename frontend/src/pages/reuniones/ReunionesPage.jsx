@@ -16,6 +16,7 @@ import ReunionArchivosLista from './ReunionArchivoIcono';
 import ReunionCronometro from './ReunionCronometro';
 import { crearFechaLima } from '../../utils/fechaLima';
 import VanguardRoomMarca from './VanguardRoomMarca';
+import ReunionSalaLayout from './ReunionSalaLayout';
 import './ReunionesPage.css';
 
 const ESTADOS = {
@@ -956,8 +957,34 @@ function DetalleReunion({ reunionId, base }) {
     </div>
   );
 
-  return (
-    <DashboardLayout>
+  const accionesSala = (
+    <>
+      <span className={`re-badge re-badge-${r.estado}`}>En curso</span>
+      {p.puede_editar ? (
+        <button type="button" className="re-btn re-btn-ghost" onClick={() => navigate(`${base}/${r.id}/editar`)}>
+          Editar
+        </button>
+      ) : null}
+      <button type="button" className="re-btn re-btn-ghost" onClick={intentarSalir}>Salir</button>
+      {!p.ya_firmo ? (
+        <button type="button" className="re-btn re-btn-asistio" onClick={() => { setFirmaParaSalir(false); setFirmaAbierta(true); }}>
+          Firmar
+        </button>
+      ) : (
+        <span className="re-pill-ok">Firmaste</span>
+      )}
+      {p.falta_firma_para_cerrar ? (
+        <button type="button" className="re-btn re-btn-solid" onClick={() => setFirmaAbierta(true)}>Firmar para cerrar</button>
+      ) : null}
+      {p.puede_cerrar ? (
+        <button type="button" className="re-btn re-btn-solid" onClick={() => run(async () => (await api.post(`/reuniones/${r.id}/cerrar`)).data, 'Cerrada')}>
+          Cerrar
+        </button>
+      ) : null}
+    </>
+  );
+
+  const pagina = (
       <div className={`reuniones-page ${enCurso ? 'reuniones-page-live' : ''} ${cerrada ? 'reuniones-page-resumen' : ''}`}>
         {segCierre > 0 ? (
           <div className="re-cierre-banner" role="status">
@@ -1003,40 +1030,7 @@ function DetalleReunion({ reunionId, base }) {
         ) : null}
 
         {enCurso ? (
-          <div className="re-sala">
-            <div className="re-sala-bar">
-              <div className="re-sala-brand-wrap">
-                <VanguardRoomMarca invert />
-                <div className="re-sala-meet-meta">
-                  <strong>{r.titulo}</strong>
-                  <ReunionCronometro iniciadaEn={r.iniciada_en} />
-                </div>
-              </div>
-              <div className="re-sala-bar-actions">
-                <span className={`re-badge re-badge-${r.estado}`}>En curso</span>
-                {p.puede_editar ? (
-                  <button type="button" className="re-btn re-btn-ghost" onClick={() => navigate(`${base}/${r.id}/editar`)}>
-                    Editar
-                  </button>
-                ) : null}
-                <button type="button" className="re-btn re-btn-ghost" onClick={intentarSalir}>Salir</button>
-                {!p.ya_firmo ? (
-                  <button type="button" className="re-btn re-btn-asistio" onClick={() => { setFirmaParaSalir(false); setFirmaAbierta(true); }}>
-                    Firmar
-                  </button>
-                ) : (
-                  <span className="re-pill-ok">Firmaste</span>
-                )}
-                {p.falta_firma_para_cerrar ? (
-                  <button type="button" className="re-btn re-btn-solid" onClick={() => setFirmaAbierta(true)}>Firmar para cerrar</button>
-                ) : null}
-                {p.puede_cerrar ? (
-                  <button type="button" className="re-btn re-btn-solid" onClick={() => run(async () => (await api.post(`/reuniones/${r.id}/cerrar`)).data, 'Cerrada')}>
-                    Cerrar
-                  </button>
-                ) : null}
-              </div>
-            </div>
+          <div className="re-sala re-sala-inmersiva">
             <div className="re-live">
               <div className="re-live-video">
                 <ReunionVideoDaily reunionId={r.id} dailyListo={p.daily_configurado} />
@@ -1121,8 +1115,22 @@ function DetalleReunion({ reunionId, base }) {
           obligatoria={firmaParaSalir || !!(enCurso && !p.ya_firmo && p.falta_firma_para_cerrar && firmaAbierta)}
         />
       </div>
-    </DashboardLayout>
   );
+
+  if (enCurso) {
+    return (
+      <ReunionSalaLayout
+        titulo={r.titulo}
+        iniciadaEn={r.iniciada_en}
+        onVolver={intentarSalir}
+        actions={accionesSala}
+      >
+        {pagina}
+      </ReunionSalaLayout>
+    );
+  }
+
+  return <DashboardLayout>{pagina}</DashboardLayout>;
 }
 
 function ReunionesRouter() {
