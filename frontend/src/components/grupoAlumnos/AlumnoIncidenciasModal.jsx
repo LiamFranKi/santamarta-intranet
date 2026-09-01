@@ -4,11 +4,13 @@ import {
   colorIncidenciaPorIndice,
   formatearFechaIncidencia,
   ordenarIncidenciasRecientes,
+  idNumericoIncidenciaEliminable,
 } from '../../utils/incidenciasAlumnoUi';
 import './AlumnoIncidenciasModal.css';
 
-function IncidenciaResumenCard({ incidencia, index, onVer }) {
+function IncidenciaResumenCard({ incidencia, index, onVer, puedeEliminar, onEliminar, eliminando }) {
   const color = colorIncidenciaPorIndice(index);
+  const mostrarEliminar = Boolean(puedeEliminar && idNumericoIncidenciaEliminable(incidencia));
 
   const handleClick = () => onVer(incidencia);
   const handleKeyDown = (e) => {
@@ -44,6 +46,21 @@ function IncidenciaResumenCard({ incidencia, index, onVer }) {
         <span className="value">{incidencia.curso_nombre || '—'}</span>
       </div>
       <div className="incidencia-resumen-footer">
+        {mostrarEliminar ? (
+          <button
+            type="button"
+            className="incidencia-btn-eliminar"
+            disabled={eliminando}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEliminar?.(incidencia);
+            }}
+          >
+            {eliminando ? 'Eliminando…' : '🗑️ Eliminar'}
+          </button>
+        ) : (
+          <span />
+        )}
         <span className="incidencia-btn-ver" aria-hidden>
           👁️ Ver detalle
         </span>
@@ -52,10 +69,11 @@ function IncidenciaResumenCard({ incidencia, index, onVer }) {
   );
 }
 
-function IncidenciaDetalleModal({ incidencia, index, onClose }) {
+function IncidenciaDetalleModal({ incidencia, index, onClose, puedeEliminar, onEliminar, eliminando }) {
   if (!incidencia) return null;
 
   const color = colorIncidenciaPorIndice(index);
+  const mostrarEliminar = Boolean(puedeEliminar && idNumericoIncidenciaEliminable(incidencia));
 
   return createPortal(
     <div
@@ -108,6 +126,19 @@ function IncidenciaDetalleModal({ incidencia, index, onClose }) {
             {incidencia.description?.trim() || 'Sin descripción registrada.'}
           </p>
         </div>
+
+        {mostrarEliminar ? (
+          <div className="modal-incidencia-detalle-actions">
+            <button
+              type="button"
+              className="incidencia-btn-eliminar incidencia-btn-eliminar--detalle"
+              disabled={eliminando}
+              onClick={() => onEliminar?.(incidencia)}
+            >
+              {eliminando ? 'Eliminando…' : '🗑️ Eliminar incidencia'}
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>,
     document.body
@@ -123,6 +154,9 @@ export default function AlumnoIncidenciasModal({
   nombreAlumno,
   incidencias,
   loading,
+  puedeEliminar = false,
+  onEliminar,
+  eliminandoId = null,
 }) {
   const [detalle, setDetalle] = useState(null);
   const [detalleIndex, setDetalleIndex] = useState(0);
@@ -135,6 +169,13 @@ export default function AlumnoIncidenciasModal({
       setDetalleIndex(0);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!detalle) return;
+    if (!lista.some((i) => i.id === detalle.id)) {
+      setDetalle(null);
+    }
+  }, [lista, detalle]);
 
   const abrirDetalle = (inc) => {
     const idx = lista.findIndex((i) => i.id === inc.id);
@@ -183,8 +224,11 @@ export default function AlumnoIncidenciasModal({
               ) : (
                 <>
                   <p className="modal-incidencias-alumno-count">
-                    {lista.length} {lista.length === 1 ? 'incidencia' : 'incidencias'} — haga clic en una
+                    {lista.length} {lista.length === 1 ? 'registro' : 'registros'} — haga clic en una
                     tarjeta para ver el detalle
+                    {puedeEliminar
+                      ? '. Solo las incidencias de docentes se pueden eliminar; tardanzas y vestimenta se corrigen en su módulo.'
+                      : ''}
                   </p>
                   <div className="incidencias-alumno-grid">
                     {lista.map((inc, index) => (
@@ -193,6 +237,9 @@ export default function AlumnoIncidenciasModal({
                         incidencia={inc}
                         index={index}
                         onVer={abrirDetalle}
+                        puedeEliminar={puedeEliminar}
+                        onEliminar={onEliminar}
+                        eliminando={eliminandoId === inc.id}
                       />
                     ))}
                   </div>
@@ -214,6 +261,9 @@ export default function AlumnoIncidenciasModal({
         incidencia={detalle}
         index={detalleIndex}
         onClose={() => setDetalle(null)}
+        puedeEliminar={puedeEliminar}
+        onEliminar={onEliminar}
+        eliminando={detalle ? eliminandoId === detalle.id : false}
       />
     </>
   );

@@ -30,6 +30,7 @@ function menuAcademicoAlumnoItems(grupoInfo) {
  * Lista de alumnos de un grupo (misma UX que Docente → Grupos → Lista de alumnos).
  * psicologiaLinkMode: 'docente' → /docente/psicologia/derivar/... ; 'admin' → /admin/psicologia/alumno/...
  * menuAcademicoAlumno: opciones extra en Opciones (admin → Grados → Lista de alumnos).
+ * puedeEliminarIncidencias: ADMINISTRADOR puede borrar incidencias docentes (no tutoría).
  */
 export default function GrupoAlumnosListaView({
   grupoId,
@@ -37,6 +38,7 @@ export default function GrupoAlumnosListaView({
   onVolver,
   psicologiaLinkMode = 'admin',
   menuAcademicoAlumno = false,
+  puedeEliminarIncidencias = false,
 }) {
   const navigate = useNavigate();
   const [alumnos, setAlumnos] = useState([]);
@@ -69,6 +71,7 @@ export default function GrupoAlumnosListaView({
   const accionesAcademicas = useGrupoAlumnoAccionesAcademicas({
     grupoId,
     grupoInfo,
+    puedeEliminarIncidencias: Boolean(menuAcademicoAlumno && puedeEliminarIncidencias),
   });
 
   useEffect(() => {

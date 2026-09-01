@@ -1626,6 +1626,7 @@ function GruposPanel({ meta }) {
             onVolver={() => setListaAlumnosGrupoRow(null)}
             psicologiaLinkMode="admin"
             menuAcademicoAlumno
+            puedeEliminarIncidencias={!vistaSoloLecturaGrados}
           />
         </section>
         {reportesConducta.ReportesModals}
@@ -3394,6 +3395,7 @@ function AsignaturasPanel({ meta, accionesRef }) {
             onVolver={() => setListaAlumnosGrupoRow(null)}
             psicologiaLinkMode="admin"
             menuAcademicoAlumno
+            puedeEliminarIncidencias
           />
         </section>
         <AdminGrupoAsistenciaModal

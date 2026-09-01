@@ -40,3 +40,24 @@ export function ordenarIncidenciasRecientes(incidencias) {
     return tb - ta;
   });
 }
+
+/**
+ * Solo incidencias docentes (enrollment_incidents type=1).
+ * Tardanzas, vestimenta y olvido QR usan ids `tard-` / `ped-` y no se borran aquí.
+ */
+export function idNumericoIncidenciaEliminable(incidencia) {
+  if (!incidencia) return null;
+  const origen = String(incidencia.origen || '').toLowerCase();
+  if (origen && origen !== 'incidencia') return null;
+  const raw = String(incidencia.id ?? '').trim();
+  const prefixed = raw.match(/^inc-(\d+)$/i);
+  if (prefixed) {
+    const n = parseInt(prefixed[1], 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  if (/^\d+$/.test(raw)) {
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  return null;
+}

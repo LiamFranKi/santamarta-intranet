@@ -28,7 +28,15 @@ const {
   listarAlumnosConductaPorGrupo,
   guardarConductaPorGrupo,
 } = require('../utils/conductaGrupoMatriculas');
-const { sincronizarConductaMatriculaPorFecha } = require('../utils/conductaIncidenciasBimestre');
+const { registrarAccion } = require('../utils/auditoria');
+const {
+  sincronizarConductaMatriculaPorFecha,
+  sincronizarConductaMatriculaBimestre,
+  listarIncidenciasUnificadasMatricula,
+  fetchRangosCiclosParsed,
+  cicloQueContieneFecha,
+  ASSIGNMENT_ID_VESTIMENTA,
+} = require('../utils/conductaIncidenciasBimestre');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -60,6 +68,14 @@ router.use((req, res, next) => {
 
 function colegio(req) {
   return req.user.colegio_id;
+}
+
+/** Acepta `123` o `inc-123`. No acepta tard-/ped- (no son incidencias docentes). */
+function parseIncidentIdParam(raw) {
+  const s = String(raw || '').trim();
+  const m = s.match(/^inc-(\d+)$/i);
+  const n = parseInt(m ? m[1] : s, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 /** Inicial → Primaria → Secundaria; el resto al final. */
@@ -1187,6 +1203,165 @@ router.post('/grupos/:grupoId/conducta', async (req, res) => {
   } catch (error) {
     console.error('[admin/academico/grupos/:grupoId/conducta POST]', error);
     res.status(500).json({ error: 'Error al guardar conducta' });
+  }
+});
+
+/**
+ * GET /api/admin/academico/grupos/:grupoId/alumnos/:alumnoId/incidencias
+ * Historial unificado del alumno en ese grupo/año. PSICÓLOGA: solo lectura.
+ */
+router.get('/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req, res) => {
+  try {
+    const grupoId = parseInt(req.params.grupoId, 10);
+    const alumnoId = parseInt(req.params.alumnoId, 10);
+    const cid = colegio(req);
+    if (!Number.isFinite(grupoId) || !Number.isFinite(alumnoId)) {
+      return res.status(400).json({ error: 'IDs inválidos' });
+    }
+
+    const grupos = await query(
+      `SELECT g.id, g.anio FROM grupos g WHERE g.id = ? AND g.colegio_id = ? LIMIT 1`,
+      [grupoId, cid]
+    );
+    if (!grupos?.length) {
+      return res.status(404).json({ error: 'Grupo no encontrado' });
+    }
+    const anioGrupo = grupos[0].anio;
+
+    const matricula = await query(
+      `SELECT m.id FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.grupo_id = ? AND m.colegio_id = ?
+         AND ${sqlMatriculaEstadoSoloRegular('m')} AND g.anio = ?
+       LIMIT 1`,
+      [alumnoId, grupoId, cid, anioGrupo]
+    );
+    if (!matricula?.length) {
+      return res.json({ incidencias: [], total_incidencias: 0, anio: anioGrupo });
+    }
+
+    const data = await listarIncidenciasUnificadasMatricula(query, {
+      matriculaId: matricula[0].id,
+      colegio_id: cid,
+      anio: anioGrupo,
+    });
+
+    const esAdmin = req.user?.tipo === 'ADMINISTRADOR';
+    const incidencias = (data.incidencias || []).map((item) => ({
+      ...item,
+      puede_eliminar: esAdmin && String(item.origen || '') === 'incidencia' ? 1 : 0,
+    }));
+
+    res.json({
+      incidencias,
+      bimestres: data.bimestres || [],
+      total_incidencias: incidencias.length,
+      anio: data.anio || anioGrupo,
+      regla: data.regla || null,
+      texto_regla: data.texto_regla || null,
+    });
+  } catch (error) {
+    console.error('[admin/academico/grupos/:grupoId/alumnos/:alumnoId/incidencias GET]', error);
+    res.status(500).json({ error: 'Error al obtener incidencias' });
+  }
+});
+
+/**
+ * DELETE /api/admin/academico/grupos/:grupoId/alumnos/:alumnoId/incidencias/:incidentId
+ * Solo ADMINISTRADOR. Cualquier incidencia docente (type=1) del alumno en el grupo.
+ * No borra vestimenta/QR ni tardanzas. Recalcula conducta del bimestre.
+ */
+router.delete('/grupos/:grupoId/alumnos/:alumnoId/incidencias/:incidentId', async (req, res) => {
+  try {
+    if (req.user?.tipo !== 'ADMINISTRADOR') {
+      return res.status(403).json({ error: 'Solo el administrador puede eliminar incidencias.' });
+    }
+
+    const grupoId = parseInt(req.params.grupoId, 10);
+    const alumnoId = parseInt(req.params.alumnoId, 10);
+    const incidentId = parseIncidentIdParam(req.params.incidentId);
+    const cid = colegio(req);
+    const { usuario_id, anio_activo } = req.user;
+
+    if (!Number.isFinite(grupoId) || !Number.isFinite(alumnoId) || !incidentId) {
+      return res.status(400).json({ error: 'IDs inválidos' });
+    }
+
+    const grupos = await query(
+      `SELECT g.id, g.anio FROM grupos g WHERE g.id = ? AND g.colegio_id = ? LIMIT 1`,
+      [grupoId, cid]
+    );
+    if (!grupos?.length) {
+      return res.status(404).json({ error: 'Grupo no encontrado' });
+    }
+
+    const incidente = await query(
+      `SELECT ei.* FROM enrollment_incidents ei
+       INNER JOIN matriculas m ON m.id = ei.enrollment_id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE ei.id = ?
+         AND ei.type = 1
+         AND m.alumno_id = ?
+         AND m.grupo_id = ?
+         AND g.colegio_id = ?
+         AND COALESCE(ei.assignment_id, 0) <> ?
+         AND COALESCE(ei.description, '') NOT LIKE '[VESTIMENTA]%'`,
+      [incidentId, alumnoId, grupoId, cid, ASSIGNMENT_ID_VESTIMENTA]
+    );
+
+    if (!incidente?.length) {
+      return res.status(404).json({
+        error: 'Incidencia no encontrada, o no es una incidencia docente eliminable (tardanza/vestimenta se corrigen en su módulo).',
+      });
+    }
+
+    await execute(`DELETE FROM enrollment_incidents WHERE id = ? AND type = 1`, [incidentId]);
+
+    registrarAccion({
+      usuario_id,
+      colegio_id: cid,
+      tipo_usuario: 'ADMINISTRADOR',
+      accion: 'ELIMINAR',
+      modulo: 'INCIDENCIAS',
+      entidad: 'enrollment_incidents',
+      entidad_id: incidentId,
+      descripcion: `Administrador eliminó incidencia ${incidentId} del alumno ${alumnoId} (grupo ${grupoId})`,
+      url: req.originalUrl,
+      metodo_http: 'DELETE',
+      ip_address: req.ip || req.connection?.remoteAddress,
+      user_agent: req.get('user-agent'),
+      datos_anteriores: JSON.stringify(incidente[0]),
+      datos_nuevos: JSON.stringify({}),
+      resultado: 'EXITOSO',
+    }).catch(() => {});
+    req.skipAudit = true;
+
+    setImmediate(async () => {
+      try {
+        const matriculaId = incidente[0].enrollment_id;
+        const fechaYmd = String(incidente[0].created_at || '').slice(0, 10);
+        const anioG = grupos[0].anio || anio_activo;
+        const rangos = await fetchRangosCiclosParsed(query, cid);
+        const ciclo = cicloQueContieneFecha(
+          rangos,
+          anioG,
+          fechaYmd || moment().tz('America/Lima').format('YYYY-MM-DD')
+        );
+        await sincronizarConductaMatriculaBimestre(query, execute, {
+          matriculaId,
+          colegio_id: cid,
+          anioEscolar: anioG,
+          ciclo,
+        });
+      } catch (eSync) {
+        console.warn('[admin incidencias] sync conducta tras borrar:', eSync.message);
+      }
+    });
+
+    res.json({ success: true, message: 'Incidencia eliminada correctamente' });
+  } catch (error) {
+    console.error('[admin/academico/grupos/:grupoId/alumnos/:alumnoId/incidencias DELETE]', error);
+    res.status(500).json({ error: 'Error al eliminar la incidencia' });
   }
 });
 

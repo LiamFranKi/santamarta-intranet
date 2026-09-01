@@ -134,8 +134,9 @@
 
 .incidencia-resumen-footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
+  gap: 0.5rem;
   margin-top: 0.25rem;
   padding-top: 0.5rem;
   border-top: 1px dashed rgba(0, 0, 0, 0.1);
@@ -153,6 +154,42 @@
   font-weight: 700;
   cursor: pointer;
   transition: background 0.2s;
+}
+
+.incidencia-btn-eliminar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 20px;
+  border: 1px solid rgba(185, 28, 28, 0.35);
+  background: rgba(254, 226, 226, 0.9);
+  color: #991b1b;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+}
+
+.incidencia-btn-eliminar:hover:not(:disabled) {
+  background: #fecaca;
+}
+
+.incidencia-btn-eliminar:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.incidencia-btn-eliminar--detalle {
+  font-size: 0.88rem;
+  padding: 0.55rem 1.1rem;
+}
+
+.modal-incidencia-detalle-actions {
+  padding: 0.85rem 1.5rem 1.15rem;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .incidencia-resumen-card:hover .incidencia-btn-ver {

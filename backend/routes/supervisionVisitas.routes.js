@@ -22,6 +22,38 @@ function parseChecklist(raw) {
   }
 }
 
+function personaEnVisita(personas, uid) {
+  return (personas || []).find((p) => Number(p.usuario_id) === uid) || null;
+}
+
+/** El supervisado de ESTA visita no dirige el registro, aunque sea supervisor del módulo. */
+function puedeDirigirVisita(visita, req, yo) {
+  if (yo && yo.rol === 'SUPERVISADO') return false;
+  const uid = uidDe(req);
+  return !!(
+    req.supervision?.isAdmin ||
+    req.supervision?.isSupervisor ||
+    Number(visita.creador_usuario_id) === uid ||
+    (yo && yo.rol === 'SUPERVISOR')
+  );
+}
+
+function normalizarChecklistItems(raw) {
+  return parseChecklist(raw)
+    .map((i, idx) => {
+      const label = String(i.label || '').trim().slice(0, 240);
+      if (!label) return null;
+      const keyRaw = String(i.key || '').trim().slice(0, 80);
+      return {
+        key: keyRaw || `item-${idx + 1}`,
+        label,
+        marcado: !!i.marcado,
+        nota: String(i.nota || '').slice(0, 4000),
+      };
+    })
+    .filter(Boolean);
+}
+
 async function obtenerVisita(id, colegio_id) {
   const rows = await query(
     `SELECT v.*,
@@ -58,11 +90,8 @@ async function personasDe(visitaId) {
 async function payloadVisita(visita, req) {
   const personas = await personasDe(visita.id);
   const uid = uidDe(req);
-  const yo = (personas || []).find((p) => Number(p.usuario_id) === uid) || null;
-  const esAdmin = !!req.supervision?.isAdmin;
-  const esSupervisorModulo = !!req.supervision?.isSupervisor;
-  const esSupervisorVisita = Number(visita.creador_usuario_id) === uid || (yo && yo.rol === 'SUPERVISOR');
-  const puedeDirigir = esAdmin || esSupervisorModulo || esSupervisorVisita;
+  const yo = personaEnVisita(personas, uid);
+  const puedeDirigir = puedeDirigirVisita(visita, req, yo);
   const cerrada = visita.estado === 'CERRADA' || visita.estado === 'CANCELADA';
   return {
     visita: {
@@ -253,8 +282,10 @@ module.exports = function mountVisitas(router, { requireAdmin, requireAdminOrSup
         return res.status(400).json({ error: 'La supervisión ya está cerrada.' });
       }
       const uid = uidDe(req);
-      if (!req.supervision?.isAdmin && !req.supervision?.isSupervisor && Number(visita.creador_usuario_id) !== uid) {
-        return res.status(403).json({ error: 'No autorizado' });
+      const personas = await personasDe(visita.id);
+      const yo = personaEnVisita(personas, uid);
+      if (!puedeDirigirVisita(visita, req, yo)) {
+        return res.status(403).json({ error: 'Solo el supervisor puede editar el registro de observación.' });
       }
       const campos = [];
       const vals = [];
@@ -275,12 +306,7 @@ module.exports = function mountVisitas(router, { requireAdmin, requireAdminOrSup
         vals.push(String(req.body.acuerdos).slice(0, 8000));
       }
       if (req.body.checklist != null) {
-        const items = parseChecklist(req.body.checklist).map((i) => ({
-          key: String(i.key || '').slice(0, 80),
-          label: String(i.label || '').slice(0, 240),
-          marcado: !!i.marcado,
-          nota: String(i.nota || '').slice(0, 500),
-        }));
+        const items = normalizarChecklistItems(req.body.checklist);
         campos.push('checklist_json = ?');
         vals.push(JSON.stringify(items));
         if (visita.estado === 'PROGRAMADA') {
@@ -381,6 +407,11 @@ module.exports = function mountVisitas(router, { requireAdmin, requireAdminOrSup
         return res.json(await payloadVisita(visita, req));
       }
       const uid = uidDe(req);
+      const personas = await personasDe(visita.id);
+      const yo = personaEnVisita(personas, uid);
+      if (!puedeDirigirVisita(visita, req, yo)) {
+        return res.status(403).json({ error: 'Solo el supervisor puede cerrar la supervisión.' });
+      }
       const ahora = fechaHoraMySQLLima();
       await execute(
         `UPDATE supervision_visitas SET estado = 'CERRADA', cerrada_en = ?, cerrada_por = ?, updated_at = ? WHERE id = ?`,

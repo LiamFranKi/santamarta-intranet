@@ -27,6 +27,10 @@ function fmtFecha(iso) {
   return `${d}/${m}/${y}`;
 }
 
+function nuevaClaveChecklist() {
+  return `item-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
 export default function SupervisionVisitas({ canCrear, canConfig }) {
   const [params, setParams] = useSearchParams();
   const visitaParam = params.get('visita');
@@ -361,9 +365,18 @@ function DetalleVisita({ pack, setPack, onVolver }) {
   }, [v.id, v.checklist, v.observaciones, v.acuerdos, pack.mi_participacion?.comentario]);
 
   const guardarRegistro = async () => {
+    const listos = (checklist || []).filter((c) => String(c.label || '').trim());
+    if ((checklist || []).length && !listos.length) {
+      Swal.fire('Supervisión', 'Escribe el nombre de al menos un criterio de observación.', 'warning');
+      return;
+    }
     setGuardando(true);
     try {
-      const { data } = await api.patch(`/supervision/visitas/${v.id}`, { checklist, observaciones, acuerdos });
+      const { data } = await api.patch(`/supervision/visitas/${v.id}`, {
+        checklist: listos,
+        observaciones,
+        acuerdos,
+      });
       setPack(data);
       Swal.fire({ toast: true, position: 'top-end', timer: 1600, showConfirmButton: false, icon: 'success', title: 'Guardado' });
     } catch (e) {
@@ -411,6 +424,35 @@ function DetalleVisita({ pack, setPack, onVolver }) {
     }
   };
 
+  const actualizarItem = (idx, patch) => {
+    setChecklist(checklist.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
+  };
+
+  const agregarItem = () => {
+    setChecklist([
+      ...checklist,
+      { key: nuevaClaveChecklist(), label: '', marcado: false, nota: '' },
+    ]);
+  };
+
+  const quitarItem = async (idx) => {
+    const item = checklist[idx];
+    if (item?.label || item?.nota) {
+      const ok = await Swal.fire({
+        title: '¿Quitar este ítem?',
+        text: item.label || 'Ítem de observación',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Quitar',
+        cancelButtonText: 'Cancelar',
+      });
+      if (!ok.isConfirmed) return;
+    }
+    setChecklist(checklist.filter((_, i) => i !== idx));
+  };
+
+  const soloLecturaRegistro = !p.puede_editar;
+
   return (
     <div className="reuniones-page" style={{ maxWidth: 860 }}>
       <div className="re-hero">
@@ -435,58 +477,94 @@ function DetalleVisita({ pack, setPack, onVolver }) {
         </p>
       ) : null}
 
+      {p.es_supervisado && v.estado !== 'CERRADA' && v.estado !== 'CANCELADA' ? (
+        <p className="re-hint" style={{ marginTop: '-0.35rem', marginBottom: '0.85rem' }}>
+          Puedes leer lo que registró el supervisor. Tu parte es el alcance / comentario y la firma.
+        </p>
+      ) : null}
+
       <div className="re-detalle" style={{ marginBottom: '1rem' }}>
         <h3 style={{ marginTop: 0 }}>Lista de observación</h3>
+        {p.puede_editar ? (
+          <p className="re-hint">Puedes cambiar los criterios, agregar o quitar ítems y anotar en cada uno.</p>
+        ) : null}
         {(checklist || []).map((item, idx) => (
-          <label key={item.key || idx} className="re-personal-row" style={{ cursor: p.puede_editar ? 'pointer' : 'default' }}>
+          <div key={item.key || idx} className="sup-obs-item">
             <input
               type="checkbox"
               checked={!!item.marcado}
-              disabled={!p.puede_editar}
-              onChange={(e) => {
-                const next = checklist.map((c, i) => (i === idx ? { ...c, marcado: e.target.checked } : c));
-                setChecklist(next);
-              }}
+              disabled={soloLecturaRegistro}
+              onChange={(e) => actualizarItem(idx, { marcado: e.target.checked })}
+              aria-label={item.label || `Ítem ${idx + 1}`}
             />
-            <span className="re-personal-meta">
-              <strong>{item.label}</strong>
+            <div className="sup-obs-item-body">
               {p.puede_editar ? (
-                <input
-                  className="re-buscador-input"
-                  style={{ marginTop: 6 }}
-                  value={item.nota || ''}
-                  placeholder="Nota (opcional)"
-                  onChange={(e) => {
-                    const next = checklist.map((c, i) => (i === idx ? { ...c, nota: e.target.value } : c));
-                    setChecklist(next);
-                  }}
-                />
-              ) : item.nota ? (
-                <small>{item.nota}</small>
-              ) : null}
-            </span>
-          </label>
-        ))}
-        <label className="re-field" style={{ marginTop: '0.85rem' }}>
-          Observaciones
-          <textarea rows={3} value={observaciones} disabled={!p.puede_editar} onChange={(e) => setObservaciones(e.target.value)} />
-        </label>
-        <label className="re-field" style={{ marginTop: '0.65rem' }}>
-          Acuerdos
-          <textarea rows={3} value={acuerdos} disabled={!p.puede_editar} onChange={(e) => setAcuerdos(e.target.value)} />
-        </label>
-        {p.puede_editar ? (
-          <div className="re-actions-row" style={{ marginTop: '0.75rem' }}>
-            <button type="button" className="re-btn re-btn-solid" disabled={guardando} onClick={guardarRegistro}>
-              Guardar registro
-            </button>
-            {p.puede_cerrar ? (
-              <button type="button" className="re-btn re-btn-ghost" style={{ background: '#e2e8f0', color: '#0f172a' }} onClick={cerrar}>
-                Cerrar supervisión
-              </button>
-            ) : null}
+                <>
+                  <input
+                    className="sup-obs-label-input"
+                    value={item.label || ''}
+                    placeholder="Criterio de observación"
+                    onChange={(e) => actualizarItem(idx, { label: e.target.value })}
+                  />
+                  <textarea
+                    className="sup-obs-nota"
+                    rows={4}
+                    value={item.nota || ''}
+                    placeholder="Nota (opcional)"
+                    onChange={(e) => actualizarItem(idx, { nota: e.target.value })}
+                  />
+                  <button type="button" className="sup-obs-quitar" onClick={() => quitarItem(idx)}>
+                    Quitar ítem
+                  </button>
+                </>
+              ) : (
+                <>
+                  <strong>{item.label || '—'}</strong>
+                  {item.nota ? <p className="sup-obs-readonly">{item.nota}</p> : null}
+                </>
+              )}
+            </div>
           </div>
+        ))}
+        {p.puede_editar ? (
+          <button type="button" className="re-btn re-btn-ghost sup-obs-agregar" onClick={agregarItem}>
+            + Agregar ítem
+          </button>
         ) : null}
+
+        {p.puede_editar ? (
+          <>
+            <label className="re-field" style={{ marginTop: '0.85rem' }}>
+              Observaciones
+              <textarea rows={4} value={observaciones} onChange={(e) => setObservaciones(e.target.value)} />
+            </label>
+            <label className="re-field" style={{ marginTop: '0.65rem' }}>
+              Acuerdos
+              <textarea rows={4} value={acuerdos} onChange={(e) => setAcuerdos(e.target.value)} />
+            </label>
+            <div className="re-actions-row" style={{ marginTop: '0.75rem' }}>
+              <button type="button" className="re-btn re-btn-solid" disabled={guardando} onClick={guardarRegistro}>
+                Guardar registro
+              </button>
+              {p.puede_cerrar ? (
+                <button type="button" className="re-btn re-btn-ghost" style={{ background: '#e2e8f0', color: '#0f172a' }} onClick={cerrar}>
+                  Cerrar supervisión
+                </button>
+              ) : null}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="re-field" style={{ marginTop: '0.85rem' }}>
+              <span>Observaciones</span>
+              <p className="sup-obs-readonly">{String(observaciones || '').trim() || 'Sin observaciones.'}</p>
+            </div>
+            <div className="re-field" style={{ marginTop: '0.65rem' }}>
+              <span>Acuerdos</span>
+              <p className="sup-obs-readonly">{String(acuerdos || '').trim() || 'Sin acuerdos.'}</p>
+            </div>
+          </>
+        )}
       </div>
 
       {supervisados.map((per) => {
@@ -499,7 +577,7 @@ function DetalleVisita({ pack, setPack, onVolver }) {
               <>
                 <label className="re-field">
                   Tu alcance / comentario
-                  <textarea rows={3} value={miComentario} onChange={(e) => setMiComentario(e.target.value)} />
+                  <textarea rows={5} value={miComentario} onChange={(e) => setMiComentario(e.target.value)} />
                 </label>
                 <div className="re-actions-row" style={{ marginTop: '0.55rem' }}>
                   <button type="button" className="re-btn re-btn-solid" onClick={guardarComentario}>Guardar alcance</button>

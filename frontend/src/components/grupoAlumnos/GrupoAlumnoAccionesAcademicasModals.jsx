@@ -11,6 +11,9 @@ export default function GrupoAlumnoAccionesAcademicasModals({
   setModalIncidencias,
   incidencias,
   loadingIncidencias,
+  puedeEliminarIncidencias,
+  eliminarIncidencia,
+  eliminandoIncidenciaId,
   modalAsistencias,
   setModalAsistencias,
   asistencias,
@@ -33,6 +36,9 @@ export default function GrupoAlumnoAccionesAcademicasModals({
         nombreAlumno={titulo}
         incidencias={incidencias}
         loading={loadingIncidencias}
+        puedeEliminar={Boolean(puedeEliminarIncidencias)}
+        onEliminar={eliminarIncidencia}
+        eliminandoId={eliminandoIncidenciaId}
       />
 
       <AlumnoAsistenciasHistorialModal
