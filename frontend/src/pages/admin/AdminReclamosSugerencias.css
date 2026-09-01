@@ -454,6 +454,16 @@
   letter-spacing: 0;
 }
 
+.rs-utiles-switch {
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.rs-utiles-switch--on {
+  background: #ecfdf5;
+  border-color: #86efac;
+}
+
 .rs-detail-block {
   margin-bottom: 1rem;
   padding: 0.85rem 1rem;

@@ -76,6 +76,26 @@ function mapActivo(row) {
   return { ...row, activo: toBool01(row.activo, 0) };
 }
 
+async function obtenerConfigDescargas() {
+  try {
+    const rows = await query(
+      `SELECT descargas_habilitadas FROM web_utiles_config WHERE id = 1 LIMIT 1`
+    );
+    if (!rows?.length) {
+      await execute(`INSERT INTO web_utiles_config (id, descargas_habilitadas) VALUES (1, 0)`);
+      return { descargas_habilitadas: 0 };
+    }
+    return { descargas_habilitadas: toBool01(rows[0].descargas_habilitadas, 0) };
+  } catch (e) {
+    if (e && (e.code === 'ER_NO_SUCH_TABLE' || e.errno === 1146)) {
+      const err = new Error('Falta ejecutar la migración 076 de lista de útiles (config).');
+      err.status = 503;
+      throw err;
+    }
+    throw e;
+  }
+}
+
 function slugify(s) {
   return String(s || '')
     .trim()
@@ -110,6 +130,27 @@ router.get('/meta', (_req, res) => {
     webRoot: resolveWebVanguardRoot(),
     pdfDir: ensureWebPublicDir('utiles'),
   });
+});
+
+router.get('/config', async (_req, res) => {
+  try {
+    const cfg = await obtenerConfigDescargas();
+    res.json({ descargas_habilitadas: !!cfg.descargas_habilitadas });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || 'Error al leer la configuración.' });
+  }
+});
+
+router.put('/config', async (req, res) => {
+  try {
+    const valor = toBool01(req.body?.descargas_habilitadas, 0);
+    await obtenerConfigDescargas();
+    await execute(`UPDATE web_utiles_config SET descargas_habilitadas = ? WHERE id = 1`, [valor]);
+    const cfg = await obtenerConfigDescargas();
+    res.json({ descargas_habilitadas: !!cfg.descargas_habilitadas });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || 'Error al guardar la configuración.' });
+  }
 });
 
 /** Sirve PDF desde public/utiles para vista previa admin */
@@ -369,7 +410,17 @@ router.get('/preview', async (_req, res) => {
       ...mapActivo(n),
       grados: (grados || []).filter((g) => Number(g.nivel_id) === Number(n.id)).map(mapActivo),
     }));
-    res.json({ grupos, webRoot: resolveWebVanguardRoot() });
+    let descargasHabilitadas = 0;
+    try {
+      descargasHabilitadas = (await obtenerConfigDescargas()).descargas_habilitadas;
+    } catch {
+      descargasHabilitadas = 0;
+    }
+    res.json({
+      grupos,
+      webRoot: resolveWebVanguardRoot(),
+      descargas_habilitadas: !!descargasHabilitadas,
+    });
   } catch (e) {
     res.status(500).json({ error: e.message || 'Error al generar vista previa.' });
   }

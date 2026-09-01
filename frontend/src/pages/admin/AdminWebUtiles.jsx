@@ -115,6 +115,8 @@ export default function AdminWebUtiles() {
   const [saving, setSaving] = useState(false);
   const [modalNivel, setModalNivel] = useState({ open: false, mode: 'create', item: null });
   const [modalGrado, setModalGrado] = useState({ open: false, mode: 'create', item: null });
+  const [descargasOn, setDescargasOn] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
 
   const cargarNiveles = useCallback(async () => {
     const { data } = await api.get(`${API}/niveles`);
@@ -132,13 +134,50 @@ export default function AdminWebUtiles() {
   const cargarPreview = useCallback(async () => {
     const { data } = await api.get(`${API}/preview`);
     setPreview(data.grupos || []);
+    if (data.descargas_habilitadas != null) setDescargasOn(!!data.descargas_habilitadas);
   }, []);
+
+  const cargarConfig = useCallback(async () => {
+    try {
+      const { data } = await api.get(`${API}/config`);
+      setDescargasOn(!!data.descargas_habilitadas);
+    } catch {
+      setDescargasOn(false);
+    }
+  }, []);
+
+  const guardarConfig = async () => {
+    setSavingConfig(true);
+    try {
+      const { data } = await api.put(`${API}/config`, { descargas_habilitadas: descargasOn ? 1 : 0 });
+      setDescargasOn(!!data.descargas_habilitadas);
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        timer: 1800,
+        showConfirmButton: false,
+        icon: 'success',
+        title: data.descargas_habilitadas ? 'Descargas habilitadas en la web' : 'Descargas desactivadas en la web',
+        ...swalOpts,
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo guardar',
+        text: e.response?.data?.error || 'Ejecute la migración 076 en MySQL.',
+        ...swalOpts,
+      });
+    } finally {
+      setSavingConfig(false);
+    }
+  };
 
   const cargar = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
       await cargarNiveles();
+      await cargarConfig();
       if (subTab === 'grados') await cargarGrados();
       if (subTab === 'preview') await cargarPreview();
     } catch (e) {
@@ -146,7 +185,7 @@ export default function AdminWebUtiles() {
     } finally {
       setLoading(false);
     }
-  }, [subTab, cargarNiveles, cargarGrados, cargarPreview]);
+  }, [subTab, cargarNiveles, cargarGrados, cargarPreview, cargarConfig]);
 
   useEffect(() => {
     cargar();
@@ -225,6 +264,26 @@ export default function AdminWebUtiles() {
 
   return (
     <div>
+      <div className={`rs-checks rs-utiles-switch${descargasOn ? ' rs-utiles-switch--on' : ''}`}>
+        <label>
+          <input
+            type="checkbox"
+            checked={descargasOn}
+            onChange={(e) => setDescargasOn(e.target.checked)}
+          />
+          Permitir descarga de todas las listas de útiles en la web pública
+        </label>
+        <button type="button" className="rs-btn rs-btn-primary rs-btn-sm" disabled={savingConfig} onClick={guardarConfig}>
+          {savingConfig ? 'Guardando…' : 'Guardar'}
+        </button>
+        <span className={`rs-badge ${descargasOn ? 'rs-badge--ok' : 'rs-badge--off'}`}>
+          {descargasOn ? 'Descargas activas' : 'Descargas desactivadas'}
+        </span>
+        <p className="rs-muted" style={{ margin: 0, flexBasis: '100%' }}>
+          Un solo interruptor para todos los PDF. Desactivado = la web no debe ofrecer descarga
+          (la página lee <code>/api/public/utiles</code>). Los grados individuales siguen igual.
+        </p>
+      </div>
       <nav className="rs-tabs" aria-label="Útiles internas" style={{ marginBottom: '1rem' }}>
         {[
           { id: 'grados', label: '📄 Grados / PDFs' },
@@ -435,7 +494,8 @@ export default function AdminWebUtiles() {
       {subTab === 'preview' && (
         <div>
           <p className="rs-muted" style={{ marginBottom: '1rem' }}>
-            Vista agrupada como en /lista-utiles (solo activos). Clic en el icono PDF para abrir.
+            Vista agrupada como en /lista-utiles (solo activos). Clic en el icono PDF para abrir (usted sí puede, es administración).
+            {!descargasOn ? ' En la web pública las descargas están desactivadas.' : ''}
           </p>
           {preview.length === 0 ? (
             <p className="rs-empty">No hay niveles/grados activos.</p>

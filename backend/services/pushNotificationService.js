@@ -1,5 +1,6 @@
 const webpush = require('web-push');
 const { isPushQuietHoursLima } = require('../utils/pushQuietHours');
+const { execute } = require('../utils/mysql');
 
 // Configurar VAPID keys (si están en .env)
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
@@ -51,8 +52,7 @@ async function enviarPushNotification(subscription, payload, intento = 1) {
     return { success: true, statusCode: result.statusCode };
   } catch (error) {
     if (error.statusCode === 410 || error.statusCode === 404) {
-      console.warn(`⚠️ [PUSH] Subscription expirada (${error.statusCode}) - endpoint: ${(subscription.endpoint || '').substring(0, 50)}...`);
-      return { success: false, error: 'Subscription expirada', expired: true };
+      return { success: false, error: 'Subscription expirada', expired: true, statusCode: error.statusCode };
     }
     if (esErrorRetryable(error) && intento < maxIntentos) {
       const delayMs = 400 * intento;
@@ -98,6 +98,7 @@ async function enviarPushNotificationMultiple(subscriptions, payload) {
       await sleep(150); // Pequeña pausa entre lotes para evitar saturar
     }
   }
+  await desactivarSuscripcionesExpiradas(resultados);
   return resultados;
 }
 
@@ -131,7 +132,28 @@ async function enviarPushNotificacionesIndividuales(items) {
       await sleep(150);
     }
   }
+  await desactivarSuscripcionesExpiradas(resultados);
   return resultados;
+}
+
+async function desactivarSuscripcionesExpiradas(resultados) {
+  const endpoints = [
+    ...new Set(
+      (resultados || [])
+        .filter((r) => r?.resultado?.expired && r.subscription?.endpoint)
+        .map((r) => r.subscription.endpoint)
+    ),
+  ];
+  if (!endpoints.length) return 0;
+  try {
+    for (const endpoint of endpoints) {
+      await execute('UPDATE push_subscriptions SET activo = 0 WHERE endpoint = ?', [endpoint]);
+    }
+    console.log(`📱 [PUSH] ${endpoints.length} suscripción(es) expiradas (410/404) desactivadas`);
+  } catch (e) {
+    console.warn('[PUSH] No se pudieron desactivar suscripciones expiradas:', e.message);
+  }
+  return endpoints.length;
 }
 
 module.exports = {
