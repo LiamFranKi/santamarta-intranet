@@ -6,6 +6,7 @@ const { query: queryDefault, execute: executeDefault } = require('./mysql');
 const { fechaMySQLLima, fechaHoraMySQLLima } = require('./fechaHoraLima');
 const { insertNotificacionUsuario } = require('./notificacionInsert');
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
+const { mezclarSupervisionVisitasEnActividades } = require('./supervisionVisitasHelper');
 
 const ESTADOS_VISIBLES_CALENDARIO = ['CONVOCADA', 'EN_CURSO', 'CERRADA'];
 const TIPOS_GESTOR = new Set(['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA']);
@@ -515,8 +516,9 @@ async function mezclarReunionesEnActividades(queryFn, actividades, opts) {
     const extra = await listarReunionesComoActividades(queryFn, opts);
     const merged = [...(actividades || []), ...extra];
     merged.sort((a, b) => String(a.fecha_inicio || '').localeCompare(String(b.fecha_inicio || '')));
-    if (opts && opts.limite) return merged.slice(0, opts.limite);
-    return merged;
+    const conVisitas = await mezclarSupervisionVisitasEnActividades(queryFn, merged, opts);
+    if (opts && opts.limite) return conVisitas.slice(0, opts.limite);
+    return conVisitas;
   } catch (e) {
     console.warn('[reuniones] calendario', e.message);
     return actividades || [];

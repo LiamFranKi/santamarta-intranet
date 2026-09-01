@@ -5,6 +5,7 @@ import { crearFechaLima } from '../utils/fechaLima';
 import { HEX_DOCENTE_BASE, HEX_ROOT } from '../pages/herramientas/hexExamenesPaths';
 import { useAuth } from '../context/AuthContext';
 import { esReunionEnCurso, reunionIdDeEvento, urlFichaReunion } from '../utils/reunionesRutas';
+import { urlFichaSupervision, visitaIdDeEvento } from '../utils/supervisionRutas';
 
 function EventoDetalleModal({ evento, tipo, onClose }) {
   const navigate = useNavigate();
@@ -14,6 +15,8 @@ function EventoDetalleModal({ evento, tipo, onClose }) {
   const esHex = tipo === 'hex_examen';
   const reunionId = reunionIdDeEvento(evento);
   const esReunion = !!reunionId;
+  const visitaId = visitaIdDeEvento(evento);
+  const esSupervision = !!visitaId;
 
   const getFechaEvento = () => {
     if (tipo === 'examen') {
@@ -66,7 +69,7 @@ function EventoDetalleModal({ evento, tipo, onClose }) {
             {tipo === 'examen' && '📋 Examen'}
             {tipo === 'hex_examen' && '📝 Evaluación (Herramientas)'}
             {tipo === 'tarea' && '📝 Proyecto'}
-            {tipo === 'actividad' && (esReunion ? '🤝 Reunión' : '📅 Actividad')}
+            {tipo === 'actividad' && (esReunion ? '🤝 Reunión' : esSupervision ? '🎯 Supervisión' : '📅 Actividad')}
           </h2>
           <button className="evento-detalle-modal-close" onClick={onClose}>✕</button>
         </div>
@@ -285,6 +288,30 @@ function EventoDetalleModal({ evento, tipo, onClose }) {
                 }}
               >
                 {esReunionEnCurso(evento) ? 'Entrar a la reunión' : 'Ver detalle de la reunión'}
+              </button>
+            </div>
+          )}
+
+          {esSupervision && !esReunion && (
+            <div style={{ marginTop: '1.25rem' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose?.();
+                  navigate(urlFichaSupervision(user?.tipo, visitaId));
+                }}
+                style={{
+                  width: '100%',
+                  padding: '0.85rem 1rem',
+                  border: 'none',
+                  borderRadius: 10,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  color: '#fff',
+                  background: 'linear-gradient(135deg, #0f766e 0%, #1d4ed8 100%)'
+                }}
+              >
+                Ver supervisión
               </button>
             </div>
           )}

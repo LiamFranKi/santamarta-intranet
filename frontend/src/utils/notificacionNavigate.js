@@ -3,6 +3,8 @@
  * (p. ej. apoderado viendo avisos dirigidos al usuario-alumno del hijo).
  */
 
+import { urlFichaSupervision } from './supervisionRutas';
+
 export function dashboardPorTipoUsuario(tipo) {
   if (tipo === 'ALUMNO') return '/alumno/dashboard';
   if (tipo === 'APODERADO') return '/apoderado/dashboard';
@@ -123,11 +125,10 @@ export function normalizarUrlNotificacion(notif, user) {
     return '/docente/dashboard#publicaciones';
   }
 
-  if (tipoAccion === 'supervision_evaluacion') {
-    if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA') {
-      return '/admin/herramientas/supervision';
-    }
-    return '/docente/dashboard';
+  if (tipoAccion === 'supervision_visita' || tipoAccion === 'supervision_evaluacion') {
+    const vid = payload.visita_id;
+    if (user?.tipo === 'DOCENTE') return urlFichaSupervision('DOCENTE', vid);
+    return urlFichaSupervision(user?.tipo, vid);
   }
 
   if (tipoAccion === 'tardanza_personal') {

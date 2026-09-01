@@ -23,7 +23,7 @@ router.use(async (req, res, next) => {
     }
     const { colegio_id, usuario_id, tipo } = req.user;
     if (tipo === 'ADMINISTRADOR') {
-      req.supervision = { isAdmin: true, isSupervisor: true };
+      req.supervision = { isAdmin: true, isSupervisor: true, isSupervisado: false };
       return next();
     }
     const rows = await query(
@@ -33,8 +33,21 @@ router.use(async (req, res, next) => {
     );
     req.supervision = {
       isAdmin: false,
-      isSupervisor: Array.isArray(rows) && rows.length > 0
+      isSupervisor: Array.isArray(rows) && rows.length > 0,
+      isSupervisado: false,
     };
+    try {
+      const sv = await query(
+        `SELECT 1 FROM supervision_visita_personas p
+         INNER JOIN supervision_visitas v ON v.id = p.visita_id
+         WHERE p.usuario_id = ? AND p.rol = 'SUPERVISADO' AND v.colegio_id = ?
+         LIMIT 1`,
+        [usuario_id, colegio_id]
+      );
+      req.supervision.isSupervisado = Array.isArray(sv) && sv.length > 0;
+    } catch {
+      req.supervision.isSupervisado = false;
+    }
     return next();
   } catch (e) {
     const sinTabla =
@@ -44,7 +57,7 @@ router.use(async (req, res, next) => {
       req.method === 'GET' &&
       (req.path === '/yo' || String(req.originalUrl || '').split('?')[0].endsWith('/supervision/yo'));
     if (sinTabla && esYo) {
-      req.supervision = { isAdmin: false, isSupervisor: false };
+      req.supervision = { isAdmin: false, isSupervisor: false, isSupervisado: false };
       return next();
     }
     if (sinTabla) {
@@ -1342,8 +1355,11 @@ router.get('/evaluaciones', requireAdminOrSupervisor, async (req, res) => {
 router.get('/yo', (req, res) => {
   res.json({
     is_admin: !!req.supervision?.isAdmin,
-    is_supervisor: !!req.supervision?.isSupervisor
+    is_supervisor: !!req.supervision?.isSupervisor,
+    is_supervisado: !!req.supervision?.isSupervisado,
   });
 });
+
+require('./supervisionVisitas.routes')(router, { requireAdmin, requireAdminOrSupervisor });
 
 module.exports = router;

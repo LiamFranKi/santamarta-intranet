@@ -1,6 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-export default function ReunionFirmaModal({ abierto, onCerrar, onFirmar, guardando, obligatoria }) {
+export default function ReunionFirmaModal({
+  abierto,
+  onCerrar,
+  onFirmar,
+  guardando,
+  obligatoria,
+  titulo,
+  hint,
+}) {
   const canvasRef = useRef(null);
   const dibujando = useRef(false);
   const [vacio, setVacio] = useState(true);
@@ -65,11 +73,12 @@ export default function ReunionFirmaModal({ abierto, onCerrar, onFirmar, guardan
   return (
     <div className="re-modal-bg" role="dialog" aria-label="Firmar sesión">
       <div className="re-modal">
-        <h3>{obligatoria ? 'Firma para salir' : 'Firmar la sesión'}</h3>
+        <h3>{titulo || (obligatoria ? 'Firma para salir' : 'Firmar la sesión')}</h3>
         <p className="re-hint">
-          {obligatoria
-            ? 'Todos deben firmar antes de salir. Tu firma queda guardada como evidencia en el resumen.'
-            : 'Dibuja tu firma. Queda registrada como evidencia en el resumen de la reunión.'}
+          {hint ||
+            (obligatoria
+              ? 'Todos deben firmar antes de salir. Tu firma queda guardada como evidencia en el resumen.'
+              : 'Dibuja tu firma. Queda registrada como evidencia en el resumen de la reunión.')}
         </p>
         <canvas
           ref={canvasRef}

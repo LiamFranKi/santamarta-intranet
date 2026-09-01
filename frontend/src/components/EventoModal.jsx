@@ -4,6 +4,7 @@ import './EventoModal.css';
 import { crearFechaLima } from '../utils/fechaLima';
 import { useAuth } from '../context/AuthContext';
 import { esReunionEnCurso, reunionIdDeEvento, urlFichaReunion } from '../utils/reunionesRutas';
+import { urlFichaSupervision, visitaIdDeEvento } from '../utils/supervisionRutas';
 
 function EventoModal({ actividades, fechaSeleccionada, actividadInicial, onClose }) {
   const { user } = useAuth();
@@ -98,6 +99,14 @@ function EventoModal({ actividades, fechaSeleccionada, actividadInicial, onClose
                           </Link>
                         </div>
                       )}
+                      {visitaIdDeEvento(act) ? (
+                        <div className="evento-detalle-item">
+                          <span className="evento-detalle-icon">🎯</span>
+                          <Link to={urlFichaSupervision(user?.tipo, visitaIdDeEvento(act))}>
+                            Ver supervisión
+                          </Link>
+                        </div>
+                      ) : null}
                       {fechaInicioAct.getTime() !== (fechaFinAct ? fechaFinAct.getTime() : fechaInicioAct.getTime()) && (
                         <div className="evento-detalle-item">
                           <span className="evento-detalle-icon">📅</span>

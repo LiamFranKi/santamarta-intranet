@@ -19,6 +19,7 @@ export default function ReunionPersonalPicker({
   titulo,
   kicker,
   descripcion,
+  endpoint,
 }) {
   const uno = modo === 'uno';
   const [lista, setLista] = useState([]);
@@ -41,7 +42,7 @@ export default function ReunionPersonalPicker({
     setError('');
     (async () => {
       try {
-        const { data } = await api.get('/reuniones/personal');
+        const { data } = await api.get(endpoint || '/reuniones/personal');
         if (cancel) return;
         setLista(data.personal || []);
       } catch (e) {
@@ -53,7 +54,7 @@ export default function ReunionPersonalPicker({
     return () => {
       cancel = true;
     };
-  }, [abierto]);
+  }, [abierto, endpoint]);
 
   const visibles = useMemo(() => {
     const q = filtro.trim().toLowerCase();

@@ -258,7 +258,7 @@ export default function DashboardLayout({ children }) {
         try {
           const sup = await api.get('/supervision/yo');
           if (!cancelled) {
-            setEsSupervisorSupervision(!!(sup.data?.is_supervisor || sup.data?.is_admin));
+            setEsSupervisorSupervision(!!(sup.data?.is_supervisor || sup.data?.is_admin || sup.data?.is_supervisado));
           }
         } catch {
           if (!cancelled) setEsSupervisorSupervision(false);

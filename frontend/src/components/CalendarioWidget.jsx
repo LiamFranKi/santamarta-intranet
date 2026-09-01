@@ -7,6 +7,7 @@ import EventoModal from './EventoModal';
 import './CalendarioWidget.css';
 import { crearFechaLima } from '../utils/fechaLima';
 import { esReunionEnCurso, irAReunionSiEnCurso } from '../utils/reunionesRutas';
+import { urlFichaSupervision, visitaIdDeEvento } from '../utils/supervisionRutas';
 
 function CalendarioWidget() {
   const { user } = useAuth();
@@ -195,6 +196,11 @@ function CalendarioWidget() {
 
       if (actividadesDelDia.length === 1 && esReunionEnCurso(actividadesDelDia[0])) {
         irAReunionSiEnCurso(navigate, user?.tipo, actividadesDelDia[0]);
+        return;
+      }
+      const visUnica = actividadesDelDia.length === 1 ? visitaIdDeEvento(actividadesDelDia[0]) : null;
+      if (visUnica) {
+        navigate(urlFichaSupervision(user?.tipo, visUnica));
         return;
       }
 

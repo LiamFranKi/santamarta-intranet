@@ -8,6 +8,8 @@ import DashboardLayout from '../../components/DashboardLayout';
 import Swal from 'sweetalert2';
 import './AdminUsuarios.css';
 import './AdminSupervision.css';
+import SupervisionVisitas from './SupervisionVisitas';
+import ReunionPersonalPicker from '../reuniones/ReunionPersonalPicker';
 
 /** Iconos outline (Heroicons-style) para el menú Opciones */
 function IcoPencil() {
@@ -75,6 +77,7 @@ export default function AdminSupervision() {
   const isAdmin = user?.tipo === 'ADMINISTRADOR';
   const canConfig = isAdmin;
   const canExecute = yo?.is_admin || yo?.is_supervisor;
+  const canVer = canConfig || canExecute || yo?.is_supervisado;
 
   const loadYo = useCallback(async () => {
     try {
@@ -118,7 +121,7 @@ export default function AdminSupervision() {
       );
     }
 
-    if (!canConfig && !canExecute) {
+    if (!canVer) {
       return (
         <div className="admin-usu-wrap">
           <div className="admin-usu-table-card">
@@ -141,8 +144,7 @@ export default function AdminSupervision() {
             <div className="admin-sup-hero-text">
               <h1>Supervisión</h1>
               <p>
-                Rúbricas de supervisión, cierre global, personal autorizado y registro de supervisiones por
-                docente (nivel, grado y aula).
+                Programa visitas de supervisión, avisa al personal, registra lo observado y cierra con la firma de cada persona.
               </p>
             </div>
           </header>
@@ -151,10 +153,10 @@ export default function AdminSupervision() {
               💡
             </div>
             <div>
-              <h2>Rúbricas y permisos</h2>
+              <h2>Visitas de personal</h2>
               <p>
-                Creá supervisiones, definí el cierre global y asigná supervisores. En cada fila,{' '}
-                <strong>Opciones</strong> concentra editar, registrar e historial.
+                Elige quién puede supervisar, programa la visita y cada persona lee, escribe su alcance y firma.
+                Las rúbricas antiguas quedan guardadas en Instrumentos (avanzado).
               </p>
             </div>
           </div>
@@ -171,10 +173,7 @@ export default function AdminSupervision() {
           </div>
           <div className="admin-sup-hero-text">
             <h1>Supervisión</h1>
-            <p>
-              Registro de supervisiones e historial según el acceso asignado. Use <strong>Opciones</strong> en
-              cada fila o los botones superiores.
-            </p>
+            <p>Revisa las visitas que te programaron, escribe tu alcance y firma cuando corresponda.</p>
           </div>
         </header>
         <div className="admin-sup-help">
@@ -182,11 +181,11 @@ export default function AdminSupervision() {
             💡
           </div>
           <div>
-            <h2>Bandeja de ejecución</h2>
-            <p>Elegí una rúbrica activa para registrar una supervisión o revisar el historial.</p>
+            <h2>Tu bandeja</h2>
+            <p>Abre una supervisión para ver lo registrado, dejar un comentario y firmar.</p>
           </div>
         </div>
-        <PanelSupervisionEjecutor loadYo={loadYo} canExecute={canExecute} />
+        <SupervisionVisitas canCrear={!!canExecute} canConfig={false} />
       </div>
     );
   })();
@@ -322,6 +321,7 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
   const [sel, setSel] = useState(null);
   const [detalle, setDetalle] = useState(null);
   const [modal, setModal] = useState(null); // 'create' | 'edit' | 'cierre' | 'supervisores'
+  const [seccion, setSeccion] = useState('visitas');
   const [menuRowId, setMenuRowId] = useState(null);
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [registrarModal, setRegistrarModal] = useState(null);
@@ -555,30 +555,48 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
     <>
       <div className="admin-sup-toolbar">
         <nav className="admin-sup-tabs" aria-label="Acciones de supervisión">
-          <button type="button" className="admin-sup-tab is-active" disabled>
-            Rúbricas
-          </button>
-          <button type="button" className="admin-sup-tab admin-sup-tab--amber" onClick={() => setModal('cierre')}>
-            Cierre global
+          <button type="button" className={`admin-sup-tab ${seccion === 'visitas' ? 'is-active' : ''}`} onClick={() => setSeccion('visitas')}>
+            Visitas
           </button>
           <button
             type="button"
-            className="admin-sup-tab admin-sup-tab--teal"
-            onClick={() => setModal('supervisores')}
+            className={`admin-sup-tab admin-sup-tab--teal ${seccion === 'supervisores' ? 'is-active' : ''}`}
+            onClick={() => setSeccion('supervisores')}
           >
             Supervisores
           </button>
+          <button
+            type="button"
+            className={`admin-sup-tab admin-sup-tab--amber ${seccion === 'instrumentos' ? 'is-active' : ''}`}
+            onClick={() => setSeccion('instrumentos')}
+          >
+            Instrumentos (avanzado)
+          </button>
         </nav>
-        <button type="button" className="admin-sup-btn-nuevo" onClick={openNew}>
-          + Nueva supervisión
-        </button>
+        {seccion === 'instrumentos' ? (
+          <button type="button" className="admin-sup-btn-nuevo" onClick={openNew}>
+            + Nueva rúbrica
+          </button>
+        ) : null}
       </div>
 
-      <div className="admin-usu-table-card admin-sup-table-card">
+      {seccion === 'visitas' ? <SupervisionVisitas canCrear={canExecute} canConfig /> : null}
+      {seccion === 'supervisores' ? (
+        <div className="admin-usu-table-card admin-sup-table-card">
+          <div className="admin-sup-panel-body">
+            <PanelSupervisores />
+          </div>
+        </div>
+      ) : null}
+      {seccion === 'instrumentos' ? (
+        <div className="admin-usu-table-card admin-sup-table-card">
         <div className="admin-sup-panel-body">
           <p className="admin-sup-muted" style={{ marginTop: 0 }}>
-            Listado de rúbricas de supervisión. <strong>Supervisores</strong> define quién del colegio puede
-            registrar. Use <strong>Opciones</strong> en cada fila para editar, registrar, historial o eliminar.
+            Rúbricas guardadas para reutilizar después. No son el flujo diario de visitas.
+            {' '}
+            <button type="button" className="admin-sup-tab admin-sup-tab--amber" style={{ display: 'inline-flex', marginLeft: 8 }} onClick={() => setModal('cierre')}>
+              Cierre global
+            </button>
           </p>
           <div className="admin-usu-table-scroll">
             <table className="admin-usu-table">
@@ -625,7 +643,8 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
             </table>
           </div>
         </div>
-      </div>
+        </div>
+      ) : null}
 
       {(modal === 'create' || modal === 'edit') && (
         <SupervisionModal title={editorTitulo} onClose={cerrarEditor} tall>
@@ -1234,19 +1253,15 @@ function PanelCierreGlobal() {
 
 function PanelSupervisores() {
   const [list, setList] = useState([]);
-  const [q, setQ] = useState('');
-  const [candidatos, setCandidatos] = useState([]);
+  const [modal, setModal] = useState(false);
   const load = useCallback(() => api.get('/supervision/supervisores').then((r) => setList(r.data.supervisores || [])), []);
   useEffect(() => {
     load().catch(() => {});
   }, [load]);
-  const buscar = () =>
-    api.get('/supervision/personal-candidatos', { params: { q } }).then((r) => setCandidatos(r.data.personal || []));
   const add = async (usuario_id) => {
     try {
       await api.post('/supervision/supervisores', { usuario_id });
       await load();
-      Swal.fire({ icon: 'success', title: 'Asignado', timer: 1200, showConfirmButton: false });
     } catch (e) {
       Swal.fire('Error', e.response?.data?.error, 'error');
     }
@@ -1262,9 +1277,14 @@ function PanelSupervisores() {
   return (
     <div>
       <p className="admin-sup-muted">
-        Los supervisores pueden registrar supervisiones y ver historial; no tienen acceso a la configuración de este módulo.
+        Quienes aparecen aquí pueden programar visitas, registrar lo observado y cerrar. No configuran rúbricas.
       </p>
-      <h3 style={{ fontSize: '1.08rem', fontWeight: 700, color: '#1f2937', margin: '0 0 0.75rem' }}>Supervisores actuales</h3>
+      <div className="re-buscador-head" style={{ marginBottom: 12 }}>
+        <h3 style={{ fontSize: '1.08rem', fontWeight: 700, color: '#1f2937', margin: 0 }}>Supervisores actuales</h3>
+        <button type="button" className="re-btn re-btn-solid re-btn-personal" onClick={() => setModal(true)}>
+          Elegir personal
+        </button>
+      </div>
       <div className="admin-usu-table-scroll">
         <table className="admin-usu-table">
           <thead>
@@ -1291,23 +1311,21 @@ function PanelSupervisores() {
           </tbody>
         </table>
       </div>
-      <h3 style={{ fontSize: '1.08rem', fontWeight: 700, color: '#1f2937', margin: '1.25rem 0 0.75rem' }}>Añadir personal</h3>
-      <div className="admin-usu-toolbar" style={{ marginBottom: 12 }}>
-        <input className="admin-usu-grow" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por DNI o nombre" />
-        <button type="button" className="admin-usu-btn admin-usu-btn-search" onClick={buscar}>
-          Buscar
-        </button>
-      </div>
-      <ul className="admin-sup-lista-candidatos">
-        {candidatos.map((p) => (
-          <li key={p.usuario_id}>
-            <strong>{p.dni}</strong> — {p.nombres} {p.apellidos}{' '}
-            <button type="button" className="admin-usu-btn admin-usu-btn-primary" style={{ marginLeft: 8 }} onClick={() => add(p.usuario_id)}>
-              Asignar
-            </button>
-          </li>
-        ))}
-      </ul>
+      <ReunionPersonalPicker
+        abierto={modal}
+        endpoint="/supervision/personal"
+        invitadosIds={list.map((s) => s.usuario_id)}
+        titulo="Quién puede supervisar"
+        kicker="Permisos"
+        descripcion="Marca al personal autorizado. Quienes ya están asignados aparecen deshabilitados."
+        onCerrar={() => setModal(false)}
+        onAgregar={async (nuevos) => {
+          for (const p of nuevos || []) {
+            await add(p.usuario_id);
+          }
+          Swal.fire({ icon: 'success', title: 'Asignados', timer: 1200, showConfirmButton: false });
+        }}
+      />
     </div>
   );
 }
