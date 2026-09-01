@@ -27,6 +27,14 @@ function fmtFecha(iso) {
   return `${d}/${m}/${y}`;
 }
 
+function IconoBasura() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+      <path fill="currentColor" d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+    </svg>
+  );
+}
+
 function nuevaClaveChecklist() {
   return `item-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -196,6 +204,7 @@ export default function SupervisionVisitas({ canCrear, canConfig }) {
                     type="button"
                     className="re-card-del"
                     title="Eliminar"
+                    aria-label="Eliminar"
                     onClick={async (e) => {
                       e.stopPropagation();
                       const ok = await Swal.fire({
@@ -213,7 +222,7 @@ export default function SupervisionVisitas({ canCrear, canConfig }) {
                       }
                     }}
                   >
-                    ×
+                    <IconoBasura />
                   </button>
                 </div>
               ) : null}
