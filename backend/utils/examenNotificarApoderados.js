@@ -8,6 +8,7 @@ const {
   etiquetaBimestreExamen,
   construirAsuntoComprobanteExamen,
   formatearRespuestaExamenHtml,
+  formatearRespuestaCorrectaHtml,
   construirHtmlComprobanteExamenMensaje,
 } = require('./examenComprobanteMensajeHtml');
 
@@ -111,7 +112,7 @@ async function enviarNotificacionApoderadosExamenIfNeeded(opts) {
     });
   }
 
-  const { preguntas, respuestas, puntajeFinal, correctas, incorrectas, puntosTotal } = calificacion;
+  const { preguntas, respuestas, puntajeFinal, correctas, incorrectas, puntosTotal, detalles } = calificacion;
 
   const examenInfo = await query(
     `SELECT ae.*, a.grupo_id, c.nombre as curso_nombre,
@@ -148,6 +149,10 @@ async function enviarNotificacionApoderadosExamenIfNeeded(opts) {
   });
   const sufijoGradoApod = etiquetaGradoApod ? ` — ${etiquetaGradoApod}` : '';
 
+  const detallePorId = new Map(
+    (detalles || []).map((d) => [Number(d.pregunta_id), d])
+  );
+
   const bloquesPreguntas = (preguntas || []).map((pregunta, idx) => {
     const respuestaAlumno = respuestas[pregunta.id.toString()] ?? respuestas[pregunta.id] ?? null;
     const preguntaTexto = htmlToPlain(pregunta.descripcion || `Pregunta ${idx + 1}`);
@@ -155,12 +160,16 @@ async function enviarNotificacionApoderadosExamenIfNeeded(opts) {
       ? String(pregunta.descripcion)
       : preguntaTexto || `Pregunta ${idx + 1}`;
     const { html: respuestaHtml, sinResponder } = formatearRespuestaExamenHtml(pregunta, respuestaAlumno);
+    const det = detallePorId.get(Number(pregunta.id));
+    const esCorrecta = !!(det && det.es_correcta);
     return {
       nro: idx + 1,
       preguntaTexto: preguntaTexto || `Pregunta ${idx + 1}`,
       preguntaHtml,
       respuestaHtml,
       sinResponder,
+      esCorrecta,
+      respuestaCorrectaHtml: esCorrecta ? '' : formatearRespuestaCorrectaHtml(pregunta),
     };
   });
 
