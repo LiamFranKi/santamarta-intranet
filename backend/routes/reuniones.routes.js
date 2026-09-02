@@ -25,6 +25,9 @@ const {
   listarParticipantes,
   asegurarConvocante,
   insertarParticipantes,
+  reemplazarParticipantes,
+  vaciarInvitadosReunion,
+  quitarParticipantesPersona,
   usuariosGrupoPorAudiencia,
   resolverUsuarioPersonal,
   buscarParticipantesReunion,
@@ -438,7 +441,7 @@ router.patch('/:id', async (req, res) => {
     if (Array.isArray(req.body.invitados) || Array.isArray(req.body.grupos)) {
       const prev = new Set((await listarParticipantes(query, reunion.id)).map((p) => Number(p.usuario_id)));
       const invitadosIds = await resolverInvitados(req, req.body.invitados, req.body.grupos);
-      await insertarParticipantes(execute, query, reunion.id, req.user.colegio_id, invitadosIds);
+      await reemplazarParticipantes(execute, query, reunion, req.user.colegio_id, invitadosIds);
       if (reunion.estado === 'CONVOCADA') {
         const ahoraParts = await listarParticipantes(query, reunion.id);
         const nuevos = ahoraParts.map((p) => Number(p.usuario_id)).filter((id) => !prev.has(id));
@@ -799,18 +802,34 @@ router.post('/:id/asistencia', async (req, res) => {
   }
 });
 
+router.delete('/:id/participantes', requireGestor, async (req, res) => {
+  try {
+    const reunion = await obtenerReunion(query, req.params.id, req.user.colegio_id);
+    if (!reunion) return res.status(404).json({ error: 'Reunión no encontrada' });
+    if (!['BORRADOR', 'CONVOCADA', 'EN_CURSO'].includes(reunion.estado)) {
+      return res.status(400).json({ error: 'Ya no se pueden quitar convocados.' });
+    }
+    await vaciarInvitadosReunion(execute, query, reunion, req.user.colegio_id);
+    const actual = await obtenerReunion(query, reunion.id, req.user.colegio_id);
+    res.json(await payloadReunion(actual, req));
+  } catch (e) {
+    console.error('[reuniones] vaciar convocados', e);
+    res.status(500).json({ error: 'Error al quitar los convocados' });
+  }
+});
+
 router.delete('/:id/participantes/:usuarioId', requireGestor, async (req, res) => {
   try {
     const reunion = await obtenerReunion(query, req.params.id, req.user.colegio_id);
     if (!reunion) return res.status(404).json({ error: 'Reunión no encontrada' });
-    if (!['BORRADOR', 'CONVOCADA'].includes(reunion.estado)) {
+    if (!['BORRADOR', 'CONVOCADA', 'EN_CURSO'].includes(reunion.estado)) {
       return res.status(400).json({ error: 'No se puede quitar convocados en este estado.' });
     }
     const uid = parseInt(req.params.usuarioId, 10);
     if (uid === Number(reunion.creador_usuario_id)) {
       return res.status(400).json({ error: 'No se puede quitar al convocante.' });
     }
-    await execute(`DELETE FROM reuniones_participantes WHERE reunion_id = ? AND usuario_id = ?`, [reunion.id, uid]);
+    await quitarParticipantesPersona(execute, query, reunion, req.user.colegio_id, uid);
     const actual = await obtenerReunion(query, reunion.id, req.user.colegio_id);
     res.json(await payloadReunion(actual, req));
   } catch (e) {

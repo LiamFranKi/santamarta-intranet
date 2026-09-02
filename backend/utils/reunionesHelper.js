@@ -156,7 +156,12 @@ async function expandirIdsMismaPersona(queryFn, ids, colegioId) {
       const n = Number(r.id);
       if (n > 0) out.push(n);
     });
-    return [...new Set(out)];
+    const unique = [...new Set(out)];
+    if (unique.length > base.length * 8 + 16) {
+      console.warn('[reuniones] expandirIdsMismaPersona abortado: cruce masivo', base.length, unique.length);
+      return base;
+    }
+    return unique;
   } catch (e) {
     console.warn('[reuniones] expandirIdsMismaPersona', e.message);
     return base;
@@ -369,6 +374,61 @@ async function insertarParticipantes(executeFn, queryFn, reunionId, colegioId, i
     }
   }
   return { agregados };
+}
+
+async function quitarParticipantesPersona(executeFn, queryFn, reunion, colegioId, usuarioId) {
+  const uid = Number(usuarioId);
+  if (!uid) return 0;
+  if (Number(reunion.creador_usuario_id) === uid) return 0;
+  const ids = await expandirIdsMismaPersona(queryFn, [uid], colegioId);
+  const keep = new Set([Number(reunion.creador_usuario_id)]);
+  if (reunion.abrir_usuario_id) keep.add(Number(reunion.abrir_usuario_id));
+  const borrar = ids.filter((id) => !keep.has(Number(id)));
+  if (!borrar.length) return 0;
+  const ph = borrar.map(() => '?').join(',');
+  const r = await executeFn(
+    `DELETE FROM reuniones_participantes
+     WHERE reunion_id = ? AND rol <> 'CONVOCANTE' AND usuario_id IN (${ph})`,
+    [reunion.id, ...borrar]
+  );
+  return r && r.affectedRows ? r.affectedRows : 0;
+}
+
+async function vaciarInvitadosReunion(executeFn, queryFn, reunion, colegioId) {
+  await executeFn(
+    `DELETE FROM reuniones_participantes WHERE reunion_id = ? AND rol <> 'CONVOCANTE'`,
+    [reunion.id]
+  );
+  if (reunion.abrir_usuario_id) {
+    await insertarParticipantes(executeFn, queryFn, reunion.id, colegioId, [reunion.abrir_usuario_id]);
+  }
+}
+
+async function reemplazarParticipantes(executeFn, queryFn, reunion, colegioId, invitados) {
+  const seeds = [...new Set((invitados || []).map((x) => parseInt(x.usuario_id || x, 10)).filter((n) => Number.isInteger(n) && n > 0))];
+  if (reunion.abrir_usuario_id) seeds.push(Number(reunion.abrir_usuario_id));
+  if (reunion.creador_usuario_id) seeds.push(Number(reunion.creador_usuario_id));
+  const keep = await expandirIdsMismaPersona(queryFn, seeds, colegioId);
+  keep.push(Number(reunion.creador_usuario_id));
+  if (reunion.abrir_usuario_id) keep.push(Number(reunion.abrir_usuario_id));
+  const keepUnique = [...new Set(keep.filter((n) => Number(n) > 0))];
+  if (seeds.length) {
+    await insertarParticipantes(executeFn, queryFn, reunion.id, colegioId, seeds);
+  }
+  if (!keepUnique.length) {
+    await executeFn(
+      `DELETE FROM reuniones_participantes WHERE reunion_id = ? AND rol <> 'CONVOCANTE'`,
+      [reunion.id]
+    );
+    return { agregados: 0 };
+  }
+  const ph = keepUnique.map(() => '?').join(',');
+  await executeFn(
+    `DELETE FROM reuniones_participantes
+     WHERE reunion_id = ? AND rol <> 'CONVOCANTE' AND usuario_id NOT IN (${ph})`,
+    [reunion.id, ...keepUnique]
+  );
+  return { keep: keepUnique.length };
 }
 
 async function usuariosGrupoPorAudiencia(queryFn, colegioId, anioActivo, grupoId, audiencias) {
@@ -816,6 +876,9 @@ module.exports = {
   listarParticipantes,
   asegurarConvocante,
   insertarParticipantes,
+  reemplazarParticipantes,
+  vaciarInvitadosReunion,
+  quitarParticipantesPersona,
   usuariosGrupoAlumnos,
   usuariosGrupoPorAudiencia,
   audienciasDeGrupo,

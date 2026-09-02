@@ -463,6 +463,13 @@
   margin-bottom: 0.2rem;
 }
 
+.re-buscador-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
 .re-btn-personal {
   flex-shrink: 0;
   white-space: nowrap;

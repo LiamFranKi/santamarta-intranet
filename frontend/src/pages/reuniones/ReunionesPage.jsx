@@ -326,7 +326,7 @@ function ListaReuniones({ base, esGestor, navigate }) {
   );
 }
 
-function BuscadorInvitados({ invitados, onChange, grupos, onGrupos }) {
+function BuscadorInvitados({ invitados, onChange, grupos, onGrupos, reunionId }) {
   const [q, setQ] = useState('');
   const [res, setRes] = useState([]);
   const [grupoPendiente, setGrupoPendiente] = useState(null);
@@ -350,6 +350,30 @@ function BuscadorInvitados({ invitados, onChange, grupos, onGrupos }) {
 
   const yaEsta = (usuarioId) => invitados.some((i) => Number(i.usuario_id) === Number(usuarioId));
 
+  const quitarTodos = async () => {
+    const nPersonas = invitados.length;
+    const nAulas = grupos.length;
+    if (!nPersonas && !nAulas) return;
+    const ok = await Swal.fire({
+      title: '¿Quitar a todos los convocados?',
+      text: `Se sacarán ${nPersonas} persona${nPersonas === 1 ? '' : 's'}${nAulas ? ` y ${nAulas} aula${nAulas === 1 ? '' : 's'}` : ''} de esta reunión.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, quitar todos',
+      cancelButtonText: 'No',
+      confirmButtonColor: '#b91c1c',
+    });
+    if (!ok.isConfirmed) return;
+    onChange([]);
+    onGrupos([]);
+    if (!reunionId) return;
+    try {
+      await api.delete(`/reuniones/${reunionId}/participantes`);
+    } catch (e) {
+      Swal.fire('Convocados', e.response?.data?.error || 'No se pudieron quitar todos.', 'error');
+    }
+  };
+
   const agregarGrupo = () => {
     if (!grupoPendiente) return;
     if (!grupoPendiente.alumnos && !grupoPendiente.apoderados && !grupoPendiente.docentes) {
@@ -365,11 +389,21 @@ function BuscadorInvitados({ invitados, onChange, grupos, onGrupos }) {
       <div className="re-buscador-head">
         <div>
           <label>Convocados</label>
-          <p className="re-hint">Personas o un aula (alumnos, apoderados y/o docentes). Escribe al menos 2 letras.</p>
+          <p className="re-hint">
+            Personas o un aula (alumnos, apoderados y/o docentes). Escribe al menos 2 letras.
+            {invitados.length ? ` · ${invitados.length} convocado${invitados.length === 1 ? '' : 's'}.` : ''}
+          </p>
         </div>
-        <button type="button" className="re-btn re-btn-solid re-btn-personal" onClick={() => setModalPersonal(true)}>
-          Elegir personal
-        </button>
+        <div className="re-buscador-actions">
+          {invitados.length || grupos.length ? (
+            <button type="button" className="re-btn re-btn-danger" onClick={quitarTodos}>
+              Quitar todos
+            </button>
+          ) : null}
+          <button type="button" className="re-btn re-btn-solid re-btn-personal" onClick={() => setModalPersonal(true)}>
+            Elegir personal
+          </button>
+        </div>
       </div>
       <input
         className="re-buscador-input"
@@ -712,7 +746,13 @@ function FormularioReunion({ base, reunion, esGestor }) {
           {esGestor ? (
             <>
               <BuscadorQuienAbre value={quienAbre} onChange={setQuienAbre} />
-              <BuscadorInvitados invitados={invitados} onChange={setInvitados} grupos={grupos} onGrupos={setGrupos} />
+              <BuscadorInvitados
+                invitados={invitados}
+                onChange={setInvitados}
+                grupos={grupos}
+                onGrupos={setGrupos}
+                reunionId={reunion?.id}
+              />
             </>
           ) : null}
           <div className="re-actions-row">
