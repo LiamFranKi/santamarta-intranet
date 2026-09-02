@@ -1175,8 +1175,9 @@ function AdmisionConfigModal({ open, onClose }) {
               Mostrar barra naranja “Ya abrió Admisión {anio}”
             </label>
             <p className="rs-muted" style={{ margin: 0, flexBasis: '100%' }}>
-              Barra fija debajo del menú, en todas las páginas, con el botón “Postula ahora”. El
-              visitante puede cerrarla con la X.
+              En el inicio va abajo de la foto grande (el hero), no arriba, para no tapar la
+              etiqueta. En las demás páginas queda una barra abajo. El visitante puede cerrarla con
+              la X.
             </p>
           </div>
         </>
