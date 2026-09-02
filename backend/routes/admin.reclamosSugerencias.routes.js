@@ -2,7 +2,8 @@
  * Admin — Formularios web pública (módulo Web).
  * Tablas: web_reclamos, web_sugerencias, web_contactenos, web_visitas_guiadas,
  *         web_trabaja_con_nosotros, web_admision, web_correos_envio,
- *         web_visita_dias, web_visita_horarios, web_visita_secuencias(+slots)
+ *         web_visita_dias, web_visita_horarios, web_visita_fechas, web_visita_config,
+ *         web_visita_secuencias(+slots)
  * Archivos: solo bajo WEB_VANGUARD_ROOT/data/ (nunca /var/www/web).
  */
 const express = require('express');
@@ -11,7 +12,13 @@ const fs = require('fs');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const { query, execute } = require('../utils/mysql');
+const { fechaMySQLLima } = require('../utils/fechaHoraLima');
 const { resolveWebVanguardRoot, resolveWebDataFile } = require('../utils/webVanguardFiles');
+const {
+  parseYmd,
+  fechasPorMesYDias,
+  leerModoFechas,
+} = require('../utils/visitaGuiadaPublicConfig');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -563,11 +570,15 @@ router.get('/visita-config/dias', async (_req, res) => {
   }
 });
 
-/** Cierra visitas: desactiva TODOS los días de una vez. */
+/** Cierra visitas: desactiva días de la semana y fechas concretas. */
 router.post('/visita-config/cerrar', async (_req, res) => {
   try {
     await execute(`UPDATE web_visita_dias SET activo = 0`);
-    // Por si la web antigua aún lee secuencias
+    try {
+      await execute(`UPDATE web_visita_fechas SET activo = 0`);
+    } catch {
+      /* migración 077 pendiente */
+    }
     try {
       await execute(`UPDATE web_visita_secuencias SET activo = 0`);
     } catch {
@@ -577,7 +588,7 @@ router.post('/visita-config/cerrar', async (_req, res) => {
       `SELECT id, dia_semana, etiqueta, activo FROM web_visita_dias ORDER BY dia_semana ASC`
     );
     res.json({
-      message: 'Visitas cerradas: ningún día activo',
+      message: 'Visitas cerradas: ningún día ni fecha activa',
       dias: (rows || []).map(mapActivoRow),
     });
   } catch (e) {
@@ -668,6 +679,150 @@ router.delete('/visita-config/horarios/:id', async (req, res) => {
     res.json({ message: 'Horario eliminado' });
   } catch (e) {
     res.status(500).json({ error: e.message || 'Error al eliminar horario.' });
+  }
+});
+
+function tablaFechasFalta(e) {
+  return e && (e.code === 'ER_NO_SUCH_TABLE' || e.errno === 1146);
+}
+
+async function asegurarConfigModo() {
+  await execute(
+    `INSERT IGNORE INTO web_visita_config (id, modo_fechas) VALUES (1, 'semana')`
+  );
+}
+
+router.get('/visita-config/calendario', async (_req, res) => {
+  try {
+    const hoy = fechaMySQLLima();
+    let modo = 'semana';
+    let fechas = [];
+    try {
+      await asegurarConfigModo();
+      modo = await leerModoFechas(query);
+      const rows = await query(
+        `SELECT id, DATE_FORMAT(fecha, '%Y-%m-%d') AS fecha, activo
+         FROM web_visita_fechas
+         WHERE fecha >= ?
+         ORDER BY fecha ASC`,
+        [hoy]
+      );
+      fechas = (rows || []).map((r) => ({
+        id: Number(r.id),
+        fecha: String(r.fecha).slice(0, 10),
+        activo: toBool01(r.activo, 0),
+      }));
+    } catch (e) {
+      if (!tablaFechasFalta(e)) throw e;
+      return res.json({
+        modo: 'semana',
+        fechas: [],
+        necesita_migracion: true,
+      });
+    }
+    res.json({ modo, fechas, necesita_migracion: false });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al leer el calendario de visitas.' });
+  }
+});
+
+router.put('/visita-config/modo', async (req, res) => {
+  try {
+    const modo = String(req.body?.modo || '').toLowerCase() === 'lista' ? 'lista' : 'semana';
+    try {
+      await asegurarConfigModo();
+      await execute(`UPDATE web_visita_config SET modo_fechas = ? WHERE id = 1`, [modo]);
+    } catch (e) {
+      if (tablaFechasFalta(e)) {
+        return res.status(503).json({
+          error: 'Falta ejecutar la migración 077_web_visita_fechas_mysql.sql en MySQL.',
+        });
+      }
+      throw e;
+    }
+    res.json({ modo });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al guardar el modo.' });
+  }
+});
+
+async function upsertFechas(ymds) {
+  const hoy = fechaMySQLLima();
+  const unicas = [...new Set(ymds.filter(Boolean))];
+  const insertadas = [];
+  for (const ymd of unicas) {
+    if (ymd <= hoy) continue;
+    await execute(
+      `INSERT INTO web_visita_fechas (fecha, activo) VALUES (?, 1)
+       ON DUPLICATE KEY UPDATE activo = 1`,
+      [ymd]
+    );
+    insertadas.push(ymd);
+  }
+  return insertadas;
+}
+
+router.post('/visita-config/fechas', async (req, res) => {
+  try {
+    const una = parseYmd(req.body?.fecha);
+    const varias = Array.isArray(req.body?.fechas) ? req.body.fechas.map(parseYmd) : [];
+    const ymds = una ? [una, ...varias] : varias;
+    if (!ymds.length) {
+      return res.status(400).json({ error: 'Indica al menos una fecha (YYYY-MM-DD).' });
+    }
+    const insertadas = await upsertFechas(ymds);
+    if (!insertadas.length) {
+      return res.status(400).json({ error: 'Las fechas deben ser posteriores a hoy.' });
+    }
+    res.json({ ok: true, fechas: insertadas });
+  } catch (e) {
+    if (tablaFechasFalta(e)) {
+      return res.status(503).json({
+        error: 'Falta ejecutar la migración 077_web_visita_fechas_mysql.sql en MySQL.',
+      });
+    }
+    res.status(500).json({ error: e.message || 'Error al guardar fechas.' });
+  }
+});
+
+router.post('/visita-config/fechas/generar', async (req, res) => {
+  try {
+    const anio = parseInt(req.body?.anio, 10);
+    const mes = parseInt(req.body?.mes, 10);
+    const dias = Array.isArray(req.body?.dias_semana) ? req.body.dias_semana : [];
+    const hoy = fechaMySQLLima();
+    const ymds = fechasPorMesYDias(anio, mes, dias, hoy);
+    if (!ymds.length) {
+      return res.status(400).json({
+        error: 'No hay fechas futuras en ese mes para los días elegidos.',
+      });
+    }
+    const insertadas = await upsertFechas(ymds);
+    res.json({ ok: true, fechas: insertadas, total: insertadas.length });
+  } catch (e) {
+    if (tablaFechasFalta(e)) {
+      return res.status(503).json({
+        error: 'Falta ejecutar la migración 077_web_visita_fechas_mysql.sql en MySQL.',
+      });
+    }
+    res.status(500).json({ error: e.message || 'Error al generar fechas.' });
+  }
+});
+
+router.delete('/visita-config/fechas/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const r = await execute(`DELETE FROM web_visita_fechas WHERE id = ?`, [id]);
+    if (!r?.affectedRows) return res.status(404).json({ error: 'Fecha no encontrada' });
+    res.json({ message: 'Fecha quitada' });
+  } catch (e) {
+    if (tablaFechasFalta(e)) {
+      return res.status(503).json({
+        error: 'Falta ejecutar la migración 077_web_visita_fechas_mysql.sql en MySQL.',
+      });
+    }
+    res.status(500).json({ error: e.message || 'Error al quitar la fecha.' });
   }
 });
 

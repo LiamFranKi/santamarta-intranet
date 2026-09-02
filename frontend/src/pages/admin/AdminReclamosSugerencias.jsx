@@ -58,6 +58,21 @@ const DIAS_SEMANA = [
   { value: 6, label: 'Sábado' },
 ];
 
+const MESES = [
+  { value: 1, label: 'Enero' },
+  { value: 2, label: 'Febrero' },
+  { value: 3, label: 'Marzo' },
+  { value: 4, label: 'Abril' },
+  { value: 5, label: 'Mayo' },
+  { value: 6, label: 'Junio' },
+  { value: 7, label: 'Julio' },
+  { value: 8, label: 'Agosto' },
+  { value: 9, label: 'Septiembre' },
+  { value: 10, label: 'Octubre' },
+  { value: 11, label: 'Noviembre' },
+  { value: 12, label: 'Diciembre' },
+];
+
 const correoFormVacio = () => ({
   email: '',
   etiqueta: '',
@@ -436,21 +451,33 @@ function esActivo(v) {
 }
 
 function VisitasConfigModal({ open, onClose }) {
+  const ahora = new Date();
   const [loading, setLoading] = useState(true);
   const [dias, setDias] = useState([]);
   const [horarios, setHorarios] = useState([]);
   const [horarioForm, setHorarioForm] = useState({ id: null, etiqueta: '', activo: true, orden: 0 });
   const [saving, setSaving] = useState(false);
+  const [modo, setModo] = useState('semana');
+  const [fechas, setFechas] = useState([]);
+  const [fechaSuelta, setFechaSuelta] = useState('');
+  const [genAnio, setGenAnio] = useState(ahora.getFullYear());
+  const [genMes, setGenMes] = useState(ahora.getMonth() + 1);
+  const [genDias, setGenDias] = useState([2, 4]);
+  const [necesitaMigracion, setNecesitaMigracion] = useState(false);
 
   const cargar = useCallback(async () => {
     try {
       setLoading(true);
-      const [dRes, hRes] = await Promise.all([
+      const [dRes, hRes, cRes] = await Promise.all([
         api.get(`${API}/visita-config/dias`),
         api.get(`${API}/visita-config/horarios`),
+        api.get(`${API}/visita-config/calendario`),
       ]);
       setDias(dRes.data.dias || []);
       setHorarios(hRes.data.horarios || []);
+      setModo(cRes.data.modo === 'lista' ? 'lista' : 'semana');
+      setFechas(cRes.data.fechas || []);
+      setNecesitaMigracion(Boolean(cRes.data.necesita_migracion));
     } catch (e) {
       Swal.fire({
         icon: 'error',
@@ -485,11 +512,100 @@ function VisitasConfigModal({ open, onClose }) {
     }
   };
 
+  const cambiarModo = async (siguiente) => {
+    try {
+      setSaving(true);
+      await api.put(`${API}/visita-config/modo`, { modo: siguiente });
+      setModo(siguiente);
+      await cargar();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo cambiar el modo',
+        ...swalOpts,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const agregarFechaSuelta = async () => {
+    if (!fechaSuelta) {
+      Swal.fire({ icon: 'warning', title: 'Elige una fecha', ...swalOpts });
+      return;
+    }
+    try {
+      setSaving(true);
+      await api.post(`${API}/visita-config/fechas`, { fecha: fechaSuelta });
+      setFechaSuelta('');
+      await cargar();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo agregar la fecha',
+        ...swalOpts,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const generarFechasMes = async () => {
+    if (!genDias.length) {
+      Swal.fire({ icon: 'warning', title: 'Marca al menos un día de la semana', ...swalOpts });
+      return;
+    }
+    try {
+      setSaving(true);
+      const { data } = await api.post(`${API}/visita-config/fechas/generar`, {
+        anio: genAnio,
+        mes: genMes,
+        dias_semana: genDias,
+      });
+      await cargar();
+      await Swal.fire({
+        icon: 'success',
+        title: 'Fechas agregadas',
+        text: `Se habilitaron ${data.total || 0} fechas en la web.`,
+        ...swalOpts,
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudieron generar las fechas',
+        ...swalOpts,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const quitarFecha = async (row) => {
+    try {
+      await api.delete(`${API}/visita-config/fechas/${row.id}`);
+      await cargar();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo quitar',
+        ...swalOpts,
+      });
+    }
+  };
+
+  const toggleGenDia = (n) => {
+    setGenDias((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n].sort()));
+  };
+
   const cerrarVisitas = async () => {
     const conf = await Swal.fire({
       icon: 'warning',
       title: '¿Cerrar visitas en la web?',
-      text: 'Se desactivarán todos los días. La web no mostrará fechas disponibles.',
+      text: 'Se desactivarán todos los días de la semana y las fechas concretas. La web no mostrará fechas disponibles.',
       showCancelButton: true,
       confirmButtonText: 'Sí, cerrar',
       cancelButtonText: 'Cancelar',
@@ -577,12 +693,22 @@ function VisitasConfigModal({ open, onClose }) {
 
   const etiquetaDia = (n) => DIAS_SEMANA.find((d) => d.value === Number(n))?.label || `Día ${n}`;
 
+  const fmtFechaLista = (ymd) => {
+    const [y, m, d] = String(ymd || '').split('-').map(Number);
+    if (!d) return ymd || '—';
+    const dt = new Date(y, m - 1, d);
+    return dt.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  };
+
+  const hayAlgoAbierto =
+    dias.some((d) => esActivo(d.activo)) || fechas.some((f) => esActivo(f.activo));
+
   if (!open) return null;
 
   return (
     <OverlayModal
       title="🗓️ Configuración de visitas"
-      subtitle="Elige los días y horarios que verá la web pública."
+      subtitle="Define qué fechas y horarios verá quien reserve una visita guiada en la web."
       wide
       onClose={onClose}
       footer={
@@ -593,8 +719,8 @@ function VisitasConfigModal({ open, onClose }) {
     >
       <div className="rs-detail-block" style={{ background: '#f0f9ff', borderColor: '#bae6fd' }}>
         <p className="rs-detail-text" style={{ margin: 0 }}>
-          La web muestra la combinación de <strong>días activos</strong> × <strong>horarios activos</strong>. Si no hay
-          ningún día (o ningún horario) activo, las visitas quedan <strong>cerradas</strong> en la web.
+          Puedes dejar visitas <strong>cerradas</strong>, abrir <strong>todos los martes/jueves a futuro</strong>, o
+          publicar <strong>solo fechas concretas</strong> (por ejemplo el 15 y el 17, o todos los martes de octubre).
         </p>
       </div>
 
@@ -604,38 +730,174 @@ function VisitasConfigModal({ open, onClose }) {
         <>
           <div className="rs-detail-block">
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-              <h3 style={{ margin: 0 }}>Días de la semana</h3>
+              <h3 style={{ margin: 0 }}>Cómo se eligen las fechas</h3>
               <button
                 type="button"
                 className="rs-btn rs-btn-danger rs-btn-sm"
                 onClick={cerrarVisitas}
-                disabled={saving || !dias.some((d) => esActivo(d.activo))}
+                disabled={saving || !hayAlgoAbierto}
               >
-                🔒 Cerrar visitas (quitar todos los días)
+                🔒 Cerrar visitas
               </button>
             </div>
-            <div className="rs-chip-row" style={{ marginTop: '0.5rem' }}>
-              {dias.map((d) => {
-                const on = esActivo(d.activo);
-                return (
-                  <button
-                    key={d.id}
-                    type="button"
-                    className={`rs-btn rs-btn-sm ${on ? 'rs-btn-primary' : 'rs-btn-ghost'}`}
-                    onClick={() => toggleDia(d)}
-                    title={on ? 'Desactivar' : 'Activar'}
-                  >
-                    {d.etiqueta || etiquetaDia(d.dia_semana)} {on ? '✓' : '○'}
-                  </button>
-                );
-              })}
+            <div className="rs-chip-row" style={{ marginTop: '0.65rem' }}>
+              <button
+                type="button"
+                className={`rs-btn rs-btn-sm ${modo === 'semana' ? 'rs-btn-primary' : 'rs-btn-ghost'}`}
+                disabled={saving}
+                onClick={() => cambiarModo('semana')}
+              >
+                Días de la semana (a futuro)
+              </button>
+              <button
+                type="button"
+                className={`rs-btn rs-btn-sm ${modo === 'lista' ? 'rs-btn-primary' : 'rs-btn-ghost'}`}
+                disabled={saving || necesitaMigracion}
+                onClick={() => cambiarModo('lista')}
+              >
+                Solo fechas que yo elija
+              </button>
             </div>
-            <p className="rs-muted" style={{ marginTop: '0.65rem', marginBottom: 0 }}>
-              Activos ahora:{' '}
-              {dias.filter((d) => esActivo(d.activo)).map((d) => d.etiqueta || etiquetaDia(d.dia_semana)).join(', ') ||
-                'ninguno (web cerrada)'}
-            </p>
+            {necesitaMigracion ? (
+              <p className="rs-muted" style={{ marginTop: '0.65rem', marginBottom: 0, color: '#b45309' }}>
+                Para fechas concretas hay que ejecutar en MySQL el archivo{' '}
+                <code>database/migrations/077_web_visita_fechas_mysql.sql</code>. Mientras tanto use días de la semana.
+              </p>
+            ) : null}
           </div>
+
+          {modo === 'semana' ? (
+            <div className="rs-detail-block">
+              <h3 style={{ margin: 0 }}>Días de la semana</h3>
+              <p className="rs-muted">La web permitirá cualquier fecha futura de esos días (todos los martes, todos los jueves, etc.).</p>
+              <div className="rs-chip-row" style={{ marginTop: '0.5rem' }}>
+                {dias.map((d) => {
+                  const on = esActivo(d.activo);
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      className={`rs-btn rs-btn-sm ${on ? 'rs-btn-primary' : 'rs-btn-ghost'}`}
+                      onClick={() => toggleDia(d)}
+                      title={on ? 'Desactivar' : 'Activar'}
+                    >
+                      {d.etiqueta || etiquetaDia(d.dia_semana)} {on ? '✓' : '○'}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="rs-muted" style={{ marginTop: '0.65rem', marginBottom: 0 }}>
+                Activos ahora:{' '}
+                {dias.filter((d) => esActivo(d.activo)).map((d) => d.etiqueta || etiquetaDia(d.dia_semana)).join(', ') ||
+                  'ninguno (web cerrada si no hay horarios)'}
+              </p>
+            </div>
+          ) : (
+            <div className="rs-detail-block">
+              <h3 style={{ margin: 0 }}>Fechas concretas</h3>
+              <p className="rs-muted">
+                Solo esas fechas salen en el calendario de la web. Puedes generar un mes (todos los martes de octubre) o
+                agregar fechas sueltas (el 15 y el 17).
+              </p>
+
+              <h4 style={{ margin: '1rem 0 0.4rem', fontSize: '0.95rem' }}>Generar un mes</h4>
+              <div className="rs-form-grid">
+                <div className="rs-field">
+                  <label>Año</label>
+                  <select value={genAnio} onChange={(e) => setGenAnio(Number(e.target.value))}>
+                    {[0, 1].map((i) => {
+                      const y = ahora.getFullYear() + i;
+                      return (
+                        <option key={y} value={y}>
+                          {y}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+                <div className="rs-field">
+                  <label>Mes</label>
+                  <select value={genMes} onChange={(e) => setGenMes(Number(e.target.value))}>
+                    {MESES.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="rs-chip-row" style={{ marginTop: '0.55rem' }}>
+                {DIAS_SEMANA.map((d) => (
+                  <button
+                    key={d.value}
+                    type="button"
+                    className={`rs-btn rs-btn-sm ${genDias.includes(d.value) ? 'rs-btn-primary' : 'rs-btn-ghost'}`}
+                    onClick={() => toggleGenDia(d.value)}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="rs-btn rs-btn-primary rs-btn-sm"
+                style={{ marginTop: '0.65rem' }}
+                disabled={saving}
+                onClick={generarFechasMes}
+              >
+                Agregar esas fechas
+              </button>
+
+              <h4 style={{ margin: '1.15rem 0 0.4rem', fontSize: '0.95rem' }}>Agregar una fecha</h4>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+                <input
+                  type="date"
+                  value={fechaSuelta}
+                  onChange={(e) => setFechaSuelta(e.target.value)}
+                  className="rs-field"
+                  style={{ padding: '0.4rem 0.55rem' }}
+                />
+                <button type="button" className="rs-btn rs-btn-primary rs-btn-sm" disabled={saving} onClick={agregarFechaSuelta}>
+                  Agregar fecha
+                </button>
+              </div>
+
+              {fechas.filter((f) => esActivo(f.activo)).length === 0 ? (
+                <p className="rs-empty" style={{ marginTop: '0.85rem' }}>
+                  No hay fechas futuras. La web permanece cerrada hasta que agregues al menos una.
+                </p>
+              ) : (
+                <div className="rs-table-wrap" style={{ marginTop: '0.85rem' }}>
+                  <table className="rs-table">
+                    <thead>
+                      <tr>
+                        <th>Fecha</th>
+                        <th style={{ width: 90 }}>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {fechas
+                        .filter((f) => esActivo(f.activo))
+                        .map((f) => (
+                          <tr key={f.id}>
+                            <td className="rs-nombre">{fmtFechaLista(f.fecha)}</td>
+                            <td>
+                              <button
+                                type="button"
+                                className="rs-btn rs-btn-danger rs-btn-sm"
+                                onClick={() => quitarFecha(f)}
+                              >
+                                🗑️
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="rs-detail-block">
             <h3>Horarios</h3>
