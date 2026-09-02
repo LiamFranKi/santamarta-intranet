@@ -20,6 +20,7 @@ const {
   normalizarEnlaceVideollamada,
   tablaReunionesExiste,
   puedeVerReunion,
+  expandirIdsMismaPersona,
   obtenerReunion,
   listarParticipantes,
   asegurarConvocante,
@@ -281,23 +282,17 @@ router.get('/', async (req, res) => {
     `;
     const params = [colegio_id];
     if (!gestor) {
+      const idsPersona = await expandirIdsMismaPersona(query, [usuario_id], colegio_id);
+      const ph = idsPersona.map(() => '?').join(',');
       sql += ` AND (
-        r.creador_usuario_id = ?
-        OR r.abrir_usuario_id = ?
-        OR EXISTS (
-          SELECT 1 FROM reuniones_participantes p WHERE p.reunion_id = r.id AND p.usuario_id = ?
-        )
+        r.creador_usuario_id IN (${ph})
+        OR r.abrir_usuario_id IN (${ph})
         OR EXISTS (
           SELECT 1 FROM reuniones_participantes p
-          INNER JOIN usuarios ui ON ui.id = p.usuario_id
-          INNER JOIN usuarios uy ON uy.id = ?
-          WHERE p.reunion_id = r.id
-            AND ui.personal_id IS NOT NULL
-            AND uy.personal_id IS NOT NULL
-            AND ui.personal_id = uy.personal_id
+          WHERE p.reunion_id = r.id AND p.usuario_id IN (${ph})
         )
       ) AND r.estado <> 'BORRADOR'`;
-      params.push(usuario_id, usuario_id, usuario_id, usuario_id);
+      params.push(...idsPersona, ...idsPersona, ...idsPersona);
     }
     if (filtro === 'proximas') {
       sql += ` AND r.fecha >= ? AND r.estado IN ('BORRADOR','CONVOCADA','EN_CURSO')`;
@@ -769,17 +764,22 @@ router.post('/:id/asistencia', async (req, res) => {
     if (targetId === uid && valor !== 'ASISTIO' && !puedeDirigir) {
       return res.status(400).json({ error: 'Usa ASISTÍ para confirmar tu presencia.' });
     }
+    const idsMarca = await expandirIdsMismaPersona(query, [targetId], req.user.colegio_id);
+    const phMarca = idsMarca.map(() => '?').join(',');
     const part = await query(
-      `SELECT id FROM reuniones_participantes WHERE reunion_id = ? AND usuario_id = ? LIMIT 1`,
-      [reunion.id, targetId]
+      `SELECT id, usuario_id FROM reuniones_participantes
+       WHERE reunion_id = ? AND usuario_id IN (${phMarca})
+       ORDER BY (usuario_id = ?) DESC
+       LIMIT 1`,
+      [reunion.id, ...idsMarca, targetId]
     );
     if (!part || !part.length) {
       return res.status(403).json({ error: 'No estás en la lista de convocados.' });
     }
     const ahora = fechaHoraMySQLLima();
     await execute(
-      `UPDATE reuniones_participantes SET asistencia = ?, asistencia_en = ? WHERE reunion_id = ? AND usuario_id = ?`,
-      [valor, valor === 'PENDIENTE' ? null : ahora, reunion.id, targetId]
+      `UPDATE reuniones_participantes SET asistencia = ?, asistencia_en = ? WHERE id = ?`,
+      [valor, valor === 'PENDIENTE' ? null : ahora, part[0].id]
     );
     const actual = await obtenerReunion(query, reunion.id, req.user.colegio_id);
     res.json(await payloadReunion(actual, req));

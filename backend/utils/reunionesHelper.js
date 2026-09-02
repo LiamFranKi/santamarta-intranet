@@ -92,7 +92,77 @@ function nombreSqlUsuario() {
   )`;
 }
 
-/** Misma persona: varios usuarios (DOCENTE / otro) con el mismo personal_id. */
+/** DNI de la ficha (personal, apoderado o alumno). El login numérico suele ser el mismo DNI. */
+function sqlDocumentoUsuario(aliasU, aliasP, aliasAp, aliasAl) {
+  return `NULLIF(TRIM(COALESCE(
+    NULLIF(TRIM(${aliasP}.nro_documento), ''),
+    NULLIF(TRIM(${aliasAp}.nro_documento), ''),
+    NULLIF(TRIM(${aliasAl}.nro_documento), ''),
+    CASE WHEN ${aliasU}.usuario REGEXP '^[0-9]{8,12}$' THEN TRIM(${aliasU}.usuario) ELSE NULL END
+  )), '')`;
+}
+
+function sqlJoinsIdentidad(aliasU, aliasP, aliasAp, aliasAl) {
+  return `LEFT JOIN personal ${aliasP} ON ${aliasP}.id = ${aliasU}.personal_id
+     LEFT JOIN apoderados ${aliasAp} ON ${aliasAp}.id = ${aliasU}.apoderado_id
+     LEFT JOIN alumnos ${aliasAl} ON ${aliasAl}.id = ${aliasU}.alumno_id`;
+}
+
+function sqlMismaPersona(u1, p1, ap1, a1, u2, p2, ap2, a2) {
+  const doc1 = sqlDocumentoUsuario(u1, p1, ap1, a1);
+  const doc2 = sqlDocumentoUsuario(u2, p2, ap2, a2);
+  return `(
+    ${u2}.id = ${u1}.id
+    OR (${u1}.personal_id IS NOT NULL AND ${u2}.personal_id = ${u1}.personal_id)
+    OR (${doc1} IS NOT NULL AND CHAR_LENGTH(${doc1}) >= 8 AND ${doc1} = ${doc2})
+  )`;
+}
+
+/**
+ * Misma persona física: DOCENTE + APODERADO (u otras cuentas) del mismo colegio.
+ * Une por personal_id o por DNI; no mezcla alumnos ajenos.
+ */
+async function expandirIdsMismaPersona(queryFn, ids, colegioId) {
+  const base = [...new Set((ids || []).map((x) => Number(x)).filter((n) => Number.isInteger(n) && n > 0))];
+  if (!base.length || !colegioId) return base;
+  try {
+    const ph = base.map(() => '?').join(',');
+    const rows = await queryFn(
+      `SELECT DISTINCT u2.id
+       FROM usuarios u1
+       ${sqlJoinsIdentidad('u1', 'p1', 'ap1', 'a1')}
+       INNER JOIN usuarios u2
+         ON u2.colegio_id = u1.colegio_id
+        AND (u2.estado = 'ACTIVO' OR u2.estado IS NULL)
+        AND (u2.id = u1.id OR u2.tipo <> 'ALUMNO')
+       ${sqlJoinsIdentidad('u2', 'p2', 'ap2', 'a2')}
+       WHERE u1.id IN (${ph})
+         AND u1.colegio_id = ?
+         AND ${sqlMismaPersona('u1', 'p1', 'ap1', 'a1', 'u2', 'p2', 'ap2', 'a2')}`,
+      [...base, colegioId]
+    );
+    const out = [...base];
+    (rows || []).forEach((r) => {
+      const n = Number(r.id);
+      if (n > 0) out.push(n);
+    });
+    return [...new Set(out)];
+  } catch (e) {
+    console.warn('[reuniones] expandirIdsMismaPersona', e.message);
+    return base;
+  }
+}
+
+function sqlInIds(ids) {
+  const list = (ids || []).map((n) => Number(n)).filter((n) => Number.isInteger(n) && n > 0);
+  const unique = [...new Set(list.length ? list : [0])];
+  return {
+    sql: unique.map(() => '?').join(','),
+    params: unique,
+  };
+}
+
+/** Misma persona: varios usuarios (DOCENTE / APODERADO / otro) por personal_id o DNI. */
 function sqlConvocadoPorUsuarioOPersona(aliasReunion = 'r', paramUsuario = '?') {
   return `(
     ${aliasReunion}.creador_usuario_id = ${paramUsuario}
@@ -104,35 +174,26 @@ function sqlConvocadoPorUsuarioOPersona(aliasReunion = 'r', paramUsuario = '?') 
     OR EXISTS (
       SELECT 1 FROM reuniones_participantes p
       INNER JOIN usuarios ui ON ui.id = p.usuario_id
+      ${sqlJoinsIdentidad('ui', 'pi', 'api', 'ali')}
       INNER JOIN usuarios uy ON uy.id = ${paramUsuario}
+      ${sqlJoinsIdentidad('uy', 'py', 'apy', 'aly')}
       WHERE p.reunion_id = ${aliasReunion}.id
-        AND ui.personal_id IS NOT NULL
-        AND uy.personal_id IS NOT NULL
-        AND ui.personal_id = uy.personal_id
+        AND ${sqlMismaPersona('ui', 'pi', 'api', 'ali', 'uy', 'py', 'apy', 'aly')}
     )
   )`;
 }
 
-async function usuarioEsConvocado(queryFn, reunionId, usuarioId) {
+async function usuarioEsConvocado(queryFn, reunionId, usuarioId, colegioId) {
   const uid = Number(usuarioId);
   if (!uid) return false;
+  const ids = await expandirIdsMismaPersona(queryFn, [uid], colegioId);
+  const { sql, params } = sqlInIds(ids);
   const rows = await queryFn(
     `SELECT 1
      FROM reuniones_participantes p
-     WHERE p.reunion_id = ?
-       AND (
-         p.usuario_id = ?
-         OR EXISTS (
-           SELECT 1 FROM usuarios ui
-           INNER JOIN usuarios uy ON uy.id = ?
-           WHERE ui.id = p.usuario_id
-             AND ui.personal_id IS NOT NULL
-             AND uy.personal_id IS NOT NULL
-             AND ui.personal_id = uy.personal_id
-         )
-       )
+     WHERE p.reunion_id = ? AND p.usuario_id IN (${sql})
      LIMIT 1`,
-    [reunionId, uid, uid]
+    [reunionId, ...params]
   );
   return Array.isArray(rows) && rows.length > 0;
 }
@@ -142,7 +203,7 @@ async function puedeVerReunion(queryFn, reunion, usuario_id, tipo) {
   if (puedeDirigirReunion(reunion, usuario_id, tipo)) return true;
   if (Number(reunion.creador_usuario_id) === Number(usuario_id)) return true;
   if (reunion.abrir_usuario_id && Number(reunion.abrir_usuario_id) === Number(usuario_id)) return true;
-  return usuarioEsConvocado(queryFn, reunion.id, usuario_id);
+  return usuarioEsConvocado(queryFn, reunion.id, usuario_id, reunion.colegio_id);
 }
 
 async function obtenerReunion(queryFn, reunionId, colegio_id) {
@@ -173,6 +234,7 @@ async function listarParticipantes(queryFn, reunionId, { incluirFirmas } = {}) {
        (rp.firma_data IS NOT NULL AND rp.firma_data <> '') AS tiene_firma`;
   const sql = `SELECT rp.id, rp.reunion_id, rp.usuario_id, rp.tipo, rp.rol, rp.asistencia,
             u.personal_id,
+            ${sqlDocumentoUsuario('u', 'p', 'ap', 'a')} AS nro_documento,
             DATE_FORMAT(rp.asistencia_en, '%Y-%m-%d %H:%i:%s') AS asistencia_en
             ${firmaCols},
             ${nombre} AS nombre,
@@ -192,6 +254,7 @@ async function listarParticipantes(queryFn, reunionId, { incluirFirmas } = {}) {
         await queryFn(
           `SELECT rp.id, rp.reunion_id, rp.usuario_id, rp.tipo, rp.rol, rp.asistencia,
                   u.personal_id,
+                  ${sqlDocumentoUsuario('u', 'p', 'ap', 'a')} AS nro_documento,
                   DATE_FORMAT(rp.asistencia_en, '%Y-%m-%d %H:%i:%s') AS asistencia_en,
                   ${nombre} AS nombre,
                   COALESCE(a.foto, p.foto) AS foto
@@ -217,19 +280,27 @@ function scoreParticipante(r) {
   return n;
 }
 
+function clavePersonaParticipante(r) {
+  const dni = String(r.nro_documento || '').trim();
+  if (dni.length >= 8) return `dni:${dni}`;
+  const pid = r.personal_id != null ? Number(r.personal_id) : 0;
+  if (pid) return `p:${pid}`;
+  return null;
+}
+
 function deduparParticipantesPersona(rows) {
-  const byPersonal = new Map();
-  const sinPersonal = [];
+  const byClave = new Map();
+  const sueltos = [];
   (rows || []).forEach((r) => {
-    const pid = r.personal_id != null ? Number(r.personal_id) : 0;
-    if (!pid) {
-      sinPersonal.push(r);
+    const clave = clavePersonaParticipante(r);
+    if (!clave) {
+      sueltos.push(r);
       return;
     }
-    const prev = byPersonal.get(pid);
-    if (!prev || scoreParticipante(r) > scoreParticipante(prev)) byPersonal.set(pid, r);
+    const prev = byClave.get(clave);
+    if (!prev || scoreParticipante(r) > scoreParticipante(prev)) byClave.set(clave, r);
   });
-  return [...byPersonal.values(), ...sinPersonal];
+  return [...byClave.values(), ...sueltos];
 }
 
 async function asegurarConvocante(executeFn, queryFn, reunionId, usuarioId, tipo) {
@@ -255,26 +326,7 @@ async function insertarParticipantes(executeFn, queryFn, reunionId, colegioId, i
   const lista = Array.isArray(invitados) ? invitados : [];
   let ids = [...new Set(lista.map((x) => parseInt(x.usuario_id || x, 10)).filter((n) => Number.isInteger(n) && n > 0))];
   if (!ids.length) return { agregados: 0 };
-  try {
-    const ph = ids.map(() => '?').join(',');
-    const hermanos = await queryFn(
-      `SELECT DISTINCT u2.id
-       FROM usuarios u1
-       INNER JOIN usuarios u2
-         ON u2.personal_id = u1.personal_id
-        AND u2.personal_id IS NOT NULL
-        AND (u2.estado = 'ACTIVO' OR u2.estado IS NULL)
-       WHERE u1.id IN (${ph}) AND u1.colegio_id = ? AND u2.colegio_id = ?`,
-      [...ids, colegioId, colegioId]
-    );
-    (hermanos || []).forEach((h) => {
-      const n = Number(h.id);
-      if (n > 0) ids.push(n);
-    });
-    ids = [...new Set(ids)];
-  } catch {
-    /* si falla el cruce, invita solo los IDs originales */
-  }
+  ids = await expandirIdsMismaPersona(queryFn, ids, colegioId);
   const ph = ids.map(() => '?').join(',');
   const users = await queryFn(
     `SELECT id, tipo FROM usuarios WHERE colegio_id = ? AND id IN (${ph}) AND (estado = 'ACTIVO' OR estado IS NULL)`,
@@ -565,6 +617,8 @@ async function listarReunionesComoActividades(queryFn, opts) {
     return [];
   }
   const añoFiltro = anio ? parseInt(anio, 10) : new Date().getFullYear();
+  const idsPersona = await expandirIdsMismaPersona(queryFn, [usuario_id], colegio_id);
+  const { sql: ph, params: idsParams } = sqlInIds(idsPersona);
   const rows = await queryFn(
     `SELECT r.id, r.titulo, r.descripcion, r.lugar, r.modalidad, r.estado,
             DATE_FORMAT(r.fecha, '%Y-%m-%d') AS fecha,
@@ -574,9 +628,16 @@ async function listarReunionesComoActividades(queryFn, opts) {
      WHERE r.colegio_id = ?
        AND YEAR(r.fecha) = ?
        AND r.estado IN ('CONVOCADA','EN_CURSO','CERRADA')
-       AND ${sqlConvocadoPorUsuarioOPersona('r', '?')}
+       AND (
+         r.creador_usuario_id IN (${ph})
+         OR r.abrir_usuario_id IN (${ph})
+         OR EXISTS (
+           SELECT 1 FROM reuniones_participantes p
+           WHERE p.reunion_id = r.id AND p.usuario_id IN (${ph})
+         )
+       )
      ORDER BY r.fecha ASC, r.hora_inicio ASC`,
-    [colegio_id, añoFiltro, usuario_id, usuario_id, usuario_id, usuario_id]
+    [colegio_id, añoFiltro, ...idsParams, ...idsParams, ...idsParams]
   );
   let list = (rows || []).map(reunionAActividad);
   if (mes) {
@@ -709,6 +770,7 @@ module.exports = {
   tablaReunionesExiste,
   puedeVerReunion,
   usuarioEsConvocado,
+  expandirIdsMismaPersona,
   sqlConvocadoPorUsuarioOPersona,
   obtenerReunion,
   listarParticipantes,
