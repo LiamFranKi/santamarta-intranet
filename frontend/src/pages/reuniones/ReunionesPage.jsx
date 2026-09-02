@@ -609,7 +609,7 @@ function BuscadorQuienAbre({ value, onChange }) {
   );
 }
 
-function FormularioReunion({ base, reunion, esGestor }) {
+function FormularioReunion({ base, reunion, esGestor, archivosIniciales }) {
   const navigate = useNavigate();
   const [form, setForm] = useState(() =>
     reunion
@@ -643,6 +643,8 @@ function FormularioReunion({ base, reunion, esGestor }) {
     return null;
   });
   const [saving, setSaving] = useState(false);
+  const [archivos, setArchivos] = useState(archivosIniciales || []);
+  const [subiendoArchivo, setSubiendoArchivo] = useState(false);
   const presencial = form.modalidad === 'PRESENCIAL';
 
   const setCampo = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
@@ -755,6 +757,54 @@ function FormularioReunion({ base, reunion, esGestor }) {
               />
             </>
           ) : null}
+          {reunion?.id ? (
+            <ReunionArchivosLista
+              archivos={archivos}
+              puedeSubir
+              subiendo={subiendoArchivo}
+              onSubir={async (e) => {
+                const files = e.target.files ? Array.from(e.target.files) : [];
+                e.target.value = '';
+                if (!files.length) return;
+                setSubiendoArchivo(true);
+                try {
+                  let ultimo = null;
+                  for (const file of files) {
+                    const fd = new FormData();
+                    fd.append('archivo', file);
+                    const { data } = await api.post(`/reuniones/${reunion.id}/archivos`, fd);
+                    ultimo = data;
+                  }
+                  if (ultimo?.archivos) setArchivos(ultimo.archivos);
+                } catch (err) {
+                  Swal.fire('Archivo', err.response?.data?.error || 'No se pudo subir.', 'error');
+                } finally {
+                  setSubiendoArchivo(false);
+                }
+              }}
+              onEliminar={async (archivo) => {
+                if (!archivo?.id) return;
+                const ok = await Swal.fire({
+                  title: '¿Quitar este documento?',
+                  text: archivo.nombre_original || 'Se elimina solo este archivo.',
+                  icon: 'warning',
+                  showCancelButton: true,
+                  confirmButtonText: 'Sí, quitar',
+                  cancelButtonText: 'No',
+                  confirmButtonColor: '#b91c1c',
+                });
+                if (!ok.isConfirmed) return;
+                try {
+                  const { data } = await api.delete(`/reuniones/${reunion.id}/archivos/${archivo.id}`);
+                  setArchivos(data.archivos || []);
+                } catch (err) {
+                  Swal.fire('Documento', err.response?.data?.error || 'No se pudo quitar.', 'error');
+                }
+              }}
+            />
+          ) : (
+            <p className="re-hint">Guarda la reunión para poder adjuntar documentos.</p>
+          )}
           <div className="re-actions-row">
             <button type="button" className="re-btn re-btn-ghost" style={{ background: '#e2e8f0', color: '#0f172a' }} onClick={() => guardar(false)} disabled={saving}>
               Guardar borrador
@@ -967,6 +1017,26 @@ function DetalleReunion({ reunionId, base }) {
     }
   };
 
+  const eliminarArchivo = async (archivo) => {
+    if (!archivo?.id) return;
+    const ok = await Swal.fire({
+      title: '¿Quitar este documento?',
+      text: archivo.nombre_original || 'Se elimina solo este archivo.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, quitar',
+      cancelButtonText: 'No',
+      confirmButtonColor: '#b91c1c',
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      const { data } = await api.delete(`/reuniones/${r.id}/archivos/${archivo.id}`);
+      setPack(data);
+    } catch (err) {
+      Swal.fire('Documento', err.response?.data?.error || 'No se pudo quitar.', 'error');
+    }
+  };
+
   if (loading || !r) {
     return (
       <DashboardLayout>
@@ -1048,6 +1118,7 @@ function DetalleReunion({ reunionId, base }) {
     <ReunionArchivosLista
       archivos={pack.archivos}
       onSubir={subirArchivo}
+      onEliminar={eliminarArchivo}
       puedeSubir={!!p.puede_archivos}
       subiendo={subiendoArchivo}
     />
@@ -1348,6 +1419,7 @@ function FormularioEditar({ reunionId, base, esGestor }) {
         abrir_usuario_id: pack.abrir?.usuario_id || pack.reunion.abrir_usuario_id,
         abrir_nombre: pack.abrir?.nombre,
       }}
+      archivosIniciales={pack.archivos || []}
       esGestor={esGestor}
     />
   );

@@ -56,14 +56,26 @@ function IconoTipo({ tipo }) {
   );
 }
 
-export function ReunionArchivoCard({ archivo }) {
+export function ReunionArchivoCard({ archivo, onEliminar }) {
   const tipo = extDe(archivo.nombre_original, archivo.mime_type);
   return (
-    <a className="re-arch-card" href={archivo.url} target="_blank" rel="noopener noreferrer" title={archivo.nombre_original}>
-      <IconoTipo tipo={tipo} />
-      <span className="re-arch-card-name">{archivo.nombre_original}</span>
-      <span className="re-arch-card-open">Abrir</span>
-    </a>
+    <div className="re-arch-card-wrap">
+      <a className="re-arch-card" href={archivo.url} target="_blank" rel="noopener noreferrer" title={archivo.nombre_original}>
+        <IconoTipo tipo={tipo} />
+        <span className="re-arch-card-name">{archivo.nombre_original}</span>
+        <span className="re-arch-card-open">Abrir</span>
+      </a>
+      {onEliminar ? (
+        <button
+          type="button"
+          className="re-arch-card-del"
+          aria-label={`Eliminar ${archivo.nombre_original}`}
+          onClick={() => onEliminar(archivo)}
+        >
+          ×
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -77,19 +89,19 @@ export function ReunionSubirArchivo({ onChange, subiendo }) {
   );
 }
 
-export default function ReunionArchivosLista({ archivos, onSubir, puedeSubir, subiendo }) {
+export default function ReunionArchivosLista({ archivos, onSubir, onEliminar, puedeSubir, subiendo }) {
   const hay = (archivos || []).length > 0;
   return (
     <div className="re-detalle" style={{ marginBottom: '1rem' }}>
       <h3 style={{ marginTop: 0 }}>Documentos</h3>
       <p className="re-hint">
         {puedeSubir
-          ? 'Puedes agregar más archivos ahora. Todos los convocados los ven.'
+          ? 'Puedes agregar o quitar archivos. Todos los convocados los ven.'
           : 'Documentos compartidos de la reunión.'}
       </p>
       <div className="re-archivos-lista">
         {(archivos || []).map((a) => (
-          <ReunionArchivoCard key={a.id} archivo={a} />
+          <ReunionArchivoCard key={a.id} archivo={a} onEliminar={puedeSubir ? onEliminar : null} />
         ))}
         {puedeSubir ? <ReunionSubirArchivo onChange={onSubir} subiendo={subiendo} /> : null}
       </div>

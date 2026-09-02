@@ -1121,6 +1121,10 @@
   margin: 0.7rem 0 0.85rem;
 }
 
+.re-arch-card-wrap {
+  position: relative;
+}
+
 .re-arch-card {
   display: flex;
   flex-direction: column;
@@ -1132,6 +1136,27 @@
   border-radius: 14px;
   padding: 0.75rem 0.55rem 0.65rem;
   transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.re-arch-card-del {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: none;
+  border-radius: 999px;
+  background: #fff;
+  color: #b91c1c;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+}
+
+.re-arch-card-del:hover {
+  background: #b91c1c;
+  color: #fff;
 }
 
 .re-arch-card:hover {

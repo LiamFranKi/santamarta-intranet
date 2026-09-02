@@ -220,7 +220,7 @@ async function payloadReunion(reunion, req) {
       puede_firmar: !!yo && !yoFirmo && ['EN_CURSO', 'CERRADA'].includes(reunion.estado),
       ya_firmo: yoFirmo,
       puede_archivos:
-        puedeDirigir && ['CONVOCADA', 'EN_CURSO'].includes(reunion.estado),
+        puedeDirigir && ['BORRADOR', 'CONVOCADA', 'EN_CURSO'].includes(reunion.estado),
       puede_pizarra: !!yo && ['EN_CURSO', 'CERRADA'].includes(reunion.estado),
       puede_chat: !!yo && ['EN_CURSO', 'CERRADA'].includes(reunion.estado),
       puede_escribir_chat: !!yo && reunion.estado === 'EN_CURSO',
@@ -841,6 +841,42 @@ router.delete('/:id/participantes/:usuarioId', requireGestor, async (req, res) =
   }
 });
 
+router.delete('/:id/archivos/:archivoId', async (req, res) => {
+  try {
+    const reunion = await obtenerReunion(query, req.params.id, req.user.colegio_id);
+    if (!reunion) return res.status(404).json({ error: 'Reunión no encontrada' });
+    if (!puedeDirigirReunion(reunion, uidDe(req), req.user.tipo)) {
+      return res.status(403).json({ error: 'Solo el administrador o el anfitrión pueden quitar un documento.' });
+    }
+    if (!['BORRADOR', 'CONVOCADA', 'EN_CURSO'].includes(reunion.estado)) {
+      return res.status(403).json({ error: 'Ya no se pueden quitar documentos en este estado.' });
+    }
+    const archivoId = parseInt(req.params.archivoId, 10);
+    if (!Number.isInteger(archivoId) || archivoId <= 0) {
+      return res.status(400).json({ error: 'Documento no válido.' });
+    }
+    const rows = await query(
+      `SELECT id, nombre_archivo FROM reuniones_archivos WHERE id = ? AND reunion_id = ? LIMIT 1`,
+      [archivoId, reunion.id]
+    );
+    if (!rows || !rows[0]) return res.status(404).json({ error: 'Documento no encontrado.' });
+    const nombre = path.basename(String(rows[0].nombre_archivo || ''));
+    await execute(`DELETE FROM reuniones_archivos WHERE id = ? AND reunion_id = ?`, [archivoId, reunion.id]);
+    if (nombre) {
+      try {
+        fs.unlinkSync(path.join(staticFsSubdir('Archivos'), nombre));
+      } catch {
+        /* archivo ya no está */
+      }
+    }
+    const actual = await obtenerReunion(query, reunion.id, req.user.colegio_id);
+    res.json(await payloadReunion(actual, req));
+  } catch (e) {
+    console.error('[reuniones] quitar archivo', e);
+    res.status(500).json({ error: 'Error al quitar el documento' });
+  }
+});
+
 router.post('/:id/archivos', upload.single('archivo'), async (req, res) => {
   try {
     const reunion = await obtenerReunion(query, req.params.id, req.user.colegio_id);
@@ -849,7 +885,7 @@ router.post('/:id/archivos', upload.single('archivo'), async (req, res) => {
     if (!okVer) return res.status(403).json({ error: 'No autorizado' });
     const puedeSubir =
       puedeDirigirReunion(reunion, uidDe(req), req.user.tipo) &&
-      ['CONVOCADA', 'EN_CURSO'].includes(reunion.estado);
+      ['BORRADOR', 'CONVOCADA', 'EN_CURSO'].includes(reunion.estado);
     if (!puedeSubir) {
       return res.status(403).json({ error: 'Solo el administrador o el anfitrión pueden subir documentos en la reunión.' });
     }
