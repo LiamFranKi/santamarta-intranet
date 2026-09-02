@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
@@ -9,6 +9,7 @@ import AdminWebFaqs from './AdminWebFaqs';
 import AdminWebUtiles from './AdminWebUtiles';
 import AdminWebDocumentos from './AdminWebDocumentos';
 import AdminWebMatricula from './AdminWebMatricula';
+import { generarPdfListaVisitasGuiadas } from '../../utils/pdfListaVisitasGuiadas';
 import './AdminReclamosSugerencias.css';
 
 const API = '/admin/reclamos-sugerencias';
@@ -106,6 +107,36 @@ function fmtFecha(value) {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function ymdPreferida(value) {
+  if (!value) return '';
+  const m = String(value).match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : '';
+}
+
+function fmtFechaPreferida(value) {
+  const ymd = ymdPreferida(value);
+  if (!ymd) return value ? String(value) : '—';
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('es-PE', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+function fmtFechaPreferidaLarga(ymd) {
+  const [y, m, d] = String(ymd || '').split('-').map(Number);
+  if (!d) return ymd || '';
+  const txt = new Date(y, m - 1, d).toLocaleDateString('es-PE', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  return txt.charAt(0).toUpperCase() + txt.slice(1);
 }
 
 function etiquetaEstado(estado) {
@@ -1935,6 +1966,10 @@ export default function AdminReclamosSugerencias() {
   const [q, setQ] = useState('');
   const [estado, setEstado] = useState('');
   const [tipoReclamo, setTipoReclamo] = useState('');
+  const [fechaVisita, setFechaVisita] = useState('');
+  const [horarioVisita, setHorarioVisita] = useState('');
+  const [fechasOpciones, setFechasOpciones] = useState([]);
+  const [exportandoPdf, setExportandoPdf] = useState(false);
   const [modalCorreos, setModalCorreos] = useState(false);
   const [modalVisitasCfg, setModalVisitasCfg] = useState(false);
   const [modal, setModal] = useState({ tipo: null, open: false, mode: 'view', item: null });
@@ -1944,6 +1979,8 @@ export default function AdminReclamosSugerencias() {
     setQ('');
     setEstado('');
     setTipoReclamo('');
+    setFechaVisita('');
+    setHorarioVisita('');
   };
 
   const cargar = useCallback(async () => {
@@ -1959,6 +1996,8 @@ export default function AdminReclamosSugerencias() {
       if (q.trim()) params.q = q.trim();
       if (estado) params.estado = estado;
       if (tab === 'reclamos' && tipoReclamo) params.tipo = tipoReclamo;
+      if (tab === 'visitas' && fechaVisita) params.fecha = fechaVisita;
+      if (tab === 'visitas' && horarioVisita) params.horario = horarioVisita;
 
       const endpoints = {
         reclamos: { path: '/reclamos', key: 'reclamos' },
@@ -1987,6 +2026,14 @@ export default function AdminReclamosSugerencias() {
       );
 
       setListas((prev) => ({ ...prev, [tab]: items }));
+      if (tab === 'visitas') {
+        try {
+          const opt = await api.get(`${API}/visitas/opciones-filtro`);
+          setFechasOpciones(opt.data.fechas || []);
+        } catch {
+          setFechasOpciones([]);
+        }
+      }
       setBadgeCounts((prev) => {
         const next = { ...prev };
         for (const br of badgeRes) {
@@ -1999,7 +2046,7 @@ export default function AdminReclamosSugerencias() {
     } finally {
       setLoading(false);
     }
-  }, [tab, q, estado, tipoReclamo]);
+  }, [tab, q, estado, tipoReclamo, fechaVisita, horarioVisita]);
 
   useEffect(() => {
     cargar();
@@ -2079,6 +2126,51 @@ export default function AdminReclamosSugerencias() {
   const cerrarModal = () => setModal({ tipo: null, open: false, mode: 'view', item: null });
 
   const itemsActivos = listas[tab] || [];
+
+  const horariosDeFecha = useMemo(() => {
+    const found = fechasOpciones.find((f) => f.fecha === fechaVisita);
+    return found?.horarios || [];
+  }, [fechasOpciones, fechaVisita]);
+  const mostrarFiltroHorario = Boolean(fechaVisita) && horariosDeFecha.length > 1;
+
+  const exportarPdfVisitas = async () => {
+    if (!fechaVisita) {
+      await Swal.fire({
+        icon: 'info',
+        title: 'Elige una fecha',
+        text: 'Selecciona la fecha de visita para generar la lista de quienes vienen ese día.',
+        ...swalOpts,
+      });
+      return;
+    }
+    if (!itemsActivos.length) {
+      await Swal.fire({
+        icon: 'info',
+        title: 'Sin visitantes',
+        text: 'No hay registros para esa fecha con los filtros actuales.',
+        ...swalOpts,
+      });
+      return;
+    }
+    try {
+      setExportandoPdf(true);
+      await generarPdfListaVisitasGuiadas({
+        colegioNombre: 'Vanguard Schools',
+        fechaYmd: fechaVisita,
+        horario: horarioVisita || (horariosDeFecha.length === 1 ? horariosDeFecha[0] : ''),
+        filas: itemsActivos,
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo exportar',
+        text: e?.message || 'Error al generar el PDF',
+        ...swalOpts,
+      });
+    } finally {
+      setExportandoPdf(false);
+    }
+  };
 
   const placeholderBuscar = {
     reclamos: 'Nombre, N°, email, detalle…',
@@ -2172,10 +2264,66 @@ export default function AdminReclamosSugerencias() {
               </select>
             </div>
           )}
-          <button type="button" className="rs-btn rs-btn-primary" onClick={cargar}>
-            Filtrar
-          </button>
+          {tab === 'visitas' && (
+            <>
+              <div className="rs-field">
+                <label>Fecha de visita</label>
+                <select
+                  value={fechaVisita}
+                  onChange={(e) => {
+                    setFechaVisita(e.target.value);
+                    setHorarioVisita('');
+                  }}
+                >
+                  <option value="">Todas</option>
+                  {fechasOpciones.map((f) => (
+                    <option key={f.fecha} value={f.fecha}>
+                      {fmtFechaPreferidaLarga(f.fecha)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {mostrarFiltroHorario && (
+                <div className="rs-field">
+                  <label>Horario</label>
+                  <select value={horarioVisita} onChange={(e) => setHorarioVisita(e.target.value)}>
+                    <option value="">Todos</option>
+                    {horariosDeFecha.map((h) => (
+                      <option key={h} value={h}>
+                        {h}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </>
+          )}
+          <div className="rs-toolbar-btns">
+            <button type="button" className="rs-btn rs-btn-primary" onClick={cargar}>
+              Filtrar
+            </button>
+            {tab === 'visitas' && (
+              <button
+                type="button"
+                className="rs-btn rs-btn-pdf"
+                onClick={exportarPdfVisitas}
+                disabled={exportandoPdf}
+              >
+                {exportandoPdf ? 'Generando…' : '📄 Exportar PDF'}
+              </button>
+            )}
+          </div>
         </div>
+
+        {tab === 'visitas' && fechaVisita && (
+          <p className="rs-visitas-filtro-hint">
+            Lista del {fmtFechaPreferidaLarga(fechaVisita)}
+            {horarioVisita ? ` · ${horarioVisita}` : ''}
+            {itemsActivos.length
+              ? ` · ${itemsActivos.length} visitante${itemsActivos.length === 1 ? '' : 's'}`
+              : ''}
+          </p>
+        )}
 
         {error && <p className="rs-error">{error}</p>}
         {loading ? (
@@ -2403,7 +2551,7 @@ export default function AdminReclamosSugerencias() {
                         <div className="rs-muted">{row.email}</div>
                       </td>
                       <td>
-                        <div>{row.fecha_preferida || '—'}</div>
+                        <div>{fmtFechaPreferida(row.fecha_preferida)}</div>
                         <div className="rs-muted">{row.horario_preferido || ''}</div>
                       </td>
                       <td>{row.nivel_interes || '—'}</td>

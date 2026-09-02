@@ -461,9 +461,37 @@ router.delete('/contactenos/:id', async (req, res) => {
 
 // ─── Visitas guiadas ────────────────────────────────────────────────────────
 
+router.get('/visitas/opciones-filtro', async (req, res) => {
+  try {
+    const rows = (await query(
+      `SELECT DATE_FORMAT(fecha_preferida, '%Y-%m-%d') AS fecha,
+              TRIM(horario_preferido) AS horario
+       FROM web_visitas_guiadas
+       WHERE fecha_preferida IS NOT NULL
+       ORDER BY fecha_preferida DESC, horario_preferido ASC`
+    )) || [];
+    const byFecha = new Map();
+    for (const r of rows) {
+      const fecha = String(r.fecha || '').slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) continue;
+      if (!byFecha.has(fecha)) byFecha.set(fecha, []);
+      const horario = String(r.horario || '').trim();
+      const list = byFecha.get(fecha);
+      if (horario && list.indexOf(horario) === -1) list.push(horario);
+    }
+    const fechas = [];
+    byFecha.forEach((horarios, fecha) => {
+      fechas.push({ fecha, horarios });
+    });
+    res.json({ fechas });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al listar fechas de visitas.' });
+  }
+});
+
 router.get('/visitas', async (req, res) => {
   try {
-    const { estado, q } = req.query;
+    const { estado, q, fecha, horario } = req.query;
     const params = [];
     let sql = `
       SELECT id, fecha_registro, nombre, email, telefono, nivel_interes, fecha_preferida,
@@ -474,12 +502,24 @@ router.get('/visitas', async (req, res) => {
       sql += ' AND estado = ?';
       params.push(String(estado));
     }
+    if (fecha && /^\d{4}-\d{2}-\d{2}$/.test(String(fecha))) {
+      sql += ' AND DATE(fecha_preferida) = ?';
+      params.push(String(fecha));
+    }
+    if (horario && String(horario).trim()) {
+      sql += ' AND horario_preferido = ?';
+      params.push(String(horario).trim());
+    }
     if (q && String(q).trim()) {
       const like = `%${String(q).trim()}%`;
       sql += ' AND (nombre LIKE ? OR email LIKE ? OR nivel_interes LIKE ? OR mensaje LIKE ? OR horario_preferido LIKE ?)';
       params.push(like, like, like, like, like);
     }
-    sql += ' ORDER BY fecha_registro DESC, id DESC LIMIT 500';
+    if (fecha && /^\d{4}-\d{2}-\d{2}$/.test(String(fecha))) {
+      sql += ' ORDER BY horario_preferido ASC, nombre ASC, id ASC LIMIT 500';
+    } else {
+      sql += ' ORDER BY fecha_preferida ASC, fecha_registro DESC, id DESC LIMIT 500';
+    }
     res.json({ visitas: (await query(sql, params)) || [] });
   } catch (e) {
     res.status(500).json({ error: e.message || 'Error al listar visitas.' });

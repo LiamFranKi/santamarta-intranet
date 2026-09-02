@@ -194,6 +194,27 @@
   border-radius: 14px;
 }
 
+.rs-toolbar-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+  align-items: stretch;
+}
+
+.rs-btn-pdf {
+  background: #fff1f2;
+  color: #9f1239;
+  box-shadow: 0 4px 12px rgba(159, 18, 57, 0.12);
+}
+
+.rs-visitas-filtro-hint {
+  margin: -0.35rem 0 0.9rem;
+  font-size: 0.88rem;
+  color: #334155;
+  font-weight: 600;
+}
+
 .rs-field {
   display: flex;
   flex-direction: column;
