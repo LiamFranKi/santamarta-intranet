@@ -740,6 +740,7 @@ function DetalleReunion({ reunionId, base }) {
   const [firmaParaSalir, setFirmaParaSalir] = useState(false);
   const [firmando, setFirmando] = useState(false);
   const [tab, setTab] = useState('chat');
+  const [subiendoArchivo, setSubiendoArchivo] = useState(false);
   const [segCierre, setSegCierre] = useState(null);
   const [irAResumen, setIrAResumen] = useState(false);
   const avisoCierreRef = useRef(false);
@@ -905,16 +906,24 @@ function DetalleReunion({ reunionId, base }) {
   };
 
   const subirArchivo = async (e) => {
-    const file = e.target.files && e.target.files[0];
+    const files = e.target.files ? Array.from(e.target.files) : [];
     e.target.value = '';
-    if (!file) return;
-    const fd = new FormData();
-    fd.append('archivo', file);
+    if (!files.length) return;
+    setSubiendoArchivo(true);
     try {
-      const { data } = await api.post(`/reuniones/${r.id}/archivos`, fd);
-      setPack(data);
+      let ultimo = pack;
+      for (const file of files) {
+        const fd = new FormData();
+        fd.append('archivo', file);
+        const { data } = await api.post(`/reuniones/${r.id}/archivos`, fd);
+        ultimo = data;
+        setPack(data);
+      }
+      if (ultimo) setPack(ultimo);
     } catch (err) {
       Swal.fire('Archivo', err.response?.data?.error || 'No se pudo subir.', 'error');
+    } finally {
+      setSubiendoArchivo(false);
     }
   };
 
@@ -996,7 +1005,12 @@ function DetalleReunion({ reunionId, base }) {
   );
 
   const bloqueArchivos = (
-    <ReunionArchivosLista archivos={pack.archivos} onSubir={subirArchivo} puedeSubir={!!p.puede_archivos} />
+    <ReunionArchivosLista
+      archivos={pack.archivos}
+      onSubir={subirArchivo}
+      puedeSubir={!!p.puede_archivos}
+      subiendo={subiendoArchivo}
+    />
   );
 
   const bloqueActa = enCurso || p.puede_escribir_acta || r.acta || r.acuerdos || p.puede_acta ? (
@@ -1158,7 +1172,7 @@ function DetalleReunion({ reunionId, base }) {
                   {[
                     ['chat', 'Chat'],
                     ['acta', 'Acta'],
-                    ['archivos', 'Archivos'],
+                    ['archivos', 'Documentos'],
                     ['personas', 'Lista'],
                     ['pizarra', 'Pizarra'],
                   ].map(([id, label]) => (

@@ -172,7 +172,9 @@ async function payloadReunion(reunion, req) {
     url: urlArchivoMensajeStatic(a.nombre_archivo),
   }));
   const uid = Number(uidDe(req));
-  const yo = (participantes || []).find((p) => Number(p.usuario_id) === uid) || null;
+  const idsYo = await expandirIdsMismaPersona(query, [uid], req.user.colegio_id);
+  const yo =
+    (participantes || []).find((p) => idsYo.includes(Number(p.usuario_id))) || null;
   const esGestor = esGestorReuniones(req.user.tipo);
   const esCreador = Number(reunion.creador_usuario_id) === uid;
   const puedeDirigir = puedeDirigirReunion(reunion, uid, req.user.tipo);
@@ -212,7 +214,7 @@ async function payloadReunion(reunion, req) {
       puede_firmar: !!yo && !yoFirmo && ['EN_CURSO', 'CERRADA'].includes(reunion.estado),
       ya_firmo: yoFirmo,
       puede_archivos:
-        !!yo && ['CONVOCADA', 'EN_CURSO', 'CERRADA'].includes(reunion.estado),
+        puedeDirigir && ['CONVOCADA', 'EN_CURSO'].includes(reunion.estado),
       puede_pizarra: !!yo && ['EN_CURSO', 'CERRADA'].includes(reunion.estado),
       puede_chat: !!yo && ['EN_CURSO', 'CERRADA'].includes(reunion.estado),
       puede_escribir_chat: !!yo && reunion.estado === 'EN_CURSO',
@@ -284,15 +286,23 @@ router.get('/', async (req, res) => {
     if (!gestor) {
       const idsPersona = await expandirIdsMismaPersona(query, [usuario_id], colegio_id);
       const ph = idsPersona.map(() => '?').join(',');
-      sql += ` AND (
-        r.creador_usuario_id IN (${ph})
-        OR r.abrir_usuario_id IN (${ph})
-        OR EXISTS (
+      if (String(tipo || '').toUpperCase() === 'ALUMNO') {
+        sql += ` AND EXISTS (
           SELECT 1 FROM reuniones_participantes p
           WHERE p.reunion_id = r.id AND p.usuario_id IN (${ph})
-        )
-      ) AND r.estado <> 'BORRADOR'`;
-      params.push(...idsPersona, ...idsPersona, ...idsPersona);
+        ) AND r.estado <> 'BORRADOR'`;
+        params.push(...idsPersona);
+      } else {
+        sql += ` AND (
+          r.creador_usuario_id = ?
+          OR r.abrir_usuario_id = ?
+          OR EXISTS (
+            SELECT 1 FROM reuniones_participantes p
+            WHERE p.reunion_id = r.id AND p.usuario_id IN (${ph})
+          )
+        ) AND r.estado <> 'BORRADOR'`;
+        params.push(usuario_id, usuario_id, ...idsPersona);
+      }
     }
     if (filtro === 'proximas') {
       sql += ` AND r.fecha >= ? AND r.estado IN ('BORRADOR','CONVOCADA','EN_CURSO')`;
@@ -816,10 +826,10 @@ router.post('/:id/archivos', upload.single('archivo'), async (req, res) => {
     const okVer = await puedeVerReunion(query, reunion, uidDe(req), req.user.tipo);
     if (!okVer) return res.status(403).json({ error: 'No autorizado' });
     const puedeSubir =
-      puedeDirigirReunion(reunion, uidDe(req), req.user.tipo) ||
+      puedeDirigirReunion(reunion, uidDe(req), req.user.tipo) &&
       ['CONVOCADA', 'EN_CURSO'].includes(reunion.estado);
-    if (!puedeSubir || reunion.estado === 'CANCELADA') {
-      return res.status(403).json({ error: 'No se pueden subir archivos en este estado.' });
+    if (!puedeSubir) {
+      return res.status(403).json({ error: 'Solo el administrador o el anfitrión pueden subir documentos en la reunión.' });
     }
     if (!req.file) return res.status(400).json({ error: 'Adjunta un archivo.' });
     await execute(

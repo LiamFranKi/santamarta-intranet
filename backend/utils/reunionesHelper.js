@@ -92,35 +92,35 @@ function nombreSqlUsuario() {
   )`;
 }
 
-/** DNI de la ficha (personal, apoderado o alumno). El login numérico suele ser el mismo DNI. */
-function sqlDocumentoUsuario(aliasU, aliasP, aliasAp, aliasAl) {
+/** DNI solo de ficha adulta (personal o apoderado). Nunca DNI de alumno ni el login. */
+function sqlDocumentoAdulto(aliasP, aliasAp) {
   return `NULLIF(TRIM(COALESCE(
     NULLIF(TRIM(${aliasP}.nro_documento), ''),
-    NULLIF(TRIM(${aliasAp}.nro_documento), ''),
-    NULLIF(TRIM(${aliasAl}.nro_documento), ''),
-    CASE WHEN ${aliasU}.usuario REGEXP '^[0-9]{8,12}$' THEN TRIM(${aliasU}.usuario) ELSE NULL END
+    NULLIF(TRIM(${aliasAp}.nro_documento), '')
   )), '')`;
 }
 
 function sqlJoinsIdentidad(aliasU, aliasP, aliasAp, aliasAl) {
-  return `LEFT JOIN personal ${aliasP} ON ${aliasP}.id = ${aliasU}.personal_id
+  return `LEFT JOIN personal ${aliasP} ON ${aliasP}.id = ${aliasU}.personal_id AND ${aliasU}.personal_id > 0
      LEFT JOIN apoderados ${aliasAp} ON ${aliasAp}.id = ${aliasU}.apoderado_id
      LEFT JOIN alumnos ${aliasAl} ON ${aliasAl}.id = ${aliasU}.alumno_id`;
 }
 
-function sqlMismaPersona(u1, p1, ap1, a1, u2, p2, ap2, a2) {
-  const doc1 = sqlDocumentoUsuario(u1, p1, ap1, a1);
-  const doc2 = sqlDocumentoUsuario(u2, p2, ap2, a2);
+function sqlMismaPersonaAdulta(u1, p1, ap1, u2, p2, ap2) {
+  const doc1 = sqlDocumentoAdulto(p1, ap1);
+  const doc2 = sqlDocumentoAdulto(p2, ap2);
   return `(
     ${u2}.id = ${u1}.id
-    OR (${u1}.personal_id IS NOT NULL AND ${u2}.personal_id = ${u1}.personal_id)
+    OR (${u1}.personal_id > 0 AND ${u2}.personal_id = ${u1}.personal_id)
     OR (${doc1} IS NOT NULL AND CHAR_LENGTH(${doc1}) >= 8 AND ${doc1} = ${doc2})
   )`;
 }
 
 /**
- * Misma persona física: DOCENTE + APODERADO (u otras cuentas) del mismo colegio.
- * Une por personal_id o por DNI; no mezcla alumnos ajenos.
+ * Cuentas de la misma persona.
+ * Alumno: solo otras cuentas ALUMNO del mismo alumno_id.
+ * Adulto (docente/apoderado/personal): otras cuentas adultas por personal_id > 0 o DNI de ficha.
+ * Nunca une un alumno con un apoderado, docente o administrador.
  */
 async function expandirIdsMismaPersona(queryFn, ids, colegioId) {
   const base = [...new Set((ids || []).map((x) => Number(x)).filter((n) => Number.isInteger(n) && n > 0))];
@@ -134,11 +134,21 @@ async function expandirIdsMismaPersona(queryFn, ids, colegioId) {
        INNER JOIN usuarios u2
          ON u2.colegio_id = u1.colegio_id
         AND (u2.estado = 'ACTIVO' OR u2.estado IS NULL)
-        AND (u2.id = u1.id OR u2.tipo <> 'ALUMNO')
        ${sqlJoinsIdentidad('u2', 'p2', 'ap2', 'a2')}
        WHERE u1.id IN (${ph})
          AND u1.colegio_id = ?
-         AND ${sqlMismaPersona('u1', 'p1', 'ap1', 'a1', 'u2', 'p2', 'ap2', 'a2')}`,
+         AND (
+           u2.id = u1.id
+           OR (
+             u1.tipo = 'ALUMNO' AND u2.tipo = 'ALUMNO'
+             AND u1.alumno_id IS NOT NULL AND u1.alumno_id > 0
+             AND u2.alumno_id = u1.alumno_id
+           )
+           OR (
+             u1.tipo <> 'ALUMNO' AND u2.tipo <> 'ALUMNO'
+             AND ${sqlMismaPersonaAdulta('u1', 'p1', 'ap1', 'u2', 'p2', 'ap2')}
+           )
+         )`,
       [...base, colegioId]
     );
     const out = [...base];
@@ -178,7 +188,17 @@ function sqlConvocadoPorUsuarioOPersona(aliasReunion = 'r', paramUsuario = '?') 
       INNER JOIN usuarios uy ON uy.id = ${paramUsuario}
       ${sqlJoinsIdentidad('uy', 'py', 'apy', 'aly')}
       WHERE p.reunion_id = ${aliasReunion}.id
-        AND ${sqlMismaPersona('ui', 'pi', 'api', 'ali', 'uy', 'py', 'apy', 'aly')}
+        AND (
+          (
+            uy.tipo = 'ALUMNO' AND ui.tipo = 'ALUMNO'
+            AND uy.alumno_id IS NOT NULL AND uy.alumno_id > 0
+            AND ui.alumno_id = uy.alumno_id
+          )
+          OR (
+            uy.tipo <> 'ALUMNO' AND ui.tipo <> 'ALUMNO'
+            AND ${sqlMismaPersonaAdulta('ui', 'pi', 'api', 'uy', 'py', 'apy')}
+          )
+        )
     )
   )`;
 }
@@ -200,6 +220,9 @@ async function usuarioEsConvocado(queryFn, reunionId, usuarioId, colegioId) {
 
 async function puedeVerReunion(queryFn, reunion, usuario_id, tipo) {
   if (!reunion) return false;
+  if (String(tipo || '').toUpperCase() === 'ALUMNO') {
+    return usuarioEsConvocado(queryFn, reunion.id, usuario_id, reunion.colegio_id);
+  }
   if (puedeDirigirReunion(reunion, usuario_id, tipo)) return true;
   if (Number(reunion.creador_usuario_id) === Number(usuario_id)) return true;
   if (reunion.abrir_usuario_id && Number(reunion.abrir_usuario_id) === Number(usuario_id)) return true;
@@ -234,7 +257,7 @@ async function listarParticipantes(queryFn, reunionId, { incluirFirmas } = {}) {
        (rp.firma_data IS NOT NULL AND rp.firma_data <> '') AS tiene_firma`;
   const sql = `SELECT rp.id, rp.reunion_id, rp.usuario_id, rp.tipo, rp.rol, rp.asistencia,
             u.personal_id,
-            ${sqlDocumentoUsuario('u', 'p', 'ap', 'a')} AS nro_documento,
+            ${sqlDocumentoAdulto('p', 'ap')} AS nro_documento,
             DATE_FORMAT(rp.asistencia_en, '%Y-%m-%d %H:%i:%s') AS asistencia_en
             ${firmaCols},
             ${nombre} AS nombre,
@@ -254,7 +277,7 @@ async function listarParticipantes(queryFn, reunionId, { incluirFirmas } = {}) {
         await queryFn(
           `SELECT rp.id, rp.reunion_id, rp.usuario_id, rp.tipo, rp.rol, rp.asistencia,
                   u.personal_id,
-                  ${sqlDocumentoUsuario('u', 'p', 'ap', 'a')} AS nro_documento,
+                  ${sqlDocumentoAdulto('p', 'ap')} AS nro_documento,
                   DATE_FORMAT(rp.asistencia_en, '%Y-%m-%d %H:%i:%s') AS asistencia_en,
                   ${nombre} AS nombre,
                   COALESCE(a.foto, p.foto) AS foto
@@ -617,8 +640,32 @@ async function listarReunionesComoActividades(queryFn, opts) {
     return [];
   }
   const añoFiltro = anio ? parseInt(anio, 10) : new Date().getFullYear();
+  let tipo = String((opts || {}).tipo || '').toUpperCase();
+  if (!tipo) {
+    try {
+      const tipoRows = await queryFn('SELECT tipo FROM usuarios WHERE id = ? LIMIT 1', [usuario_id]);
+      tipo = String(tipoRows && tipoRows[0] ? tipoRows[0].tipo : '').toUpperCase();
+    } catch {
+      tipo = '';
+    }
+  }
   const idsPersona = await expandirIdsMismaPersona(queryFn, [usuario_id], colegio_id);
   const { sql: ph, params: idsParams } = sqlInIds(idsPersona);
+  const soloConvocado = tipo === 'ALUMNO';
+  const visibilidad = soloConvocado
+    ? `EXISTS (
+         SELECT 1 FROM reuniones_participantes p
+         WHERE p.reunion_id = r.id AND p.usuario_id IN (${ph})
+       )`
+    : `(
+         r.creador_usuario_id = ?
+         OR r.abrir_usuario_id = ?
+         OR EXISTS (
+           SELECT 1 FROM reuniones_participantes p
+           WHERE p.reunion_id = r.id AND p.usuario_id IN (${ph})
+         )
+       )`;
+  const visParams = soloConvocado ? [...idsParams] : [usuario_id, usuario_id, ...idsParams];
   const rows = await queryFn(
     `SELECT r.id, r.titulo, r.descripcion, r.lugar, r.modalidad, r.estado,
             DATE_FORMAT(r.fecha, '%Y-%m-%d') AS fecha,
@@ -628,16 +675,9 @@ async function listarReunionesComoActividades(queryFn, opts) {
      WHERE r.colegio_id = ?
        AND YEAR(r.fecha) = ?
        AND r.estado IN ('CONVOCADA','EN_CURSO','CERRADA')
-       AND (
-         r.creador_usuario_id IN (${ph})
-         OR r.abrir_usuario_id IN (${ph})
-         OR EXISTS (
-           SELECT 1 FROM reuniones_participantes p
-           WHERE p.reunion_id = r.id AND p.usuario_id IN (${ph})
-         )
-       )
+       AND ${visibilidad}
      ORDER BY r.fecha ASC, r.hora_inicio ASC`,
-    [colegio_id, añoFiltro, ...idsParams, ...idsParams, ...idsParams]
+    [colegio_id, añoFiltro, ...visParams]
   );
   let list = (rows || []).map(reunionAActividad);
   if (mes) {

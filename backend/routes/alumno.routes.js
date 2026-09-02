@@ -569,6 +569,7 @@ router.get('/dashboard', async (req, res) => {
       proximasActividades: await mezclarReunionesEnActividades(query, actividades, {
         colegio_id,
         usuario_id,
+        tipo: 'ALUMNO',
         anio: añoActual,
         soloFuturas: true,
         limite: 10,
@@ -1785,6 +1786,7 @@ router.get('/actividades', async (req, res) => {
     const actividadesConReuniones = await mezclarReunionesEnActividades(query, actividades, {
       colegio_id,
       usuario_id,
+      tipo: 'ALUMNO',
       anio: añoFiltro,
     });
 

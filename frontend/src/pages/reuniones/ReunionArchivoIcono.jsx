@@ -67,28 +67,33 @@ export function ReunionArchivoCard({ archivo }) {
   );
 }
 
-export function ReunionSubirArchivo({ onChange }) {
+export function ReunionSubirArchivo({ onChange, subiendo }) {
   return (
-    <label className="re-arch-upload">
-      <input type="file" hidden onChange={onChange} />
+    <label className={`re-arch-tile-upload ${subiendo ? 'is-busy' : ''}`}>
+      <input type="file" hidden multiple disabled={!!subiendo} onChange={onChange} />
       <span className="re-arch-upload-plus">+</span>
-      Subir archivo
+      <span className="re-arch-tile-upload-label">{subiendo ? 'Subiendo…' : 'Subir archivo'}</span>
     </label>
   );
 }
 
-export default function ReunionArchivosLista({ archivos, onSubir, puedeSubir }) {
+export default function ReunionArchivosLista({ archivos, onSubir, puedeSubir, subiendo }) {
+  const hay = (archivos || []).length > 0;
   return (
     <div className="re-detalle" style={{ marginBottom: '1rem' }}>
-      <h3 style={{ marginTop: 0 }}>Archivos compartidos</h3>
-      <p className="re-hint">Todos pueden verlos. PDF, imágenes u otros documentos.</p>
+      <h3 style={{ marginTop: 0 }}>Documentos</h3>
+      <p className="re-hint">
+        {puedeSubir
+          ? 'Puedes agregar más archivos ahora. Todos los convocados los ven.'
+          : 'Documentos compartidos de la reunión.'}
+      </p>
       <div className="re-archivos-lista">
         {(archivos || []).map((a) => (
           <ReunionArchivoCard key={a.id} archivo={a} />
         ))}
-        {(archivos || []).length === 0 ? <p className="re-hint">Aún no hay archivos.</p> : null}
+        {puedeSubir ? <ReunionSubirArchivo onChange={onSubir} subiendo={subiendo} /> : null}
       </div>
-      {puedeSubir ? <ReunionSubirArchivo onChange={onSubir} /> : null}
+      {!hay && !puedeSubir ? <p className="re-hint">Aún no hay archivos.</p> : null}
     </div>
   );
 }
