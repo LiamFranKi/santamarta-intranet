@@ -303,6 +303,8 @@ async function listarParticipantes(queryFn, reunionId, { incluirFirmas } = {}) {
 
 function scoreParticipante(r) {
   let n = 0;
+  if (String(r.asistencia || '').toUpperCase() === 'ASISTIO') n += 10;
+  if (r.firmado_en || r.tiene_firma) n += 5;
   if (String(r.tipo || '').toUpperCase() === 'DOCENTE') n += 2;
   if (String(r.rol || '') === 'CONVOCANTE') n += 1;
   return n;
@@ -316,6 +318,19 @@ function clavePersonaParticipante(r) {
   return null;
 }
 
+function fusionarFilaPersona(keep, extra) {
+  const asistio = [keep, extra].some((x) => String(x.asistencia || '').toUpperCase() === 'ASISTIO');
+  const firma = keep.firmado_en || extra.firmado_en || keep.tiene_firma || extra.tiene_firma;
+  return {
+    ...keep,
+    asistencia: asistio ? 'ASISTIO' : keep.asistencia,
+    asistencia_en: keep.asistencia_en || extra.asistencia_en,
+    firmado_en: keep.firmado_en || extra.firmado_en,
+    tiene_firma: !!firma,
+    firma_data: keep.firma_data || extra.firma_data,
+  };
+}
+
 function deduparParticipantesPersona(rows) {
   const byClave = new Map();
   const sueltos = [];
@@ -326,9 +341,44 @@ function deduparParticipantesPersona(rows) {
       return;
     }
     const prev = byClave.get(clave);
-    if (!prev || scoreParticipante(r) > scoreParticipante(prev)) byClave.set(clave, r);
+    if (!prev) {
+      byClave.set(clave, r);
+      return;
+    }
+    const winner = scoreParticipante(r) > scoreParticipante(prev) ? r : prev;
+    const other = winner === r ? prev : r;
+    byClave.set(clave, fusionarFilaPersona(winner, other));
   });
   return [...byClave.values(), ...sueltos];
+}
+
+async function marcarAsistenciaDeUsuarios(executeFn, queryFn, reunionId, colegioId, usuarioIds, ahora) {
+  const ids = await expandirIdsMismaPersona(queryFn, usuarioIds, colegioId);
+  if (!ids.length) return 0;
+  const ph = ids.map(() => '?').join(',');
+  const r = await executeFn(
+    `UPDATE reuniones_participantes
+     SET asistencia = 'ASISTIO', asistencia_en = COALESCE(asistencia_en, ?)
+     WHERE reunion_id = ? AND usuario_id IN (${ph}) AND asistencia = 'PENDIENTE'`,
+    [ahora, reunionId, ...ids]
+  );
+  return r && r.affectedRows ? r.affectedRows : 0;
+}
+
+async function asegurarAsistenciaPorChat(executeFn, queryFn, reunion, colegioId) {
+  if (!reunion || !['EN_CURSO', 'CERRADA'].includes(reunion.estado)) return;
+  try {
+    const chats = await queryFn(
+      `SELECT DISTINCT usuario_id FROM reuniones_chat WHERE reunion_id = ?`,
+      [reunion.id]
+    );
+    const ids = (chats || []).map((c) => Number(c.usuario_id)).filter((n) => n > 0);
+    if (!ids.length) return;
+    await marcarAsistenciaDeUsuarios(executeFn, queryFn, reunion.id, colegioId, ids, fechaHoraMySQLLima());
+  } catch (e) {
+    if (e && (e.code === 'ER_NO_SUCH_TABLE' || e.errno === 1146)) return;
+    console.warn('[reuniones] asistencia por chat', e.message);
+  }
 }
 
 async function asegurarConvocante(executeFn, queryFn, reunionId, usuarioId, tipo) {
@@ -876,6 +926,8 @@ module.exports = {
   listarParticipantes,
   asegurarConvocante,
   insertarParticipantes,
+  marcarAsistenciaDeUsuarios,
+  asegurarAsistenciaPorChat,
   reemplazarParticipantes,
   vaciarInvitadosReunion,
   quitarParticipantesPersona,

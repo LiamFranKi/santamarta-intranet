@@ -25,6 +25,8 @@ const {
   listarParticipantes,
   asegurarConvocante,
   insertarParticipantes,
+  marcarAsistenciaDeUsuarios,
+  asegurarAsistenciaPorChat,
   reemplazarParticipantes,
   vaciarInvitadosReunion,
   quitarParticipantesPersona,
@@ -161,6 +163,7 @@ async function aplicarResponsableAbrir(req, reunionId) {
 }
 
 async function payloadReunion(reunion, req) {
+  await asegurarAsistenciaPorChat(execute, query, reunion, req.user.colegio_id);
   const participantes = await listarParticipantes(query, reunion.id, {
     incluirFirmas: ['EN_CURSO', 'CERRADA'].includes(reunion.estado),
   });
@@ -887,11 +890,7 @@ router.post('/:id/entrar', async (req, res) => {
          VALUES (?, ?, ?, 'INVITADO', 'PENDIENTE')`,
         [reunion.id, uid, req.user.tipo || 'INVITADO']
       );
-      await execute(
-        `UPDATE reuniones_participantes SET asistencia = 'ASISTIO', asistencia_en = COALESCE(asistencia_en, ?)
-         WHERE reunion_id = ? AND usuario_id = ? AND asistencia = 'PENDIENTE'`,
-        [ahora, reunion.id, uid]
-      );
+      await marcarAsistenciaDeUsuarios(execute, query, reunion.id, req.user.colegio_id, [uid], ahora);
     }
     const actual = await obtenerReunion(query, reunion.id, req.user.colegio_id);
     res.json(await payloadReunion(actual, req));
@@ -1063,6 +1062,9 @@ router.post('/:id/chat', upload.single('archivo'), async (req, res) => {
         fechaHoraMySQLLima(),
       ]
     );
+    if (esHoyLima(reunion.fecha)) {
+      await marcarAsistenciaDeUsuarios(execute, query, reunion.id, req.user.colegio_id, [uid], fechaHoraMySQLLima());
+    }
     res.json({ mensajes: await listarChatReunion(reunion.id) });
   } catch (e) {
     console.error('[reuniones] chat post', e);
@@ -1096,6 +1098,14 @@ router.get('/:id/video-token', async (req, res) => {
       }
     }
     if (!room) return res.status(503).json({ error: 'No se pudo crear la sala de video.' });
+    if (reunion.estado === 'EN_CURSO' && esHoyLima(reunion.fecha)) {
+      await execute(
+        `INSERT IGNORE INTO reuniones_participantes (reunion_id, usuario_id, tipo, rol, asistencia)
+         VALUES (?, ?, ?, 'INVITADO', 'PENDIENTE')`,
+        [reunion.id, uid, req.user.tipo || 'INVITADO']
+      );
+      await marcarAsistenciaDeUsuarios(execute, query, reunion.id, req.user.colegio_id, [uid], fechaHoraMySQLLima());
+    }
     const parts = await listarParticipantes(query, reunion.id);
     const yo = (parts || []).find((p) => Number(p.usuario_id) === Number(uid));
     const token = await tokenDaily({

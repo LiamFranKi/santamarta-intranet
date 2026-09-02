@@ -823,8 +823,8 @@ function DetalleReunion({ reunionId, base }) {
     const t = setInterval(async () => {
       try {
         const { data } = await api.get(`/reuniones/${reunionId}`);
+        setPack(data);
         if (data.reunion?.estado !== 'EN_CURSO') {
-          setPack(data);
           setActa(data.reunion?.acta || '');
           setAcuerdos(data.reunion?.acuerdos || '');
         }
