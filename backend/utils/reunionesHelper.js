@@ -92,14 +92,57 @@ function nombreSqlUsuario() {
   )`;
 }
 
+/** Misma persona: varios usuarios (DOCENTE / otro) con el mismo personal_id. */
+function sqlConvocadoPorUsuarioOPersona(aliasReunion = 'r', paramUsuario = '?') {
+  return `(
+    ${aliasReunion}.creador_usuario_id = ${paramUsuario}
+    OR ${aliasReunion}.abrir_usuario_id = ${paramUsuario}
+    OR EXISTS (
+      SELECT 1 FROM reuniones_participantes p
+      WHERE p.reunion_id = ${aliasReunion}.id AND p.usuario_id = ${paramUsuario}
+    )
+    OR EXISTS (
+      SELECT 1 FROM reuniones_participantes p
+      INNER JOIN usuarios ui ON ui.id = p.usuario_id
+      INNER JOIN usuarios uy ON uy.id = ${paramUsuario}
+      WHERE p.reunion_id = ${aliasReunion}.id
+        AND ui.personal_id IS NOT NULL
+        AND uy.personal_id IS NOT NULL
+        AND ui.personal_id = uy.personal_id
+    )
+  )`;
+}
+
+async function usuarioEsConvocado(queryFn, reunionId, usuarioId) {
+  const uid = Number(usuarioId);
+  if (!uid) return false;
+  const rows = await queryFn(
+    `SELECT 1
+     FROM reuniones_participantes p
+     WHERE p.reunion_id = ?
+       AND (
+         p.usuario_id = ?
+         OR EXISTS (
+           SELECT 1 FROM usuarios ui
+           INNER JOIN usuarios uy ON uy.id = ?
+           WHERE ui.id = p.usuario_id
+             AND ui.personal_id IS NOT NULL
+             AND uy.personal_id IS NOT NULL
+             AND ui.personal_id = uy.personal_id
+         )
+       )
+     LIMIT 1`,
+    [reunionId, uid, uid]
+  );
+  return Array.isArray(rows) && rows.length > 0;
+}
+
 async function puedeVerReunion(queryFn, reunion, usuario_id, tipo) {
   if (!reunion) return false;
   if (puedeDirigirReunion(reunion, usuario_id, tipo)) return true;
-  const rows = await queryFn(
-    `SELECT id FROM reuniones_participantes WHERE reunion_id = ? AND usuario_id = ? LIMIT 1`,
-    [reunion.id, usuario_id]
-  );
-  return Array.isArray(rows) && rows.length > 0;
+  if (Number(reunion.creador_usuario_id) === Number(usuario_id)) return true;
+  if (reunion.abrir_usuario_id && Number(reunion.abrir_usuario_id) === Number(usuario_id)) return true;
+  return usuarioEsConvocado(queryFn, reunion.id, usuario_id);
 }
 
 async function obtenerReunion(queryFn, reunionId, colegio_id) {
@@ -129,6 +172,7 @@ async function listarParticipantes(queryFn, reunionId, { incluirFirmas } = {}) {
     : `, DATE_FORMAT(rp.firmado_en, '%Y-%m-%d %H:%i:%s') AS firmado_en,
        (rp.firma_data IS NOT NULL AND rp.firma_data <> '') AS tiene_firma`;
   const sql = `SELECT rp.id, rp.reunion_id, rp.usuario_id, rp.tipo, rp.rol, rp.asistencia,
+            u.personal_id,
             DATE_FORMAT(rp.asistencia_en, '%Y-%m-%d %H:%i:%s') AS asistencia_en
             ${firmaCols},
             ${nombre} AS nombre,
@@ -141,26 +185,51 @@ async function listarParticipantes(queryFn, reunionId, { incluirFirmas } = {}) {
      WHERE rp.reunion_id = ?
      ORDER BY rp.rol ASC, nombre ASC`;
   try {
-    return await queryFn(sql, [reunionId]);
+    return deduparParticipantesPersona(await queryFn(sql, [reunionId]));
   } catch (e) {
     if (e && (e.code === 'ER_BAD_FIELD_ERROR' || e.errno === 1054)) {
-      return queryFn(
-        `SELECT rp.id, rp.reunion_id, rp.usuario_id, rp.tipo, rp.rol, rp.asistencia,
-                DATE_FORMAT(rp.asistencia_en, '%Y-%m-%d %H:%i:%s') AS asistencia_en,
-                ${nombre} AS nombre,
-                COALESCE(a.foto, p.foto) AS foto
-         FROM reuniones_participantes rp
-         INNER JOIN usuarios u ON u.id = rp.usuario_id
-         LEFT JOIN alumnos a ON a.id = u.alumno_id
-         LEFT JOIN personal p ON p.id = u.personal_id
-         LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
-         WHERE rp.reunion_id = ?
-         ORDER BY rp.rol ASC, nombre ASC`,
-        [reunionId]
+      return deduparParticipantesPersona(
+        await queryFn(
+          `SELECT rp.id, rp.reunion_id, rp.usuario_id, rp.tipo, rp.rol, rp.asistencia,
+                  u.personal_id,
+                  DATE_FORMAT(rp.asistencia_en, '%Y-%m-%d %H:%i:%s') AS asistencia_en,
+                  ${nombre} AS nombre,
+                  COALESCE(a.foto, p.foto) AS foto
+           FROM reuniones_participantes rp
+           INNER JOIN usuarios u ON u.id = rp.usuario_id
+           LEFT JOIN alumnos a ON a.id = u.alumno_id
+           LEFT JOIN personal p ON p.id = u.personal_id
+           LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
+           WHERE rp.reunion_id = ?
+           ORDER BY rp.rol ASC, nombre ASC`,
+          [reunionId]
+        )
       );
     }
     throw e;
   }
+}
+
+function scoreParticipante(r) {
+  let n = 0;
+  if (String(r.tipo || '').toUpperCase() === 'DOCENTE') n += 2;
+  if (String(r.rol || '') === 'CONVOCANTE') n += 1;
+  return n;
+}
+
+function deduparParticipantesPersona(rows) {
+  const byPersonal = new Map();
+  const sinPersonal = [];
+  (rows || []).forEach((r) => {
+    const pid = r.personal_id != null ? Number(r.personal_id) : 0;
+    if (!pid) {
+      sinPersonal.push(r);
+      return;
+    }
+    const prev = byPersonal.get(pid);
+    if (!prev || scoreParticipante(r) > scoreParticipante(prev)) byPersonal.set(pid, r);
+  });
+  return [...byPersonal.values(), ...sinPersonal];
 }
 
 async function asegurarConvocante(executeFn, queryFn, reunionId, usuarioId, tipo) {
@@ -184,8 +253,28 @@ async function asegurarConvocante(executeFn, queryFn, reunionId, usuarioId, tipo
 
 async function insertarParticipantes(executeFn, queryFn, reunionId, colegioId, invitados) {
   const lista = Array.isArray(invitados) ? invitados : [];
-  const ids = [...new Set(lista.map((x) => parseInt(x.usuario_id || x, 10)).filter((n) => Number.isInteger(n) && n > 0))];
+  let ids = [...new Set(lista.map((x) => parseInt(x.usuario_id || x, 10)).filter((n) => Number.isInteger(n) && n > 0))];
   if (!ids.length) return { agregados: 0 };
+  try {
+    const ph = ids.map(() => '?').join(',');
+    const hermanos = await queryFn(
+      `SELECT DISTINCT u2.id
+       FROM usuarios u1
+       INNER JOIN usuarios u2
+         ON u2.personal_id = u1.personal_id
+        AND u2.personal_id IS NOT NULL
+        AND (u2.estado = 'ACTIVO' OR u2.estado IS NULL)
+       WHERE u1.id IN (${ph}) AND u1.colegio_id = ? AND u2.colegio_id = ?`,
+      [...ids, colegioId, colegioId]
+    );
+    (hermanos || []).forEach((h) => {
+      const n = Number(h.id);
+      if (n > 0) ids.push(n);
+    });
+    ids = [...new Set(ids)];
+  } catch {
+    /* si falla el cruce, invita solo los IDs originales */
+  }
   const ph = ids.map(() => '?').join(',');
   const users = await queryFn(
     `SELECT id, tipo FROM usuarios WHERE colegio_id = ? AND id IN (${ph}) AND (estado = 'ACTIVO' OR estado IS NULL)`,
@@ -417,7 +506,12 @@ async function listarPersonalColegio(queryFn, colegio_id) {
   const vistoPersonal = new Set();
   const vistoUsuario = new Set();
   const out = [];
-  (rows || []).forEach((p) => {
+  const ordenados = [...(rows || [])].sort((a, b) => {
+    const ad = String(a.tipo || '').toUpperCase() === 'DOCENTE' ? 0 : 1;
+    const bd = String(b.tipo || '').toUpperCase() === 'DOCENTE' ? 0 : 1;
+    return ad - bd;
+  });
+  ordenados.forEach((p) => {
     const pid = Number(p.personal_id);
     const uid = Number(p.usuario_id);
     if (!uid || vistoUsuario.has(uid) || (pid && vistoPersonal.has(pid))) return;
@@ -480,15 +574,9 @@ async function listarReunionesComoActividades(queryFn, opts) {
      WHERE r.colegio_id = ?
        AND YEAR(r.fecha) = ?
        AND r.estado IN ('CONVOCADA','EN_CURSO','CERRADA')
-       AND (
-         r.creador_usuario_id = ?
-         OR EXISTS (
-           SELECT 1 FROM reuniones_participantes p
-           WHERE p.reunion_id = r.id AND p.usuario_id = ?
-         )
-       )
+       AND ${sqlConvocadoPorUsuarioOPersona('r', '?')}
      ORDER BY r.fecha ASC, r.hora_inicio ASC`,
-    [colegio_id, añoFiltro, usuario_id, usuario_id]
+    [colegio_id, añoFiltro, usuario_id, usuario_id, usuario_id, usuario_id]
   );
   let list = (rows || []).map(reunionAActividad);
   if (mes) {
@@ -620,6 +708,8 @@ module.exports = {
   sanitizarHtmlReunion,
   tablaReunionesExiste,
   puedeVerReunion,
+  usuarioEsConvocado,
+  sqlConvocadoPorUsuarioOPersona,
   obtenerReunion,
   listarParticipantes,
   asegurarConvocante,

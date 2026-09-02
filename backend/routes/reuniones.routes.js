@@ -281,10 +281,23 @@ router.get('/', async (req, res) => {
     `;
     const params = [colegio_id];
     if (!gestor) {
-      sql += ` AND (r.creador_usuario_id = ? OR r.abrir_usuario_id = ? OR EXISTS (
-        SELECT 1 FROM reuniones_participantes p WHERE p.reunion_id = r.id AND p.usuario_id = ?
-      )) AND r.estado <> 'BORRADOR'`;
-      params.push(usuario_id, usuario_id, usuario_id);
+      sql += ` AND (
+        r.creador_usuario_id = ?
+        OR r.abrir_usuario_id = ?
+        OR EXISTS (
+          SELECT 1 FROM reuniones_participantes p WHERE p.reunion_id = r.id AND p.usuario_id = ?
+        )
+        OR EXISTS (
+          SELECT 1 FROM reuniones_participantes p
+          INNER JOIN usuarios ui ON ui.id = p.usuario_id
+          INNER JOIN usuarios uy ON uy.id = ?
+          WHERE p.reunion_id = r.id
+            AND ui.personal_id IS NOT NULL
+            AND uy.personal_id IS NOT NULL
+            AND ui.personal_id = uy.personal_id
+        )
+      ) AND r.estado <> 'BORRADOR'`;
+      params.push(usuario_id, usuario_id, usuario_id, usuario_id);
     }
     if (filtro === 'proximas') {
       sql += ` AND r.fecha >= ? AND r.estado IN ('BORRADOR','CONVOCADA','EN_CURSO')`;
@@ -668,6 +681,7 @@ router.get('/:id/acta-vivo', async (req, res) => {
       acta: reunion.acta || '',
       acuerdos: reunion.acuerdos || '',
       acta_editable: Number(reunion.acta_editable) === 1,
+      updated_at: reunion.updated_at || null,
     });
   } catch (e) {
     console.error('[reuniones] acta-vivo', e);
@@ -720,8 +734,8 @@ router.patch('/:id/acta', async (req, res) => {
     await execute(
       `UPDATE reuniones SET acta = ?, acuerdos = ?, updated_at = ? WHERE id = ?`,
       [
-        req.body.acta != null ? sanitizarHtmlReunion(req.body.acta) : reunion.acta,
-        req.body.acuerdos != null ? sanitizarHtmlReunion(req.body.acuerdos) : reunion.acuerdos,
+        req.body.acta != null ? sanitizarHtmlReunion(req.body.acta) ?? reunion.acta : reunion.acta,
+        req.body.acuerdos != null ? sanitizarHtmlReunion(req.body.acuerdos) ?? reunion.acuerdos : reunion.acuerdos,
         fechaHoraMySQLLima(),
         reunion.id,
       ]
@@ -839,6 +853,11 @@ router.post('/:id/entrar', async (req, res) => {
     if (!ok) return res.status(403).json({ error: 'No estás convocado a esta reunión.' });
     if (reunion.estado === 'EN_CURSO' && esHoyLima(reunion.fecha)) {
       const ahora = fechaHoraMySQLLima();
+      await execute(
+        `INSERT IGNORE INTO reuniones_participantes (reunion_id, usuario_id, tipo, rol, asistencia)
+         VALUES (?, ?, ?, 'INVITADO', 'PENDIENTE')`,
+        [reunion.id, uid, req.user.tipo || 'INVITADO']
+      );
       await execute(
         `UPDATE reuniones_participantes SET asistencia = 'ASISTIO', asistencia_en = COALESCE(asistencia_en, ?)
          WHERE reunion_id = ? AND usuario_id = ? AND asistencia = 'PENDIENTE'`,
