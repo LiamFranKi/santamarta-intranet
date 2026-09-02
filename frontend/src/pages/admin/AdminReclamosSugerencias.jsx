@@ -1034,6 +1034,157 @@ function VisitasConfigModal({ open, onClose }) {
   );
 }
 
+/* ─── Config. admisión (campaña web) ──────────────────────────────────────── */
+
+function AdmisionConfigModal({ open, onClose }) {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [anio, setAnio] = useState(2027);
+  const [bannerFlotante, setBannerFlotante] = useState(true);
+  const [chipHero, setChipHero] = useState(true);
+  const [necesitaMigracion, setNecesitaMigracion] = useState(false);
+
+  const cargar = useCallback(async () => {
+    try {
+      setLoading(true);
+      const { data } = await api.get(`${API}/admision-config`);
+      setAnio(Number(data.anio) || 2027);
+      setBannerFlotante(!!data.bannerFlotante);
+      setChipHero(!!data.chipHero);
+      setNecesitaMigracion(Boolean(data.necesita_migracion));
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo cargar la configuración de admisión',
+        ...swalOpts,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (open) cargar();
+  }, [open, cargar]);
+
+  const guardar = async () => {
+    const n = parseInt(anio, 10);
+    if (!Number.isFinite(n) || n < 2020 || n > 2100) {
+      Swal.fire({ icon: 'warning', title: 'Año inválido', text: 'Use un año entre 2020 y 2100.', ...swalOpts });
+      return;
+    }
+    try {
+      setSaving(true);
+      const { data } = await api.put(`${API}/admision-config`, {
+        anio: n,
+        banner_flotante: bannerFlotante ? 1 : 0,
+        chip_hero: chipHero ? 1 : 0,
+      });
+      setAnio(Number(data.anio) || n);
+      setBannerFlotante(!!data.bannerFlotante);
+      setChipHero(!!data.chipHero);
+      await Swal.fire({
+        icon: 'success',
+        title: 'Campaña actualizada',
+        text: `La web mostrará Admisión ${data.anio}. Recarga la web pública (Ctrl+Shift+R).`,
+        ...swalOpts,
+      });
+      onClose();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: e.response?.data?.error || 'No se pudo guardar',
+        ...swalOpts,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <OverlayModal
+      title="🎓 Configuración de admisión"
+      subtitle="Año de la campaña y avisos de la web pública (botón, etiqueta y barra)."
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
+            Cerrar
+          </button>
+          <button type="button" className="rs-btn rs-btn-primary" onClick={guardar} disabled={saving || loading}>
+            {saving ? 'Guardando…' : '💾 Guardar'}
+          </button>
+        </>
+      }
+    >
+      {necesitaMigracion && (
+        <div className="rs-detail-block" style={{ background: '#fff7ed', borderColor: '#fdba74' }}>
+          <p className="rs-detail-text" style={{ margin: 0 }}>
+            Falta ejecutar <code>database/migrations/078_web_admision_config_mysql.sql</code> en MySQL.
+            Hasta entonces la web no podrá leer esta configuración.
+          </p>
+        </div>
+      )}
+
+      {loading ? (
+        <p className="rs-loading">Cargando…</p>
+      ) : (
+        <>
+          <div className="rs-field">
+            <label>Año de la campaña</label>
+            <input
+              type="number"
+              min={2020}
+              max={2100}
+              value={anio}
+              onChange={(e) => setAnio(e.target.value)}
+            />
+            <p className="rs-muted" style={{ margin: '0.35rem 0 0' }}>
+              Cambia el texto del botón naranja del inicio (el que está junto a Visita Guiada y
+              Conócenos) y el título grande naranja de la página de admisión. Ejemplo: Admisión {anio}.
+            </p>
+          </div>
+
+          <div className="rs-checks rs-utiles-switch" style={{ marginTop: '1rem' }}>
+            <label>
+              <input
+                type="checkbox"
+                checked={chipHero}
+                onChange={(e) => setChipHero(e.target.checked)}
+              />
+              Mostrar etiqueta en el inicio (“Inscripciones abiertas {anio}”)
+            </label>
+            <p className="rs-muted" style={{ margin: 0, flexBasis: '100%' }}>
+              Es una pastilla naranja chica <strong>arriba de los 4 botones</strong> de la foto de
+              portada (Contáctanos, Visita Guiada, Admisión, Conócenos). No es un botón: solo avisa
+              que ya hay inscripciones.
+            </p>
+          </div>
+
+          <div className="rs-checks rs-utiles-switch" style={{ marginTop: '0.75rem' }}>
+            <label>
+              <input
+                type="checkbox"
+                checked={bannerFlotante}
+                onChange={(e) => setBannerFlotante(e.target.checked)}
+              />
+              Mostrar barra naranja “Ya abrió Admisión {anio}”
+            </label>
+            <p className="rs-muted" style={{ margin: 0, flexBasis: '100%' }}>
+              Barra fija debajo del menú, en todas las páginas, con el botón “Postula ahora”. El
+              visitante puede cerrarla con la X.
+            </p>
+          </div>
+        </>
+      )}
+    </OverlayModal>
+  );
+}
+
 /* ─── Modales de detalle / edición ─────────────────────────────────────────── */
 
 function ModalReclamo({ open, mode, item, onClose, onSaved }) {
@@ -1972,6 +2123,7 @@ export default function AdminReclamosSugerencias() {
   const [exportandoPdf, setExportandoPdf] = useState(false);
   const [modalCorreos, setModalCorreos] = useState(false);
   const [modalVisitasCfg, setModalVisitasCfg] = useState(false);
+  const [modalAdmisionCfg, setModalAdmisionCfg] = useState(false);
   const [modal, setModal] = useState({ tipo: null, open: false, mode: 'view', item: null });
 
   const cambiarTab = (id) => {
@@ -2198,6 +2350,11 @@ export default function AdminReclamosSugerencias() {
                 {tab !== 'matricula' && (
                   <button type="button" className="rs-btn rs-btn-light" onClick={() => setModalVisitasCfg(true)}>
                     🗓️ Config. visitas
+                  </button>
+                )}
+                {tab === 'admision' && (
+                  <button type="button" className="rs-btn rs-btn-light" onClick={() => setModalAdmisionCfg(true)}>
+                    🎓 Config. admisión
                   </button>
                 )}
               </>
@@ -2731,6 +2888,7 @@ export default function AdminReclamosSugerencias() {
 
       <CorreosModal open={modalCorreos} onClose={() => setModalCorreos(false)} />
       <VisitasConfigModal open={modalVisitasCfg} onClose={() => setModalVisitasCfg(false)} />
+      <AdmisionConfigModal open={modalAdmisionCfg} onClose={() => setModalAdmisionCfg(false)} />
 
       <ModalReclamo
         open={modal.open && modal.tipo === 'reclamos'}

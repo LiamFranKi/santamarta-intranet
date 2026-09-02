@@ -3,7 +3,7 @@
  * Tablas: web_reclamos, web_sugerencias, web_contactenos, web_visitas_guiadas,
  *         web_trabaja_con_nosotros, web_admision, web_correos_envio,
  *         web_visita_dias, web_visita_horarios, web_visita_fechas, web_visita_config,
- *         web_visita_secuencias(+slots)
+ *         web_visita_secuencias(+slots), web_admision_config
  * Archivos: solo bajo WEB_VANGUARD_ROOT/data/ (nunca /var/www/web).
  */
 const express = require('express');
@@ -19,6 +19,7 @@ const {
   fechasPorMesYDias,
   leerModoFechas,
 } = require('../utils/visitaGuiadaPublicConfig');
+const { leerAdmisionConfig, guardarAdmisionConfig } = require('../utils/admisionCampanaConfig');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -1090,6 +1091,35 @@ router.get('/trabaja/:id/cv', async (req, res) => {
 });
 
 // ─── Admisión ───────────────────────────────────────────────────────────────
+
+router.get('/admision-config', async (_req, res) => {
+  try {
+    const payload = await leerAdmisionConfig(query);
+    res.json(payload);
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al leer config de admisión.' });
+  }
+});
+
+router.put('/admision-config', async (req, res) => {
+  try {
+    const payload = await guardarAdmisionConfig(execute, query, req.body || {});
+    if (payload.necesita_migracion) {
+      return res.status(503).json({
+        error: 'Falta ejecutar la migración 078 (web_admision_config).',
+        ...payload,
+      });
+    }
+    res.json({ ...payload, message: 'Configuración de admisión guardada' });
+  } catch (e) {
+    if (e && (e.code === 'ER_NO_SUCH_TABLE' || e.errno === 1146)) {
+      return res.status(503).json({
+        error: 'Falta ejecutar la migración 078 (web_admision_config).',
+      });
+    }
+    res.status(500).json({ error: e.message || 'Error al guardar config de admisión.' });
+  }
+});
 
 router.get('/admision', async (req, res) => {
   try {
