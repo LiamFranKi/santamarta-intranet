@@ -12556,17 +12556,17 @@ router.get('/hijos/:hijoId/aula-virtual/archivos', soloLecturaProxy, async (req,
 });
 
 /**
- * POST /api/docente/hijos/aula-virtual/temas/merge-pdf
- * Une PDFs (temas/fichas interactivos) en un solo PDF para TODOS los hijos
- * del docente que también es apoderado (personal con mismo nro_documento).
+ * POST /api/docente/hijos/:hijoId/aula-virtual/temas/merge-pdf
+ * Une PDFs (temas/fichas interactivos) de UN hijo en un solo PDF.
  *
  * Body:
  * - archivoIds: number[] (máx 20) en el orden de selección del usuario
  * - ciclo (opcional): para nombrar el PDF generado
  */
-router.post('/hijos/aula-virtual/temas/merge-pdf', async (req, res) => {
+router.post('/hijos/:hijoId/aula-virtual/temas/merge-pdf', async (req, res) => {
   try {
-    const { colegio_id, anio_activo, personal_id } = req.user;
+    const { hijoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
     const { archivoIds, ciclo } = req.body || {};
 
     if (!colegio_id || !anio_activo) {
@@ -12578,8 +12578,13 @@ router.post('/hijos/aula-virtual/temas/merge-pdf', async (req, res) => {
     if (archivoIds.length > 20) {
       return res.status(400).json({ error: 'Máximo permitido: 20 PDFs para concatenar' });
     }
-    if (!personal_id) {
-      return res.status(400).json({ error: 'personal_id no encontrado' });
+
+    let alumnoId;
+    try {
+      const resultado = await verificarHijoYUsuario(req, hijoId);
+      alumnoId = resultado.alumnoId;
+    } catch (error) {
+      return res.status(403).json({ error: error.message || 'No tienes permisos para este alumno' });
     }
 
     // Deduplicar preservando orden
@@ -12598,43 +12603,20 @@ router.post('/hijos/aula-virtual/temas/merge-pdf', async (req, res) => {
       return res.status(400).json({ error: 'archivoIds inválidos' });
     }
 
-    // Obtener nro_documento del personal actual
-    let nroDocumento = null;
-    const personalData = await query(
-      'SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1',
-      [personal_id, colegio_id]
-    );
-    if (personalData?.[0]?.nro_documento) {
-      nroDocumento = personalData[0].nro_documento;
-    } else {
-      const usuarioData = await query(
-        'SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1',
-        [req.user.usuario_id, colegio_id, personal_id]
-      );
-      nroDocumento = usuarioData?.[0]?.usuario || null;
-    }
-
-    if (!nroDocumento) {
-      return res.status(403).json({ error: 'No se encontró tu número de documento.' });
-    }
-
     const placeholders = idsOrdered.map(() => '?').join(',');
 
-    // Traer SOLO los archivos accesibles por hijos en matrícula activa pagada (año activo)
+    // Solo archivos del hijo indicado, con matrícula activa pagada.
     const filas = await query(
       `SELECT DISTINCT aa.*
        FROM asignaturas_archivos aa
        INNER JOIN asignaturas a ON a.id = aa.asignatura_id
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN matriculas m ON m.grupo_id = g.id
-       INNER JOIN familias f ON f.alumno_id = m.alumno_id
-       INNER JOIN apoderados ap ON ap.id = f.apoderado_id
-       WHERE ap.colegio_id = ?
-         AND ap.nro_documento = ?
+       WHERE m.alumno_id = ?
          AND m.colegio_id = ?
          AND ${sqlWhereMatriculaAnioActivoOperativa('m', 'g')}
          AND aa.id IN (${placeholders})`,
-      [colegio_id, nroDocumento, colegio_id, anio_activo, ...idsOrdered]
+      [alumnoId, colegio_id, anio_activo, ...idsOrdered]
     );
 
     const filasById = new Map((filas || []).map((r) => [String(r.id), r]));

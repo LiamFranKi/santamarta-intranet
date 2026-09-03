@@ -4224,15 +4224,16 @@ router.get('/hijos/:hijoId/aula-virtual/archivos', soloLecturaProxy, async (req,
 });
 
 /**
- * POST /api/apoderado/hijos/aula-virtual/temas/merge-pdf
- * Une PDFs (temas/fichas interactivos) en un solo PDF para TODOS los hijos matriculados.
+ * POST /api/apoderado/hijos/:hijoId/aula-virtual/temas/merge-pdf
+ * Une PDFs (temas/fichas interactivos) de UN hijo en un solo PDF.
  *
  * Body:
  * - archivoIds: number[] (máx 20) en el orden de selección del usuario
  * - ciclo (opcional): para nombrar el PDF generado
  */
-router.post('/hijos/aula-virtual/temas/merge-pdf', async (req, res) => {
+router.post('/hijos/:hijoId/aula-virtual/temas/merge-pdf', async (req, res) => {
   try {
+    const { hijoId } = req.params;
     const { apoderado_id, colegio_id, anio_activo } = req.user;
     const { archivoIds, ciclo } = req.body || {};
 
@@ -4246,6 +4247,14 @@ router.post('/hijos/aula-virtual/temas/merge-pdf', async (req, res) => {
 
     if (archivoIds.length > 20) {
       return res.status(400).json({ error: 'Máximo permitido: 20 PDFs para concatenar' });
+    }
+
+    let alumnoId;
+    try {
+      const resultado = await verificarHijoYUsuarioApoderado(req, hijoId);
+      alumnoId = resultado.alumnoId;
+    } catch (error) {
+      return res.status(403).json({ error: error.message || 'No tienes permisos para este alumno' });
     }
 
     // Deduplicar preservando orden
@@ -4266,21 +4275,18 @@ router.post('/hijos/aula-virtual/temas/merge-pdf', async (req, res) => {
 
     const placeholders = idsOrdered.map(() => '?').join(',');
 
-    // Traer SOLO los archivos accesibles por matrícula activa (y pago cancelado), en el año activo.
+    // Solo archivos del hijo indicado, con matrícula activa pagada.
     const filas = await query(
       `SELECT DISTINCT aa.*
        FROM asignaturas_archivos aa
        INNER JOIN asignaturas a ON a.id = aa.asignatura_id
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN matriculas m ON m.grupo_id = g.id
-       INNER JOIN familias f ON f.alumno_id = m.alumno_id
-       INNER JOIN apoderados ap ON ap.id = f.apoderado_id
-       WHERE ap.id = ?
-         AND ap.colegio_id = ?
+       WHERE m.alumno_id = ?
          AND m.colegio_id = ?
          AND ${sqlWhereMatriculaAnioActivoOperativa('m', 'g')}
          AND aa.id IN (${placeholders})`,
-      [apoderado_id, colegio_id, colegio_id, anio_activo, ...idsOrdered]
+      [alumnoId, colegio_id, anio_activo, ...idsOrdered]
     );
 
     const filasById = new Map((filas || []).map((r) => [String(r.id), r]));

@@ -283,6 +283,18 @@ function DocenteHijos() {
       case 'cursos-asignados':
         await handleVerCursos(hijo);
         break;
+      case 'temas':
+        if (!hijo?.id) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo obtener el ID del alumno',
+            confirmButtonText: 'Entendido'
+          });
+          return;
+        }
+        navigate(`/docente/hijos/${hijo.id}/temas`);
+        break;
       case 'horario':
         await handleVerHorario(hijo);
         break;
@@ -3724,6 +3736,9 @@ function DocenteHijos() {
             </button>
             <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('cursos-asignados', hijo); }}>
               <span className="dropdown-icon">📚</span><span>Cursos Asignados</span>
+            </button>
+            <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('temas', hijo); }}>
+              <span className="dropdown-icon">📄</span><span>Temas</span>
             </button>
             <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('horario', hijo); }}>
               <span className="dropdown-icon">📅</span><span>Horario</span>

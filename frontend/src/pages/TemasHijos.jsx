@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
@@ -7,6 +7,14 @@ import './TemasHijos.css';
 
 const MAX_SELECCION = 20;
 const BIMESTRES = [1, 2, 3, 4];
+
+function nombreCompletoHijo(hijo) {
+  if (!hijo) return '';
+  return [hijo.nombres, hijo.apellido_paterno, hijo.apellido_materno]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+}
 
 function getFechaLabel(fechaHora) {
   if (!fechaHora) return '';
@@ -22,114 +30,87 @@ function getFechaLabel(fechaHora) {
 function TemasHijosPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { hijoId } = useParams();
 
   const esDocente = String(location.pathname || '').startsWith('/docente');
   const apiBase = esDocente ? '/docente' : '/apoderado';
+  const hijosHome = esDocente ? '/docente/hijos' : '/apoderado/hijos';
 
   const [loading, setLoading] = useState(true);
-  const [hijos, setHijos] = useState([]);
+  const [hijo, setHijo] = useState(null);
   const [bimestre, setBimestre] = useState(1);
-
-  const [archivos, setArchivos] = useState([]); // lista única (deduplicada) por id
+  const [archivos, setArchivos] = useState([]);
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
 
   const requestIdRef = useRef(0);
+  const hijoNombre = nombreCompletoHijo(hijo);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setLoading(true);
+      if (!hijoId) {
+        setHijo(null);
+        return;
+      }
       try {
         const endpoint = esDocente ? '/docente/roles-adicionales' : '/apoderado/hijos';
         const response = await api.get(endpoint);
         const lista = Array.isArray(response.data?.hijos) ? response.data.hijos : [];
-        if (!cancelled) setHijos(lista);
+        const encontrado = lista.find((h) => String(h.id) === String(hijoId)) || null;
+        if (!cancelled) setHijo(encontrado);
       } catch (e) {
-        console.error('[TemasHijos] Error cargando hijos:', e);
-        if (!cancelled) {
-          setHijos([]);
-          Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: e?.response?.data?.error || e.message || 'No se pudieron cargar los hijos',
-          });
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+        console.error('[TemasHijos] Error cargando hijo:', e);
+        if (!cancelled) setHijo(null);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [esDocente]);
+  }, [esDocente, hijoId]);
 
   useEffect(() => {
-    if (!hijos.length) return;
+    if (!hijoId) return;
     let cancelled = false;
     const reqId = ++requestIdRef.current;
 
     (async () => {
       setLoading(true);
       try {
+        const cursosResp = await api.get(`${apiBase}/hijos/${hijoId}/cursos`);
+        const cursos = Array.isArray(cursosResp.data?.cursos) ? cursosResp.data.cursos : [];
         const archivoById = new Map();
 
-        for (const hijo of hijos) {
-          const hijoNombre = [hijo?.nombres, hijo?.apellido_paterno, hijo?.apellido_materno]
-            .filter(Boolean)
-            .join(' ')
-            .trim();
+        for (const curso of cursos) {
+          const asignaturaId = curso?.asignatura_id;
+          if (!asignaturaId) continue;
 
-          // 1) Cursos del hijo
-          const cursosResp = await api.get(`${apiBase}/hijos/${hijo.id}/cursos`);
-          const cursos = Array.isArray(cursosResp.data?.cursos) ? cursosResp.data.cursos : [];
+          const archivosResp = await api.get(`${apiBase}/hijos/${hijoId}/aula-virtual/archivos`, {
+            params: { asignatura_id: asignaturaId, ciclo: bimestre },
+          });
+          const lista = Array.isArray(archivosResp.data?.archivos) ? archivosResp.data.archivos : [];
 
-          // 2) Temas/fichas del hijo por curso + bimestre
-          for (const curso of cursos) {
-            const asignaturaId = curso?.asignatura_id;
-            if (!asignaturaId) continue;
-
-            const archivosResp = await api.get(`${apiBase}/hijos/${hijo.id}/aula-virtual/archivos`, {
-              params: { asignatura_id: asignaturaId, ciclo: bimestre },
+          for (const a of lista) {
+            const id = a?.id;
+            if (id == null) continue;
+            const key = String(id);
+            if (archivoById.has(key)) continue;
+            archivoById.set(key, {
+              id,
+              nombre: a?.nombre || '',
+              archivo_url: a?.archivo_url || null,
+              fecha_hora: a?.fecha_hora || null,
+              ciclo: a?.ciclo || bimestre,
+              orden: a?.orden || 0,
+              asignatura_id: curso?.asignatura_id || null,
+              curso_nombre: curso?.curso_nombre || 'Curso',
+              docente_nombre: a?.docente_nombre || curso?.docente_nombre || 'Docente',
             });
-            const lista = Array.isArray(archivosResp.data?.archivos) ? archivosResp.data.archivos : [];
-
-            for (const a of lista) {
-              const id = a?.id;
-              if (id == null) continue;
-
-              const key = String(id);
-              if (!archivoById.has(key)) {
-                archivoById.set(key, {
-                  id,
-                  nombre: a?.nombre || '',
-                  archivo_url: a?.archivo_url || null,
-                  archivo_val: a?.archivo || null,
-                  fecha_hora: a?.fecha_hora || null,
-                  ciclo: a?.ciclo || bimestre,
-                  orden: a?.orden || 0,
-                  asignatura_id: curso?.asignatura_id || null,
-                  curso_nombre: curso?.curso_nombre || 'Curso',
-                  docente_nombre: a?.docente_nombre || curso?.docente_nombre || 'Docente',
-                  hijosNombres: new Set(hijoNombre ? [hijoNombre] : []),
-                });
-              } else {
-                // Deduplicamos por id: solo agregamos contribución de este hijo
-                const existing = archivoById.get(key);
-                if (hijoNombre) existing.hijosNombres.add(hijoNombre);
-              }
-            }
           }
         }
 
         if (cancelled || requestIdRef.current !== reqId) return;
-
-        const listaFinal = Array.from(archivoById.values()).map((item) => ({
-          ...item,
-          hijosNombres: Array.from(item.hijosNombres || []),
-        }));
-
-        setArchivos(listaFinal);
-        setSelectedOrderIds([]); // al cambiar bimestre, reiniciamos selección
+        setArchivos(Array.from(archivoById.values()));
+        setSelectedOrderIds([]);
       } catch (e) {
         console.error('[TemasHijos] Error cargando temas:', e);
         if (!cancelled) {
@@ -148,7 +129,7 @@ function TemasHijosPage() {
     return () => {
       cancelled = true;
     };
-  }, [hijos, bimestre, apiBase]);
+  }, [hijoId, bimestre, apiBase]);
 
   const selectedSet = useMemo(() => new Set(selectedOrderIds.map((x) => String(x))), [selectedOrderIds]);
 
@@ -161,20 +142,12 @@ function TemasHijosPage() {
           key,
           curso_nombre: a.curso_nombre || 'Curso',
           docente_nombre: a.docente_nombre || 'Docente',
-          hijosNombres: new Set(),
           items: [],
         });
       }
-      const g = map.get(key);
-      if (a.hijosNombres?.length) a.hijosNombres.forEach((n) => g.hijosNombres.add(n));
-      g.items.push(a);
+      map.get(key).items.push(a);
     }
-    const res = Array.from(map.values()).map((g) => ({
-      ...g,
-      hijosNombres: Array.from(g.hijosNombres || []),
-    }));
-
-    // Orden: por nombre de curso, y dentro por orden/fecha
+    const res = Array.from(map.values());
     res.sort((a, b) => String(a.curso_nombre).localeCompare(String(b.curso_nombre)));
     for (const g of res) {
       g.items.sort((x, y) => (x.orden || 0) - (y.orden || 0));
@@ -232,8 +205,7 @@ function TemasHijosPage() {
         didOpen: () => Swal.showLoading(),
       });
 
-      const endpoint = `${apiBase}/hijos/aula-virtual/temas/merge-pdf`;
-      const response = await api.post(endpoint, {
+      const response = await api.post(`${apiBase}/hijos/${hijoId}/aula-virtual/temas/merge-pdf`, {
         archivoIds: selectedOrderIds,
         ciclo: bimestre,
       });
@@ -286,7 +258,9 @@ function TemasHijosPage() {
           <div className="th-hero-text">
             <h1>Temas & Fichas</h1>
             <p>
-              Selecciona por bimestre e imprime temas/fichas individuales o en un solo PDF (hasta {MAX_SELECCION}).
+              {hijoNombre
+                ? `Material de ${hijoNombre}. Elige el bimestre e imprime uno o varios PDF (hasta ${MAX_SELECCION}).`
+                : `Selecciona por bimestre e imprime temas/fichas individuales o en un solo PDF (hasta ${MAX_SELECCION}).`}
             </p>
           </div>
         </div>
@@ -322,11 +296,7 @@ function TemasHijosPage() {
           </button>
 
           <div className="th-back">
-            <button
-              type="button"
-              className="th-link-btn"
-              onClick={() => navigate(esDocente ? '/docente/hijos' : '/apoderado/hijos')}
-            >
+            <button type="button" className="th-link-btn" onClick={() => navigate(hijosHome)}>
               Volver a Hijos a cargo
             </button>
           </div>
@@ -353,8 +323,6 @@ function TemasHijosPage() {
                     <span className="th-group-teacher"> {g.docente_nombre}</span>
                   </div>
                   <div className="th-group-meta">
-                    {g.hijosNombres?.length ? `Hijos: ${g.hijosNombres.length}` : ''}
-                    <span className="th-group-sep">|</span>
                     {g.items.length} PDF(s)
                   </div>
                 </div>
@@ -382,9 +350,7 @@ function TemasHijosPage() {
                             {a.nombre || 'Tema sin nombre'}
                           </div>
                           <div className="th-item-sub">
-                            {a.hijosNombres?.length ? `Hijos: ${a.hijosNombres[0]}${a.hijosNombres.length > 1 ? ' +' + (a.hijosNombres.length - 1) : ''}` : ''}
-                            {a.fecha_hora ? <span className="th-item-sub-sep">·</span> : null}
-                            {a.fecha_hora ? getFechaLabel(a.fecha_hora) : null}
+                            {a.fecha_hora ? getFechaLabel(a.fecha_hora) : ''}
                           </div>
                         </div>
 
@@ -407,4 +373,3 @@ function TemasHijosPage() {
 }
 
 export default TemasHijosPage;
-

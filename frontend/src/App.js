@@ -891,7 +891,7 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/docente/hijos/temas"
+        path="/docente/hijos/:hijoId/temas"
         element={
           <PrivateRoute>
             <TemasHijosPage />
@@ -1217,7 +1217,7 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/apoderado/hijos/temas"
+        path="/apoderado/hijos/:hijoId/temas"
         element={
           <PrivateRoute requiredType="APODERADO">
             <TemasHijosPage />
