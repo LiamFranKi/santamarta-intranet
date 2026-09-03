@@ -65,6 +65,7 @@ export default function DashboardLayout({ children }) {
     configuracion: null,
     docenteHerramientas: null,
     alumnoHerramientas: null,
+    hijosCargo: null,
     psicologaCom: null,
     psicologaUsuarios: null,
     psicologaAcademico: null,
@@ -125,6 +126,7 @@ export default function DashboardLayout({ children }) {
           path.startsWith('/encuestas')
         ) && { alumnoHerramientas: true }
       ),
+      ...(path.startsWith('/apoderado/hijos') || path.startsWith('/docente/hijos')) && { hijosCargo: true },
     }));
   }, [location.pathname, user?.tipo]);
 
@@ -704,11 +706,44 @@ export default function DashboardLayout({ children }) {
                   }}>
                     Como Apoderado
                   </div>
-                  <div className="sidebar-item">
-                    <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/hijos">
-                      <span className="sidebar-icon">👨‍👩‍👧‍👦</span>
-                      <span className="sidebar-label">Hijos a Cargo</span>
-                    </NavLink>
+                  <div className="sidebar-menu-item">
+                    <button
+                      type="button"
+                      className={`sidebar-menu-toggle ${expandedMenus.hijosCargo ? 'expanded' : ''}`}
+                      onClick={() => toggleSubmenu('hijosCargo')}
+                    >
+                      <div className="sidebar-menu-toggle-content">
+                        <span className="sidebar-icon">👨‍👩‍👧‍👦</span>
+                        <span className="sidebar-label">Hijos a Cargo</span>
+                      </div>
+                      <span className="sidebar-menu-arrow">▶</span>
+                    </button>
+                    <div
+                      ref={(el) => {
+                        submenuRefs.current.hijosCargo = el;
+                      }}
+                      className={`sidebar-submenu ${expandedMenus.hijosCargo ? 'expanded' : ''}`}
+                    >
+                      <NavLink
+                        className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                        to="/docente/hijos"
+                        end
+                      >
+                        <span className="sidebar-icon" aria-hidden>
+                          👨‍👩‍👧‍👦
+                        </span>
+                        <span className="sidebar-label">Hijos a cargo</span>
+                      </NavLink>
+                      <NavLink
+                        className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                        to="/docente/hijos/temas"
+                      >
+                        <span className="sidebar-icon" aria-hidden>
+                          📚
+                        </span>
+                        <span className="sidebar-label">Temas</span>
+                      </NavLink>
+                    </div>
                   </div>
                 </>
               )}
@@ -1079,11 +1114,44 @@ export default function DashboardLayout({ children }) {
                   >
                     Como Apoderado
                   </div>
-                  <div className="sidebar-item">
-                    <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/hijos">
-                      <span className="sidebar-icon">👨‍👩‍👧‍👦</span>
-                      <span className="sidebar-label">Hijos a Cargo</span>
-                    </NavLink>
+                  <div className="sidebar-menu-item">
+                    <button
+                      type="button"
+                      className={`sidebar-menu-toggle ${expandedMenus.hijosCargo ? 'expanded' : ''}`}
+                      onClick={() => toggleSubmenu('hijosCargo')}
+                    >
+                      <div className="sidebar-menu-toggle-content">
+                        <span className="sidebar-icon">👨‍👩‍👧‍👦</span>
+                        <span className="sidebar-label">Hijos a Cargo</span>
+                      </div>
+                      <span className="sidebar-menu-arrow">▶</span>
+                    </button>
+                    <div
+                      ref={(el) => {
+                        submenuRefs.current.hijosCargo = el;
+                      }}
+                      className={`sidebar-submenu ${expandedMenus.hijosCargo ? 'expanded' : ''}`}
+                    >
+                      <NavLink
+                        className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                        to="/docente/hijos"
+                        end
+                      >
+                        <span className="sidebar-icon" aria-hidden>
+                          👨‍👩‍👧‍👦
+                        </span>
+                        <span className="sidebar-label">Hijos a cargo</span>
+                      </NavLink>
+                      <NavLink
+                        className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                        to="/docente/hijos/temas"
+                      >
+                        <span className="sidebar-icon" aria-hidden>
+                          📚
+                        </span>
+                        <span className="sidebar-label">Temas</span>
+                      </NavLink>
+                    </div>
                   </div>
                 </>
               )}
@@ -1109,10 +1177,45 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/hijos">
-                  <span className="sidebar-icon">👨‍👩‍👧‍👦</span>
-                  <span className="sidebar-label">Hijos a cargo</span>
-                </NavLink>
+                <div className="sidebar-menu-item">
+                  <button
+                    type="button"
+                    className={`sidebar-menu-toggle ${expandedMenus.hijosCargo ? 'expanded' : ''}`}
+                    onClick={() => toggleSubmenu('hijosCargo')}
+                  >
+                    <div className="sidebar-menu-toggle-content">
+                      <span className="sidebar-icon">👨‍👩‍👧‍👦</span>
+                      <span className="sidebar-label">Hijos a cargo</span>
+                    </div>
+                    <span className="sidebar-menu-arrow">▶</span>
+                  </button>
+                  <div
+                    ref={(el) => {
+                      submenuRefs.current.hijosCargo = el;
+                    }}
+                    className={`sidebar-submenu ${expandedMenus.hijosCargo ? 'expanded' : ''}`}
+                  >
+                    <NavLink
+                      className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                      to="/apoderado/hijos"
+                      end
+                    >
+                      <span className="sidebar-icon" aria-hidden>
+                        👨‍👩‍👧‍👦
+                      </span>
+                      <span className="sidebar-label">Hijos a cargo</span>
+                    </NavLink>
+                    <NavLink
+                      className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                      to="/apoderado/hijos/temas"
+                    >
+                      <span className="sidebar-icon" aria-hidden>
+                        📚
+                      </span>
+                      <span className="sidebar-label">Temas</span>
+                    </NavLink>
+                  </div>
+                </div>
               </div>
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/psicologia">
@@ -1682,11 +1785,44 @@ export default function DashboardLayout({ children }) {
                   >
                     Como Apoderado
                   </div>
-                  <div className="sidebar-item">
-                    <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/hijos">
-                      <span className="sidebar-icon">👨‍👩‍👧‍👦</span>
-                      <span className="sidebar-label">Hijos a Cargo</span>
-                    </NavLink>
+                  <div className="sidebar-menu-item">
+                    <button
+                      type="button"
+                      className={`sidebar-menu-toggle ${expandedMenus.hijosCargo ? 'expanded' : ''}`}
+                      onClick={() => toggleSubmenu('hijosCargo')}
+                    >
+                      <div className="sidebar-menu-toggle-content">
+                        <span className="sidebar-icon">👨‍👩‍👧‍👦</span>
+                        <span className="sidebar-label">Hijos a Cargo</span>
+                      </div>
+                      <span className="sidebar-menu-arrow">▶</span>
+                    </button>
+                    <div
+                      ref={(el) => {
+                        submenuRefs.current.hijosCargo = el;
+                      }}
+                      className={`sidebar-submenu ${expandedMenus.hijosCargo ? 'expanded' : ''}`}
+                    >
+                      <NavLink
+                        className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                        to="/docente/hijos"
+                        end
+                      >
+                        <span className="sidebar-icon" aria-hidden>
+                          👨‍👩‍👧‍👦
+                        </span>
+                        <span className="sidebar-label">Hijos a cargo</span>
+                      </NavLink>
+                      <NavLink
+                        className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                        to="/docente/hijos/temas"
+                      >
+                        <span className="sidebar-icon" aria-hidden>
+                          📚
+                        </span>
+                        <span className="sidebar-label">Temas</span>
+                      </NavLink>
+                    </div>
                   </div>
                 </>
               )}

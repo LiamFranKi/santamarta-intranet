@@ -53,11 +53,12 @@ const {
   mountAlumnoFichaByIdRoutes
 } = require('../utils/alumnoPerfilExtra');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
-const { fetchMatriculaAnioActivoOperativa, sqlExistePagoMatriculaCancelado, personalHijoTieneMatriculaAnioActivoOperativa, MENSAJE_SIN_MATRICULA } = require('../utils/matriculaAnioActivo');
+const { fetchMatriculaAnioActivoOperativa, sqlExistePagoMatriculaCancelado, personalHijoTieneMatriculaAnioActivoOperativa, MENSAJE_SIN_MATRICULA, sqlWhereMatriculaAnioActivoOperativa } = require('../utils/matriculaAnioActivo');
 const { maxCuadrosConNotaEnCriterio } = require('../utils/indicadoresPlantillaService');
 const { tryInsertPushCronDedup, fechaLimaYmd } = require('../utils/pushCronDedup');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const { staticFsSubdir, joinStaticFs, getPublicStaticBaseUrl, urlStaticFotos } = require('../utils/staticStorage');
+const { mergeTemasPdfsToFile } = require('../utils/temasMergePdf');
 const { resolverTemaDestinoId } = require('../utils/copiarContenidoAsignatura');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 const { findAlternativaMarcadaVF } = require('../utils/examenRespuestaIds');
@@ -12551,6 +12552,117 @@ router.get('/hijos/:hijoId/aula-virtual/archivos', soloLecturaProxy, async (req,
   } catch (error) {
     console.error('Error obteniendo archivos:', error);
     res.status(500).json({ error: error.message || 'Error al obtener archivos' });
+  }
+});
+
+/**
+ * POST /api/docente/hijos/aula-virtual/temas/merge-pdf
+ * Une PDFs (temas/fichas interactivos) en un solo PDF para TODOS los hijos
+ * del docente que también es apoderado (personal con mismo nro_documento).
+ *
+ * Body:
+ * - archivoIds: number[] (máx 20) en el orden de selección del usuario
+ * - ciclo (opcional): para nombrar el PDF generado
+ */
+router.post('/hijos/aula-virtual/temas/merge-pdf', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo, personal_id } = req.user;
+    const { archivoIds, ciclo } = req.body || {};
+
+    if (!colegio_id || !anio_activo) {
+      return res.status(400).json({ error: 'Usuario incompleto para generar PDF' });
+    }
+    if (!Array.isArray(archivoIds) || archivoIds.length === 0) {
+      return res.status(400).json({ error: 'archivoIds es requerido y debe tener al menos 1 elemento' });
+    }
+    if (archivoIds.length > 20) {
+      return res.status(400).json({ error: 'Máximo permitido: 20 PDFs para concatenar' });
+    }
+    if (!personal_id) {
+      return res.status(400).json({ error: 'personal_id no encontrado' });
+    }
+
+    // Deduplicar preservando orden
+    const idsOrdered = [];
+    const seen = new Set();
+    for (const id of archivoIds) {
+      const n = parseInt(id, 10);
+      if (!Number.isFinite(n)) continue;
+      const key = String(n);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      idsOrdered.push(n);
+    }
+
+    if (idsOrdered.length === 0) {
+      return res.status(400).json({ error: 'archivoIds inválidos' });
+    }
+
+    // Obtener nro_documento del personal actual
+    let nroDocumento = null;
+    const personalData = await query(
+      'SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1',
+      [personal_id, colegio_id]
+    );
+    if (personalData?.[0]?.nro_documento) {
+      nroDocumento = personalData[0].nro_documento;
+    } else {
+      const usuarioData = await query(
+        'SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1',
+        [req.user.usuario_id, colegio_id, personal_id]
+      );
+      nroDocumento = usuarioData?.[0]?.usuario || null;
+    }
+
+    if (!nroDocumento) {
+      return res.status(403).json({ error: 'No se encontró tu número de documento.' });
+    }
+
+    const placeholders = idsOrdered.map(() => '?').join(',');
+
+    // Traer SOLO los archivos accesibles por hijos en matrícula activa pagada (año activo)
+    const filas = await query(
+      `SELECT DISTINCT aa.*
+       FROM asignaturas_archivos aa
+       INNER JOIN asignaturas a ON a.id = aa.asignatura_id
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN matriculas m ON m.grupo_id = g.id
+       INNER JOIN familias f ON f.alumno_id = m.alumno_id
+       INNER JOIN apoderados ap ON ap.id = f.apoderado_id
+       WHERE ap.colegio_id = ?
+         AND ap.nro_documento = ?
+         AND m.colegio_id = ?
+         AND ${sqlWhereMatriculaAnioActivoOperativa('m', 'g')}
+         AND aa.id IN (${placeholders})`,
+      [colegio_id, nroDocumento, colegio_id, anio_activo, ...idsOrdered]
+    );
+
+    const filasById = new Map((filas || []).map((r) => [String(r.id), r]));
+
+    const mergeResult = await mergeTemasPdfsToFile({
+      archivoIdsOrdered: idsOrdered,
+      archivoRowsById: filasById,
+      outputFileNameBase: ciclo ? `temas-bimestre-${ciclo}` : 'temas-bimestre',
+    });
+
+    if (!mergeResult?.downloadUrl) {
+      return res.status(404).json({
+        error: 'No se pudo generar el PDF (todos los archivos fallaron o no eran accesibles)',
+        failed: mergeResult?.failedIds || [],
+        okCount: mergeResult?.okCount || 0,
+        requested: idsOrdered.length,
+      });
+    }
+
+    res.json({
+      downloadUrl: mergeResult.downloadUrl,
+      failed: mergeResult.failedIds,
+      okCount: mergeResult.okCount,
+      requested: idsOrdered.length,
+    });
+  } catch (error) {
+    console.error('Error concatenando PDFs de Temas (docente):', error);
+    res.status(500).json({ error: error.message || 'Error al concatenar PDFs' });
   }
 });
 

@@ -104,6 +104,7 @@ import MatriculaOnline from './pages/MatriculaOnline';
 import ApoderadoDashboard from './pages/ApoderadoDashboard';
 import ApoderadoPerfil from './pages/ApoderadoPerfil';
 import ApoderadoHijos from './pages/ApoderadoHijos';
+import TemasHijosPage from './pages/TemasHijos';
 import ApoderadoComunicados from './pages/ApoderadoComunicados';
 import ApoderadoActividades from './pages/ApoderadoActividades';
 import ApoderadoMensajes from './pages/ApoderadoMensajes';
@@ -890,6 +891,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/docente/hijos/temas"
+        element={
+          <PrivateRoute>
+            <TemasHijosPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/docente/tutoria"
         element={
           <PrivateRoute>
@@ -1204,6 +1213,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <ApoderadoHijos />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/apoderado/hijos/temas"
+        element={
+          <PrivateRoute requiredType="APODERADO">
+            <TemasHijosPage />
           </PrivateRoute>
         }
       />

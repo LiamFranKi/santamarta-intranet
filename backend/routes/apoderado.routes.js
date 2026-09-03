@@ -26,12 +26,14 @@ const {
   SQL_SELECT_CAMPOS_HIJO_APODERADO,
   sqlExistePagoMatriculaCancelado,
   apoderadoHijoTieneMatriculaAnioActivoOperativa,
+  sqlWhereMatriculaAnioActivoOperativa,
   MENSAJE_SIN_MATRICULA
 } = require('../utils/matriculaAnioActivo');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const { urlStaticFotos } = require('../utils/staticStorage');
 const { listarComunicadosInicio } = require('../utils/comunicadosHome');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
+const { mergeTemasPdfsToFile } = require('../utils/temasMergePdf');
 const { getBoletaPdfJsonForPago } = require('../utils/boletaPdfData');
 const { obtenerRangosLetrasColegio } = require('../utils/rangosLetrasColegio');
 const { listarIncidenciasUnificadasMatricula, agruparItemsPorBimestre, fetchMapasNotasConductaLibreta } = require('../utils/conductaIncidenciasBimestre');
@@ -4218,6 +4220,95 @@ router.get('/hijos/:hijoId/aula-virtual/archivos', soloLecturaProxy, async (req,
   } catch (error) {
     console.error('Error obteniendo archivos:', error);
     res.status(500).json({ error: error.message || 'Error al obtener archivos' });
+  }
+});
+
+/**
+ * POST /api/apoderado/hijos/aula-virtual/temas/merge-pdf
+ * Une PDFs (temas/fichas interactivos) en un solo PDF para TODOS los hijos matriculados.
+ *
+ * Body:
+ * - archivoIds: number[] (máx 20) en el orden de selección del usuario
+ * - ciclo (opcional): para nombrar el PDF generado
+ */
+router.post('/hijos/aula-virtual/temas/merge-pdf', async (req, res) => {
+  try {
+    const { apoderado_id, colegio_id, anio_activo } = req.user;
+    const { archivoIds, ciclo } = req.body || {};
+
+    if (!apoderado_id || !colegio_id || !anio_activo) {
+      return res.status(400).json({ error: 'Usuario incompleto para generar PDF' });
+    }
+
+    if (!Array.isArray(archivoIds) || archivoIds.length === 0) {
+      return res.status(400).json({ error: 'archivoIds es requerido y debe tener al menos 1 elemento' });
+    }
+
+    if (archivoIds.length > 20) {
+      return res.status(400).json({ error: 'Máximo permitido: 20 PDFs para concatenar' });
+    }
+
+    // Deduplicar preservando orden
+    const idsOrdered = [];
+    const seen = new Set();
+    for (const id of archivoIds) {
+      const n = parseInt(id, 10);
+      if (!Number.isFinite(n)) continue;
+      const key = String(n);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      idsOrdered.push(n);
+    }
+
+    if (idsOrdered.length === 0) {
+      return res.status(400).json({ error: 'archivoIds inválidos' });
+    }
+
+    const placeholders = idsOrdered.map(() => '?').join(',');
+
+    // Traer SOLO los archivos accesibles por matrícula activa (y pago cancelado), en el año activo.
+    const filas = await query(
+      `SELECT DISTINCT aa.*
+       FROM asignaturas_archivos aa
+       INNER JOIN asignaturas a ON a.id = aa.asignatura_id
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN matriculas m ON m.grupo_id = g.id
+       INNER JOIN familias f ON f.alumno_id = m.alumno_id
+       INNER JOIN apoderados ap ON ap.id = f.apoderado_id
+       WHERE ap.id = ?
+         AND ap.colegio_id = ?
+         AND m.colegio_id = ?
+         AND ${sqlWhereMatriculaAnioActivoOperativa('m', 'g')}
+         AND aa.id IN (${placeholders})`,
+      [apoderado_id, colegio_id, colegio_id, anio_activo, ...idsOrdered]
+    );
+
+    const filasById = new Map((filas || []).map((r) => [String(r.id), r]));
+
+    const mergeResult = await mergeTemasPdfsToFile({
+      archivoIdsOrdered: idsOrdered,
+      archivoRowsById: filasById,
+      outputFileNameBase: ciclo ? `temas-bimestre-${ciclo}` : 'temas-bimestre',
+    });
+
+    if (!mergeResult?.downloadUrl) {
+      return res.status(404).json({
+        error: 'No se pudo generar el PDF (todos los archivos fallaron o no eran accesibles)',
+        failed: mergeResult?.failedIds || [],
+        okCount: mergeResult?.okCount || 0,
+        requested: idsOrdered.length,
+      });
+    }
+
+    res.json({
+      downloadUrl: mergeResult.downloadUrl,
+      failed: mergeResult.failedIds,
+      okCount: mergeResult.okCount,
+      requested: idsOrdered.length,
+    });
+  } catch (error) {
+    console.error('Error concatenando PDFs de Temas (apoderado):', error);
+    res.status(500).json({ error: error.message || 'Error al concatenar PDFs' });
   }
 });
 
