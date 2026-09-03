@@ -66,7 +66,7 @@ async function mergeTemasPdfsToFile({
     try {
       const archivoValor = row.archivo || row.archivo_url || row.archivo_pdf || row.archivoFile || null;
       const pdfBytes = await loadPdfBytes({ archivoValor, archivoIdForDebug: archivoId });
-      const pdfDoc = await PDFDocument.load(pdfBytes);
+      const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
 
       const pageIndices = pdfDoc.getPageIndices();
       if (!pageIndices || pageIndices.length === 0) {
@@ -101,13 +101,9 @@ async function mergeTemasPdfsToFile({
 
   fs.writeFileSync(outPath, mergedBytes);
 
-  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
-  const isDevelopment = process.env.NODE_ENV !== 'production';
-  const baseUrl = isDevelopment ? 'http://localhost:5000' : phpSystemUrl;
-
-  // outputSubdir = ['Archivos','TemasMerge'] => url: /Static/Archivos/TemasMerge/<fileName>
-  const subdirForUrl = outputSubdir.slice(1).join('/');
-  const downloadUrl = `${baseUrl}/Static/${outputSubdir[0]}/${subdirForUrl}/${fileName}`.replace(/\/+/g, '/');
+  // Ruta relativa del mismo origen. Nunca usar replace(/\/+/g, '/') sobre URLs
+  // absolutas: convierte https:// en https:/ y el navegador abre una página en blanco.
+  const downloadUrl = `/Static/Archivos/TemasMerge/${fileName}`;
 
   return {
     mergedBytes,
@@ -117,5 +113,14 @@ async function mergeTemasPdfsToFile({
   };
 }
 
-module.exports = { mergeTemasPdfsToFile };
+function sendMergedPdf(res, mergeResult, filename = 'temas-bimestre.pdf') {
+  const safeName = String(filename || 'temas-bimestre.pdf').replace(/[^a-zA-Z0-9._-]/g, '');
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
+  res.setHeader('X-Temas-Failed-Count', String((mergeResult.failedIds || []).length));
+  res.setHeader('Access-Control-Expose-Headers', 'X-Temas-Failed-Count');
+  res.send(Buffer.from(mergeResult.mergedBytes));
+}
+
+module.exports = { mergeTemasPdfsToFile, sendMergedPdf };
 

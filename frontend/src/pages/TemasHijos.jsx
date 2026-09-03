@@ -205,42 +205,59 @@ function TemasHijosPage() {
         didOpen: () => Swal.showLoading(),
       });
 
-      const response = await api.post(`${apiBase}/hijos/${hijoId}/aula-virtual/temas/merge-pdf`, {
-        archivoIds: selectedOrderIds,
-        ciclo: bimestre,
-      });
+      const response = await api.post(
+        `${apiBase}/hijos/${hijoId}/aula-virtual/temas/merge-pdf`,
+        { archivoIds: selectedOrderIds, ciclo: bimestre },
+        { responseType: 'blob' }
+      );
 
-      const downloadUrl = response.data?.downloadUrl;
-      const failed = Array.isArray(response.data?.failed) ? response.data.failed : [];
+      const blob = response.data instanceof Blob
+        ? response.data
+        : new Blob([response.data], { type: 'application/pdf' });
 
-      if (!downloadUrl) {
+      if (blob.type && blob.type.includes('application/json')) {
+        const text = await blob.text();
+        let parsed = {};
+        try { parsed = JSON.parse(text); } catch { parsed = {}; }
         Swal.close();
         Swal.fire({
           icon: 'error',
           title: 'Error',
-          text: response.data?.error || 'No se pudo generar el PDF concatenado.',
+          text: parsed.error || 'No se pudo generar el PDF concatenado.',
         });
         return;
       }
 
+      const objectUrl = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      window.open(objectUrl, '_blank', 'noopener,noreferrer');
       Swal.close();
-      window.open(downloadUrl, '_blank', 'noopener,noreferrer');
 
-      if (failed.length > 0) {
+      const failedCount = parseInt(response.headers?.['x-temas-failed-count'], 10) || 0;
+      if (failedCount > 0) {
         Swal.fire({
           icon: 'warning',
           title: 'Algunos PDFs no pudieron cargarse',
-          text: `Se generó el PDF con los restantes. Fallaron: ${failed.length} archivo(s).`,
+          text: `Se generó el PDF con los restantes. Fallaron: ${failedCount} archivo(s).`,
           confirmButtonText: 'Entendido',
         });
       }
     } catch (e) {
       console.error('[TemasHijos] Error generando PDF concatenado:', e);
       Swal.close();
+      let msg = e.message || 'No se pudo generar el PDF';
+      const errData = e?.response?.data;
+      if (errData instanceof Blob) {
+        try {
+          const parsed = JSON.parse(await errData.text());
+          if (parsed?.error) msg = parsed.error;
+        } catch { /* ignore */ }
+      } else if (errData?.error) {
+        msg = errData.error;
+      }
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: e?.response?.data?.error || e.message || 'No se pudo generar el PDF',
+        text: msg,
         confirmButtonText: 'Entendido',
       });
     }

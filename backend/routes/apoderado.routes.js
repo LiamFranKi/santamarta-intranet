@@ -33,7 +33,7 @@ const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../ut
 const { urlStaticFotos } = require('../utils/staticStorage');
 const { listarComunicadosInicio } = require('../utils/comunicadosHome');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
-const { mergeTemasPdfsToFile } = require('../utils/temasMergePdf');
+const { mergeTemasPdfsToFile, sendMergedPdf } = require('../utils/temasMergePdf');
 const { getBoletaPdfJsonForPago } = require('../utils/boletaPdfData');
 const { obtenerRangosLetrasColegio } = require('../utils/rangosLetrasColegio');
 const { listarIncidenciasUnificadasMatricula, agruparItemsPorBimestre, fetchMapasNotasConductaLibreta } = require('../utils/conductaIncidenciasBimestre');
@@ -4297,7 +4297,7 @@ router.post('/hijos/:hijoId/aula-virtual/temas/merge-pdf', async (req, res) => {
       outputFileNameBase: ciclo ? `temas-bimestre-${ciclo}` : 'temas-bimestre',
     });
 
-    if (!mergeResult?.downloadUrl) {
+    if (!mergeResult?.mergedBytes) {
       return res.status(404).json({
         error: 'No se pudo generar el PDF (todos los archivos fallaron o no eran accesibles)',
         failed: mergeResult?.failedIds || [],
@@ -4306,12 +4306,7 @@ router.post('/hijos/:hijoId/aula-virtual/temas/merge-pdf', async (req, res) => {
       });
     }
 
-    res.json({
-      downloadUrl: mergeResult.downloadUrl,
-      failed: mergeResult.failedIds,
-      okCount: mergeResult.okCount,
-      requested: idsOrdered.length,
-    });
+    return sendMergedPdf(res, mergeResult, ciclo ? `temas-bimestre-${ciclo}.pdf` : 'temas-bimestre.pdf');
   } catch (error) {
     console.error('Error concatenando PDFs de Temas (apoderado):', error);
     res.status(500).json({ error: error.message || 'Error al concatenar PDFs' });
