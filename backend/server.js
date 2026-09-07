@@ -363,6 +363,7 @@ app.use('/api/public/matricula-online', matriculaOnlineRoutes);
 app.use('/api/public', require('./routes/public.visitasConfig.routes'));
 app.use('/api/public', require('./routes/public.utiles.routes'));
 app.use('/api/public', require('./routes/public.admisionConfig.routes'));
+app.use('/api/public', require('./routes/public.paginasNiveles.routes'));
 app.use('/api/admin/eventos', eventosRoutes);
 const sgoiRoutes = require('./routes/sgoi.routes');
 app.use('/api/sgoi', sgoiRoutes);

@@ -3,7 +3,7 @@
  * Tablas: web_reclamos, web_sugerencias, web_contactenos, web_visitas_guiadas,
  *         web_trabaja_con_nosotros, web_admision, web_correos_envio,
  *         web_visita_dias, web_visita_horarios, web_visita_fechas, web_visita_config,
- *         web_visita_secuencias(+slots), web_admision_config
+ *         web_visita_secuencias(+slots), web_admision_config, web_paginas_niveles
  * Archivos: solo bajo WEB_VANGUARD_ROOT/data/ (nunca /var/www/web).
  */
 const express = require('express');
@@ -20,6 +20,7 @@ const {
   leerModoFechas,
 } = require('../utils/visitaGuiadaPublicConfig');
 const { leerAdmisionConfig, guardarAdmisionConfig } = require('../utils/admisionCampanaConfig');
+const { leerPaginasNiveles, guardarPaginasNiveles } = require('../utils/webPaginasNiveles');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -1449,6 +1450,35 @@ router.post('/matricula-online/sync-correos-legacy', async (req, res) => {
       });
     }
     res.status(500).json({ error: e.message || 'Error al sincronizar correos.' });
+  }
+});
+
+router.get('/paginas-niveles', async (_req, res) => {
+  try {
+    const payload = await leerPaginasNiveles(query);
+    res.json(payload);
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al leer inversión de niveles.' });
+  }
+});
+
+router.put('/paginas-niveles', async (req, res) => {
+  try {
+    const payload = await guardarPaginasNiveles(execute, query, req.body || {});
+    if (payload.necesita_migracion) {
+      return res.status(503).json({
+        error: 'Falta ejecutar la migración 080 (web_paginas_niveles).',
+        ...payload,
+      });
+    }
+    res.json({ ...payload, message: 'Inversión de niveles guardada' });
+  } catch (e) {
+    if (e && (e.code === 'ER_NO_SUCH_TABLE' || e.errno === 1146)) {
+      return res.status(503).json({
+        error: 'Falta ejecutar la migración 080 (web_paginas_niveles).',
+      });
+    }
+    res.status(500).json({ error: e.message || 'Error al guardar inversión de niveles.' });
   }
 });
 

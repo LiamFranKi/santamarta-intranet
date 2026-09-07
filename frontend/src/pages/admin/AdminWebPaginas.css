@@ -1,0 +1,103 @@
+.wp-paginas {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.wp-niveles-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0.25rem 0 1.25rem;
+}
+
+.wp-nivel-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1.1rem 1.15rem 1.15rem;
+  background: #f8fafc;
+}
+
+.wp-nivel-card--inicial {
+  border-top: 4px solid #ec4899;
+}
+
+.wp-nivel-card--primaria {
+  border-top: 4px solid #3b82f6;
+}
+
+.wp-nivel-card--secundaria {
+  border-top: 4px solid #10b981;
+}
+
+.wp-nivel-card__label {
+  margin: 0;
+  font-weight: 750;
+  color: #0f172a;
+  font-size: 1rem;
+}
+
+.wp-nivel-card__hint {
+  margin: 0.2rem 0 0.85rem;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.wp-monto {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 0.35rem 0.7rem;
+}
+
+.wp-monto span {
+  font-weight: 800;
+  color: #0f766e;
+  font-size: 1.05rem;
+}
+
+.wp-monto input {
+  border: none;
+  outline: none;
+  width: 100%;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0f172a;
+  background: transparent;
+  padding: 0.35rem 0;
+}
+
+.wp-nivel-card__link {
+  display: inline-block;
+  margin-top: 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0ea5e9;
+  text-decoration: none;
+}
+
+.wp-nivel-card__link:hover {
+  text-decoration: underline;
+}
+
+.wp-extras {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 0.85rem 1rem;
+  margin-bottom: 1.15rem;
+}
+
+.wp-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 860px) {
+  .wp-niveles-grid,
+  .wp-extras {
+    grid-template-columns: 1fr;
+  }
+}

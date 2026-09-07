@@ -9,6 +9,7 @@ import AdminWebFaqs from './AdminWebFaqs';
 import AdminWebUtiles from './AdminWebUtiles';
 import AdminWebDocumentos from './AdminWebDocumentos';
 import AdminWebMatricula from './AdminWebMatricula';
+import AdminWebPaginas from './AdminWebPaginas';
 import { generarPdfListaVisitasGuiadas } from '../../utils/pdfListaVisitasGuiadas';
 import './AdminReclamosSugerencias.css';
 
@@ -33,10 +34,11 @@ const TABS = [
   { id: 'faqs', label: '❓ Preguntas frecuentes' },
   { id: 'utiles', label: '📚 Lista de útiles' },
   { id: 'documentos', label: '📁 Documentos' },
+  { id: 'paginas', label: '📄 Páginas' },
 ];
 
 const FORM_TAB_IDS = ['reclamos', 'sugerencias', 'contacto', 'visitas', 'trabaja', 'admision'];
-const PANEL_TABS = new Set(['calendarizacion', 'faqs', 'utiles', 'documentos', 'matricula']);
+const PANEL_TABS = new Set(['calendarizacion', 'faqs', 'utiles', 'documentos', 'matricula', 'paginas']);
 const TAB_IDS = TABS.map((t) => t.id);
 
 const CORREO_CANALES = [
@@ -2343,7 +2345,7 @@ export default function AdminReclamosSugerencias() {
             <p>Formularios y calendarización de la web pública Vanguard (gestión desde intranet).</p>
           </div>
           <div className="rs-hero-actions">
-            {tab !== 'calendarizacion' && tab !== 'faqs' && tab !== 'utiles' && tab !== 'documentos' && (
+            {tab !== 'calendarizacion' && tab !== 'faqs' && tab !== 'utiles' && tab !== 'documentos' && tab !== 'paginas' && (
               <>
                 <button type="button" className="rs-btn rs-btn-light" onClick={() => setModalCorreos(true)}>
                   📧 Correos de envío
@@ -2394,6 +2396,8 @@ export default function AdminReclamosSugerencias() {
           <AdminWebDocumentos />
         ) : tab === 'matricula' ? (
           <AdminWebMatricula onOpenCorreos={() => setModalCorreos(true)} />
+        ) : tab === 'paginas' ? (
+          <AdminWebPaginas />
         ) : (
           <>
         <div className="rs-toolbar">
