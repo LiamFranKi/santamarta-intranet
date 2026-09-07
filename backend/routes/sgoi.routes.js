@@ -249,11 +249,9 @@ router.get('/pendientes', async (req, res) => {
     const estado = sanitizarTexto(req.query.estado, 16);
     const where = ['x.colegio_id = ?'];
     const params = [colegio_id];
-    if (estado) {
+    if (estado && estado !== 'TODOS') {
       where.push('x.estado = ?');
       params.push(estado);
-    } else {
-      where.push("x.estado IN ('ABIERTO','EN_CURSO')");
     }
     const rows = await query(
       `SELECT x.*, ${nombreUsuarioSql()} AS usuario_nombre
@@ -612,6 +610,185 @@ router.post('/pendientes/:id/continuar', async (req, res) => {
     res.status(201).json({ activo: creado });
   } catch (e) {
     return handleSgoiError(res, e, 'pendientes/continuar');
+  }
+});
+
+router.put('/casos/:id', async (req, res) => {
+  try {
+    const ctx = await contextoUsuario(req);
+    const id = parseInt(req.params.id, 10);
+    const rows = await query(
+      `SELECT * FROM sgoi_casos WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [id, ctx.colegio_id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Caso no encontrado.' });
+    const titulo = sanitizarTexto(req.body?.titulo, 200);
+    const nota = sanitizarTexto(req.body?.nota, 4000);
+    const prioridad = ['NORMAL', 'ALTA', 'URGENTE'].includes(req.body?.prioridad)
+      ? req.body.prioridad
+      : rows[0].prioridad;
+    let estado = sanitizarTexto(req.body?.estado, 16) || rows[0].estado;
+    if (!['EN_CURSO', 'RESUELTO', 'PENDIENTE'].includes(estado)) {
+      return res.status(400).json({ error: 'Estado inválido.' });
+    }
+    if (rows[0].estado === 'EN_CURSO' && estado !== 'EN_CURSO') {
+      return res.status(400).json({
+        error: 'Un caso en curso se cierra desde el flotante (Resuelto o Pendiente).',
+      });
+    }
+    if (estado === 'EN_CURSO' && rows[0].estado !== 'EN_CURSO') {
+      return res.status(400).json({ error: 'No se puede reabrir un caso como en curso desde aquí.' });
+    }
+    await execute(
+      `UPDATE sgoi_casos SET titulo = ?, nota = ?, prioridad = ?, estado = ?
+       WHERE id = ? AND colegio_id = ?`,
+      [titulo || rows[0].titulo, nota, prioridad, estado, id, ctx.colegio_id]
+    );
+    if (nota && nota !== rows[0].nota) {
+      await agregarSeguimiento({
+        colegioId: ctx.colegio_id,
+        entidad: 'CASO',
+        entidadId: id,
+        usuarioId: ctx.usuario_id,
+        texto: `Edición: ${nota}`,
+      });
+    }
+    auditarSgoi(req, { accion: 'EDITAR', entidad: 'caso', entidad_id: id, descripcion: titulo || rows[0].codigo });
+    const updated = await query(`SELECT * FROM sgoi_casos WHERE id = ? AND colegio_id = ?`, [id, ctx.colegio_id]);
+    res.json({ caso: updated[0] });
+  } catch (e) {
+    return handleSgoiError(res, e, 'casos/editar');
+  }
+});
+
+router.put('/trabajos/:id', async (req, res) => {
+  try {
+    const ctx = await contextoUsuario(req);
+    const id = parseInt(req.params.id, 10);
+    const rows = await query(
+      `SELECT * FROM sgoi_trabajos WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [id, ctx.colegio_id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Trabajo no encontrado.' });
+    const titulo = sanitizarTexto(req.body?.titulo, 200);
+    const nota = sanitizarTexto(req.body?.nota, 4000);
+    const tipo = TIPOS_TRABAJO.includes(req.body?.tipo) ? req.body.tipo : rows[0].tipo;
+    let estado = sanitizarTexto(req.body?.estado, 16) || rows[0].estado;
+    if (!['EN_CURSO', 'HECHO', 'PENDIENTE'].includes(estado)) {
+      return res.status(400).json({ error: 'Estado inválido.' });
+    }
+    if (rows[0].estado === 'EN_CURSO' && estado !== 'EN_CURSO') {
+      return res.status(400).json({
+        error: 'Un trabajo en curso se cierra desde el flotante (Hecho o Pendiente).',
+      });
+    }
+    if (estado === 'EN_CURSO' && rows[0].estado !== 'EN_CURSO') {
+      return res.status(400).json({ error: 'No se puede reabrir un trabajo como en curso desde aquí.' });
+    }
+    await execute(
+      `UPDATE sgoi_trabajos SET titulo = ?, nota = ?, tipo = ?, estado = ?
+       WHERE id = ? AND colegio_id = ?`,
+      [titulo || rows[0].titulo, nota, tipo, estado, id, ctx.colegio_id]
+    );
+    auditarSgoi(req, { accion: 'EDITAR', entidad: 'trabajo', entidad_id: id, descripcion: titulo || rows[0].codigo });
+    const updated = await query(`SELECT * FROM sgoi_trabajos WHERE id = ? AND colegio_id = ?`, [id, ctx.colegio_id]);
+    res.json({ trabajo: updated[0] });
+  } catch (e) {
+    return handleSgoiError(res, e, 'trabajos/editar');
+  }
+});
+
+router.put('/pendientes/:id', async (req, res) => {
+  try {
+    const ctx = await contextoUsuario(req);
+    const id = parseInt(req.params.id, 10);
+    const rows = await query(
+      `SELECT * FROM sgoi_pendientes WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [id, ctx.colegio_id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Pendiente no encontrado.' });
+    const titulo = sanitizarTexto(req.body?.titulo, 200);
+    const descripcion = sanitizarTexto(req.body?.descripcion, 4000);
+    const prioridad = ['NORMAL', 'ALTA', 'URGENTE'].includes(req.body?.prioridad)
+      ? req.body.prioridad
+      : rows[0].prioridad;
+    const estado = ['ABIERTO', 'EN_CURSO', 'HECHO'].includes(req.body?.estado)
+      ? req.body.estado
+      : rows[0].estado;
+    const cerradoAt = estado === 'HECHO' ? (rows[0].cerrado_at || fechaHoraMySQLLima()) : null;
+    await execute(
+      `UPDATE sgoi_pendientes SET titulo = ?, descripcion = ?, prioridad = ?, estado = ?, cerrado_at = ?
+       WHERE id = ? AND colegio_id = ?`,
+      [titulo || rows[0].titulo, descripcion, prioridad, estado, cerradoAt, id, ctx.colegio_id]
+    );
+    auditarSgoi(req, { accion: 'EDITAR', entidad: 'pendiente', entidad_id: id, descripcion: titulo || rows[0].titulo });
+    const updated = await query(`SELECT * FROM sgoi_pendientes WHERE id = ? AND colegio_id = ?`, [id, ctx.colegio_id]);
+    res.json({ pendiente: updated[0] });
+  } catch (e) {
+    return handleSgoiError(res, e, 'pendientes/editar');
+  }
+});
+
+router.delete('/casos/:id', async (req, res) => {
+  try {
+    const ctx = await contextoUsuario(req);
+    const id = parseInt(req.params.id, 10);
+    const rows = await query(
+      `SELECT id, codigo FROM sgoi_casos WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [id, ctx.colegio_id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Caso no encontrado.' });
+    await execute(
+      `DELETE FROM sgoi_seguimientos WHERE colegio_id = ? AND entidad = 'CASO' AND entidad_id = ?`,
+      [ctx.colegio_id, id]
+    );
+    await execute(`DELETE FROM sgoi_casos WHERE id = ? AND colegio_id = ?`, [id, ctx.colegio_id]);
+    auditarSgoi(req, { accion: 'ELIMINAR', entidad: 'caso', entidad_id: id, descripcion: rows[0].codigo });
+    res.json({ ok: true });
+  } catch (e) {
+    return handleSgoiError(res, e, 'casos/eliminar');
+  }
+});
+
+router.delete('/trabajos/:id', async (req, res) => {
+  try {
+    const ctx = await contextoUsuario(req);
+    const id = parseInt(req.params.id, 10);
+    const rows = await query(
+      `SELECT id, codigo FROM sgoi_trabajos WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [id, ctx.colegio_id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Trabajo no encontrado.' });
+    await execute(
+      `DELETE FROM sgoi_seguimientos WHERE colegio_id = ? AND entidad = 'TRABAJO' AND entidad_id = ?`,
+      [ctx.colegio_id, id]
+    );
+    await execute(`DELETE FROM sgoi_trabajos WHERE id = ? AND colegio_id = ?`, [id, ctx.colegio_id]);
+    auditarSgoi(req, { accion: 'ELIMINAR', entidad: 'trabajo', entidad_id: id, descripcion: rows[0].codigo });
+    res.json({ ok: true });
+  } catch (e) {
+    return handleSgoiError(res, e, 'trabajos/eliminar');
+  }
+});
+
+router.delete('/pendientes/:id', async (req, res) => {
+  try {
+    const ctx = await contextoUsuario(req);
+    const id = parseInt(req.params.id, 10);
+    const rows = await query(
+      `SELECT id, titulo FROM sgoi_pendientes WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [id, ctx.colegio_id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Pendiente no encontrado.' });
+    await execute(
+      `DELETE FROM sgoi_seguimientos WHERE colegio_id = ? AND entidad = 'PENDIENTE' AND entidad_id = ?`,
+      [ctx.colegio_id, id]
+    );
+    await execute(`DELETE FROM sgoi_pendientes WHERE id = ? AND colegio_id = ?`, [id, ctx.colegio_id]);
+    auditarSgoi(req, { accion: 'ELIMINAR', entidad: 'pendiente', entidad_id: id, descripcion: rows[0].titulo });
+    res.json({ ok: true });
+  } catch (e) {
+    return handleSgoiError(res, e, 'pendientes/eliminar');
   }
 });
 

@@ -28,23 +28,43 @@
 .sgoi-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-bottom: 1rem;
+  gap: 0.35rem;
+  margin-bottom: 1.15rem;
+  padding: 0.4rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
 }
 
 .sgoi-tab {
   text-decoration: none;
-  padding: 0.45rem 0.85rem;
-  border-radius: 999px;
-  background: #f1f5f9;
-  color: #334155;
+  padding: 0.58rem 0.95rem;
+  border-radius: 10px;
+  background: transparent;
+  color: #475569;
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: 0.86rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sgoi-tab:hover {
+  background: #f1f5f9;
+  color: #0f172a;
 }
 
 .sgoi-tab.active {
-  background: #1d4ed8;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
   color: #fff;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.28);
+}
+
+.sgoi-tab-ico {
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .sgoi-toolbar {
@@ -100,6 +120,27 @@
 .sgoi-btn-ghost {
   background: #f1f5f9;
   color: #334155;
+}
+
+.sgoi-btn-danger {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.sgoi-swal-label {
+  display: block;
+  text-align: left;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #475569;
+  margin: 0.4rem 0 0.1rem;
+}
+
+.sgoi-swal-hint {
+  text-align: left;
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 0.35rem 0 0.2rem;
 }
 
 .sgoi-empty {

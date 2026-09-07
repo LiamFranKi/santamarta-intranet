@@ -4,6 +4,16 @@ import api from '../services/api';
 import { formatDuracionSeg, notificarCambioSgoi, usuarioPuedeSgoi } from '../utils/sgoiFormat';
 import './SgoiFlotante.css';
 
+function IconoBitacora({ size = 26 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="5" y="3.5" width="14" height="17" rx="2.4" stroke="currentColor" strokeWidth="1.75" />
+      <path d="M9 3.2h6v3.1H9z" fill="currentColor" opacity="0.95" />
+      <path d="M8.4 11h7.2M8.4 14.2h5.4M8.4 17.3h4.2" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function segundosDesde(inicioAt) {
   if (!inicioAt) return 0;
   const d = new Date(String(inicioAt).replace(' ', 'T'));
@@ -198,14 +208,16 @@ export default function SgoiFlotante() {
         className={`sgoi-float-fab ${activo ? 'is-active' : ''} ${abierto ? 'is-open' : ''}`}
         onClick={() => setAbierto((v) => !v)}
         title={activo ? 'Hay algo en curso' : 'Gestión operativa'}
+        aria-label={activo ? 'Continuar registro en curso' : 'Abrir gestión operativa'}
       >
         {activo ? (
           <span className="sgoi-float-fab-live">
             <span className="sgoi-float-dot" />
+            <IconoBitacora size={18} />
             {formatDuracionSeg(transcurrido)}
           </span>
         ) : (
-          <span>GO</span>
+          <IconoBitacora />
         )}
       </button>
     </div>

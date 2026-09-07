@@ -20,45 +20,16 @@ import { usuarioPuedeSgoi } from '../utils/sgoiFormat';
 import '../styles/CumpleMarcoFestivo.css';
 import './DashboardLayout.css';
 
-function SgoiSidebarMenu({ expanded, onToggle, submenuRef }) {
+function SgoiSidebarItem() {
   return (
-    <div className="sidebar-menu-item">
-      <button
-        type="button"
-        className={`sidebar-menu-toggle ${expanded ? 'expanded' : ''}`}
-        onClick={onToggle}
+    <div className="sidebar-item">
+      <NavLink
+        className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+        to="/admin/gestion-operativa"
       >
-        <div className="sidebar-menu-toggle-content">
-          <span className="sidebar-icon">🗂️</span>
-          <span className="sidebar-label">Gestión operativa</span>
-        </div>
-        <span className="sidebar-menu-arrow">▶</span>
-      </button>
-      <div
-        ref={submenuRef}
-        className={`sidebar-submenu ${expanded ? 'expanded' : ''}`}
-      >
-        <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/gestion-operativa" end>
-          <span className="sidebar-icon" aria-hidden>📅</span>
-          <span className="sidebar-label">Mi día</span>
-        </NavLink>
-        <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/gestion-operativa/tablero">
-          <span className="sidebar-icon" aria-hidden>📊</span>
-          <span className="sidebar-label">Tablero</span>
-        </NavLink>
-        <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/gestion-operativa/casos">
-          <span className="sidebar-icon" aria-hidden>🚨</span>
-          <span className="sidebar-label">Casos</span>
-        </NavLink>
-        <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/gestion-operativa/trabajos">
-          <span className="sidebar-icon" aria-hidden>🛠️</span>
-          <span className="sidebar-label">Trabajos</span>
-        </NavLink>
-        <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/gestion-operativa/pendientes">
-          <span className="sidebar-icon" aria-hidden>📌</span>
-          <span className="sidebar-label">Pendientes</span>
-        </NavLink>
-      </div>
+        <span className="sidebar-icon">🔔</span>
+        <span className="sidebar-label">Gestión operativa</span>
+      </NavLink>
     </div>
   );
 }
@@ -113,8 +84,7 @@ export default function DashboardLayout({ children }) {
     psicologaCom: null,
     psicologaUsuarios: null,
     psicologaAcademico: null,
-    psicologaHerramientas: null,
-    gestionOperativa: null
+    psicologaHerramientas: null
   });
 
   // Mantener abierto el submenú que contiene la ruta actual (evita que se "bloquee" la navegación en Config, etc.)
@@ -135,7 +105,6 @@ export default function DashboardLayout({ children }) {
       ...(path.startsWith('/admin/comunicaciones') && !path.startsWith('/admin/comunicaciones/web') && { comunicaciones: true }),
       ...(path.startsWith('/admin/pagos-facturas') && { pagosFacturas: true }),
       ...(path.startsWith('/admin/config') && { configuracion: true }),
-      ...(path.startsWith('/admin/gestion-operativa') && { gestionOperativa: true }),
       ...(
         (
           path.startsWith('/docente/herramientas')
@@ -1000,13 +969,7 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Mi Perfil</span>
                 </NavLink>
               </div>
-              {puedeVerSgoi && (
-                <SgoiSidebarMenu
-                  expanded={!!expandedMenus.gestionOperativa}
-                  onToggle={() => toggleSubmenu('gestionOperativa')}
-                  submenuRef={(el) => { submenuRefs.current.gestionOperativa = el; }}
-                />
-              )}
+              {puedeVerSgoi && <SgoiSidebarItem />}
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/psicologia">
                   <span className="sidebar-icon">🧠</span>
@@ -1463,11 +1426,7 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Mi Perfil</span>
                 </NavLink>
               </div>
-              <SgoiSidebarMenu
-                expanded={!!expandedMenus.gestionOperativa}
-                onToggle={() => toggleSubmenu('gestionOperativa')}
-                submenuRef={(el) => { submenuRefs.current.gestionOperativa = el; }}
-              />
+              <SgoiSidebarItem />
             </>
           ) : (
             <>
@@ -1483,13 +1442,7 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Mi Perfil</span>
                 </NavLink>
               </div>
-              {puedeVerSgoi && (
-                <SgoiSidebarMenu
-                  expanded={!!expandedMenus.gestionOperativa}
-                  onToggle={() => toggleSubmenu('gestionOperativa')}
-                  submenuRef={(el) => { submenuRefs.current.gestionOperativa = el; }}
-                />
-              )}
+              {puedeVerSgoi && <SgoiSidebarItem />}
               {tienePersonalAsistencias && (
                 <div className="sidebar-item">
                   <button
