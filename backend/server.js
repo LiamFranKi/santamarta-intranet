@@ -364,6 +364,8 @@ app.use('/api/public', require('./routes/public.visitasConfig.routes'));
 app.use('/api/public', require('./routes/public.utiles.routes'));
 app.use('/api/public', require('./routes/public.admisionConfig.routes'));
 app.use('/api/admin/eventos', eventosRoutes);
+const sgoiRoutes = require('./routes/sgoi.routes');
+app.use('/api/sgoi', sgoiRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/apoderado', apoderadoRoutes);
 app.use('/api/promotoria', promotoriaRoutes);

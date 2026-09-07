@@ -15,8 +15,53 @@ import BirthdayWelcomeModal from './BirthdayWelcomeModal';
 import ComunicadoHomeModal from './ComunicadoHomeModal';
 import EncuestaActivacionModal from './EncuestaActivacionModal';
 import HerramientasExamenActivacionModal from './HerramientasExamenActivacionModal';
+import SgoiFlotante from './SgoiFlotante';
+import { usuarioPuedeSgoi } from '../utils/sgoiFormat';
 import '../styles/CumpleMarcoFestivo.css';
 import './DashboardLayout.css';
+
+function SgoiSidebarMenu({ expanded, onToggle, submenuRef }) {
+  return (
+    <div className="sidebar-menu-item">
+      <button
+        type="button"
+        className={`sidebar-menu-toggle ${expanded ? 'expanded' : ''}`}
+        onClick={onToggle}
+      >
+        <div className="sidebar-menu-toggle-content">
+          <span className="sidebar-icon">🗂️</span>
+          <span className="sidebar-label">Gestión operativa</span>
+        </div>
+        <span className="sidebar-menu-arrow">▶</span>
+      </button>
+      <div
+        ref={submenuRef}
+        className={`sidebar-submenu ${expanded ? 'expanded' : ''}`}
+      >
+        <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/gestion-operativa" end>
+          <span className="sidebar-icon" aria-hidden>📅</span>
+          <span className="sidebar-label">Mi día</span>
+        </NavLink>
+        <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/gestion-operativa/tablero">
+          <span className="sidebar-icon" aria-hidden>📊</span>
+          <span className="sidebar-label">Tablero</span>
+        </NavLink>
+        <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/gestion-operativa/casos">
+          <span className="sidebar-icon" aria-hidden>🚨</span>
+          <span className="sidebar-label">Casos</span>
+        </NavLink>
+        <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/gestion-operativa/trabajos">
+          <span className="sidebar-icon" aria-hidden>🛠️</span>
+          <span className="sidebar-label">Trabajos</span>
+        </NavLink>
+        <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/gestion-operativa/pendientes">
+          <span className="sidebar-icon" aria-hidden>📌</span>
+          <span className="sidebar-label">Pendientes</span>
+        </NavLink>
+      </div>
+    </div>
+  );
+}
 
 /** En `false`, el ítem no se muestra; la ruta `/admin/auditoria` sigue existiendo. */
 const MOSTRAR_MENU_AUDITORIA = false;
@@ -68,7 +113,8 @@ export default function DashboardLayout({ children }) {
     psicologaCom: null,
     psicologaUsuarios: null,
     psicologaAcademico: null,
-    psicologaHerramientas: null
+    psicologaHerramientas: null,
+    gestionOperativa: null
   });
 
   // Mantener abierto el submenú que contiene la ruta actual (evita que se "bloquee" la navegación en Config, etc.)
@@ -89,6 +135,7 @@ export default function DashboardLayout({ children }) {
       ...(path.startsWith('/admin/comunicaciones') && !path.startsWith('/admin/comunicaciones/web') && { comunicaciones: true }),
       ...(path.startsWith('/admin/pagos-facturas') && { pagosFacturas: true }),
       ...(path.startsWith('/admin/config') && { configuracion: true }),
+      ...(path.startsWith('/admin/gestion-operativa') && { gestionOperativa: true }),
       ...(
         (
           path.startsWith('/docente/herramientas')
@@ -168,6 +215,7 @@ export default function DashboardLayout({ children }) {
     'SECRETARIA',
     'PROMOTORIA',
     'PSICOLOGA',
+    'DIRECTOR',
     'ASISTENCIA',
   ];
 
@@ -409,6 +457,7 @@ export default function DashboardLayout({ children }) {
   }
   const initials = getInitials(displayName);
   const role = user?.tipo || 'USUARIO';
+  const puedeVerSgoi = usuarioPuedeSgoi(role);
   const docenteLineaUbicacionAula =
     user?.tipo === 'DOCENTE' ? textoUbicacionAulaDocente(docenteAulaUbicacion) : '';
   const docenteTituloUbicacionAula =
@@ -496,6 +545,8 @@ export default function DashboardLayout({ children }) {
                           ? '/admin/dashboard'
                           : role === 'PROMOTORIA'
                             ? '/promotoria/dashboard'
+                            : role === 'DIRECTOR'
+                              ? '/admin/gestion-operativa/tablero'
                             : role === 'SECRETARIA'
                               ? '/admin/dashboard'
                               : '/admin/dashboard'
@@ -949,6 +1000,13 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Mi Perfil</span>
                 </NavLink>
               </div>
+              {puedeVerSgoi && (
+                <SgoiSidebarMenu
+                  expanded={!!expandedMenus.gestionOperativa}
+                  onToggle={() => toggleSubmenu('gestionOperativa')}
+                  submenuRef={(el) => { submenuRefs.current.gestionOperativa = el; }}
+                />
+              )}
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/psicologia">
                   <span className="sidebar-icon">🧠</span>
@@ -1391,6 +1449,26 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
             </>
+          ) : role === 'DIRECTOR' ? (
+            <>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/gestion-operativa/tablero" end>
+                  <span className="sidebar-icon">📊</span>
+                  <span className="sidebar-label">Dashboard</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/perfil">
+                  <span className="sidebar-icon">👤</span>
+                  <span className="sidebar-label">Mi Perfil</span>
+                </NavLink>
+              </div>
+              <SgoiSidebarMenu
+                expanded={!!expandedMenus.gestionOperativa}
+                onToggle={() => toggleSubmenu('gestionOperativa')}
+                submenuRef={(el) => { submenuRefs.current.gestionOperativa = el; }}
+              />
+            </>
           ) : (
             <>
               <div className="sidebar-item">
@@ -1405,6 +1483,13 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Mi Perfil</span>
                 </NavLink>
               </div>
+              {puedeVerSgoi && (
+                <SgoiSidebarMenu
+                  expanded={!!expandedMenus.gestionOperativa}
+                  onToggle={() => toggleSubmenu('gestionOperativa')}
+                  submenuRef={(el) => { submenuRefs.current.gestionOperativa = el; }}
+                />
+              )}
               {tienePersonalAsistencias && (
                 <div className="sidebar-item">
                   <button
@@ -1832,7 +1917,8 @@ export default function DashboardLayout({ children }) {
               || role === 'ADMINISTRADOR'
               || role === 'PROMOTORIA'
               || role === 'SECRETARIA'
-              || role === 'PSICOLOGA') && <NotificacionesWidget />}
+              || role === 'PSICOLOGA'
+              || role === 'DIRECTOR') && <NotificacionesWidget />}
             <button
               className="header-btn"
               type="button"
@@ -1845,7 +1931,7 @@ export default function DashboardLayout({ children }) {
                       ? '/alumno/perfil'
                       : role === 'APODERADO'
                         ? '/apoderado/perfil'
-                        : role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA' || role === 'PSICOLOGA'
+                        : role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA' || role === 'PSICOLOGA' || role === 'DIRECTOR'
                           ? '/admin/perfil'
                           : '/perfil'
                 )
@@ -1864,7 +1950,7 @@ export default function DashboardLayout({ children }) {
 
         <div
           className={`dashboard-main-wrapper ${
-            role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA' || role === 'PSICOLOGA'
+            role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA' || role === 'PSICOLOGA' || role === 'DIRECTOR'
               ? 'dashboard-main-wrapper-no-sidebar'
               : ''
           }`}
@@ -1915,6 +2001,8 @@ export default function DashboardLayout({ children }) {
             onClose={() => setMostrarModalAsistencias(false)}
           />
         )}
+
+        {puedeVerSgoi && <SgoiFlotante />}
       </div>
     </div>
   );

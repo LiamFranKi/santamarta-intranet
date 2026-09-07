@@ -35,6 +35,7 @@ import AdminComunicados from './pages/admin/AdminComunicados';
 import AdminDocumentosGestion from './pages/admin/AdminDocumentosGestion';
 import AdminEstadisticas from './pages/admin/AdminEstadisticas';
 import AdminPerfil from './pages/admin/AdminPerfil';
+import GestionOperativaPage from './pages/admin/GestionOperativaPage';
 import AdminInstitucional from './pages/admin/AdminInstitucional';
 import AdminPublicaciones from './pages/admin/AdminPublicaciones';
 import AdminConexiones from './pages/admin/AdminConexiones';
@@ -171,6 +172,8 @@ function PrivateRoute({ children, requiredType = null, requiredTypes = null }) {
       return <Navigate to="/admin/dashboard" />;
     } else if (user?.tipo === 'PSICOLOGA') {
       return <Navigate to="/admin/psicologa-dashboard" replace />;
+    } else if (user?.tipo === 'DIRECTOR') {
+      return <Navigate to="/admin/gestion-operativa/tablero" replace />;
     }
     // Si no tiene un tipo válido, redirigir al login
     return <Navigate to="/login" />;
@@ -287,6 +290,8 @@ function NavigateToDashboard() {
     return <Navigate to="/admin/dashboard" replace />;
   } else if (tipo === 'PSICOLOGA') {
     return <Navigate to="/admin/psicologa-dashboard" replace />;
+  } else if (tipo === 'DIRECTOR') {
+    return <Navigate to="/admin/gestion-operativa/tablero" replace />;
   }
 
   // Tipo desconocido: ir al login en lugar de asumir admin
@@ -310,8 +315,48 @@ function AppRoutes() {
       <Route
         path="/admin/perfil"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA', 'DIRECTOR']}>
             <AdminPerfil />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/gestion-operativa"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR']}>
+            <GestionOperativaPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/gestion-operativa/tablero"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR']}>
+            <GestionOperativaPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/gestion-operativa/casos"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR']}>
+            <GestionOperativaPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/gestion-operativa/trabajos"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR']}>
+            <GestionOperativaPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/gestion-operativa/pendientes"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR']}>
+            <GestionOperativaPage />
           </PrivateRoute>
         }
       />

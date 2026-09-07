@@ -12,6 +12,8 @@ export default function AdminPerfil() {
       ? '/promotoria/dashboard'
       : user?.tipo === 'PSICOLOGA'
         ? '/admin/psicologa-dashboard'
-        : '/admin/dashboard';
+        : user?.tipo === 'DIRECTOR'
+          ? '/admin/gestion-operativa/tablero'
+          : '/admin/dashboard';
   return <DocentePerfil apiPrefix="/admin" dashboardPath={dashboardPath} />;
 }
