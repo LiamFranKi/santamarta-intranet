@@ -314,7 +314,7 @@ function TemasHijosPage() {
 
           <div className="th-back">
             <button type="button" className="th-link-btn" onClick={() => navigate(hijosHome)}>
-              Volver a Hijos a cargo
+              Volver a Estudiantes a cargo
             </button>
           </div>
         </div>

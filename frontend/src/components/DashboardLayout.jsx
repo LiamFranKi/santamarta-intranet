@@ -727,7 +727,7 @@ export default function DashboardLayout({ children }) {
                   <div className="sidebar-item">
                     <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/hijos">
                       <span className="sidebar-icon">👨‍👩‍👧‍👦</span>
-                      <span className="sidebar-label">Hijos a Cargo</span>
+                      <span className="sidebar-label">Estudiantes a Cargo</span>
                     </NavLink>
                   </div>
                 </>
@@ -1103,7 +1103,7 @@ export default function DashboardLayout({ children }) {
                   <div className="sidebar-item">
                     <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/hijos">
                       <span className="sidebar-icon">👨‍👩‍👧‍👦</span>
-                      <span className="sidebar-label">Hijos a Cargo</span>
+                      <span className="sidebar-label">Estudiantes a Cargo</span>
                     </NavLink>
                   </div>
                 </>
@@ -1132,7 +1132,7 @@ export default function DashboardLayout({ children }) {
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/hijos">
                   <span className="sidebar-icon">👨‍👩‍👧‍👦</span>
-                  <span className="sidebar-label">Hijos a cargo</span>
+                  <span className="sidebar-label">Estudiantes a Cargo</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">
@@ -1723,7 +1723,7 @@ export default function DashboardLayout({ children }) {
                   <div className="sidebar-item">
                     <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/hijos">
                       <span className="sidebar-icon">👨‍👩‍👧‍👦</span>
-                      <span className="sidebar-label">Hijos a Cargo</span>
+                      <span className="sidebar-label">Estudiantes a Cargo</span>
                     </NavLink>
                   </div>
                 </>

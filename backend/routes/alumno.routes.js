@@ -11,6 +11,7 @@ const { enviarPushNotificacionesIndividuales } = require('../services/pushNotifi
 const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = require('../utils/notificacionInsert');
 const phpSerialize = require('php-serialize');
 const { fechaHoraMySQLLima, fechaMySQLLima, horaMySQLLima } = require('../utils/fechaHoraLima');
+const { listarEvidenciasSafe } = require('../utils/aulaEvidencias');
 const { ACTIVIDADES_SELECT_SQL, ACTIVIDADES_SELECT_CON_EVENTO_SQL } = require('../utils/actividadesFecha');
 const { mezclarReunionesEnActividades } = require('../utils/reunionesHelper');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
@@ -4691,6 +4692,41 @@ router.get('/aula-virtual/enlaces', async (req, res) => {
   } catch (error) {
     console.error('Error obteniendo enlaces:', error);
     res.status(500).json({ error: 'Error al obtener enlaces' });
+  }
+});
+
+/**
+ * GET /api/alumno/aula-virtual/evidencias
+ */
+router.get('/aula-virtual/evidencias', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo, alumno_id } = req.user;
+    const { asignatura_id, ciclo } = req.query;
+
+    if (!asignatura_id) {
+      return res.status(400).json({ error: 'asignatura_id es requerido' });
+    }
+
+    const asignatura = await query(
+      `SELECT a.*, g.id as grupo_id
+       FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN matriculas m ON m.grupo_id = g.id
+       WHERE a.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
+       AND (m.estado = 0)
+       LIMIT 1`,
+      [asignatura_id, alumno_id, colegio_id, anio_activo]
+    );
+
+    if (asignatura.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
+    }
+
+    const evidencias = await listarEvidenciasSafe(asignatura_id, ciclo);
+    res.json({ evidencias });
+  } catch (error) {
+    console.error('Error obteniendo evidencias:', error);
+    res.status(500).json({ error: 'Error al obtener evidencias' });
   }
 });
 

@@ -33,7 +33,7 @@ function wrapText(doc, text, maxWidth) {
 /**
  * PDF del horario semanal. Solo días con franjas escritas (L–S; domingo si hay).
  */
-export function exportarHorarioSgoiPdf(dias) {
+export function exportarHorarioSgoiPdf(dias, { nombre } = {}) {
   const conContenido = DIAS.map(([wd, nombre]) => {
     const bloques = (dias.find((d) => Number(d.weekday) === wd)?.bloques || []).filter(
       (b) => String(b.titulo || '').trim()
@@ -70,7 +70,8 @@ export function exportarHorarioSgoiPdf(dias) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(191, 219, 254);
-  doc.text('VanguardNet · Gestión operativa', margin, 18);
+  const persona = String(nombre || '').trim();
+  doc.text(persona ? `Emitido para: ${persona}` : 'VanguardNet · Gestión operativa', margin, 18);
   const generado = new Date().toLocaleString('es-PE', {
     dateStyle: 'medium',
     timeStyle: 'short',
@@ -147,7 +148,9 @@ export function exportarHorarioSgoiPdf(dias) {
   doc.setFontSize(7);
   doc.setTextColor(100, 116, 139);
   doc.text(
-    'Plantilla semanal de Sistemas. Solo se imprimen los días que tienen franjas.',
+    persona
+      ? `Horario de ${persona} · Área de Sistemas. Solo se imprimen los días con franjas.`
+      : 'Plantilla semanal de Sistemas. Solo se imprimen los días que tienen franjas.',
     margin,
     pageH - 7
   );

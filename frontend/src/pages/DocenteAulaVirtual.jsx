@@ -11,6 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import Swal from 'sweetalert2';
 import './DocenteAulaVirtual-gamificado.css';
+import EvidenciasGaleria from '../components/aula/EvidenciasGaleria';
 import { huecosCompletarMetaPorDescripcion, esCompletarCorrecto } from '../utils/examenCompletar';
 import {
   parseIdAlternativaExamen,
@@ -210,9 +211,10 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   const soloLecturaTutor =
     tutorGrupoId != null && tutorGrupoId !== undefined && String(tutorGrupoId).trim() !== '';
 
-  /** Grid de tarjetas: 3 columnas solo para perfil DOCENTE; administración u otros roles usan el grid por defecto (4). */
   const gridCardsClases =
-    user?.tipo === 'DOCENTE' ? 'aula-dashboard-grid aula-dashboard-grid--docente' : 'aula-dashboard-grid';
+    user?.tipo === 'DOCENTE'
+      ? 'aula-dashboard-grid aula-dashboard-grid--docente aula-dashboard-stack'
+      : 'aula-dashboard-grid aula-dashboard-stack';
   
   const [loading, setLoading] = useState(true);
   const [curso, setCurso] = useState(null);
@@ -228,6 +230,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   const [examenes, setExamenes] = useState([]);
   const [videos, setVideos] = useState([]);
   const [enlaces, setEnlaces] = useState([]);
+  const [evidencias, setEvidencias] = useState([]);
   const [temas, setTemas] = useState([]);
   const [archivos, setArchivos] = useState([]);
 
@@ -238,6 +241,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   const [mostrarFormVideo, setMostrarFormVideo] = useState(false);
   const [mostrarFormEnlace, setMostrarFormEnlace] = useState(false);
   const [mostrarFormSesion, setMostrarFormSesion] = useState(false);
+  const [mostrarFormEvidencia, setMostrarFormEvidencia] = useState(false);
   const [videoEditando, setVideoEditando] = useState(null);
   const [enlaceEditando, setEnlaceEditando] = useState(null);
   const [sesionEditando, setSesionEditando] = useState(null);
@@ -269,8 +273,6 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   const [dropdownPosition, setDropdownPosition] = useState(null);
   const buttonRef = useRef({});
   
-  // Estado para card expandido (versión gamificada)
-  const [expandedCard, setExpandedCard] = useState(null);
   const [bimestreGlobal, setBimestreGlobal] = useState(1);
   
   // Formularios de video y enlace (después de bimestreGlobal)
@@ -287,6 +289,14 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   const [guardandoVideo, setGuardandoVideo] = useState(false);
   const [guardandoEnlace, setGuardandoEnlace] = useState(false);
   const [guardandoSesion, setGuardandoSesion] = useState(false);
+  const [guardandoEvidencia, setGuardandoEvidencia] = useState(false);
+
+  const [formEvidencia, setFormEvidencia] = useState({
+    titulo: '',
+    archivo: null,
+    archivoNombre: '',
+    ciclo: 1
+  });
 
   // Formulario de sesión (PDF vinculado a tema)
   const [formSesion, setFormSesion] = useState({
@@ -346,7 +356,8 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
     examenes: { api: 'biblioteca-examenes', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Exámenes', labelItem: 'titulo', useCopyTemas: false },
     videos: { api: 'biblioteca-videos', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Videos', labelItem: 'descripcion', useCopyTemas: false },
     enlaces: { api: 'biblioteca-enlaces', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Enlaces', labelItem: 'descripcion', useCopyTemas: false },
-    sesiones: { api: 'biblioteca-sesiones', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Sesiones (PDF)', labelItem: 'descripcion', useCopyTemas: false }
+    sesiones: { api: 'biblioteca-sesiones', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Sesiones (PDF)', labelItem: 'descripcion', useCopyTemas: false },
+    evidencias: { api: 'biblioteca-evidencias', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Evidencias', labelItem: 'titulo', useCopyTemas: false }
   };
 
   // Estado para modal de Asignar a Registro (Tareas)
@@ -537,6 +548,18 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
     }
   }, [asignaturaId, bimestreGlobal]);
 
+  const cargarEvidencias = useCallback(async (ciclo) => {
+    try {
+      const response = await api.get('/docente/aula-virtual/evidencias', {
+        params: { asignatura_id: asignaturaId, ciclo: ciclo ?? bimestreGlobal }
+      });
+      setEvidencias(response.data.evidencias || []);
+    } catch (error) {
+      console.error('Error cargando evidencias:', error);
+      setEvidencias([]);
+    }
+  }, [asignaturaId, bimestreGlobal]);
+
   // Cargar datos del curso y configuración
   useEffect(() => {
     if (asignaturaId) {
@@ -568,6 +591,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
     cargarEnlaces(1);
     cargarTemas(1);
     cargarSesiones(1);
+    cargarEvidencias(1);
   }, [asignaturaId, loading]);
 
   // Cargar datos cuando cambia el ciclo de cada sección
@@ -608,6 +632,11 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
     if (!asignaturaId) return;
     cargarSesiones(bimestreGlobal);
   }, [bimestreGlobal, asignaturaId, cargarSesiones]);
+
+  useEffect(() => {
+    if (!asignaturaId) return;
+    cargarEvidencias(bimestreGlobal);
+  }, [bimestreGlobal, asignaturaId, cargarEvidencias]);
 
   // Cerrar dropdowns al hacer click fuera
   useEffect(() => {
@@ -760,6 +789,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
       else if (tipoBiblioteca === 'videos') cargarVideos(bimestreGlobal);
       else if (tipoBiblioteca === 'enlaces') cargarEnlaces(bimestreGlobal);
       else if (tipoBiblioteca === 'sesiones') cargarSesiones(bimestreGlobal);
+      else if (tipoBiblioteca === 'evidencias') cargarEvidencias(bimestreGlobal);
     } catch (err) {
       console.error('[Biblioteca] Error copiando:', err);
       Swal.fire({
@@ -1682,14 +1712,6 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
     );
   }
 
-  const toggleCard = (cardName) => {
-    if (expandedCard === cardName) {
-      setExpandedCard(null);
-    } else {
-      setExpandedCard(cardName);
-    }
-  };
-
   const renderCardContent = (cardName) => {
     switch(cardName) {
       case 'temas':
@@ -1700,6 +1722,8 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
         return renderSesionesContent();
       case 'examenes':
         return renderExamenesContent();
+      case 'evidencias':
+        return renderEvidenciasContent();
       case 'videos':
         return renderVideosContent();
       case 'enlaces':
@@ -2066,6 +2090,16 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
       </div>
     );
   };
+
+  const renderEvidenciasContent = () => (
+    <div className="card-content-expanded">
+      <EvidenciasGaleria
+        items={evidencias}
+        canManage={!soloLecturaTutor}
+        onDelete={handleEliminarEvidencia}
+      />
+    </div>
+  );
 
   const renderExamenesContent = () => (
     <div className="card-content-expanded">
@@ -3082,6 +3116,91 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
     }
   };
 
+  const handleCrearEvidencia = async (e) => {
+    e.preventDefault();
+    if (!formEvidencia.titulo.trim() || !formEvidencia.archivo) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Campos requeridos',
+        text: 'Escribe un nombre y sube una imagen o un PDF',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000
+      });
+      return;
+    }
+    setGuardandoEvidencia(true);
+    try {
+      const formData = new FormData();
+      formData.append('asignatura_id', asignaturaId);
+      formData.append('titulo', formEvidencia.titulo.trim());
+      formData.append('ciclo', formEvidencia.ciclo || bimestreGlobal);
+      formData.append('archivo', formEvidencia.archivo);
+      await api.post('/docente/aula-virtual/evidencias', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      Swal.fire({
+        icon: 'success',
+        title: '¡Evidencia subida!',
+        text: 'La evidencia se registró correctamente',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 2000
+      });
+      setMostrarFormEvidencia(false);
+      setFormEvidencia({ titulo: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal });
+      await cargarEvidencias();
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudo subir la evidencia',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000
+      });
+    } finally {
+      setGuardandoEvidencia(false);
+    }
+  };
+
+  const handleEliminarEvidencia = async (evidencia) => {
+    const result = await Swal.fire({
+      icon: 'warning',
+      title: '¿Eliminar evidencia?',
+      text: evidencia.titulo || 'Esta evidencia se quitará del curso',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar'
+    });
+    if (!result.isConfirmed) return;
+    try {
+      await api.delete(`/docente/aula-virtual/evidencias/${evidencia.id}`);
+      await cargarEvidencias();
+      Swal.fire({
+        icon: 'success',
+        title: 'Eliminada',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 1800
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudo eliminar',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000
+      });
+    }
+  };
+
   const handleEditarSesion = (sesion) => {
     setSesionEditando(sesion);
     setFormSesion({
@@ -3649,13 +3768,9 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
           ))}
         </div>
 
-        {/* Grid de Cards Gamificado */}
+        {/* Franjas siempre abiertas */}
         <div className={gridCardsClases}>
-          {/* Card: TEMAS */}
-          <div 
-            className={`aula-section-card temas-card ${expandedCard === 'temas' ? 'expanded' : ''}`}
-            onClick={() => expandedCard !== 'temas' && toggleCard('temas')}
-          >
+          <div className="aula-section-card temas-card expanded">
             <div className="card-header">
               <div className="card-icon">📚</div>
               <div className="card-info">
@@ -3691,14 +3806,10 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                 )}
               </div>
             </div>
-            {expandedCard === 'temas' && renderCardContent('temas')}
+            {renderCardContent('temas')}
           </div>
 
-          {/* Card: TAREAS */}
-          <div 
-            className={`aula-section-card tareas-card ${expandedCard === 'tareas' ? 'expanded' : ''}`}
-            onClick={() => expandedCard !== 'tareas' && toggleCard('tareas')}
-          >
+          <div className="aula-section-card tareas-card expanded">
             <div className="card-header">
               <div className="card-icon">📝</div>
               <div className="card-info">
@@ -3719,14 +3830,10 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                 )}
               </div>
             </div>
-            {expandedCard === 'tareas' && renderCardContent('tareas')}
+            {renderCardContent('tareas')}
           </div>
 
-          {/* Card: SESIONES (solo DOCENTE y ADMIN) */}
-          <div 
-            className={`aula-section-card sesiones-card ${expandedCard === 'sesiones' ? 'expanded' : ''}`}
-            onClick={() => expandedCard !== 'sesiones' && toggleCard('sesiones')}
-          >
+          <div className="aula-section-card sesiones-card expanded">
             <div className="card-header">
               <div className="card-icon">📄</div>
               <div className="card-info">
@@ -3766,14 +3873,10 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                 )}
               </div>
             </div>
-            {expandedCard === 'sesiones' && renderCardContent('sesiones')}
+            {renderCardContent('sesiones')}
           </div>
 
-          {/* Card: EXÁMENES */}
-          <div 
-            className={`aula-section-card examenes-card ${expandedCard === 'examenes' ? 'expanded' : ''}`}
-            onClick={() => expandedCard !== 'examenes' && toggleCard('examenes')}
-          >
+          <div className="aula-section-card examenes-card expanded">
             <div className="card-header">
               <div className="card-icon">📊</div>
               <div className="card-info">
@@ -3821,14 +3924,50 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                 )}
               </div>
             </div>
-            {expandedCard === 'examenes' && renderCardContent('examenes')}
+            {renderCardContent('examenes')}
           </div>
 
-          {/* Card: VIDEOTECA */}
-          <div 
-            className={`aula-section-card videos-card ${expandedCard === 'videos' ? 'expanded' : ''}`}
-            onClick={() => expandedCard !== 'videos' && toggleCard('videos')}
-          >
+          <div className="aula-section-card evidencias-card expanded">
+            <div className="card-header">
+              <div className="card-icon">🖼️</div>
+              <div className="card-info">
+                <h3 className="card-title">Evidencias</h3>
+                <p className="card-count">{evidencias.length}</p>
+                <p className="card-subtitle">Fotos y PDF del curso</p>
+              </div>
+              <div className="card-action-btns">
+                {!soloLecturaTutor && (
+                  <>
+                    <button
+                      type="button"
+                      className="card-action-btn card-action-btn-secondary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        abrirModalBiblioteca('evidencias');
+                      }}
+                      title="Ver evidencias de años anteriores"
+                    >
+                      📖 Biblioteca
+                    </button>
+                    <button
+                      type="button"
+                      className="card-action-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setFormEvidencia({ titulo: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal });
+                        setMostrarFormEvidencia(true);
+                      }}
+                    >
+                      + Nuevo
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+            {renderCardContent('evidencias')}
+          </div>
+
+          <div className="aula-section-card videos-card expanded">
             <div className="card-header">
               <div className="card-icon">🎥</div>
               <div className="card-info">
@@ -3846,7 +3985,6 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                       className="card-action-btn"
                       onClick={(e) => { 
                         e.stopPropagation(); 
-                        if (expandedCard !== 'videos') toggleCard('videos');
                         setVideoEditando(null);
                         setFormVideo({ descripcion: '', enlace: '', ciclo: bimestreGlobal });
                         setMostrarFormVideo(true);
@@ -3858,14 +3996,10 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                 )}
               </div>
             </div>
-            {expandedCard === 'videos' && renderCardContent('videos')}
+            {renderCardContent('videos')}
           </div>
 
-          {/* Card: ENLACES */}
-          <div 
-            className={`aula-section-card enlaces-card ${expandedCard === 'enlaces' ? 'expanded' : ''}`}
-            onClick={() => expandedCard !== 'enlaces' && toggleCard('enlaces')}
-          >
+          <div className="aula-section-card enlaces-card expanded">
             <div className="card-header">
               <div className="card-icon">🔗</div>
               <div className="card-info">
@@ -3883,7 +4017,6 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                       className="card-action-btn"
                       onClick={(e) => { 
                         e.stopPropagation(); 
-                        if (expandedCard !== 'enlaces') toggleCard('enlaces');
                         setEnlaceEditando(null);
                         setFormEnlace({ descripcion: '', enlace: '', ciclo: bimestreGlobal });
                         setMostrarFormEnlace(true);
@@ -3895,7 +4028,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                 )}
               </div>
             </div>
-            {expandedCard === 'enlaces' && renderCardContent('enlaces')}
+            {renderCardContent('enlaces')}
           </div>
         </div>
 
@@ -4228,6 +4361,101 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
             document.body
           );
         })()}
+
+        {mostrarFormEvidencia && createPortal(
+          <div
+            className="modal-tema-overlay"
+            onClick={() => {
+              setMostrarFormEvidencia(false);
+              setFormEvidencia({ titulo: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal });
+            }}
+          >
+            <div
+              className="modal-tema-container"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="modal-evidencia-title"
+            >
+              <div className="modal-tema-header">
+                <h2 id="modal-evidencia-title">🖼️ Nueva Evidencia</h2>
+                <button
+                  className="modal-tema-close"
+                  onClick={() => {
+                    setMostrarFormEvidencia(false);
+                    setFormEvidencia({ titulo: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal });
+                  }}
+                  aria-label="Cerrar"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="modal-tema-body">
+                <form onSubmit={handleCrearEvidencia}>
+                  <div className="form-group">
+                    <label htmlFor="evidencia-titulo">Nombre *</label>
+                    <input
+                      id="evidencia-titulo"
+                      type="text"
+                      className="form-input"
+                      maxLength={200}
+                      value={formEvidencia.titulo}
+                      onChange={(e) => setFormEvidencia({ ...formEvidencia, titulo: e.target.value })}
+                      placeholder="Ej. Proyecto feria de ciencias"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="evidencia-archivo">Imagen o PDF *</label>
+                    <input
+                      type="file"
+                      id="evidencia-archivo"
+                      className="form-input"
+                      accept="image/jpeg,image/png,image/gif,image/webp,.pdf,application/pdf"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        setFormEvidencia({ ...formEvidencia, archivo: f || null, archivoNombre: f?.name || '' });
+                      }}
+                      required
+                    />
+                    {formEvidencia.archivoNombre && (
+                      <small style={{ color: '#10b981' }}>Seleccionado: {formEvidencia.archivoNombre}</small>
+                    )}
+                  </div>
+                  <div className="form-group">
+                    <label>Bimestre *</label>
+                    <select
+                      className="form-input"
+                      value={formEvidencia.ciclo}
+                      onChange={(e) => setFormEvidencia({ ...formEvidencia, ciclo: parseInt(e.target.value, 10) })}
+                      required
+                    >
+                      {Array.from({ length: totalNotas }, (_, i) => i + 1).map((bim) => (
+                        <option key={bim} value={bim}>Bimestre {bim}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-actions">
+                    <button
+                      type="button"
+                      className="btn-cancelar"
+                      onClick={() => {
+                        setMostrarFormEvidencia(false);
+                        setFormEvidencia({ titulo: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal });
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                    <button type="submit" className="btn-guardar" disabled={guardandoEvidencia}>
+                      {guardandoEvidencia ? 'Guardando...' : 'Guardar'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
         {/* Modal de Formulario de Tema */}
         {mostrarFormTema && createPortal(

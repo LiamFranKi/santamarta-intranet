@@ -514,7 +514,7 @@ export default function AdminUsuariosApoderados() {
       }
       const ya = (modalInfo.hijos || []).some((h) => String(h.nro_documento || '').trim() === dni);
       if (ya) {
-        Swal.fire({ icon: 'info', title: 'Ya vinculado', text: 'Ese alumno ya figura en la lista de hijos a cargo.' });
+        Swal.fire({ icon: 'info', title: 'Ya vinculado', text: 'Ese alumno ya figura en la lista de estudiantes a cargo.' });
         return;
       }
       setVincAlPreview(data.alumno);
@@ -1094,7 +1094,7 @@ export default function AdminUsuariosApoderados() {
                   </div>
                   <div className="admin-usu-profile-section">
                     <div className="admin-usu-section-head">
-                      <h3>Hijos a cargo</h3>
+                      <h3>Estudiantes a cargo</h3>
                       <button
                         type="button"
                         className="admin-usu-btn admin-usu-btn-secondary admin-usu-btn-compact"

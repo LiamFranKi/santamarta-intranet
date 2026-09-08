@@ -26,6 +26,7 @@ import {
   formatDuracionSeg,
   formatFechaCorta,
   formatHoraItem,
+  nombrePersonaSgoi,
   notificarCambioSgoi,
   usuarioPuedeHorarioSgoi,
   colorFranjaIgual,
@@ -161,6 +162,7 @@ export default function GestionOperativaPage() {
   const [dia, setDia] = useState({ bloques: [], casos_sueltos: [], items: [] });
   const [tablero, setTablero] = useState(null);
   const [horario, setHorario] = useState([]);
+  const [horarioUsuario, setHorarioUsuario] = useState('');
   const [reporte, setReporte] = useState(null);
   const [periodoReporte, setPeriodoReporte] = useState('semana');
   const [fechaReporte, setFechaReporte] = useState(fechaHoyLocal);
@@ -190,6 +192,7 @@ export default function GestionOperativaPage() {
         if (!puedeHorario) return;
         const { data } = await api.get('/sgoi/horario');
         setHorario(Array.isArray(data.dias) ? data.dias : []);
+        setHorarioUsuario(data?.usuario?.nombre || '');
       } else if (vista === 'casos') {
         const { data } = await api.get('/sgoi/casos');
         setLista(Array.isArray(data.items) ? data.items : []);
@@ -275,6 +278,14 @@ export default function GestionOperativaPage() {
         Minutos: Math.round((d.seg_casos || 0) / 60),
       })),
     [reporte]
+  );
+  const nombreReporte = useMemo(
+    () => nombrePersonaSgoi(user, reporte?.usuario?.nombre),
+    [user, reporte]
+  );
+  const nombreHorarioPdf = useMemo(
+    () => nombrePersonaSgoi(user, horarioUsuario),
+    [user, horarioUsuario]
   );
 
   const rutaEntidad = (kind) => {
@@ -669,7 +680,7 @@ export default function GestionOperativaPage() {
 
   const exportarHorarioPdf = () => {
     try {
-      exportarHorarioSgoiPdf(horario);
+      exportarHorarioSgoiPdf(horario, { nombre: nombreHorarioPdf });
     } catch (e) {
       Swal.fire({ icon: 'info', title: 'PDF', text: e.message || 'No se pudo exportar.' });
     }
@@ -677,7 +688,11 @@ export default function GestionOperativaPage() {
 
   const exportarReportePdf = () => {
     try {
-      exportarReporteSgoiPdf({ reporte, periodo: periodoReporte });
+      exportarReporteSgoiPdf({
+        reporte,
+        periodo: periodoReporte,
+        nombre: nombreReporte,
+      });
     } catch (e) {
       Swal.fire({ icon: 'info', title: 'PDF', text: e.message || 'No se pudo exportar.' });
     }
@@ -1036,6 +1051,7 @@ export default function GestionOperativaPage() {
             </div>
             <p className="sgoi-range">
               {periodoReporte === 'dia' ? 'Reporte del día' : periodoReporte === 'mes' ? 'Reporte mensual' : 'Reporte semanal'}
+              {nombreReporte ? ` · ${nombreReporte}` : ''}
               {' · '}
               {formatFechaCorta(reporte?.desde)}
               {reporte?.desde !== reporte?.hasta ? ` – ${formatFechaCorta(reporte?.hasta)}` : ''}
@@ -1201,6 +1217,7 @@ export default function GestionOperativaPage() {
           <>
             <div className="sgoi-toolbar">
               <p className="sgoi-range sgoi-range-inline">
+                {nombreHorarioPdf ? `Horario de ${nombreHorarioPdf}. ` : ''}
                 Plantilla semanal. Aquí se edita para siempre. En Mi día puedes cambiar solo una fecha.
               </p>
               <button type="button" className="sgoi-btn" onClick={exportarHorarioPdf}>

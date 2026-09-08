@@ -6,6 +6,7 @@ import api from '../services/api';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import './DocenteAulaVirtual-gamificado.css';
+import EvidenciasGaleria from '../components/aula/EvidenciasGaleria';
 
 function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId = null }) {
   const { cursoId: cursoIdParam } = useParams(); // asignatura_id
@@ -31,19 +32,13 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
   const [examenes, setExamenes] = useState([]);
   const [videos, setVideos] = useState([]);
   const [enlaces, setEnlaces] = useState([]);
-  
-  // Estado para card expandido
-  const [expandedCard, setExpandedCard] = useState(null);
+  const [evidencias, setEvidencias] = useState([]);
   
   // Estado para modal de tarea
   const [mostrarModalTarea, setMostrarModalTarea] = useState(false);
   const [tareaDetalle, setTareaDetalle] = useState(null);
   const [urlEntrega, setUrlEntrega] = useState('');
   const [enviandoEntrega, setEnviandoEntrega] = useState(false);
-
-  const toggleCard = (cardName) => {
-    setExpandedCard(expandedCard === cardName ? null : cardName);
-  };
 
   // Proxy apoderado/docente exige asignatura_id en query para GET detalle (ver apoderado.routes.js)
   const paramsDetalleTareaApoderado =
@@ -252,6 +247,18 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
     }
   }, [asignaturaId, bimestreGlobal]);
 
+  const cargarEvidencias = useCallback(async (ciclo) => {
+    try {
+      const response = await api.get('/alumno/aula-virtual/evidencias', {
+        params: { asignatura_id: asignaturaId, ciclo: ciclo || bimestreGlobal }
+      });
+      setEvidencias(response.data.evidencias || []);
+    } catch (error) {
+      console.error('Error cargando evidencias:', error);
+      setEvidencias([]);
+    }
+  }, [asignaturaId, bimestreGlobal]);
+
   // Cargar datos del curso
   useEffect(() => {
     if (asignaturaId) {
@@ -269,7 +276,8 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
     cargarExamenes(bimestreGlobal);
     cargarVideos(bimestreGlobal);
     cargarEnlaces(bimestreGlobal);
-  }, [asignaturaId, loading, bimestreGlobal, cargarArchivos, cargarTareas, cargarExamenes, cargarVideos, cargarEnlaces]);
+    cargarEvidencias(bimestreGlobal);
+  }, [asignaturaId, loading, bimestreGlobal, cargarArchivos, cargarTareas, cargarExamenes, cargarVideos, cargarEnlaces, cargarEvidencias]);
 
   const renderCardContent = (cardName) => {
     switch(cardName) {
@@ -279,6 +287,8 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
         return renderTareasContent();
       case 'examenes':
         return renderExamenesContent();
+      case 'evidencias':
+        return renderEvidenciasContent();
       case 'videos':
         return renderVideosContent();
       case 'enlaces':
@@ -756,6 +766,12 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
     );
   };
 
+  const renderEvidenciasContent = () => (
+    <div className="card-content-expanded">
+      <EvidenciasGaleria items={evidencias} canManage={false} />
+    </div>
+  );
+
   const renderVideosContent = () => {
     const videosFiltrados = videos.filter(v => v.ciclo === bimestreGlobal);
 
@@ -965,13 +981,8 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
           ))}
             </div>
 
-        {/* Grid de Cards Gamificado */}
-        <div className="aula-dashboard-grid">
-          {/* Card: TEMAS */}
-          <div 
-            className={`aula-section-card temas-card ${expandedCard === 'temas' ? 'expanded' : ''}`}
-            onClick={() => expandedCard !== 'temas' && toggleCard('temas')}
-          >
+        <div className="aula-dashboard-grid aula-dashboard-stack">
+          <div className="aula-section-card temas-card expanded">
             <div className="card-header">
               <div className="card-icon">📚</div>
               <div className="card-info">
@@ -980,62 +991,58 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
                 <p className="card-subtitle">Temas disponibles</p>
               </div>
             </div>
-            {expandedCard === 'temas' && renderCardContent('temas')}
-            </div>
+            {renderCardContent('temas')}
+          </div>
 
-          {/* Card: TAREAS */}
-          <div 
-            className={`aula-section-card tareas-card ${expandedCard === 'tareas' ? 'expanded' : ''}`}
-            onClick={() => expandedCard !== 'tareas' && toggleCard('tareas')}
-          >
+          <div className="aula-section-card tareas-card expanded">
             <div className="card-header">
               <div className="card-icon">📝</div>
               <div className="card-info">
                 <h3 className="card-title">Proyectos</h3>
                 <p className="card-count">{tareas.filter(t => t.ciclo === bimestreGlobal).length}</p>
                 <p className="card-subtitle">Proyectos asignados</p>
-                        </div>
-                    </div>
-            {expandedCard === 'tareas' && renderCardContent('tareas')}
-                </div>
+              </div>
+            </div>
+            {renderCardContent('tareas')}
+          </div>
 
-          {/* Card: EXÁMENES */}
-          <div 
-            className={`aula-section-card examenes-card ${expandedCard === 'examenes' ? 'expanded' : ''}`}
-            onClick={() => expandedCard !== 'examenes' && toggleCard('examenes')}
-          >
+          <div className="aula-section-card examenes-card expanded">
             <div className="card-header">
               <div className="card-icon">📊</div>
               <div className="card-info">
                 <h3 className="card-title">Exámenes</h3>
                 <p className="card-count">{examenes.filter(e => e.ciclo === bimestreGlobal).length}</p>
                 <p className="card-subtitle">Exámenes creados</p>
-                        </div>
-                    </div>
-            {expandedCard === 'examenes' && renderCardContent('examenes')}
-                </div>
+              </div>
+            </div>
+            {renderCardContent('examenes')}
+          </div>
 
-          {/* Card: VIDEOTECA */}
-          <div 
-            className={`aula-section-card videos-card ${expandedCard === 'videos' ? 'expanded' : ''}`}
-            onClick={() => expandedCard !== 'videos' && toggleCard('videos')}
-          >
+          <div className="aula-section-card evidencias-card expanded">
+            <div className="card-header">
+              <div className="card-icon">🖼️</div>
+              <div className="card-info">
+                <h3 className="card-title">Evidencias</h3>
+                <p className="card-count">{evidencias.length}</p>
+                <p className="card-subtitle">Fotos y PDF del curso</p>
+              </div>
+            </div>
+            {renderCardContent('evidencias')}
+          </div>
+
+          <div className="aula-section-card videos-card expanded">
             <div className="card-header">
               <div className="card-icon">🎥</div>
               <div className="card-info">
                 <h3 className="card-title">Videoteca</h3>
                 <p className="card-count">{videos.filter(v => v.ciclo === bimestreGlobal).length}</p>
                 <p className="card-subtitle">Videos disponibles</p>
-                        </div>
-                    </div>
-            {expandedCard === 'videos' && renderCardContent('videos')}
-                </div>
+              </div>
+            </div>
+            {renderCardContent('videos')}
+          </div>
 
-          {/* Card: ENLACES */}
-          <div 
-            className={`aula-section-card enlaces-card ${expandedCard === 'enlaces' ? 'expanded' : ''}`}
-            onClick={() => expandedCard !== 'enlaces' && toggleCard('enlaces')}
-          >
+          <div className="aula-section-card enlaces-card expanded">
             <div className="card-header">
               <div className="card-icon">🔗</div>
               <div className="card-info">
@@ -1044,7 +1051,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
                 <p className="card-subtitle">Enlaces compartidos</p>
               </div>
             </div>
-            {expandedCard === 'enlaces' && renderCardContent('enlaces')}
+            {renderCardContent('enlaces')}
           </div>
         </div>
       </div>

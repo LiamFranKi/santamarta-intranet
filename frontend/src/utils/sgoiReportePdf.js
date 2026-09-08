@@ -169,7 +169,7 @@ function chartPie(slices) {
 /**
  * PDF del reporte: horario del periodo, incidencias colgadas y gráficos al final.
  */
-export function exportarReporteSgoiPdf({ reporte, periodo }) {
+export function exportarReporteSgoiPdf({ reporte, periodo, nombre }) {
   const dias = Array.isArray(reporte?.dias) ? reporte.dias : [];
   const resumen = reporte?.resumen || {};
   if (!dias.length && !(resumen.casos_total > 0)) {
@@ -188,6 +188,7 @@ export function exportarReporteSgoiPdf({ reporte, periodo }) {
     ? formatFechaCorta(reporte?.desde)
     : `${formatFechaCorta(reporte?.desde)} – ${formatFechaCorta(reporte?.hasta)}`;
   const generado = new Date().toLocaleString('es-PE', { dateStyle: 'medium', timeStyle: 'short' });
+  const persona = String(nombre || reporte?.usuario?.nombre || '').trim();
 
   const piePagina = () => {
     const n = doc.internal.getNumberOfPages();
@@ -198,7 +199,13 @@ export function exportarReporteSgoiPdf({ reporte, periodo }) {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(100, 116, 139);
-      doc.text('VanguardNet · Gestión operativa · Área de Sistemas', margin, pageH - 4.5);
+      doc.text(
+        persona
+          ? `VanguardNet · Gestión operativa · ${persona}`
+          : 'VanguardNet · Gestión operativa · Área de Sistemas',
+        margin,
+        pageH - 4.5
+      );
       doc.text(`Página ${i} de ${n}`, pageW - margin, pageH - 4.5, { align: 'right' });
     }
   };
@@ -209,10 +216,11 @@ export function exportarReporteSgoiPdf({ reporte, periodo }) {
     y = margin;
   };
 
+  const headerH = persona ? 34 : 28;
   doc.setFillColor(15, 23, 42);
-  doc.rect(0, 0, pageW, 28, 'F');
+  doc.rect(0, 0, pageW, headerH, 'F');
   doc.setFillColor(37, 99, 235);
-  doc.rect(0, 26, pageW, 3, 'F');
+  doc.rect(0, headerH - 2, pageW, 3, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
@@ -221,9 +229,15 @@ export function exportarReporteSgoiPdf({ reporte, periodo }) {
   doc.setFontSize(9);
   doc.setTextColor(191, 219, 254);
   doc.text(`${etiquetaPeriodo(periodo)} · ${rangoTxt}`, margin, 19);
+  if (persona) {
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text(`Emitido para: ${persona}`, margin, 26.2);
+  }
+  doc.setFont('helvetica', 'normal');
   doc.setTextColor(226, 232, 240);
   doc.text(generado, pageW - margin, 12, { align: 'right' });
-  y = 38;
+  y = headerH + 10;
 
   const kpis = [
     { t: 'Incidencias', v: String(resumen.casos_total || 0), s: `${resumen.casos_resueltos || 0} resueltas · ${resumen.casos_pendientes || 0} pendientes`, c: [220, 38, 38] },

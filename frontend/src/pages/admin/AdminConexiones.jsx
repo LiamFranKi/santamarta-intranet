@@ -6,6 +6,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import 'react-quill/dist/quill.snow.css';
 import '../DocenteGrupos.css';
+import AdjuntosPendientes from '../../components/mensajes/AdjuntosPendientes';
 import './AdminConexiones.css';
 
 const cfSwalSobreModal = {
@@ -568,13 +569,19 @@ export default function AdminConexiones() {
                     type="file"
                     multiple
                     style={{ display: 'none' }}
-                    onChange={(e) => setArchivosAdjuntos(Array.from(e.target.files || []))}
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length) setArchivosAdjuntos((prev) => [...prev, ...files]);
+                      e.target.value = '';
+                    }}
+                  />
+                  <AdjuntosPendientes
+                    archivos={archivosAdjuntos}
+                    onQuitar={(index) => setArchivosAdjuntos((prev) => prev.filter((_, i) => i !== index))}
+                    inputId="archivos-cf-admin"
                   />
                 </div>
               </div>
-              {archivosAdjuntos.length > 0 && (
-                <div className="admin-conexiones-adjuntos-info">{archivosAdjuntos.length} archivo(s) seleccionado(s)</div>
-              )}
 
               <div className="form-actions">
                 <button className="btn-cancelar" onClick={() => setMostrarModalNuevo(false)} type="button">Cancelar</button>

@@ -1,0 +1,57 @@
+.adjuntos-pendientes {
+  list-style: none;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.adjuntos-pendientes-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.8rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.adjuntos-pendientes-info {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.adjuntos-pendientes-nombre {
+  color: #0f172a;
+  font-weight: 600;
+  font-size: 0.88rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adjuntos-pendientes-tam {
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.adjuntos-pendientes-quitar {
+  flex-shrink: 0;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  border-radius: 8px;
+  padding: 0.38rem 0.75rem;
+  font-weight: 800;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.adjuntos-pendientes-quitar:hover {
+  background: #fee2e2;
+  border-color: #f87171;
+}

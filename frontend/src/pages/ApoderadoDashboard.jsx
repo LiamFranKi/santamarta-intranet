@@ -300,7 +300,7 @@ function ApoderadoDashboard() {
             <div className="stat-icon">👨‍👩‍👧‍👦</div>
             <div className="stat-content">
               <div className="stat-number">{estadisticas?.totalHijos || 0}</div>
-              <div className="stat-label">Hijos a Cargo</div>
+              <div className="stat-label">Estudiantes a Cargo</div>
             </div>
           </div>
 

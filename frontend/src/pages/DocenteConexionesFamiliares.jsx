@@ -6,6 +6,7 @@ import api from '../services/api';
 import Swal from 'sweetalert2';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+import AdjuntosPendientes from '../components/mensajes/AdjuntosPendientes';
 import './DocenteGrupos.css';
 
 const cfSwalSobreModal = {
@@ -429,16 +430,11 @@ function DocenteConexionesFamiliares() {
                 <div className="archivos-container">
                   <input type="file" id="archivos-cf" multiple onChange={handleArchivoChange} style={{ display: 'none' }} />
                   <label htmlFor="archivos-cf" className="btn-adjuntar-archivo">📎 Adjuntar Archivos</label>
-                  {archivosAdjuntos.length > 0 && (
-                    <div className="archivos-lista">
-                      {archivosAdjuntos.map((archivo, index) => (
-                        <div key={index} className="archivo-item">
-                          <span className="archivo-nombre">{archivo.name}</span>
-                          <button type="button" className="archivo-eliminar" onClick={() => eliminarArchivo(index)}>×</button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <AdjuntosPendientes
+                    archivos={archivosAdjuntos}
+                    onQuitar={eliminarArchivo}
+                    inputId="archivos-cf"
+                  />
                 </div>
               </div>
               <div className="form-actions">

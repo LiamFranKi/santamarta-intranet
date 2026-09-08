@@ -17,6 +17,7 @@ const {
   enriquecerMensajeApoderadoADocente
 } = require('../utils/mensajesHijoDocenteContexto');
 const { fechaHoraMySQLLima, fechaMySQLLima } = require('../utils/fechaHoraLima');
+const { listarEvidenciasSafe } = require('../utils/aulaEvidencias');
 const { ACTIVIDADES_SELECT_SQL, ACTIVIDADES_SELECT_CON_EVENTO_SQL } = require('../utils/actividadesFecha');
 const { mezclarReunionesEnActividades } = require('../utils/reunionesHelper');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
@@ -4362,6 +4363,43 @@ router.get('/hijos/:hijoId/aula-virtual/videos', soloLecturaProxy, async (req, r
   } catch (error) {
     console.error('Error obteniendo videos:', error);
     res.status(500).json({ error: error.message || 'Error al obtener videos' });
+  }
+});
+
+/**
+ * GET /api/apoderado/hijos/:hijoId/aula-virtual/evidencias
+ */
+router.get('/hijos/:hijoId/aula-virtual/evidencias', soloLecturaProxy, async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const { asignatura_id, ciclo } = req.query;
+
+    if (!asignatura_id) {
+      return res.status(400).json({ error: 'asignatura_id es requerido' });
+    }
+
+    const { alumnoId } = await verificarHijoYUsuarioApoderado(req, hijoId);
+
+    const asignatura = await query(
+      `SELECT a.* FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN matriculas m ON m.grupo_id = g.id
+       WHERE a.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
+       AND (m.estado = 0)
+       LIMIT 1`,
+      [asignatura_id, alumnoId, colegio_id, anio_activo]
+    );
+
+    if (asignatura.length === 0) {
+      return res.status(403).json({ error: 'El alumno no tiene acceso a esta asignatura' });
+    }
+
+    const evidencias = await listarEvidenciasSafe(asignatura_id, ciclo);
+    res.json({ evidencias });
+  } catch (error) {
+    console.error('Error obteniendo evidencias (apoderado):', error);
+    res.status(500).json({ error: error.message || 'Error al obtener evidencias' });
   }
 });
 

@@ -3559,7 +3559,7 @@ function DocenteHijos() {
     <DashboardLayout>
       <div className="docente-hijos">
         <div className="page-header">
-          <h1>👨‍👩‍👧‍👦 Hijos a Cargo</h1>
+          <h1>👨‍👩‍👧‍👦 Estudiantes a Cargo</h1>
           <p>Gestiona la información de tus hijos estudiantes</p>
         </div>
 

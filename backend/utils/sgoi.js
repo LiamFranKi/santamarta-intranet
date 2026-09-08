@@ -333,6 +333,22 @@ async function agregarSeguimiento({ colegioId, entidad, entidadId, usuarioId, te
   return ins.insertId;
 }
 
+async function nombrePersonalDeUsuario(usuarioId) {
+  const uid = parseInt(usuarioId, 10);
+  if (!uid) return '';
+  const rows = await query(
+    `SELECT TRIM(CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,''))) AS nombre,
+            u.usuario
+     FROM usuarios u
+     LEFT JOIN personal p ON p.id = u.personal_id
+     WHERE u.id = ?
+     LIMIT 1`,
+    [uid]
+  );
+  const nombre = String(rows[0]?.nombre || '').replace(/\s+/g, ' ').trim();
+  return nombre || String(rows[0]?.usuario || '').trim();
+}
+
 function auditarSgoi(req, { accion, entidad, entidad_id, descripcion }) {
   registrarAccion({
     usuario_id: req.user.usuario_id,
@@ -375,6 +391,7 @@ module.exports = {
   segundosEntre,
   sanitizarTexto,
   agregarSeguimiento,
+  nombrePersonalDeUsuario,
   auditarSgoi,
   resolvePersonalId,
 };

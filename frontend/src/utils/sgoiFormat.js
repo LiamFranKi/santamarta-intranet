@@ -8,6 +8,16 @@ export function usuarioPuedeHorarioSgoi(tipo) {
   return String(tipo || '').toUpperCase() === 'ADMINISTRADOR';
 }
 
+/** Nombre del personal/usuario para reportes (API o sesión). */
+export function nombrePersonaSgoi(user, apiNombre) {
+  const fromApi = String(apiNombre || '').replace(/\s+/g, ' ').trim();
+  if (fromApi) return fromApi;
+  if (user?.nombres && user?.apellidos) {
+    return `${user.nombres} ${user.apellidos}`.replace(/\s+/g, ' ').trim();
+  }
+  return String(user?.nombres || user?.usuario || '').replace(/\s+/g, ' ').trim();
+}
+
 export function formatDuracionSeg(seg) {
   const n = Math.max(0, parseInt(seg, 10) || 0);
   const h = Math.floor(n / 3600);

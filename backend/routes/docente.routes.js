@@ -47,6 +47,7 @@ const {
 const { fetchUsuariosTutoresGrupos } = require('../utils/grupoTutores');
 const { enriquecerMensajeDocenteParaDestinatario } = require('../utils/mensajesDocenteApoderadoContexto');
 const { mountSelfServiceCvRoutes } = require('../utils/personalCv');
+const { listarEvidenciasSafe, mapearEvidencia, tipoDesdeNombre } = require('../utils/aulaEvidencias');
 const {
   pickSaludFields,
   normalizeSaludBody,
@@ -1383,6 +1384,31 @@ const uploadAulaVirtual = multer({
   storage: aulaVirtualStorage,
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
   fileFilter: fileFilterAulaVirtual
+});
+
+const evidenciasStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, staticFsSubdir('Archivos'));
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, `evidencia-${uniqueSuffix}${path.extname(file.originalname)}`);
+  }
+});
+
+const fileFilterEvidencias = (req, file, cb) => {
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const okPdf = ext === '.pdf' && file.mimetype === 'application/pdf';
+  const okImg = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext) &&
+    file.mimetype && file.mimetype.startsWith('image/');
+  if (okPdf || okImg) return cb(null, true);
+  cb(new Error('Solo se permiten imágenes (jpg, png, gif, webp) o PDF'));
+};
+
+const uploadEvidencias = multer({
+  storage: evidenciasStorage,
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: fileFilterEvidencias
 });
 
 // Imagen opcional del bloque de contexto del examen (comparte carpeta Static/Archivos con el aula virtual)
@@ -8072,6 +8098,54 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/enlaces', async (req, res) => 
 });
 
 /**
+ * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/evidencias
+ */
+router.get('/tutoria/grupos/:grupoId/aula-virtual/evidencias', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    const { asignatura_id, ciclo } = req.query;
+
+    if (!personalId) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+
+    const grupoTutor = await query(
+      `SELECT g.*
+       FROM grupos g
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
+    );
+
+    if (grupoTutor.length === 0 && !req._tutoriaGrupoAccesoOk) {
+      return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    }
+
+    if (!asignatura_id) {
+      return res.status(400).json({ error: 'asignatura_id es requerido' });
+    }
+
+    const asignatura = await query(
+      `SELECT a.*
+       FROM asignaturas a
+       WHERE a.id = ? AND a.grupo_id = ? AND a.colegio_id = ?`,
+      [asignatura_id, grupoId, colegio_id]
+    );
+
+    if (asignatura.length === 0) {
+      return res.status(403).json({ error: 'La asignatura no pertenece a este grupo' });
+    }
+
+    const evidencias = await listarEvidenciasSafe(asignatura_id, ciclo);
+    res.json({ evidencias });
+  } catch (error) {
+    console.error('Error obteniendo evidencias (tutor):', error);
+    res.status(500).json({ error: error.message || 'Error al obtener evidencias' });
+  }
+});
+
+/**
  * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultado
  * Obtener resultado de un examen (para tutores - modo solo lectura)
  */
@@ -12692,6 +12766,46 @@ router.get('/hijos/:hijoId/aula-virtual/videos', soloLecturaProxy, async (req, r
   } catch (error) {
     console.error('Error obteniendo videos:', error);
     res.status(500).json({ error: error.message || 'Error al obtener videos' });
+  }
+});
+
+router.get('/hijos/:hijoId/aula-virtual/evidencias', soloLecturaProxy, async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const { asignatura_id, ciclo } = req.query;
+
+    if (!asignatura_id) {
+      return res.status(400).json({ error: 'asignatura_id es requerido' });
+    }
+
+    let alumnoId;
+    try {
+      const resultado = await verificarHijoYUsuario(req, hijoId);
+      alumnoId = resultado.alumnoId;
+    } catch (error) {
+      return res.status(403).json({ error: error.message || 'No tienes permisos para acceder a este recurso' });
+    }
+
+    const asignatura = await query(
+      `SELECT a.* FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN matriculas m ON m.grupo_id = g.id
+       WHERE a.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
+       AND (m.estado = 0)
+       LIMIT 1`,
+      [asignatura_id, alumnoId, colegio_id, anio_activo]
+    );
+
+    if (asignatura.length === 0) {
+      return res.status(403).json({ error: 'El alumno no tiene acceso a esta asignatura' });
+    }
+
+    const evidencias = await listarEvidenciasSafe(asignatura_id, ciclo);
+    res.json({ evidencias });
+  } catch (error) {
+    console.error('Error obteniendo evidencias (docente hijo):', error);
+    res.status(500).json({ error: error.message || 'Error al obtener evidencias' });
   }
 });
 
@@ -17965,6 +18079,101 @@ router.delete('/aula-virtual/sesiones/:id', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/aula-virtual/evidencias
+ */
+router.get('/aula-virtual/evidencias', async (req, res) => {
+  try {
+    const { asignatura_id, ciclo } = req.query;
+    if (!asignatura_id) {
+      return res.status(400).json({ error: 'asignatura_id es requerido' });
+    }
+    const asignaturaAcceso = await verificarAccesoAsignatura(
+      req,
+      res,
+      asignatura_id,
+      'a.*',
+      'No tienes acceso a esta asignatura'
+    );
+    if (!asignaturaAcceso) return;
+    const evidencias = await listarEvidenciasSafe(asignatura_id, ciclo);
+    res.json({ evidencias });
+  } catch (error) {
+    console.error('Error obteniendo evidencias:', error);
+    res.status(500).json({ error: 'Error al obtener evidencias' });
+  }
+});
+
+/**
+ * POST /api/docente/aula-virtual/evidencias
+ */
+router.post('/aula-virtual/evidencias', uploadEvidencias.single('archivo'), async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const { asignatura_id, titulo, ciclo } = req.body;
+    if (!asignatura_id || !titulo || !String(titulo).trim() || !ciclo) {
+      return res.status(400).json({ error: 'asignatura_id, titulo y ciclo son requeridos' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'Debe subir una imagen o un PDF' });
+    }
+    const asignaturaAcceso = await verificarAccesoAsignatura(
+      req,
+      res,
+      asignatura_id,
+      'a.*',
+      'No tienes acceso a esta asignatura'
+    );
+    if (!asignaturaAcceso) return;
+    const trabajadorId = trabajadorIdParaAsignatura(req, asignaturaAcceso);
+    await execute(
+      `INSERT INTO asignaturas_evidencias
+        (asignatura_id, trabajador_id, colegio_id, titulo, archivo, tipo, ciclo, fecha_hora)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        asignatura_id,
+        trabajadorId,
+        colegio_id,
+        String(titulo).trim().slice(0, 200),
+        req.file.filename,
+        tipoDesdeNombre(req.file.filename),
+        parseInt(ciclo, 10) || 1,
+        fechaHoraMySQLLima(),
+      ]
+    );
+    res.json({ success: true, message: 'Evidencia creada correctamente' });
+  } catch (error) {
+    console.error('Error creando evidencia:', error);
+    res.status(500).json({ error: error.message || 'Error al crear evidencia' });
+  }
+});
+
+/**
+ * DELETE /api/docente/aula-virtual/evidencias/:id
+ */
+router.delete('/aula-virtual/evidencias/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const rows = await query(`SELECT * FROM asignaturas_evidencias WHERE id = ?`, [id]);
+    if (!rows.length) {
+      return res.status(404).json({ error: 'Evidencia no encontrada' });
+    }
+    const asignaturaAcceso = await verificarAccesoAsignatura(
+      req,
+      res,
+      rows[0].asignatura_id,
+      'a.*',
+      'No tienes acceso a esta asignatura'
+    );
+    if (!asignaturaAcceso) return;
+    await execute(`DELETE FROM asignaturas_evidencias WHERE id = ?`, [id]);
+    res.json({ success: true, message: 'Evidencia eliminada correctamente' });
+  } catch (error) {
+    console.error('Error eliminando evidencia:', error);
+    res.status(500).json({ error: 'Error al eliminar evidencia' });
+  }
+});
+
+/**
  * POST /api/docente/aula-virtual/tareas
  * Crear una nueva tarea
  */
@@ -21498,6 +21707,54 @@ router.get('/aula-virtual/biblioteca-sesiones', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/aula-virtual/biblioteca-evidencias
+ */
+router.get('/aula-virtual/biblioteca-evidencias', async (req, res) => {
+  try {
+    const { asignatura_id } = req.query;
+    if (!asignatura_id) return res.status(400).json({ error: 'asignatura_id es requerido' });
+    const data = await obtenerAsignaturasBiblioteca(req, asignatura_id);
+    if (!data) return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
+    const porAnio = {};
+    const añosSet = new Set();
+    for (const asig of data.asignaturas) {
+      let items = [];
+      try {
+        items = await query(
+          `SELECT id, titulo, archivo, tipo, ciclo
+           FROM asignaturas_evidencias
+           WHERE asignatura_id = ?
+           ORDER BY ciclo ASC, id DESC`,
+          [asig.asignatura_id]
+        );
+      } catch (e) {
+        if (e && e.code === 'ER_NO_SUCH_TABLE') break;
+        throw e;
+      }
+      const mapped = (items || []).map((ev) => {
+        const mappedEv = mapearEvidencia(ev);
+        return {
+          ...mappedEv,
+          nombre: (ev.titulo && String(ev.titulo).trim()) || 'Evidencia',
+          asignatura_id: asig.asignatura_id,
+          asignatura_label: `${asig.curso_nombre} - ${asig.grado}° ${asig.seccion} (${asig.anio})`,
+          docente_nombre: asig.docente_nombre || 'Docente',
+        };
+      });
+      if (mapped.length > 0) {
+        if (!porAnio[asig.anio]) porAnio[asig.anio] = [];
+        porAnio[asig.anio].push(...mapped);
+        añosSet.add(asig.anio);
+      }
+    }
+    res.json({ porAnio, años: Array.from(añosSet).sort((a, b) => b - a) });
+  } catch (error) {
+    console.error('Error biblioteca evidencias:', error);
+    res.status(500).json({ error: 'Error al obtener biblioteca de evidencias' });
+  }
+});
+
+/**
  * POST /api/docente/aula-virtual/copiar-biblioteca
  * Copiar items desde biblioteca al año actual (tareas, examenes, videos, enlaces, sesiones)
  * Body: { asignatura_id, tipo: 'tareas'|'examenes'|'videos'|'enlaces'|'sesiones', items: [{ asignatura_origen_id, item_id }] }
@@ -21512,9 +21769,9 @@ router.post('/aula-virtual/copiar-biblioteca', async (req, res) => {
       return res.status(400).json({ error: 'asignatura_id, tipo e items son requeridos' });
     }
 
-    const tiposValidos = ['tareas', 'examenes', 'videos', 'enlaces', 'sesiones'];
+    const tiposValidos = ['tareas', 'examenes', 'videos', 'enlaces', 'sesiones', 'evidencias'];
     if (!tiposValidos.includes(tipo)) {
-      return res.status(400).json({ error: 'tipo debe ser: tareas, examenes, videos, enlaces o sesiones' });
+      return res.status(400).json({ error: 'tipo debe ser: tareas, examenes, videos, enlaces, sesiones o evidencias' });
     }
 
     const asignaturaDestinoRow = await verificarAccesoAsignatura(
@@ -21674,6 +21931,35 @@ router.post('/aula-virtual/copiar-biblioteca', async (req, res) => {
             trabajadorId,
             fechaHoraMySQLLima(),
             colegioDest,
+          ]
+        );
+        copiados++;
+      }
+    } else if (tipo === 'evidencias') {
+      const [destRow] = await query(`SELECT colegio_id FROM asignaturas WHERE id = ?`, [asignatura_id]);
+      const colegioDest = destRow?.colegio_id || colegio_id;
+      for (const item of items) {
+        const { asignatura_origen_id, item_id } = item;
+        if (!asignatura_origen_id || !item_id) continue;
+        const evRows = await query(
+          `SELECT * FROM asignaturas_evidencias WHERE id = ? AND asignatura_id = ?`,
+          [item_id, asignatura_origen_id]
+        );
+        if (evRows.length === 0) continue;
+        const ev = evRows[0];
+        await execute(
+          `INSERT INTO asignaturas_evidencias
+            (asignatura_id, trabajador_id, colegio_id, titulo, archivo, tipo, ciclo, fecha_hora)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            asignatura_id,
+            trabajadorId,
+            colegioDest,
+            ev.titulo || 'Evidencia',
+            ev.archivo,
+            ev.tipo || tipoDesdeNombre(ev.archivo),
+            ev.ciclo,
+            fechaHoraMySQLLima(),
           ]
         );
         copiados++;

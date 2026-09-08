@@ -9,6 +9,7 @@ import 'react-quill/dist/quill.snow.css';
 import './AlumnoMensajes.css';
 import './DocenteMensajes.css';
 import DestinatarioSearchField from '../components/mensajes/DestinatarioSearchField';
+import AdjuntosPendientes from '../components/mensajes/AdjuntosPendientes';
 import {
   procesarHTMLMensaje,
   MARCA_CUMPLEANOS_HTML,
@@ -609,13 +610,13 @@ function AlumnoMensajes() {
 
   // Manejar selección de archivos
   const handleArchivoChange = (e) => {
-    const files = Array.from(e.target.files);
-    setArchivosAdjuntos([...archivosAdjuntos, ...files]);
+    const files = Array.from(e.target.files || []);
+    if (files.length) setArchivosAdjuntos((prev) => [...prev, ...files]);
+    e.target.value = '';
   };
 
-  // Eliminar archivo adjunto
   const eliminarArchivo = (index) => {
-    setArchivosAdjuntos(archivosAdjuntos.filter((_, i) => i !== index));
+    setArchivosAdjuntos((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Enviar mensaje
@@ -911,25 +912,11 @@ function AlumnoMensajes() {
                     <label htmlFor="archivos-input" className="btn-adjuntar-archivo">
                       📎 Adjuntar Archivos
                     </label>
-                    {archivosAdjuntos.length > 0 && (
-                      <div className="archivos-lista">
-                        {archivosAdjuntos.map((archivo, index) => (
-                          <div key={index} className="archivo-item">
-                            <span className="archivo-nombre">{archivo.name}</span>
-                            <span className="archivo-tamaño">
-                              {(archivo.size / 1024).toFixed(2)} KB
-                            </span>
-                            <button
-                              type="button"
-                              className="archivo-eliminar"
-                              onClick={() => eliminarArchivo(index)}
-                            >
-                              ×
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <AdjuntosPendientes
+                      archivos={archivosAdjuntos}
+                      onQuitar={eliminarArchivo}
+                      inputId="archivos-input"
+                    />
                   </div>
                 </div>
 

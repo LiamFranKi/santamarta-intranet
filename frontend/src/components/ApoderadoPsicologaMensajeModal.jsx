@@ -4,6 +4,7 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import Swal from 'sweetalert2';
 import api from '../services/api';
+import AdjuntosPendientes from './mensajes/AdjuntosPendientes';
 import '../pages/AlumnoMensajes.css';
 
 const QUILL_MODULES = {
@@ -101,8 +102,9 @@ export default function ApoderadoPsicologaMensajeModal({ open, onClose, psicolog
   }, [open, psicologa?.usuario_id]);
 
   const handleArchivoChange = (e) => {
-    const files = Array.from(e.target.files);
-    setArchivosAdjuntos((prev) => [...prev, ...files]);
+    const files = Array.from(e.target.files || []);
+    if (files.length) setArchivosAdjuntos((prev) => [...prev, ...files]);
+    e.target.value = '';
   };
 
   const eliminarArchivo = (index) => {
@@ -220,19 +222,11 @@ export default function ApoderadoPsicologaMensajeModal({ open, onClose, psicolog
                 <label htmlFor="psi-msg-archivos" className="btn-adjuntar-archivo">
                   Adjuntar archivos
                 </label>
-                {archivosAdjuntos.length > 0 && (
-                  <div className="archivos-lista">
-                    {archivosAdjuntos.map((archivo, index) => (
-                      <div key={`${archivo.name}-${index}`} className="archivo-item">
-                        <span className="archivo-nombre">{archivo.name}</span>
-                        <span className="archivo-tamaño">{(archivo.size / 1024).toFixed(2)} KB</span>
-                        <button type="button" className="archivo-eliminar" onClick={() => eliminarArchivo(index)}>
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <AdjuntosPendientes
+                  archivos={archivosAdjuntos}
+                  onQuitar={eliminarArchivo}
+                  inputId="psi-msg-archivos"
+                />
               </div>
             </div>
             <p className="psi-msg-hint">Puede insertar imágenes en el texto con el botón de imagen del editor.</p>

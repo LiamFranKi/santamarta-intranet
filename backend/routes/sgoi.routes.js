@@ -24,6 +24,7 @@ const {
   segundosEntre,
   sanitizarTexto,
   agregarSeguimiento,
+  nombrePersonalDeUsuario,
   auditarSgoi,
   resolvePersonalId,
   sqlDt,
@@ -415,11 +416,13 @@ router.get('/reporte', async (req, res) => {
       })
       .filter((d) => d.casos.length || d.trabajos.length || d.bloques.length);
 
+    const personaNombre = await nombrePersonalDeUsuario(usuario_id);
     res.json({
       periodo,
       fecha,
       desde,
       hasta,
+      usuario: { id: usuario_id, nombre: personaNombre },
       resumen: {
         casos_total: casosRows.length,
         casos_resueltos: casosRows.filter((c) => c.estado === 'RESUELTO').length,
@@ -492,7 +495,8 @@ router.get('/horario', requireHorarioAdmin, async (req, res) => {
         .filter((r) => Number(r.weekday) === wd)
         .map((r) => ({ ...r, hora_ini: hhmm(r.hora_ini), hora_fin: hhmm(r.hora_fin) })),
     }));
-    res.json({ dias });
+    const personaNombre = await nombrePersonalDeUsuario(usuario_id);
+    res.json({ dias, usuario: { id: usuario_id, nombre: personaNombre } });
   } catch (e) {
     return handleSgoiError(res, e, 'horario');
   }
