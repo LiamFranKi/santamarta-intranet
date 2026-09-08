@@ -29,6 +29,7 @@ const {
   guardarConductaPorGrupo,
 } = require('../utils/conductaGrupoMatriculas');
 const { registrarAccion } = require('../utils/auditoria');
+const { sembrarEstructuraAsignatura } = require('../utils/aulaEstructuraTemas');
 const {
   sincronizarConductaMatriculaPorFecha,
   sincronizarConductaMatriculaBimestre,
@@ -2084,6 +2085,15 @@ router.post('/asignaturas', async (req, res) => {
         );
         ocupados.add(curso_id);
         insertados.push({ id: r.insertId, curso_id });
+        try {
+          await sembrarEstructuraAsignatura({
+            asignaturaId: r.insertId,
+            colegioId: cid,
+            trabajadorId: personal_id,
+          });
+        } catch (eSeed) {
+          console.warn('[estructura-temas] No se pudo sembrar al crear asignatura', r.insertId, eSeed.message);
+        }
       } catch (e) {
         if (String(e.message || '').includes('Duplicate') || e.code === 'ER_DUP_ENTRY') {
           omitidos.push({ curso_id, motivo: 'Asignación duplicada' });

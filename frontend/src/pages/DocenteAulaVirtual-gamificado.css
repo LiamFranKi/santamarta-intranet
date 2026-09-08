@@ -219,6 +219,71 @@
   display: block;
 }
 
+.tema-fila-pendiente {
+  background: #f3f4f6 !important;
+  color: #6b7280;
+}
+
+.tema-fila-pendiente .tema-nombre-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.tema-pendiente-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: #e5e7eb;
+  color: #4b5563;
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+}
+
+.tema-pendiente-fecha {
+  color: #9ca3af;
+  font-size: 0.85rem;
+}
+
+.tema-pendiente-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+}
+
+.btn-llenar-tema {
+  border: none;
+  border-radius: 10px;
+  padding: 0.45rem 0.9rem;
+  background: linear-gradient(135deg, #fb923c, #f97316);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  min-height: 40px;
+}
+
+.btn-llenar-tema-del {
+  border: none;
+  border-radius: 10px;
+  padding: 0.45rem 0.9rem;
+  background: #e5e7eb;
+  color: #4b5563;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  min-height: 40px;
+}
+
+.tema-prefijo-fijo {
+  margin-bottom: 0.4rem;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
 @media (hover: none) {
   .aula-dashboard-stack .aula-section-card:hover,
   .aula-section-card:hover {

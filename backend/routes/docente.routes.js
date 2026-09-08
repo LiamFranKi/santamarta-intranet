@@ -49,6 +49,12 @@ const { enriquecerMensajeDocenteParaDestinatario } = require('../utils/mensajesD
 const { mountSelfServiceCvRoutes } = require('../utils/personalCv');
 const { listarEvidenciasSafe, mapearEvidencia, tipoDesdeNombre } = require('../utils/aulaEvidencias');
 const {
+  esTemaPendiente,
+  componerNombreEstructura,
+  archivosTieneEstructuraCols,
+  asegurarFichaHermana,
+} = require('../utils/aulaEstructuraTemas');
+const {
   pickSaludFields,
   normalizeSaludBody,
   mountAlumnoFichaByIdRoutes
@@ -7881,7 +7887,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/archivos', async (req, res) =>
       }
       return {
         ...archivo,
-        archivo_url: archivoUrl
+        archivo_url: archivoUrl,
+        pendiente: esTemaPendiente(archivo),
       };
     });
 
@@ -12620,7 +12627,7 @@ router.get('/hijos/:hijoId/aula-virtual/archivos', soloLecturaProxy, async (req,
         ...archivo,
         archivo_url: archivoUrl
       };
-    });
+    }).filter((archivo) => !esTemaPendiente(archivo));
 
     res.json({ archivos: archivosConUrls || [] });
   } catch (error) {
@@ -21247,10 +21254,17 @@ router.get('/aula-virtual/archivos', async (req, res) => {
     if (!asignaturaAcceso) return;
 
     // Obtener archivos de la asignatura filtrados por ciclo (ordenados según el orden establecido)
+    const tieneEstructura = await archivosTieneEstructuraCols();
     const archivos = await query(
-      `SELECT * FROM asignaturas_archivos
-       WHERE asignatura_id = ? AND ciclo = ?
-       ORDER BY orden ASC, id ASC`,
+      tieneEstructura
+        ? `SELECT * FROM asignaturas_archivos
+           WHERE asignatura_id = ? AND ciclo = ?
+           ORDER BY CASE WHEN item_numero IS NULL THEN 9999 ELSE item_numero END ASC,
+                    CASE item_tipo WHEN 'TEMA' THEN 0 WHEN 'FICHA' THEN 1 ELSE 2 END,
+                    orden ASC, id ASC`
+        : `SELECT * FROM asignaturas_archivos
+           WHERE asignatura_id = ? AND ciclo = ?
+           ORDER BY orden ASC, id ASC`,
       [asignatura_id, cicloFiltro]
     );
 
@@ -21308,7 +21322,8 @@ router.get('/aula-virtual/archivos', async (req, res) => {
       return {
         ...archivo,
         archivo_url: archivoUrl,
-        enlace_url: enlaceUrl
+        enlace_url: enlaceUrl,
+        pendiente: esTemaPendiente(archivo),
       };
     });
 
@@ -21470,6 +21485,131 @@ router.post('/aula-virtual/copiar-temas-biblioteca', async (req, res) => {
   } catch (error) {
     console.error('Error copiando temas desde biblioteca:', error);
     res.status(500).json({ error: 'Error al copiar temas desde biblioteca' });
+  }
+});
+
+/**
+ * POST /api/docente/aula-virtual/archivos/:id/llenar-biblioteca
+ * Copia archivo/enlace de un tema de biblioteca EN ESTA fila (no crea otra).
+ */
+router.post('/aula-virtual/archivos/:id/llenar-biblioteca', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { asignatura_origen_id, tema_id } = req.body || {};
+    if (!asignatura_origen_id || !tema_id) {
+      return res.status(400).json({ error: 'asignatura_origen_id y tema_id son requeridos' });
+    }
+
+    const accesoTema = await verificarAccesoTemaArchivo(req, res, id);
+    if (!accesoTema) return;
+    const dest = accesoTema.tema;
+
+    const origen = await query(
+      `SELECT * FROM asignaturas_archivos WHERE id = ? AND asignatura_id = ?`,
+      [tema_id, asignatura_origen_id]
+    );
+    if (!origen.length) {
+      return res.status(404).json({ error: 'El tema de biblioteca no existe' });
+    }
+    const src = origen[0];
+    const nombreGuardar = (dest.item_tipo && dest.item_numero)
+      ? componerNombreEstructura(dest.item_tipo, dest.item_numero, src.nombre)
+      : (src.nombre || dest.nombre);
+
+    await execute(
+      `UPDATE asignaturas_archivos
+       SET nombre = ?, archivo = ?, enlace = ?, fecha_hora = ?
+       WHERE id = ?`,
+      [
+        nombreGuardar,
+        src.archivo || '',
+        (src.enlace && String(src.enlace).trim()) || '',
+        fechaHoraMySQLLima(),
+        id,
+      ]
+    );
+    res.json({ success: true, message: 'Se llenó la fila desde la biblioteca' });
+  } catch (error) {
+    console.error('Error llenando tema desde biblioteca:', error);
+    res.status(500).json({ error: 'Error al usar la biblioteca' });
+  }
+});
+
+/**
+ * POST /api/docente/aula-virtual/archivos/desde-biblioteca
+ * Crea el siguiente tema (con tipo/número) copiando un archivo de biblioteca.
+ */
+router.post('/aula-virtual/archivos/desde-biblioteca', async (req, res) => {
+  try {
+    const { asignatura_id, ciclo, item_tipo, item_numero, asignatura_origen_id, tema_id } = req.body || {};
+    if (!asignatura_id || !asignatura_origen_id || !tema_id) {
+      return res.status(400).json({ error: 'Datos incompletos para copiar desde biblioteca' });
+    }
+    const asignaturaAcceso = await verificarAccesoAsignatura(
+      req,
+      res,
+      asignatura_id,
+      'a.*',
+      'No tienes acceso a esta asignatura'
+    );
+    if (!asignaturaAcceso) return;
+    const trabajadorId = trabajadorIdParaAsignatura(req, asignaturaAcceso);
+
+    const origen = await query(
+      `SELECT * FROM asignaturas_archivos WHERE id = ? AND asignatura_id = ?`,
+      [tema_id, asignatura_origen_id]
+    );
+    if (!origen.length) {
+      return res.status(404).json({ error: 'El tema de biblioteca no existe' });
+    }
+    const src = origen[0];
+    const tipoNorm = String(item_tipo || 'TEMA').toUpperCase() === 'FICHA' ? 'FICHA' : 'TEMA';
+    const numeroNorm = parseInt(item_numero, 10);
+    const cicloNum = parseInt(ciclo, 10) || 1;
+    const tieneEstructura = await archivosTieneEstructuraCols();
+    const nombreFinal = (tieneEstructura && Number.isFinite(numeroNorm) && numeroNorm > 0)
+      ? componerNombreEstructura(tipoNorm, numeroNorm, src.nombre)
+      : (src.nombre || 'Tema');
+
+    const maxOrden = await query(
+      `SELECT COALESCE(MAX(orden), 0) as max_orden FROM asignaturas_archivos
+       WHERE asignatura_id = ? AND ciclo = ?`,
+      [asignatura_id, cicloNum]
+    );
+    const nuevoOrden = (maxOrden[0]?.max_orden || 0) + 1;
+
+    const result = await execute(
+      tieneEstructura && Number.isFinite(numeroNorm) && numeroNorm > 0
+        ? `INSERT INTO asignaturas_archivos
+           (asignatura_id, trabajador_id, nombre, archivo, visto, fecha_hora, ciclo, enlace, orden, item_tipo, item_numero)
+           VALUES (?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?)`
+        : `INSERT INTO asignaturas_archivos
+           (asignatura_id, trabajador_id, nombre, archivo, visto, fecha_hora, ciclo, enlace, orden)
+           VALUES (?, ?, ?, ?, '', ?, ?, ?, ?)`,
+      tieneEstructura && Number.isFinite(numeroNorm) && numeroNorm > 0
+        ? [
+            asignatura_id, trabajadorId, nombreFinal, src.archivo || '', fechaHoraMySQLLima(),
+            cicloNum, (src.enlace && String(src.enlace).trim()) || '', nuevoOrden, tipoNorm, numeroNorm,
+          ]
+        : [
+            asignatura_id, trabajadorId, nombreFinal, src.archivo || '', fechaHoraMySQLLima(),
+            cicloNum, (src.enlace && String(src.enlace).trim()) || '', nuevoOrden,
+          ]
+    );
+
+    if (tieneEstructura && tipoNorm === 'TEMA' && Number.isFinite(numeroNorm)) {
+      await asegurarFichaHermana({
+        asignaturaId: asignatura_id,
+        trabajadorId,
+        ciclo: cicloNum,
+        numero: numeroNorm,
+      });
+    }
+
+    res.json({ success: true, id: result.insertId });
+  } catch (error) {
+    console.error('Error creando tema desde biblioteca:', error);
+    res.status(500).json({ error: 'Error al usar la biblioteca' });
   }
 });
 
@@ -22109,7 +22249,7 @@ router.put('/aula-virtual/archivos/ordenar', async (req, res) => {
 router.post('/aula-virtual/archivos', uploadAulaVirtual.single('archivo'), async (req, res) => {
   try {
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
-    const { asignatura_id, nombre, enlace, ciclo } = req.body;
+    const { asignatura_id, nombre, enlace, ciclo, item_tipo, item_numero } = req.body;
 
     if (!asignatura_id || !nombre) {
       return res.status(400).json({ error: 'asignatura_id y nombre son requeridos' });
@@ -22160,8 +22300,15 @@ router.post('/aula-virtual/archivos', uploadAulaVirtual.single('archivo'), async
     // Si normalizamos aquí, puede causar problemas en el sistema PHP
     const enlaceFinal = (enlace && enlace.trim() !== '') ? enlace.trim() : '';
 
+    const tieneEstructura = await archivosTieneEstructuraCols();
+    const tipoNorm = String(item_tipo || '').toUpperCase() === 'FICHA' ? 'FICHA' : (String(item_tipo || '').toUpperCase() === 'TEMA' ? 'TEMA' : null);
+    const numeroNorm = parseInt(item_numero, 10);
+    const nombreFinal = (tieneEstructura && tipoNorm && Number.isFinite(numeroNorm) && numeroNorm > 0)
+      ? componerNombreEstructura(tipoNorm, numeroNorm, nombre)
+      : String(nombre).trim();
+
     // Preparar datos para auditoría
-    const datosNuevos = { nombre, ciclo: ciclo || 1, archivo: archivoPath, enlace: enlaceFinal };
+    const datosNuevos = { nombre: nombreFinal, ciclo: ciclo || 1, archivo: archivoPath, enlace: enlaceFinal };
 
     // Registrar auditoría ANTES de crear
     const ahora = new Date();
@@ -22184,7 +22331,7 @@ router.post('/aula-virtual/archivos', uploadAulaVirtual.single('archivo'), async
         'AULA_VIRTUAL',
         'archivo',
         null, // Temporalmente null, se actualizará después
-        `Creó tema: "${nombre}"`,
+        `Creó tema: "${nombreFinal}"`,
         req.originalUrl,
         'POST',
         req.ip || req.connection.remoteAddress,
@@ -22204,20 +22351,50 @@ router.post('/aula-virtual/archivos', uploadAulaVirtual.single('archivo'), async
 
     // Insertar el nuevo tema
     const result = await execute(
-      `INSERT INTO asignaturas_archivos 
-       (asignatura_id, trabajador_id, nombre, archivo, visto, fecha_hora, ciclo, enlace, orden)
-       VALUES (?, ?, ?, ?, '', ?, ?, ?, ?)`,
-      [
-        asignatura_id,
-        trabajadorId,
-        nombre,
-        archivoPath,
-        fechaHoraTema,
-        ciclo || 1,
-        enlaceFinal,
-        nuevoOrden
-      ]
+      tieneEstructura && tipoNorm && Number.isFinite(numeroNorm) && numeroNorm > 0
+        ? `INSERT INTO asignaturas_archivos 
+           (asignatura_id, trabajador_id, nombre, archivo, visto, fecha_hora, ciclo, enlace, orden, item_tipo, item_numero)
+           VALUES (?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?)`
+        : `INSERT INTO asignaturas_archivos 
+           (asignatura_id, trabajador_id, nombre, archivo, visto, fecha_hora, ciclo, enlace, orden)
+           VALUES (?, ?, ?, ?, '', ?, ?, ?, ?)`,
+      tieneEstructura && tipoNorm && Number.isFinite(numeroNorm) && numeroNorm > 0
+        ? [
+            asignatura_id,
+            trabajadorId,
+            nombreFinal,
+            archivoPath,
+            fechaHoraTema,
+            ciclo || 1,
+            enlaceFinal,
+            nuevoOrden,
+            tipoNorm,
+            numeroNorm,
+          ]
+        : [
+            asignatura_id,
+            trabajadorId,
+            nombreFinal,
+            archivoPath,
+            fechaHoraTema,
+            ciclo || 1,
+            enlaceFinal,
+            nuevoOrden
+          ]
     );
+
+    if (tieneEstructura && tipoNorm === 'TEMA' && Number.isFinite(numeroNorm) && numeroNorm > 0) {
+      try {
+        await asegurarFichaHermana({
+          asignaturaId: asignatura_id,
+          trabajadorId,
+          ciclo: parseInt(ciclo, 10) || 1,
+          numero: numeroNorm,
+        });
+      } catch (eFicha) {
+        console.warn('[estructura-temas] No se pudo crear ficha hermana:', eFicha.message);
+      }
+    }
 
     // Actualizar auditoría con el ID del tema
     await execute(
@@ -22299,8 +22476,12 @@ router.put('/aula-virtual/archivos/:id', uploadAulaVirtual.single('archivo'), as
       enlaceFinal = enlace.trim(); // Guardar tal cual, sin normalizar
     }
 
+    const nombreGuardar = (temaActual.item_tipo && temaActual.item_numero)
+      ? componerNombreEstructura(temaActual.item_tipo, temaActual.item_numero, nombre)
+      : String(nombre).trim();
+
     // Preparar datos nuevos para auditoría
-    const datosNuevos = { nombre, ciclo: ciclo || temaActual.ciclo, archivo: archivoPath, enlace: enlaceFinal };
+    const datosNuevos = { nombre: nombreGuardar, ciclo: ciclo || temaActual.ciclo, archivo: archivoPath, enlace: enlaceFinal };
 
     // Registrar auditoría ANTES de actualizar
     registrarAccion({
@@ -22327,7 +22508,7 @@ router.put('/aula-virtual/archivos/:id', uploadAulaVirtual.single('archivo'), as
        SET nombre = ?, archivo = ?, enlace = ?, ciclo = ?
        WHERE id = ?`,
       [
-        nombre,
+        nombreGuardar,
         archivoPath,
         enlaceFinal,
         ciclo || temaActual.ciclo,

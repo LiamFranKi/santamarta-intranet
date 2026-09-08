@@ -18,6 +18,7 @@ const {
 } = require('../utils/mensajesHijoDocenteContexto');
 const { fechaHoraMySQLLima, fechaMySQLLima } = require('../utils/fechaHoraLima');
 const { listarEvidenciasSafe } = require('../utils/aulaEvidencias');
+const { esTemaPendiente } = require('../utils/aulaEstructuraTemas');
 const { ACTIVIDADES_SELECT_SQL, ACTIVIDADES_SELECT_CON_EVENTO_SQL } = require('../utils/actividadesFecha');
 const { mezclarReunionesEnActividades } = require('../utils/reunionesHelper');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
@@ -4215,7 +4216,7 @@ router.get('/hijos/:hijoId/aula-virtual/archivos', soloLecturaProxy, async (req,
         ...archivo,
         archivo_url: archivoUrl
       };
-    });
+    }).filter((archivo) => !esTemaPendiente(archivo));
 
     res.json({ archivos: archivosConUrls || [] });
   } catch (error) {

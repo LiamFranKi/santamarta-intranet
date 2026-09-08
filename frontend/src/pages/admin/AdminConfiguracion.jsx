@@ -121,7 +121,7 @@ const CONFIG_TABS = [
     icon: 'anio',
     tone: 'teal',
     helpTitle: 'Año lectivo',
-    help: 'Define el año activo del sistema y el de matrículas. El reinicio de contraseñas es irreversible: usará el DNI.',
+    help: 'Define el año activo del sistema y el de matrículas. Debajo puede configurar la estructura de temas del aula virtual. El reinicio de contraseñas es irreversible: usará el DNI.',
   },
   {
     id: 'pagos',
@@ -588,6 +588,15 @@ function AdminConfiguracion() {
     boleta_logo: null
   });
 
+  const [estructuraTemas, setEstructuraTemas] = useState({
+    temas_b1: 0,
+    temas_b2: 0,
+    temas_b3: 0,
+    temas_b4: 0,
+  });
+  const [guardandoEstructura, setGuardandoEstructura] = useState(false);
+  const [aplicandoEstructura, setAplicandoEstructura] = useState(false);
+
   useEffect(() => {
     cargarConfiguracion();
   }, []);
@@ -709,6 +718,19 @@ function AdminConfiguracion() {
         libreta_fondo: data.libreta_fondo,
         boleta_logo: data.boleta_logo
       });
+
+      try {
+        const est = await api.get('/admin/configuracion/estructura-temas');
+        const e = est.data?.estructura || {};
+        setEstructuraTemas({
+          temas_b1: Number(e.temas_b1) || 0,
+          temas_b2: Number(e.temas_b2) || 0,
+          temas_b3: Number(e.temas_b3) || 0,
+          temas_b4: Number(e.temas_b4) || 0,
+        });
+      } catch (eEst) {
+        console.warn('Estructura de temas no disponible:', eEst.response?.data?.error || eEst.message);
+      }
     } catch (error) {
       console.error('Error cargando configuración:', error);
       Swal.fire({
@@ -1067,6 +1089,64 @@ function AdminConfiguracion() {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleGuardarEstructuraTemas = async () => {
+    setGuardandoEstructura(true);
+    try {
+      const { data } = await api.put('/admin/configuracion/estructura-temas', estructuraTemas);
+      const e = data.estructura || estructuraTemas;
+      setEstructuraTemas({
+        temas_b1: Number(e.temas_b1) || 0,
+        temas_b2: Number(e.temas_b2) || 0,
+        temas_b3: Number(e.temas_b3) || 0,
+        temas_b4: Number(e.temas_b4) || 0,
+      });
+      Swal.fire({
+        icon: 'success',
+        title: 'Estructura guardada',
+        text: 'Las asignaturas nuevas nacerán con estos huecos. Use Aplicar estructura para las que ya existen.',
+        timer: 2800,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudo guardar la estructura',
+      });
+    } finally {
+      setGuardandoEstructura(false);
+    }
+  };
+
+  const handleAplicarEstructuraTemas = async () => {
+    const result = await Swal.fire({
+      icon: 'warning',
+      title: '¿Aplicar estructura ahora?',
+      html: '<p>Se revisarán <strong>todas las asignaturas del año activo</strong>.</p><p>Solo se crearán filas vacías que falten (Tema/Ficha). <strong>No se borra ni se pisa</strong> lo que el maestro ya subió.</p>',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, aplicar',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!result.isConfirmed) return;
+    setAplicandoEstructura(true);
+    try {
+      const { data } = await api.post('/admin/configuracion/estructura-temas/aplicar');
+      Swal.fire({
+        icon: 'success',
+        title: 'Listo',
+        text: data.mensaje || 'Estructura aplicada',
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudo aplicar la estructura',
+      });
+    } finally {
+      setAplicandoEstructura(false);
     }
   };
 
@@ -1559,6 +1639,53 @@ function AdminConfiguracion() {
               >
                 Reiniciar contraseñas
               </button>
+            </div>
+
+            <div className="config-subsection">
+              <h3 className="config-subsection-title" style={{ color: '#0f766e' }}>Estructura de temas</h3>
+              <p className="config-subsection-desc">
+                Indique cuántos temas hay en cada bimestre. Se crea la misma cantidad de fichas (Tema 1 con Ficha 1, etc.).
+                Cero = no generar huecos en ese bimestre. Máximo 20 por bimestre.
+              </p>
+              <div className="form-grid">
+                {[1, 2, 3, 4].map((bim) => (
+                  <div className="form-group" key={bim}>
+                    <label htmlFor={`estructura-temas-b${bim}`}>Temas bimestre {bim}</label>
+                    <input
+                      id={`estructura-temas-b${bim}`}
+                      type="number"
+                      min="0"
+                      max="20"
+                      value={estructuraTemas[`temas_b${bim}`]}
+                      onChange={(e) => {
+                        const n = parseInt(e.target.value, 10);
+                        setEstructuraTemas((prev) => ({
+                          ...prev,
+                          [`temas_b${bim}`]: Number.isFinite(n) ? Math.max(0, Math.min(20, n)) : 0,
+                        }));
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="card-actions" style={{ marginTop: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
+                <button
+                  type="button"
+                  className="btn-submit-card"
+                  onClick={handleGuardarEstructuraTemas}
+                  disabled={guardandoEstructura || aplicandoEstructura}
+                >
+                  {guardandoEstructura ? 'Guardando…' : 'Guardar estructura'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-warning btn-warning--inline"
+                  onClick={handleAplicarEstructuraTemas}
+                  disabled={guardandoEstructura || aplicandoEstructura}
+                >
+                  {aplicandoEstructura ? 'Aplicando…' : 'Aplicar estructura'}
+                </button>
+              </div>
             </div>
 
             <div className="card-actions">

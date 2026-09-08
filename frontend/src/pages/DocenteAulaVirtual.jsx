@@ -84,6 +84,31 @@ function attachQuillImageUploadHandler(quill) {
  * PointerSensor: `distance` alto para no confundir scroll horizontal en tablas táctiles con inicio de drag.
  * El arrastre solo se activa desde la celda `.drag-handle` (no desde NOMBRE ni Opciones).
  */
+function extraerSufijoTema(archivo) {
+  const tipo = String(archivo?.item_tipo || '').toUpperCase();
+  const numero = parseInt(archivo?.item_numero, 10);
+  if ((tipo !== 'TEMA' && tipo !== 'FICHA') || !Number.isFinite(numero)) {
+    return { prefijo: '', sufijo: archivo?.nombre || '', estructurado: false };
+  }
+  const prefijo = tipo === 'FICHA' ? `Ficha ${numero}` : `Tema ${numero}`;
+  const raw = String(archivo?.nombre || '');
+  const sufijo = raw.toLowerCase().startsWith(prefijo.toLowerCase())
+    ? raw.slice(prefijo.length).replace(/^\s*[—\-:]\s*/, '').trim()
+    : raw;
+  return { prefijo, sufijo, estructurado: true };
+}
+
+function siguienteNumeroEstructura(lista) {
+  let max = 0;
+  (lista || []).forEach((a) => {
+    const n = parseInt(a.item_numero, 10);
+    if (Number.isFinite(n)) max = Math.max(max, n);
+    const m = /^(tema|ficha)\s*(\d+)/i.exec(a.nombre || '');
+    if (m) max = Math.max(max, parseInt(m[2], 10));
+  });
+  return max + 1;
+}
+
 function useSortableDndSensors() {
   return useSensors(
     useSensor(PointerSensor, {
@@ -96,7 +121,7 @@ function useSortableDndSensors() {
 }
 
 // Componente SortableItem para drag and drop
-function SortableItem({ archivo, onEdit, onDelete, openDropdown, toggleDropdown, dropdownPosition, buttonRef, readOnly = false }) {
+function SortableItem({ archivo, onEdit, onDelete, onFill, openDropdown, toggleDropdown, dropdownPosition, buttonRef, readOnly = false }) {
   const {
     attributes,
     listeners,
@@ -116,7 +141,7 @@ function SortableItem({ archivo, onEdit, onDelete, openDropdown, toggleDropdown,
     <tr 
       ref={setNodeRef} 
       style={style}
-      className={isDragging ? 'dragging' : ''}
+      className={`${isDragging ? 'dragging' : ''} ${archivo.pendiente ? 'tema-fila-pendiente' : ''}`}
     >
       <td className="drag-handle-cell">
         {!readOnly ? (
@@ -134,9 +159,14 @@ function SortableItem({ archivo, onEdit, onDelete, openDropdown, toggleDropdown,
           <span className="drag-handle-placeholder" aria-hidden />
         )}
       </td>
-      <td className="tema-nombre-cell">{archivo.nombre}</td>
+      <td className="tema-nombre-cell">
+        {archivo.nombre}
+        {archivo.pendiente && <span className="tema-pendiente-tag">Sin llenar</span>}
+      </td>
       <td className="text-center">
-        {archivo.fecha_hora ? (
+        {archivo.pendiente ? (
+          <span className="tema-pendiente-fecha">Pendiente</span>
+        ) : archivo.fecha_hora ? (
           new Date(archivo.fecha_hora).toLocaleDateString('es-PE', {
             day: '2-digit',
             month: '2-digit',
@@ -147,6 +177,24 @@ function SortableItem({ archivo, onEdit, onDelete, openDropdown, toggleDropdown,
         )}
       </td>
       <td className="text-center">
+        {archivo.pendiente && !readOnly ? (
+          <div className="tema-pendiente-acciones">
+            <button
+              type="button"
+              className="btn-llenar-tema"
+              onClick={(e) => { e.stopPropagation(); onFill(archivo); }}
+            >
+              Subir
+            </button>
+            <button
+              type="button"
+              className="btn-llenar-tema-del"
+              onClick={(e) => { e.stopPropagation(); onDelete(archivo); }}
+            >
+              Eliminar
+            </button>
+          </div>
+        ) : (
         <div className="btn-group-opciones">
           <button 
             className="btn-opciones"
@@ -194,6 +242,7 @@ function SortableItem({ archivo, onEdit, onDelete, openDropdown, toggleDropdown,
             document.body
           )}
         </div>
+        )}
       </td>
     </tr>
   );
@@ -313,8 +362,11 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
     archivo: null,
     archivoNombre: '',
     enlace: '',
-    ciclo: bimestreGlobal
+    ciclo: bimestreGlobal,
+    item_tipo: null,
+    item_numero: null
   });
+  const [bibliotecaModoLlenar, setBibliotecaModoLlenar] = useState(false);
   const [temaEditando, setTemaEditando] = useState(null);
   const [guardandoTema, setGuardandoTema] = useState(false);
   
@@ -694,8 +746,9 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   };
 
   // Biblioteca: abrir modal y cargar datos (temas, tareas, examenes, videos, enlaces)
-  const abrirModalBiblioteca = async (tipo = 'temas') => {
+  const abrirModalBiblioteca = async (tipo = 'temas', opts = {}) => {
     if (soloLecturaTutor) return;
+    setBibliotecaModoLlenar(tipo === 'temas' && !!opts.llenar);
     setTipoBiblioteca(tipo);
     setMostrarModalBiblioteca(true);
     setBibliotecaSeleccionados([]);
@@ -724,12 +777,16 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   };
 
   const toggleBibliotecaItem = (asignatura_origen_id, item_id) => {
+    const item = tipoBiblioteca === 'temas' ? { asignatura_origen_id, tema_id: item_id } : { asignatura_origen_id, item_id };
+    if (bibliotecaModoLlenar) {
+      setBibliotecaSeleccionados([item]);
+      return;
+    }
     setBibliotecaSeleccionados(prev => {
       const exists = prev.some(p => p.asignatura_origen_id === asignatura_origen_id && (p.tema_id === item_id || p.item_id === item_id));
       if (exists) {
         return prev.filter(p => !(p.asignatura_origen_id === asignatura_origen_id && (p.tema_id === item_id || p.item_id === item_id)));
       }
-      const item = tipoBiblioteca === 'temas' ? { asignatura_origen_id, tema_id: item_id } : { asignatura_origen_id, item_id };
       return [...prev, item];
     });
   };
@@ -763,8 +820,60 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
       Swal.fire({
         icon: 'warning',
         title: 'Seleccione elementos',
-        text: 'Debe seleccionar al menos un elemento para copiar'
+        text: bibliotecaModoLlenar ? 'Elija un archivo de la biblioteca' : 'Debe seleccionar al menos un elemento para copiar'
       });
+      return;
+    }
+    if (bibliotecaModoLlenar) {
+      if (bibliotecaSeleccionados.length !== 1) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Un solo archivo',
+          text: 'Para llenar esta fila elija un solo tema de la biblioteca'
+        });
+        return;
+      }
+      const sel = bibliotecaSeleccionados[0];
+      setGuardandoBiblioteca(true);
+      try {
+        if (temaEditando?.id) {
+          await api.post(`/docente/aula-virtual/archivos/${temaEditando.id}/llenar-biblioteca`, {
+            asignatura_origen_id: sel.asignatura_origen_id,
+            tema_id: sel.tema_id,
+          });
+        } else {
+          await api.post('/docente/aula-virtual/archivos/desde-biblioteca', {
+            asignatura_id: asignaturaId,
+            ciclo: formTema.ciclo || bimestreGlobal,
+            item_tipo: formTema.item_tipo || 'TEMA',
+            item_numero: formTema.item_numero,
+            asignatura_origen_id: sel.asignatura_origen_id,
+            tema_id: sel.tema_id,
+          });
+        }
+        Swal.fire({
+          icon: 'success',
+          title: 'Listo',
+          text: 'Se usó el archivo de la biblioteca en esta fila',
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 2200
+        });
+        setMostrarModalBiblioteca(false);
+        setBibliotecaModoLlenar(false);
+        setMostrarFormTema(false);
+        setTemaEditando(null);
+        await cargarArchivos(bimestreGlobal);
+      } catch (err) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: err.response?.data?.error || 'No se pudo usar la biblioteca'
+        });
+      } finally {
+        setGuardandoBiblioteca(false);
+      }
       return;
     }
     setGuardandoBiblioteca(true);
@@ -806,7 +915,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
     e.preventDefault();
     
     // Validar que al menos tenga nombre
-    if (!formTema.nombre.trim()) {
+    if (!formTema.item_tipo && !formTema.nombre.trim()) {
       Swal.fire({
         icon: 'error',
         title: 'Error',
@@ -842,8 +951,16 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
     try {
       const formData = new FormData();
       formData.append('asignatura_id', asignaturaId);
-      formData.append('nombre', formTema.nombre.trim());
+      const nombreEnviar = formTema.nombre.trim()
+        || (formTema.item_tipo && formTema.item_numero
+          ? `${formTema.item_tipo === 'FICHA' ? 'Ficha' : 'Tema'} ${formTema.item_numero}`
+          : '');
+      formData.append('nombre', nombreEnviar);
       formData.append('ciclo', formTema.ciclo);
+      if (formTema.item_tipo && formTema.item_numero) {
+        formData.append('item_tipo', formTema.item_tipo);
+        formData.append('item_numero', formTema.item_numero);
+      }
       
       if (formTema.archivo) {
         formData.append('archivo', formTema.archivo);
@@ -889,7 +1006,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
 
       setMostrarFormTema(false);
       setTemaEditando(null);
-      setFormTema({ nombre: '', archivo: null, archivoNombre: '', enlace: '', ciclo: bimestreGlobal });
+      setFormTema({ nombre: '', archivo: null, archivoNombre: '', enlace: '', ciclo: bimestreGlobal, item_tipo: null, item_numero: null });
       await cargarArchivos(bimestreGlobal);
     } catch (error) {
       Swal.fire({
@@ -907,13 +1024,16 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   };
 
   const handleEditarTema = (archivo) => {
+    const meta = extraerSufijoTema(archivo);
     setTemaEditando(archivo);
     setFormTema({
-      nombre: archivo.nombre || '',
+      nombre: meta.estructurado ? meta.sufijo : (archivo.nombre || ''),
       archivo: null,
       archivoNombre: archivo.archivo ? 'Archivo existente' : '',
       enlace: archivo.enlace || '',
-      ciclo: archivo.ciclo || bimestreGlobal
+      ciclo: archivo.ciclo || bimestreGlobal,
+      item_tipo: meta.estructurado ? String(archivo.item_tipo).toUpperCase() : null,
+      item_numero: meta.estructurado ? parseInt(archivo.item_numero, 10) : null
     });
     setMostrarFormTema(true);
     setOpenDropdown(null);
@@ -1759,6 +1879,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                 key={archivo.id}
                 archivo={archivo}
                 onEdit={handleEditarTema}
+                onFill={handleEditarTema}
                 onDelete={handleEliminarTema}
                 openDropdown={openDropdown}
                 toggleDropdown={toggleDropdown}
@@ -1774,17 +1895,6 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
 
     return (
       <div className="card-content-expanded">
-        {!soloLecturaTutor && (
-          <div className="temas-toolbar">
-            <button
-              type="button"
-              className="btn-biblioteca-inline"
-              onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca(); }}
-            >
-              📖 Biblioteca de temas
-            </button>
-          </div>
-        )}
         {loading ? (
           <div className="empty-state">
             <p>Cargando temas interactivos...</p>
@@ -3780,29 +3890,26 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
               </div>
               <div className="card-action-btns">
                 {!soloLecturaTutor && (
-                  <>
-                    <button 
-                      className="card-action-btn card-action-btn-secondary"
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        abrirModalBiblioteca('temas'); 
-                      }}
-                      title="Ver temas de años anteriores"
-                    >
-                      📖 Biblioteca
-                    </button>
-                    <button 
-                      className="card-action-btn"
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        setTemaEditando(null);
-                        setFormTema({ nombre: '', archivo: null, archivoNombre: '', enlace: '', ciclo: bimestreGlobal });
-                        setMostrarFormTema(true); 
-                      }}
-                    >
-                      + Nuevo
-                    </button>
-                  </>
+                  <button 
+                    className="card-action-btn"
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      const next = siguienteNumeroEstructura(archivos.filter((a) => Number(a.ciclo) === Number(bimestreGlobal)));
+                      setTemaEditando(null);
+                      setFormTema({
+                        nombre: '',
+                        archivo: null,
+                        archivoNombre: '',
+                        enlace: '',
+                        ciclo: bimestreGlobal,
+                        item_tipo: 'TEMA',
+                        item_numero: next
+                      });
+                      setMostrarFormTema(true); 
+                    }}
+                  >
+                    + Nuevo
+                  </button>
                 )}
               </div>
             </div>
@@ -4464,7 +4571,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
             onClick={() => {
               setMostrarFormTema(false);
               setTemaEditando(null);
-              setFormTema({ nombre: '', archivo: null, archivoNombre: '', enlace: '', ciclo: bimestreGlobal });
+              setFormTema({ nombre: '', archivo: null, archivoNombre: '', enlace: '', ciclo: bimestreGlobal, item_tipo: null, item_numero: null });
             }}
           >
             <div 
@@ -4483,7 +4590,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                   onClick={() => {
                     setMostrarFormTema(false);
                     setTemaEditando(null);
-                    setFormTema({ nombre: '', archivo: null, archivoNombre: '', enlace: '', ciclo: bimestreGlobal });
+                    setFormTema({ nombre: '', archivo: null, archivoNombre: '', enlace: '', ciclo: bimestreGlobal, item_tipo: null, item_numero: null });
                   }}
                   aria-label="Cerrar"
                 >
@@ -4496,18 +4603,36 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                   {/* Campo Nombre */}
                   <div className="form-group">
                     <label htmlFor="tema-nombre">
-                      Nombre del Tema *
+                      {formTema.item_tipo && formTema.item_numero
+                        ? `Nombre (${formTema.item_tipo === 'FICHA' ? 'Ficha' : 'Tema'} ${formTema.item_numero})`
+                        : 'Nombre del Tema *'}
                     </label>
+                    {formTema.item_tipo && formTema.item_numero && (
+                      <div className="tema-prefijo-fijo">
+                        Prefijo fijo: <strong>{formTema.item_tipo === 'FICHA' ? 'Ficha' : 'Tema'} {formTema.item_numero}</strong>
+                      </div>
+                    )}
                     <input
                       type="text"
                       id="tema-nombre"
                       className="form-input"
                       value={formTema.nombre}
                       onChange={(e) => setFormTema({ ...formTema, nombre: e.target.value })}
-                      placeholder="Ej: TEMA 1: MÉTODO CIENTÍFICO"
-                      required
+                      placeholder={formTema.item_tipo ? 'Nombre opcional (ej. Método científico)' : 'Ej: TEMA 1: MÉTODO CIENTÍFICO'}
+                      required={!formTema.item_tipo}
                     />
                   </div>
+                  {!soloLecturaTutor && (
+                    <div className="form-group">
+                      <button
+                        type="button"
+                        className="btn-biblioteca-inline"
+                        onClick={() => abrirModalBiblioteca('temas', { llenar: true })}
+                      >
+                        📖 Usar archivo de biblioteca
+                      </button>
+                    </div>
+                  )}
 
                   {/* Campo Bimestre */}
                   <div className="form-group">
@@ -4614,7 +4739,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                       onClick={() => {
                         setMostrarFormTema(false);
                         setTemaEditando(null);
-                        setFormTema({ nombre: '', archivo: null, archivoNombre: '', enlace: '', ciclo: bimestreGlobal });
+                        setFormTema({ nombre: '', archivo: null, archivoNombre: '', enlace: '', ciclo: bimestreGlobal, item_tipo: null, item_numero: null });
                       }}
                       disabled={guardandoTema}
                     >
@@ -4755,7 +4880,11 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                         onClick={handleCopiarBiblioteca}
                         disabled={bibliotecaSeleccionados.length === 0 || guardandoBiblioteca}
                       >
-                        {guardandoBiblioteca ? '⏳ Copiando...' : '📋 Copiar al año actual (conserva bimestre)'}
+                        {guardandoBiblioteca
+                          ? '⏳ Copiando...'
+                          : bibliotecaModoLlenar
+                            ? 'Usar en esta fila'
+                            : '📋 Copiar al año actual (conserva bimestre)'}
                       </button>
                     </div>
                   </div>

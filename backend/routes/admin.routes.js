@@ -26,6 +26,11 @@ const {
   REGLA_CONDUCTA_DEFAULT,
 } = require('../utils/reglaConducta');
 const { recalcularConductaColegioAnio } = require('../utils/conductaIncidenciasBimestre');
+const {
+  obtenerConfigEstructura,
+  guardarConfigEstructura,
+  aplicarEstructuraColegio,
+} = require('../utils/aulaEstructuraTemas');
 
 const ANIO_PAGO_SQL = sqlFiltroAnioPago('p');
 const phpSerialize = require('php-serialize');
@@ -1616,6 +1621,66 @@ router.get('/configuracion', async (req, res) => {
   } catch (error) {
     console.error('Error obteniendo configuración:', error);
     res.status(500).json({ error: 'Error al obtener configuración' });
+  }
+});
+
+async function anioActivoColegio(colegioId) {
+  const rows = await query(`SELECT anio_activo FROM colegios WHERE id = ? LIMIT 1`, [colegioId]);
+  return parseInt(rows[0]?.anio_activo, 10) || 0;
+}
+
+/**
+ * GET /api/admin/configuracion/estructura-temas
+ */
+router.get('/configuracion/estructura-temas', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const anio = await anioActivoColegio(colegio_id);
+    if (!anio) return res.status(400).json({ error: 'No hay año activo configurado' });
+    const estructura = await obtenerConfigEstructura(colegio_id, anio);
+    res.json({ estructura });
+  } catch (error) {
+    console.error('Error obteniendo estructura de temas:', error);
+    res.status(500).json({ error: 'Error al obtener la estructura de temas' });
+  }
+});
+
+/**
+ * PUT /api/admin/configuracion/estructura-temas
+ */
+router.put('/configuracion/estructura-temas', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const anio = await anioActivoColegio(colegio_id);
+    if (!anio) return res.status(400).json({ error: 'No hay año activo configurado' });
+    const estructura = await guardarConfigEstructura(colegio_id, anio, req.body || {});
+    res.json({ success: true, estructura });
+  } catch (error) {
+    console.error('Error guardando estructura de temas:', error);
+    const msg = error.code === 'ER_NO_SUCH_TABLE'
+      ? 'Falta aplicar la migración 083_aula_estructura_temas_mysql.sql'
+      : 'Error al guardar la estructura de temas';
+    res.status(500).json({ error: msg });
+  }
+});
+
+/**
+ * POST /api/admin/configuracion/estructura-temas/aplicar
+ * Completa huecos vacíos en todas las asignaturas del año activo. No pisa archivos.
+ */
+router.post('/configuracion/estructura-temas/aplicar', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const anio = await anioActivoColegio(colegio_id);
+    if (!anio) return res.status(400).json({ error: 'No hay año activo configurado' });
+    const resultado = await aplicarEstructuraColegio({ colegioId: colegio_id, anio });
+    res.json({ success: true, ...resultado });
+  } catch (error) {
+    console.error('Error aplicando estructura de temas:', error);
+    if (error.code === 'ESTRUCTURA_NO_MIGRADA' || error.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(400).json({ error: 'Falta aplicar la migración 083_aula_estructura_temas_mysql.sql' });
+    }
+    res.status(500).json({ error: 'Error al aplicar la estructura' });
   }
 });
 

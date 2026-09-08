@@ -12,6 +12,7 @@ const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = requ
 const phpSerialize = require('php-serialize');
 const { fechaHoraMySQLLima, fechaMySQLLima, horaMySQLLima } = require('../utils/fechaHoraLima');
 const { listarEvidenciasSafe } = require('../utils/aulaEvidencias');
+const { esTemaPendiente } = require('../utils/aulaEstructuraTemas');
 const { ACTIVIDADES_SELECT_SQL, ACTIVIDADES_SELECT_CON_EVENTO_SQL } = require('../utils/actividadesFecha');
 const { mezclarReunionesEnActividades } = require('../utils/reunionesHelper');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
@@ -3429,7 +3430,7 @@ router.get('/aula-virtual/archivos', async (req, res) => {
         archivo_url: archivoUrl,
         enlace_url: enlaceUrl
       };
-    });
+    }).filter((archivo) => !esTemaPendiente(archivo));
 
     res.json({ archivos: archivosConUrls || [] });
   } catch (error) {
