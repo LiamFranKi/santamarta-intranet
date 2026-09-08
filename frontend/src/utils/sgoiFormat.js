@@ -17,20 +17,55 @@ export function formatDuracionSeg(seg) {
   return `${n} s`;
 }
 
+/** DATETIME naive de Lima o ISO → HH:mm en hora de Perú (sin +5 h por UTC). */
 export function formatHoraItem(valor) {
   if (!valor) return '';
-  const raw = String(valor).replace(' ', 'T').slice(0, 19);
-  const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) {
-    const p = String(valor).match(/(\d{2}:\d{2})/);
-    return p ? p[1] : '';
+  const s = String(valor).trim();
+  if (/[zZ]|[+-]\d{2}:\d{2}$/.test(s)) {
+    const d = new Date(s);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleTimeString('es-PE', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'America/Lima',
+      });
+    }
   }
-  return d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const p = s.replace('T', ' ').match(/(\d{2}):(\d{2})/);
+  return p ? `${p[1]}:${p[2]}` : '';
+}
+
+/** Instantánea en ms: naive = hora de pared Lima (UTC−05); ISO con Z/offset = instante real. */
+export function instanteMsLima(valor) {
+  if (!valor) return NaN;
+  if (valor instanceof Date) return valor.getTime();
+  const s = String(valor).trim();
+  if (/[zZ]|[+-]\d{2}:\d{2}$/.test(s)) {
+    const t = Date.parse(s);
+    return Number.isNaN(t) ? NaN : t;
+  }
+  const m = s.replace('T', ' ').match(/^(\d{4}-\d{2}-\d{2})[ ](\d{2}:\d{2}(?::\d{2})?)/);
+  if (!m) return Date.parse(s);
+  const time = m[2].length === 5 ? `${m[2]}:00` : m[2];
+  return Date.parse(`${m[1]}T${time}-05:00`);
 }
 
 export function formatFechaCorta(valor) {
   if (!valor) return '';
-  const raw = String(valor).slice(0, 10);
+  const s = String(valor).trim();
+  if (/[zZ]|[+-]\d{2}:\d{2}$/.test(s)) {
+    const d = new Date(s);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleDateString('es-PE', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        timeZone: 'America/Lima',
+      });
+    }
+  }
+  const raw = s.slice(0, 10);
   const [y, m, day] = raw.split('-');
   if (!y || !m || !day) return raw;
   return `${day}/${m}/${y}`;
@@ -92,6 +127,19 @@ export function etiquetaDiaCorto(iso) {
   const [y, m, d] = raw.split('-').map((n) => parseInt(n, 10));
   if (!y || !m || !d) return raw;
   return new Date(y, m - 1, d).toLocaleDateString('es-PE', { weekday: 'short', day: 'numeric' });
+}
+
+export function etiquetaDiaLargo(iso) {
+  const raw = String(iso || '').slice(0, 10);
+  const [y, m, d] = raw.split('-').map((n) => parseInt(n, 10));
+  if (!y || !m || !d) return raw;
+  const txt = new Date(y, m - 1, d).toLocaleDateString('es-PE', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  return txt.charAt(0).toUpperCase() + txt.slice(1);
 }
 
 export function notificarCambioSgoi() {

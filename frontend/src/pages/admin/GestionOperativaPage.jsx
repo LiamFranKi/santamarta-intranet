@@ -20,6 +20,7 @@ import api from '../../services/api';
 import {
   SGOI_TIPOS_FRANJA,
   etiquetaDiaCorto,
+  etiquetaDiaLargo,
   etiquetaEstado,
   etiquetaTipoTrabajo,
   formatDuracionSeg,
@@ -56,6 +57,7 @@ const DIAS_SEMANA = [
 function vistaDesdePath(pathname) {
   if (pathname.endsWith('/tablero')) return 'tablero';
   if (pathname.endsWith('/horario')) return 'horario';
+  if (pathname.endsWith('/reporte')) return 'reporte';
   if (pathname.endsWith('/casos')) return 'casos';
   if (pathname.endsWith('/trabajos')) return 'trabajos';
   if (pathname.endsWith('/pendientes')) return 'pendientes';
@@ -158,6 +160,9 @@ export default function GestionOperativaPage() {
   const [dia, setDia] = useState({ bloques: [], casos_sueltos: [], items: [] });
   const [tablero, setTablero] = useState(null);
   const [horario, setHorario] = useState([]);
+  const [reporte, setReporte] = useState(null);
+  const [periodoReporte, setPeriodoReporte] = useState('semana');
+  const [fechaReporte, setFechaReporte] = useState(fechaHoyLocal);
   const [lista, setLista] = useState([]);
   const [loading, setLoading] = useState(true);
   const [nuevoPendiente, setNuevoPendiente] = useState('');
@@ -175,6 +180,11 @@ export default function GestionOperativaPage() {
       } else if (vista === 'tablero') {
         const { data } = await api.get('/sgoi/tablero');
         setTablero(data);
+      } else if (vista === 'reporte') {
+        const { data } = await api.get('/sgoi/reporte', {
+          params: { periodo: periodoReporte, fecha: fechaReporte },
+        });
+        setReporte(data);
       } else if (vista === 'horario') {
         if (!puedeHorario) return;
         const { data } = await api.get('/sgoi/horario');
@@ -198,7 +208,7 @@ export default function GestionOperativaPage() {
     } finally {
       setLoading(false);
     }
-  }, [vista, fecha, puedeHorario]);
+  }, [vista, fecha, puedeHorario, periodoReporte, fechaReporte]);
 
   useEffect(() => {
     cargar();
@@ -210,36 +220,61 @@ export default function GestionOperativaPage() {
     return () => window.removeEventListener('sgoi-changed', onChange);
   }, [cargar]);
 
-  const trabajosDia = useMemo(
-    () => (dia.items || []).filter((it) => it.kind === 'TRABAJO'),
+  const incidenciasDia = useMemo(
+    () => (dia.items || []).filter((it) => it.kind === 'CASO'),
     [dia.items]
   );
 
   const r = tablero?.resumen;
+  const rr = reporte?.resumen;
   const dataDias = useMemo(
     () =>
       (tablero?.por_dia || []).map((d) => ({
         dia: etiquetaDiaCorto(d.fecha),
-        Casos: d.casos,
-        Trabajos: d.trabajos,
+        Incidencias: d.casos,
       })),
     [tablero]
   );
-  const dataTipos = useMemo(() => {
-    const src = tablero?.por_tipo || {};
-    return Object.keys(src).map((k) => ({
-      name: etiquetaTipoTrabajo(k),
-      value: src[k],
-      color: COLORES_TIPO[k] || COLORES_TIPO.OTRO,
-    }));
-  }, [tablero]);
-  const dataTiempo = useMemo(() => {
+  const dataEstados = useMemo(() => {
     if (!r) return [];
     return [
-      { name: 'Casos', minutos: Math.round((r.segundos_casos || 0) / 60), fill: COLORES_TIPO.CASO },
-      { name: 'Trabajos', minutos: Math.round((r.segundos_trabajos || 0) / 60), fill: COLORES_TIPO.DESARROLLO },
-    ];
+      { name: 'Resueltos', value: r.casos_resueltos || 0, color: '#16a34a' },
+      { name: 'Pendientes', value: r.casos_pendientes || 0, color: '#ca8a04' },
+      { name: 'En curso', value: r.casos_en_curso || 0, color: '#d97706' },
+    ].filter((d) => d.value > 0);
   }, [r]);
+  const dataMinutosDia = useMemo(
+    () =>
+      (tablero?.por_dia || []).map((d) => ({
+        dia: etiquetaDiaCorto(d.fecha),
+        Minutos: Math.round((d.seg_casos || 0) / 60),
+      })),
+    [tablero]
+  );
+  const dataDiasReporte = useMemo(
+    () =>
+      (reporte?.por_dia || []).map((d) => ({
+        dia: etiquetaDiaCorto(d.fecha),
+        Incidencias: d.casos,
+      })),
+    [reporte]
+  );
+  const dataEstadosReporte = useMemo(() => {
+    if (!rr) return [];
+    return [
+      { name: 'Resueltas', value: rr.casos_resueltos || 0, color: '#16a34a' },
+      { name: 'Pendientes', value: rr.casos_pendientes || 0, color: '#ca8a04' },
+      { name: 'En curso', value: rr.casos_en_curso || 0, color: '#d97706' },
+    ].filter((d) => d.value > 0);
+  }, [rr]);
+  const dataMinutosReporte = useMemo(
+    () =>
+      (reporte?.por_dia || []).map((d) => ({
+        dia: etiquetaDiaCorto(d.fecha),
+        Minutos: Math.round((d.seg_casos || 0) / 60),
+      })),
+    [reporte]
+  );
 
   const rutaEntidad = (kind) => {
     if (kind === 'CASO') return 'casos';
@@ -689,7 +724,7 @@ export default function GestionOperativaPage() {
     </div>
   );
 
-  if (vista === 'horario' && !puedeHorario) {
+  if ((vista === 'horario' && !puedeHorario) || vista === 'trabajos') {
     return (
       <DashboardLayout>
         <Navigate to="/admin/gestion-operativa" replace />
@@ -717,6 +752,10 @@ export default function GestionOperativaPage() {
             <span className="sgoi-tab-ico" aria-hidden>📊</span>
             <span>Tablero</span>
           </NavLink>
+          <NavLink to="/admin/gestion-operativa/reporte" className={({ isActive }) => `sgoi-tab ${isActive ? 'active' : ''}`}>
+            <span className="sgoi-tab-ico" aria-hidden>📄</span>
+            <span>Reporte</span>
+          </NavLink>
           {puedeHorario ? (
             <NavLink to="/admin/gestion-operativa/horario" className={({ isActive }) => `sgoi-tab ${isActive ? 'active' : ''}`}>
               <span className="sgoi-tab-ico" aria-hidden>🗓️</span>
@@ -726,10 +765,6 @@ export default function GestionOperativaPage() {
           <NavLink to="/admin/gestion-operativa/casos" className={({ isActive }) => `sgoi-tab ${isActive ? 'active' : ''}`}>
             <span className="sgoi-tab-ico" aria-hidden>🚨</span>
             <span>Casos</span>
-          </NavLink>
-          <NavLink to="/admin/gestion-operativa/trabajos" className={({ isActive }) => `sgoi-tab ${isActive ? 'active' : ''}`}>
-            <span className="sgoi-tab-ico" aria-hidden>🛠️</span>
-            <span>Trabajos</span>
           </NavLink>
           <NavLink to="/admin/gestion-operativa/pendientes" className={({ isActive }) => `sgoi-tab ${isActive ? 'active' : ''}`}>
             <span className="sgoi-tab-ico" aria-hidden>📌</span>
@@ -750,6 +785,11 @@ export default function GestionOperativaPage() {
                 <button type="button" className="sgoi-btn sgoi-btn-ghost" onClick={crearFranja}>
                   + Franja de hoy
                 </button>
+              ) : null}
+              {incidenciasDia.length > 0 ? (
+                <div className="sgoi-chip sgoi-chip-inc">
+                  {incidenciasDia.length} incidencia{incidenciasDia.length === 1 ? '' : 's'} hoy
+                </div>
               ) : null}
             </div>
             {dia.bloques.length === 0 && dia.items.length === 0 ? (
@@ -773,6 +813,11 @@ export default function GestionOperativaPage() {
                           {etiquetaTipoTrabajo(b.tipo)}
                         </span>
                         <strong>{b.titulo}</strong>
+                        {(b.interrupciones || []).length > 0 ? (
+                          <span className="sgoi-badge sgoi-badge-caso">
+                            {b.interrupciones.length} incidencia{b.interrupciones.length === 1 ? '' : 's'}
+                          </span>
+                        ) : null}
                         <div className="sgoi-slot-actions">
                           <IconBtn title="Editar franja" onClick={() => editarFranja(b)}>
                             <IconEdit />
@@ -786,7 +831,7 @@ export default function GestionOperativaPage() {
                         <ul className="sgoi-inter">
                           {b.interrupciones.map((c) => (
                             <li key={c.id} className="sgoi-inter-item">
-                              <span className="sgoi-badge sgoi-badge-caso">Caso</span>
+                              <span className="sgoi-badge sgoi-badge-caso">Incidencia</span>
                               <div>
                                 <strong>{c.titulo}</strong>
                                 <div className="sgoi-tl-meta">
@@ -802,9 +847,7 @@ export default function GestionOperativaPage() {
                             </li>
                           ))}
                         </ul>
-                      ) : (
-                        <p className="sgoi-slot-quiet">Sin interrupciones en esta franja.</p>
-                      )}
+                      ) : null}
                     </div>
                   </li>
                 ))}
@@ -812,13 +855,13 @@ export default function GestionOperativaPage() {
             ) : null}
             {dia.casos_sueltos.length > 0 ? (
               <section className="sgoi-block">
-                <h2>Casos fuera de horario</h2>
+                <h2>Incidencias fuera de horario</h2>
                 <ul className="sgoi-entity-list">
                   {dia.casos_sueltos.map((c) => (
                     <li key={c.id} className="sgoi-entity is-caso">
                       <div>
                         <div className="sgoi-entity-top">
-                          <span className="sgoi-badge sgoi-badge-caso">Caso</span>
+                          <span className="sgoi-badge sgoi-badge-caso">Incidencia</span>
                           <strong>{c.titulo}</strong>
                           <span className={`sgoi-st sgoi-st-${c.estado}`}>{etiquetaEstado(c.estado)}</span>
                         </div>
@@ -833,29 +876,6 @@ export default function GestionOperativaPage() {
                 </ul>
               </section>
             ) : null}
-            {trabajosDia.length > 0 ? (
-              <section className="sgoi-block">
-                <h2>Trabajos registrados</h2>
-                <ul className="sgoi-entity-list">
-                  {trabajosDia.map((it) => (
-                    <li key={it.id} className="sgoi-entity is-trabajo">
-                      <div>
-                        <div className="sgoi-entity-top">
-                          <span className="sgoi-badge">{etiquetaTipoTrabajo(it.tipo)}</span>
-                          <strong>{it.titulo}</strong>
-                          <span className={`sgoi-st sgoi-st-${it.estado}`}>{etiquetaEstado(it.estado)}</span>
-                        </div>
-                        <div className="sgoi-tl-meta">
-                          {it.codigo} · {formatHoraItem(it.inicio_at)}
-                          {it.estado !== 'EN_CURSO' ? ` · ${formatDuracionSeg(it.duracion_seg)}` : ''}
-                        </div>
-                      </div>
-                      {accionesRegistro(it, 'TRABAJO')}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
           </>
         ) : vista === 'tablero' ? (
           <>
@@ -864,24 +884,14 @@ export default function GestionOperativaPage() {
             </p>
             <div className="sgoi-kpis">
               <div className="sgoi-kpi sgoi-kpi-casos">
-                <span>Casos</span>
+                <span>Incidencias</span>
                 <strong>{r?.casos_total ?? 0}</strong>
-                <small>{r?.casos_resueltos ?? 0} resueltos · {r?.casos_pendientes ?? 0} pendientes</small>
-              </div>
-              <div className="sgoi-kpi sgoi-kpi-trab">
-                <span>Trabajos</span>
-                <strong>{r?.trabajos_total ?? 0}</strong>
-                <small>{r?.trabajos_hechos ?? 0} hechos</small>
+                <small>{r?.casos_resueltos ?? 0} resueltas · {r?.casos_pendientes ?? 0} pendientes</small>
               </div>
               <div className="sgoi-kpi">
-                <span>Tiempo en casos</span>
+                <span>Tiempo en incidencias</span>
                 <strong>{formatDuracionSeg(r?.segundos_casos)}</strong>
-                <small>atención e interrupciones</small>
-              </div>
-              <div className="sgoi-kpi">
-                <span>Tiempo en trabajos</span>
-                <strong>{formatDuracionSeg(r?.segundos_trabajos)}</strong>
-                <small>desarrollo, soporte y pagos</small>
+                <small>atención registrada</small>
               </div>
               <div className="sgoi-kpi">
                 <span>Pendientes</span>
@@ -892,9 +902,9 @@ export default function GestionOperativaPage() {
             <div className="sgoi-charts">
               <section className="sgoi-chart-card sgoi-chart-wide">
                 <h2>Movimiento de la semana</h2>
-                <p>Cantidad real de casos y trabajos por día.</p>
+                <p>Incidencias (casos) por día.</p>
                 <div className="sgoi-chart-body">
-                  {dataDias.some((d) => d.Casos || d.Trabajos) ? (
+                  {dataDias.some((d) => d.Incidencias) ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={dataDias} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -902,24 +912,23 @@ export default function GestionOperativaPage() {
                         <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#64748b' }} width={28} />
                         <Tooltip content={<TooltipGestion />} />
                         <Legend wrapperStyle={{ fontSize: 12 }} />
-                        <Bar dataKey="Casos" fill={COLORES_TIPO.CASO} radius={[5, 5, 0, 0]} maxBarSize={26} />
-                        <Bar dataKey="Trabajos" fill={COLORES_TIPO.DESARROLLO} radius={[5, 5, 0, 0]} maxBarSize={26} />
+                        <Bar dataKey="Incidencias" fill={COLORES_TIPO.CASO} radius={[5, 5, 0, 0]} maxBarSize={32} />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="sgoi-empty">Sin movimientos esta semana.</div>
+                    <div className="sgoi-empty">Sin incidencias esta semana.</div>
                   )}
                 </div>
               </section>
               <section className="sgoi-chart-card">
-                <h2>Trabajos por tipo</h2>
-                <p>Distribución de lo registrado.</p>
+                <h2>Estado de incidencias</h2>
+                <p>Resueltas, pendientes y en curso.</p>
                 <div className="sgoi-chart-body sgoi-chart-pie">
-                  {dataTipos.length ? (
+                  {dataEstados.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={dataTipos} dataKey="value" nameKey="name" innerRadius={48} outerRadius={78} paddingAngle={2}>
-                          {dataTipos.map((d) => (
+                        <Pie data={dataEstados} dataKey="value" nameKey="name" innerRadius={48} outerRadius={78} paddingAngle={2}>
+                          {dataEstados.map((d) => (
                             <Cell key={d.name} fill={d.color} />
                           ))}
                         </Pie>
@@ -928,41 +937,35 @@ export default function GestionOperativaPage() {
                       </PieChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="sgoi-empty">Aún no hay trabajos en el rango.</div>
+                    <div className="sgoi-empty">Aún no hay incidencias en el rango.</div>
                   )}
                 </div>
               </section>
               <section className="sgoi-chart-card">
-                <h2>Minutos invertidos</h2>
-                <p>Casos vs trabajos (duración cerrada).</p>
+                <h2>Minutos de atención</h2>
+                <p>Duración de incidencias por día.</p>
                 <div className="sgoi-chart-body">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={dataTiempo} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 4 }}>
+                    <BarChart data={dataMinutosDia} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                      <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} />
-                      <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: '#334155' }} width={72} />
+                      <XAxis dataKey="dia" tick={{ fontSize: 11, fill: '#64748b' }} />
+                      <YAxis tick={{ fontSize: 11, fill: '#64748b' }} width={32} />
                       <Tooltip content={<TooltipGestion />} />
-                      <Bar dataKey="minutos" name="Minutos" radius={[0, 6, 6, 0]} maxBarSize={22}>
-                        {dataTiempo.map((d) => (
-                          <Cell key={d.name} fill={d.fill} />
-                        ))}
-                      </Bar>
+                      <Bar dataKey="Minutos" fill="#1d4ed8" radius={[5, 5, 0, 0]} maxBarSize={32} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               </section>
             </div>
-            {tablero?.en_curso?.length ? (
+            {tablero?.en_curso?.filter((it) => it.kind === 'CASO').length ? (
               <section className="sgoi-block">
                 <h2>Ahora mismo</h2>
                 <ul className="sgoi-entity-list">
-                  {tablero.en_curso.map((it) => (
-                    <li key={`${it.kind}-${it.id}`} className={`sgoi-entity ${it.kind === 'CASO' ? 'is-caso' : 'is-trabajo'}`}>
+                  {tablero.en_curso.filter((it) => it.kind === 'CASO').map((it) => (
+                    <li key={`${it.kind}-${it.id}`} className="sgoi-entity is-caso">
                       <div>
                         <div className="sgoi-entity-top">
-                          <span className={`sgoi-badge ${it.kind === 'CASO' ? 'sgoi-badge-caso' : ''}`}>
-                            {it.kind === 'CASO' ? 'Caso' : 'Trabajo'}
-                          </span>
+                          <span className="sgoi-badge sgoi-badge-caso">Incidencia</span>
                           <strong>{it.titulo}</strong>
                           <span className="sgoi-st sgoi-st-EN_CURSO">En curso</span>
                         </div>
@@ -975,17 +978,15 @@ export default function GestionOperativaPage() {
             ) : null}
             <section className="sgoi-block">
               <h2>Actividad reciente</h2>
-              {(tablero?.recientes || []).length === 0 ? (
-                <div className="sgoi-empty">Sin movimientos esta semana.</div>
+              {(tablero?.recientes || []).filter((it) => it.kind === 'CASO').length === 0 ? (
+                <div className="sgoi-empty">Sin incidencias esta semana.</div>
               ) : (
                 <ul className="sgoi-entity-list">
-                  {tablero.recientes.map((it) => (
-                    <li key={`${it.kind}-${it.id}`} className={`sgoi-entity ${it.kind === 'CASO' ? 'is-caso' : 'is-trabajo'}`}>
+                  {tablero.recientes.filter((it) => it.kind === 'CASO').map((it) => (
+                    <li key={`${it.kind}-${it.id}`} className="sgoi-entity is-caso">
                       <div>
                         <div className="sgoi-entity-top">
-                          <span className={`sgoi-badge ${it.kind === 'CASO' ? 'sgoi-badge-caso' : ''}`}>
-                            {it.kind === 'CASO' ? 'Caso' : etiquetaTipoTrabajo(it.tipo) || 'Trabajo'}
-                          </span>
+                          <span className="sgoi-badge sgoi-badge-caso">Incidencia</span>
                           <strong>{it.titulo}</strong>
                           <span className={`sgoi-st sgoi-st-${it.estado}`}>{etiquetaEstado(it.estado)}</span>
                         </div>
@@ -1000,6 +1001,139 @@ export default function GestionOperativaPage() {
                 </ul>
               )}
             </section>
+          </>
+        ) : vista === 'reporte' ? (
+          <>
+            <div className="sgoi-toolbar">
+              <div className="sgoi-seg" role="group" aria-label="Periodo del reporte">
+                {[['dia', 'Día'], ['semana', 'Semana'], ['mes', 'Mes']].map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={`sgoi-seg-btn ${periodoReporte === id ? 'active' : ''}`}
+                    onClick={() => setPeriodoReporte(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <label>
+                {periodoReporte === 'dia' ? 'Fecha' : periodoReporte === 'mes' ? 'Mes (cualquier día)' : 'Semana (cualquier día)'}
+                <input type="date" value={fechaReporte} onChange={(e) => setFechaReporte(e.target.value)} />
+              </label>
+            </div>
+            <p className="sgoi-range">
+              {periodoReporte === 'dia' ? 'Reporte del día' : periodoReporte === 'mes' ? 'Reporte mensual' : 'Reporte semanal'}
+              {' · '}
+              {formatFechaCorta(reporte?.desde)}
+              {reporte?.desde !== reporte?.hasta ? ` – ${formatFechaCorta(reporte?.hasta)}` : ''}
+            </p>
+            <div className="sgoi-kpis">
+              <div className="sgoi-kpi sgoi-kpi-casos">
+                <span>Incidencias</span>
+                <strong>{rr?.casos_total ?? 0}</strong>
+                <small>{rr?.casos_resueltos ?? 0} resueltas · {rr?.casos_pendientes ?? 0} pendientes</small>
+              </div>
+              <div className="sgoi-kpi">
+                <span>Tiempo en incidencias</span>
+                <strong>{formatDuracionSeg(rr?.segundos_casos)}</strong>
+                <small>atención registrada</small>
+              </div>
+              <div className="sgoi-kpi">
+                <span>Días con actividad</span>
+                <strong>{rr?.dias_con_actividad ?? 0}</strong>
+                <small>en el periodo</small>
+              </div>
+            </div>
+            {(reporte?.dias || []).filter((d) => d.casos.length > 0).length === 0 ? (
+              <div className="sgoi-empty">No hay incidencias en este periodo.</div>
+            ) : (
+              (reporte.dias || []).filter((d) => d.casos.length > 0).map((d) => (
+                <section key={d.fecha} className="sgoi-report-day">
+                  <h2>{etiquetaDiaLargo(d.fecha)}</h2>
+                  <h3>Incidencias</h3>
+                  <ul className="sgoi-entity-list">
+                    {d.casos.map((c) => (
+                      <li key={c.id} className="sgoi-entity is-caso">
+                        <div>
+                          <div className="sgoi-entity-top">
+                            <span className="sgoi-badge sgoi-badge-caso">{c.codigo}</span>
+                            <strong>{c.titulo}</strong>
+                            <span className={`sgoi-st sgoi-st-${c.estado}`}>{etiquetaEstado(c.estado)}</span>
+                          </div>
+                          <div className="sgoi-tl-meta">
+                            {formatHoraItem(c.inicio_at)}
+                            {c.fin_at ? ` – ${formatHoraItem(c.fin_at)}` : ''}
+                            {c.estado !== 'EN_CURSO' ? ` · ${formatDuracionSeg(c.duracion_seg)}` : ''}
+                            {c.usuario_nombre ? ` · ${c.usuario_nombre}` : ''}
+                          </div>
+                          {c.nota ? <p className="sgoi-tl-nota">{c.nota}</p> : null}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))
+            )}
+            <h2 className="sgoi-report-charts-title">Gráficos del periodo</h2>
+            <div className="sgoi-charts">
+              <section className="sgoi-chart-card sgoi-chart-wide">
+                <h2>Incidencias por día</h2>
+                <p>Cantidad real registrada en el periodo.</p>
+                <div className="sgoi-chart-body">
+                  {dataDiasReporte.some((d) => d.Incidencias) ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={dataDiasReporte} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="dia" tick={{ fontSize: 11, fill: '#64748b' }} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#64748b' }} width={28} />
+                        <Tooltip content={<TooltipGestion />} />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
+                        <Bar dataKey="Incidencias" fill={COLORES_TIPO.CASO} radius={[5, 5, 0, 0]} maxBarSize={32} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="sgoi-empty">Sin datos para graficar.</div>
+                  )}
+                </div>
+              </section>
+              <section className="sgoi-chart-card">
+                <h2>Estado de incidencias</h2>
+                <p>Resueltas, pendientes y en curso.</p>
+                <div className="sgoi-chart-body sgoi-chart-pie">
+                  {dataEstadosReporte.length ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={dataEstadosReporte} dataKey="value" nameKey="name" innerRadius={48} outerRadius={78} paddingAngle={2}>
+                          {dataEstadosReporte.map((d) => (
+                            <Cell key={d.name} fill={d.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip content={<TooltipGestion />} />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="sgoi-empty">Sin incidencias en el periodo.</div>
+                  )}
+                </div>
+              </section>
+              <section className="sgoi-chart-card">
+                <h2>Minutos de atención</h2>
+                <p>Duración de incidencias por día.</p>
+                <div className="sgoi-chart-body">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={dataMinutosReporte} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis dataKey="dia" tick={{ fontSize: 11, fill: '#64748b' }} />
+                      <YAxis tick={{ fontSize: 11, fill: '#64748b' }} width={32} />
+                      <Tooltip content={<TooltipGestion />} />
+                      <Bar dataKey="Minutos" fill="#1d4ed8" radius={[5, 5, 0, 0]} maxBarSize={32} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </section>
+            </div>
           </>
         ) : vista === 'horario' ? (
           <>
@@ -1093,9 +1227,6 @@ export default function GestionOperativaPage() {
                         <div className="sgoi-card-actions">
                           <button type="button" className="sgoi-btn sgoi-btn-caso" onClick={() => continuarPendiente(it.id, 'CASO')}>
                             Atender como caso
-                          </button>
-                          <button type="button" className="sgoi-btn" onClick={() => continuarPendiente(it.id, 'TRABAJO')}>
-                            Registrar como trabajo
                           </button>
                           <button type="button" className="sgoi-btn sgoi-btn-ghost" onClick={() => marcarHecho(it.id)}>
                             Marcar hecho

@@ -26,6 +26,9 @@ const {
   agregarSeguimiento,
   auditarSgoi,
   resolvePersonalId,
+  sqlDt,
+  serializarFilaSgoi,
+  serializarFilasSgoi,
 } = require('../utils/sgoi');
 
 const router = express.Router();
@@ -131,9 +134,11 @@ router.get('/dia', async (req, res) => {
     const extra = uid ? ' AND x.usuario_id = ?' : '';
     const paramsCasos = [colegio_id, `${fecha} 00:00:00`, `${fecha} 23:59:59`, uid];
     const casos = await query(
-      `SELECT x.id, x.codigo, x.titulo, x.nota, x.estado, x.prioridad, x.inicio_at, x.fin_at,
+      `SELECT x.id, x.codigo, x.titulo, x.nota, x.estado, x.prioridad, ${sqlDt('x.inicio_at', 'inicio_at')}, ${sqlDt('x.fin_at', 'fin_at')},
               x.duracion_seg, x.usuario_id, ${nombreUsuarioSql()} AS usuario_nombre,
-              'CASO' AS kind, NULL AS tipo
+              'CASO' AS kind, NULL AS tipo,
+              DATE_FORMAT(x.inicio_at, '%H:%i') AS hora_ini_hm,
+              DATE_FORMAT(x.fin_at, '%H:%i') AS hora_fin_hm
        FROM sgoi_casos x
        LEFT JOIN usuarios u ON u.id = x.usuario_id
        LEFT JOIN personal p ON p.id = u.personal_id
@@ -142,7 +147,7 @@ router.get('/dia', async (req, res) => {
       paramsCasos
     );
     const trabajos = await query(
-      `SELECT x.id, x.codigo, x.titulo, x.nota, x.estado, NULL AS prioridad, x.inicio_at, x.fin_at,
+      `SELECT x.id, x.codigo, x.titulo, x.nota, x.estado, NULL AS prioridad, ${sqlDt('x.inicio_at', 'inicio_at')}, ${sqlDt('x.fin_at', 'fin_at')},
               x.duracion_seg, x.usuario_id, ${nombreUsuarioSql()} AS usuario_nombre,
               'TRABAJO' AS kind, x.tipo
        FROM sgoi_trabajos x
@@ -156,8 +161,8 @@ router.get('/dia', async (req, res) => {
     const usados = new Set();
     const bloquesOut = bloques.map((b) => {
       const interrupciones = casos.filter((c) => {
-        const horaIni = String(c.inicio_at).replace('T', ' ').slice(11, 16);
-        const horaFin = c.fin_at ? String(c.fin_at).replace('T', ' ').slice(11, 16) : horaIni;
+        const horaIni = c.hora_ini_hm || hhmm(c.inicio_at);
+        const horaFin = c.hora_fin_hm || horaIni;
         if (!solapaHora(b.hora_ini, b.hora_fin, horaIni, horaFin)) return false;
         usados.add(`c-${c.id}`);
         return true;
@@ -167,14 +172,19 @@ router.get('/dia', async (req, res) => {
         hora_ini: hhmm(b.hora_ini),
         hora_fin: hhmm(b.hora_fin),
         descanso: b.tipo === 'DESCANSO',
-        interrupciones,
+        interrupciones: serializarFilasSgoi(interrupciones),
       };
     });
     const casosSueltos = casos.filter((c) => !usados.has(`c-${c.id}`));
-    const items = [...casos, ...trabajos].sort((a, b) =>
+    const items = serializarFilasSgoi([...casos, ...trabajos]).sort((a, b) =>
       String(a.inicio_at).localeCompare(String(b.inicio_at))
     );
-    res.json({ fecha, bloques: bloquesOut, casos_sueltos: casosSueltos, items });
+    res.json({
+      fecha,
+      bloques: bloquesOut,
+      casos_sueltos: serializarFilasSgoi(casosSueltos),
+      items,
+    });
   } catch (e) {
     return handleSgoiError(res, e, 'dia');
   }
@@ -234,10 +244,10 @@ router.get('/tablero', async (req, res) => {
     );
     const recientes = await query(
       `SELECT * FROM (
-         SELECT id, codigo, titulo, estado, inicio_at, fin_at, duracion_seg, usuario_id, 'CASO' AS kind, NULL AS tipo
+         SELECT id, codigo, titulo, estado, ${sqlDt('inicio_at')}, ${sqlDt('fin_at')}, duracion_seg, usuario_id, 'CASO' AS kind, NULL AS tipo
          FROM sgoi_casos WHERE colegio_id = ? AND inicio_at >= ? AND inicio_at < ?
          UNION ALL
-         SELECT id, codigo, titulo, estado, inicio_at, fin_at, duracion_seg, usuario_id, 'TRABAJO' AS kind, tipo
+         SELECT id, codigo, titulo, estado, ${sqlDt('inicio_at')}, ${sqlDt('fin_at')}, duracion_seg, usuario_id, 'TRABAJO' AS kind, tipo
          FROM sgoi_trabajos WHERE colegio_id = ? AND inicio_at >= ? AND inicio_at < ?
        ) z
        ORDER BY inicio_at DESC
@@ -246,10 +256,10 @@ router.get('/tablero', async (req, res) => {
     );
     const abiertos = await query(
       `SELECT * FROM (
-         SELECT id, codigo, titulo, estado, inicio_at, usuario_id, 'CASO' AS kind
+         SELECT id, codigo, titulo, estado, ${sqlDt('inicio_at')}, usuario_id, 'CASO' AS kind
          FROM sgoi_casos WHERE colegio_id = ? AND estado = 'EN_CURSO'
          UNION ALL
-         SELECT id, codigo, titulo, estado, inicio_at, usuario_id, 'TRABAJO' AS kind
+         SELECT id, codigo, titulo, estado, ${sqlDt('inicio_at')}, usuario_id, 'TRABAJO' AS kind
          FROM sgoi_trabajos WHERE colegio_id = ? AND estado = 'EN_CURSO'
        ) z
        ORDER BY inicio_at ASC`,
@@ -297,11 +307,127 @@ router.get('/tablero', async (req, res) => {
         };
       }),
       por_tipo: porTipo,
-      recientes,
-      en_curso: abiertos,
+      recientes: serializarFilasSgoi(recientes),
+      en_curso: serializarFilasSgoi(abiertos),
     });
   } catch (e) {
     return handleSgoiError(res, e, 'tablero');
+  }
+});
+
+function rangoPeriodo(periodo, fecha) {
+  const m = moment.tz(fecha, 'YYYY-MM-DD', 'America/Lima');
+  if (periodo === 'dia') {
+    return { desde: fecha, hasta: fecha };
+  }
+  if (periodo === 'mes') {
+    return {
+      desde: m.clone().startOf('month').format('YYYY-MM-DD'),
+      hasta: m.clone().endOf('month').format('YYYY-MM-DD'),
+    };
+  }
+  return {
+    desde: m.clone().isoWeekday(1).format('YYYY-MM-DD'),
+    hasta: m.clone().isoWeekday(7).format('YYYY-MM-DD'),
+  };
+}
+
+router.get('/reporte', async (req, res) => {
+  try {
+    const { colegio_id } = await contextoUsuario(req);
+    const periodo = ['dia', 'semana', 'mes'].includes(String(req.query.periodo || ''))
+      ? String(req.query.periodo)
+      : 'semana';
+    const fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.fecha || ''))
+      ? String(req.query.fecha)
+      : fechaMySQLLima();
+    const { desde, hasta } = rangoPeriodo(periodo, fecha);
+    const { desdeAt, hastaExcl } = rangoLima(desde, hasta);
+
+    const casosRows = await query(
+      `SELECT x.id, x.codigo, x.titulo, x.nota, x.estado, x.prioridad, ${sqlDt('x.inicio_at', 'inicio_at')}, ${sqlDt('x.fin_at', 'fin_at')},
+              x.duracion_seg, x.usuario_id, ${nombreUsuarioSql()} AS usuario_nombre,
+              'CASO' AS kind, NULL AS tipo, DATE_FORMAT(x.inicio_at, '%Y-%m-%d') AS dia
+       FROM sgoi_casos x
+       LEFT JOIN usuarios u ON u.id = x.usuario_id
+       LEFT JOIN personal p ON p.id = u.personal_id
+       WHERE x.colegio_id = ? AND x.inicio_at >= ? AND x.inicio_at < ?
+       ORDER BY x.inicio_at ASC`,
+      [colegio_id, desdeAt, hastaExcl]
+    );
+    const trabajosRows = await query(
+      `SELECT x.id, x.codigo, x.titulo, x.nota, x.estado, NULL AS prioridad, ${sqlDt('x.inicio_at', 'inicio_at')}, ${sqlDt('x.fin_at', 'fin_at')},
+              x.duracion_seg, x.usuario_id, ${nombreUsuarioSql()} AS usuario_nombre,
+              'TRABAJO' AS kind, x.tipo, DATE_FORMAT(x.inicio_at, '%Y-%m-%d') AS dia
+       FROM sgoi_trabajos x
+       LEFT JOIN usuarios u ON u.id = x.usuario_id
+       LEFT JOIN personal p ON p.id = u.personal_id
+       WHERE x.colegio_id = ? AND x.inicio_at >= ? AND x.inicio_at < ?
+       ORDER BY x.inicio_at ASC`,
+      [colegio_id, desdeAt, hastaExcl]
+    );
+    const pendientesAbiertos = await query(
+      `SELECT COUNT(*) AS n FROM sgoi_pendientes
+       WHERE colegio_id = ? AND estado IN ('ABIERTO','EN_CURSO')`,
+      [colegio_id]
+    );
+
+    const porTipo = {};
+    trabajosRows.forEach((t) => {
+      const k = t.tipo || 'OTRO';
+      porTipo[k] = (porTipo[k] || 0) + 1;
+    });
+    const porDiaMap = {};
+    casosRows.forEach((c) => {
+      const f = String(c.dia || '').slice(0, 10);
+      if (!porDiaMap[f]) porDiaMap[f] = { casos: 0, trabajos: 0, seg_casos: 0, seg_trabajos: 0 };
+      porDiaMap[f].casos += 1;
+      porDiaMap[f].seg_casos += num(c.duracion_seg);
+    });
+    trabajosRows.forEach((t) => {
+      const f = String(t.dia || '').slice(0, 10);
+      if (!porDiaMap[f]) porDiaMap[f] = { casos: 0, trabajos: 0, seg_casos: 0, seg_trabajos: 0 };
+      porDiaMap[f].trabajos += 1;
+      porDiaMap[f].seg_trabajos += num(t.duracion_seg);
+    });
+
+    const dias = cadaDia(desde, hasta)
+      .map((dia) => ({
+        fecha: dia,
+        casos: serializarFilasSgoi(casosRows.filter((c) => String(c.dia).slice(0, 10) === dia)),
+        trabajos: serializarFilasSgoi(trabajosRows.filter((t) => String(t.dia).slice(0, 10) === dia)),
+      }))
+      .filter((d) => d.casos.length || d.trabajos.length);
+
+    res.json({
+      periodo,
+      fecha,
+      desde,
+      hasta,
+      resumen: {
+        casos_total: casosRows.length,
+        casos_resueltos: casosRows.filter((c) => c.estado === 'RESUELTO').length,
+        casos_pendientes: casosRows.filter((c) => c.estado === 'PENDIENTE').length,
+        casos_en_curso: casosRows.filter((c) => c.estado === 'EN_CURSO').length,
+        trabajos_total: trabajosRows.length,
+        trabajos_hechos: trabajosRows.filter((t) => t.estado === 'HECHO').length,
+        pendientes_abiertos: num(pendientesAbiertos[0]?.n),
+        segundos_casos: casosRows.reduce((s, c) => s + num(c.duracion_seg), 0),
+        segundos_trabajos: trabajosRows.reduce((s, t) => s + num(t.duracion_seg), 0),
+        dias_con_actividad: dias.length,
+      },
+      por_dia: cadaDia(desde, hasta).map((f) => ({
+        fecha: f,
+        casos: porDiaMap[f]?.casos || 0,
+        trabajos: porDiaMap[f]?.trabajos || 0,
+        seg_casos: porDiaMap[f]?.seg_casos || 0,
+        seg_trabajos: porDiaMap[f]?.seg_trabajos || 0,
+      })),
+      por_tipo: porTipo,
+      dias,
+    });
+  } catch (e) {
+    return handleSgoiError(res, e, 'reporte');
   }
 });
 
@@ -319,7 +445,7 @@ async function listarEntidad(req, res, kind) {
   }
   params.push(limit);
   const rows = await query(
-    `SELECT x.id, x.codigo, x.titulo, x.nota, x.estado, ${extraCols} x.inicio_at, x.fin_at,
+    `SELECT x.id, x.codigo, x.titulo, x.nota, x.estado, ${extraCols} ${sqlDt('x.inicio_at', 'inicio_at')}, ${sqlDt('x.fin_at', 'fin_at')},
             x.duracion_seg, x.usuario_id, ${nombreUsuarioSql()} AS usuario_nombre,
             '${kind}' AS kind
      FROM ${tabla} x
@@ -330,7 +456,7 @@ async function listarEntidad(req, res, kind) {
      LIMIT ?`,
     params
   );
-  res.json({ items: rows });
+  res.json({ items: serializarFilasSgoi(rows) });
 }
 
 router.get('/horario', requireHorarioAdmin, async (req, res) => {
@@ -598,7 +724,7 @@ router.get('/pendientes', async (req, res) => {
        LIMIT 150`,
       params
     );
-    res.json({ items: rows });
+    res.json({ items: serializarFilasSgoi(rows) });
   } catch (e) {
     return handleSgoiError(res, e, 'pendientes');
   }
@@ -863,7 +989,7 @@ router.post('/pendientes', async (req, res) => {
       ins.insertId,
       ctx.colegio_id,
     ]);
-    res.status(201).json({ pendiente: rows[0] });
+    res.status(201).json({ pendiente: serializarFilaSgoi(rows[0]) });
   } catch (e) {
     return handleSgoiError(res, e, 'pendientes/crear');
   }
@@ -994,7 +1120,7 @@ router.put('/casos/:id', async (req, res) => {
     }
     auditarSgoi(req, { accion: 'EDITAR', entidad: 'caso', entidad_id: id, descripcion: titulo || rows[0].codigo });
     const updated = await query(`SELECT * FROM sgoi_casos WHERE id = ? AND colegio_id = ?`, [id, ctx.colegio_id]);
-    res.json({ caso: updated[0] });
+    res.json({ caso: serializarFilaSgoi(updated[0]) });
   } catch (e) {
     return handleSgoiError(res, e, 'casos/editar');
   }
@@ -1036,7 +1162,7 @@ router.put('/trabajos/:id', async (req, res) => {
     }
     auditarSgoi(req, { accion: 'EDITAR', entidad: 'trabajo', entidad_id: id, descripcion: titulo || rows[0].codigo });
     const updated = await query(`SELECT * FROM sgoi_trabajos WHERE id = ? AND colegio_id = ?`, [id, ctx.colegio_id]);
-    res.json({ trabajo: updated[0] });
+    res.json({ trabajo: serializarFilaSgoi(updated[0]) });
   } catch (e) {
     return handleSgoiError(res, e, 'trabajos/editar');
   }
@@ -1067,7 +1193,7 @@ router.put('/pendientes/:id', async (req, res) => {
     );
     auditarSgoi(req, { accion: 'EDITAR', entidad: 'pendiente', entidad_id: id, descripcion: titulo || rows[0].titulo });
     const updated = await query(`SELECT * FROM sgoi_pendientes WHERE id = ? AND colegio_id = ?`, [id, ctx.colegio_id]);
-    res.json({ pendiente: updated[0] });
+    res.json({ pendiente: serializarFilaSgoi(updated[0]) });
   } catch (e) {
     return handleSgoiError(res, e, 'pendientes/editar');
   }

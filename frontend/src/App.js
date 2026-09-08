@@ -345,6 +345,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin/gestion-operativa/reporte"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR']}>
+            <GestionOperativaPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/admin/gestion-operativa/casos"
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR']}>

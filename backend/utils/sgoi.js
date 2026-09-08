@@ -91,17 +91,55 @@ async function asegurarAreaSistemas(colegioId) {
   return { id: ins.insertId, nombre: 'Sistemas', slug: 'sistemas' };
 }
 
+/** DATETIME naive de Lima como texto, para que JSON no lo marque como UTC (+5 h). */
+function sqlDt(ref, alias) {
+  const as = alias || String(ref).replace(/^.*\./, '');
+  return `DATE_FORMAT(${ref}, '%Y-%m-%d %H:%i:%s') AS ${as}`;
+}
+
+function serializarDatetimeLima(valor) {
+  if (valor == null || valor === '') return valor;
+  if (valor instanceof Date && !Number.isNaN(valor.getTime())) {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${valor.getUTCFullYear()}-${p(valor.getUTCMonth() + 1)}-${p(valor.getUTCDate())} ${p(valor.getUTCHours())}:${p(valor.getUTCMinutes())}:${p(valor.getUTCSeconds())}`;
+  }
+  const s = String(valor).trim();
+  if (/[zZ]$/.test(s) || /[+-]\d{2}:\d{2}$/.test(s)) {
+    const d = new Date(s);
+    if (!Number.isNaN(d.getTime())) {
+      const p = (n) => String(n).padStart(2, '0');
+      return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
+    }
+  }
+  return s.replace('T', ' ').slice(0, 19);
+}
+
+const SGOI_DT_KEYS = ['inicio_at', 'fin_at', 'cerrado_at', 'created_at', 'updated_at', 'fecha_hora'];
+
+function serializarFilaSgoi(row) {
+  if (!row || typeof row !== 'object') return row;
+  const out = { ...row };
+  for (const k of SGOI_DT_KEYS) {
+    if (out[k] != null) out[k] = serializarDatetimeLima(out[k]);
+  }
+  return out;
+}
+
+function serializarFilasSgoi(rows) {
+  return Array.isArray(rows) ? rows.map(serializarFilaSgoi) : rows;
+}
+
 async function obtenerActivo(colegioId, usuarioId) {
   const cid = parseInt(colegioId, 10);
   const uid = parseInt(usuarioId, 10);
   const casos = await query(
-    `SELECT id, codigo, titulo, estado, inicio_at, prioridad, pendiente_id, NULL AS tipo, 'CASO' AS kind
+    `SELECT id, codigo, titulo, estado, ${sqlDt('inicio_at')}, prioridad, pendiente_id, NULL AS tipo, 'CASO' AS kind
      FROM sgoi_casos
      WHERE colegio_id = ? AND usuario_id = ? AND estado = 'EN_CURSO'
      ORDER BY inicio_at DESC LIMIT 1`,
     [cid, uid]
   );
-  return casos[0] || null;
+  return casos[0] ? serializarFilaSgoi(casos[0]) : null;
 }
 
 /** Horario Área de Sistemas (L–S). Índices 2–7 = lun…sáb. "—" = sin franja. */
@@ -222,8 +260,13 @@ async function materializarDia(colegioId, usuarioId, fecha) {
 }
 
 function hhmm(valor) {
+  if (valor instanceof Date && !Number.isNaN(valor.getTime())) {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(valor.getUTCHours())}:${p(valor.getUTCMinutes())}`;
+  }
   const s = String(valor || '');
-  return s.length >= 5 ? s.slice(0, 5) : s;
+  const m = s.match(/(\d{2}):(\d{2})/);
+  return m ? `${m[1]}:${m[2]}` : (s.length >= 5 ? s.slice(0, 5) : s);
 }
 
 function solapaHora(iniA, finA, iniB, finB) {
@@ -234,11 +277,18 @@ function padCodigo(prefijo, id) {
   return `${prefijo}-${String(id).padStart(5, '0')}`;
 }
 
+function instanteLimaMs(valor) {
+  if (valor == null || valor === '') return NaN;
+  const naive = serializarDatetimeLima(valor);
+  const m = require('moment-timezone').tz(naive, 'YYYY-MM-DD HH:mm:ss', 'America/Lima');
+  return m.isValid() ? m.valueOf() : NaN;
+}
+
 function segundosEntre(inicioAt, finAt) {
-  const a = new Date(String(inicioAt).replace(' ', 'T'));
-  const b = new Date(String(finAt).replace(' ', 'T'));
-  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return 0;
-  return Math.max(0, Math.round((b.getTime() - a.getTime()) / 1000));
+  const a = instanteLimaMs(inicioAt);
+  const b = instanteLimaMs(finAt);
+  if (Number.isNaN(a) || Number.isNaN(b)) return 0;
+  return Math.max(0, Math.round((b - a) / 1000));
 }
 
 function sanitizarTexto(valor, max) {
@@ -287,6 +337,9 @@ module.exports = {
   puedeUsarSgoi,
   requireSgoi,
   asegurarAreaSistemas,
+  sqlDt,
+  serializarFilaSgoi,
+  serializarFilasSgoi,
   obtenerActivo,
   asegurarPlantilla,
   materializarDia,

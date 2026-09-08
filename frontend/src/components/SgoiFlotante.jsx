@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import { formatDuracionSeg, notificarCambioSgoi, usuarioPuedeSgoi } from '../utils/sgoiFormat';
+import { formatDuracionSeg, instanteMsLima, notificarCambioSgoi, usuarioPuedeSgoi } from '../utils/sgoiFormat';
 import './SgoiFlotante.css';
 
 function IconoBitacora({ size = 26 }) {
@@ -15,10 +15,9 @@ function IconoBitacora({ size = 26 }) {
 }
 
 function segundosDesde(inicioAt) {
-  if (!inicioAt) return 0;
-  const d = new Date(String(inicioAt).replace(' ', 'T'));
-  if (Number.isNaN(d.getTime())) return 0;
-  return Math.max(0, Math.round((Date.now() - d.getTime()) / 1000));
+  const t = instanteMsLima(inicioAt);
+  if (Number.isNaN(t)) return 0;
+  return Math.max(0, Math.round((Date.now() - t) / 1000));
 }
 
 export default function SgoiFlotante() {
