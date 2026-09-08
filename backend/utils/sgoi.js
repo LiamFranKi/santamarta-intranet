@@ -3,7 +3,7 @@
  * No reutiliza tareas/actividades/incidencias académicas.
  */
 const { query, execute } = require('./mysql');
-const { fechaHoraMySQLLima } = require('./fechaHoraLima');
+const { fechaHoraMySQLLima, fechaMySQLLima } = require('./fechaHoraLima');
 const { resolvePersonalId } = require('./tutoriaGeneral');
 const { registrarAccion } = require('./auditoria');
 
@@ -99,32 +99,64 @@ async function obtenerActivo(colegioId, usuarioId) {
   return casos[0] || null;
 }
 
-const PLANTILLA_LV = [
-  ['07:30:00', '08:00:00', 'Proceso bancario / pagos', 'PAGOS'],
-  ['08:00:00', '09:00:00', 'Monitoreo y soporte', 'SOPORTE'],
-  ['09:00:00', '09:30:00', 'Desarrollo VanguardNet', 'DESARROLLO'],
-  ['09:30:00', '10:00:00', 'Desayuno', 'DESCANSO'],
-  ['10:00:00', '13:30:00', 'Desarrollo', 'DESARROLLO'],
-  ['13:30:00', '14:00:00', 'Almuerzo', 'DESCANSO'],
-  ['14:00:00', '18:00:00', 'Desarrollo, soporte y despliegues', 'DESARROLLO'],
+/** Horario Área de Sistemas (L–S). Índices 2–7 = lun…sáb. "—" = sin franja. */
+const HORARIO_SISTEMAS = [
+  ['07:30:00', '08:00:00', 'Bancos/pagos', 'Bancos/pagos', 'Bancos/pagos', 'Bancos/pagos', 'Bancos/pagos', 'Bancos/pagos'],
+  ['08:00:00', '09:00:00', 'Monitoreo/soporte', 'Monitoreo/soporte', 'Monitoreo/soporte', 'Monitoreo/soporte', 'Monitoreo/soporte', 'Backup/revisión'],
+  ['09:00:00', '09:30:00', 'Desarrollo', 'Desarrollo', 'Desarrollo', 'Desarrollo', 'Desarrollo', 'Mantenimiento'],
+  ['09:30:00', '10:00:00', 'Desayuno', 'Desayuno', 'Desayuno', 'Desayuno', 'Desayuno', 'Desayuno'],
+  ['10:00:00', '11:00:00', 'Frontend/UI', 'Backend/API', 'Frontend/UI', 'Backend/API', 'Mejoras/bugs', 'Desarrollo'],
+  ['11:00:00', '12:00:00', 'Backend', 'Base de datos', 'Módulos', 'Base de datos', 'Testing', 'BD/respaldos'],
+  ['12:00:00', '13:00:00', 'Testing', 'Desarrollo', 'Testing', 'Desarrollo', 'Testing', 'Servidor'],
+  ['13:00:00', '13:30:00', 'Git/Deploy', 'Documentación', 'Git/Deploy', 'Testing', 'Git/Deploy', 'Reporte semanal'],
+  ['13:30:00', '14:00:00', 'Almuerzo', 'Almuerzo', 'Almuerzo', 'Almuerzo', 'Almuerzo', 'Almuerzo'],
+  ['14:00:00', '15:00:00', 'Desarrollo', 'Desarrollo', 'Desarrollo', 'Desarrollo', 'Desarrollo', 'Testing'],
+  ['15:00:00', '16:00:00', 'Backend/BD', 'Frontend/UX', 'Backend/BD', 'Frontend/UX', 'Optimización', '—'],
+  ['16:00:00', '17:00:00', 'Testing', 'Testing', 'Testing', 'Testing', 'Mantenimiento', '—'],
+  ['17:00:00', '18:00:00', 'Deploy/validación', 'Web/contenido', 'Deploy/validación', 'Planificación', 'Backup/cierre', '—'],
 ];
+
+function tipoFranja(titulo) {
+  const t = String(titulo || '').trim();
+  if (!t || t === '—') return null;
+  const low = t.toLowerCase();
+  if (low.includes('desayuno') || low.includes('almuerzo')) return 'DESCANSO';
+  if (low.includes('banco') || low.includes('pago')) return 'PAGOS';
+  if (low.includes('monitoreo') || low.includes('soporte')) return 'SOPORTE';
+  if (low.includes('deploy') || low.startsWith('git/')) return 'DESPLIEGUE';
+  return 'DESARROLLO';
+}
 
 function plantillaDefault() {
   const rows = [];
-  for (let d = 1; d <= 5; d += 1) {
-    PLANTILLA_LV.forEach((b, i) => {
-      rows.push({ weekday: d, hora_ini: b[0], hora_fin: b[1], titulo: b[2], tipo: b[3], orden: i + 1 });
+  HORARIO_SISTEMAS.forEach((fila, i) => {
+    const [horaIni, horaFin, ...dias] = fila;
+    dias.forEach((titulo, idx) => {
+      const tipo = tipoFranja(titulo);
+      if (!tipo) return;
+      rows.push({
+        weekday: idx + 1,
+        hora_ini: horaIni,
+        hora_fin: horaFin,
+        titulo,
+        tipo,
+        orden: i + 1,
+      });
     });
-  }
-  rows.push({
-    weekday: 6,
-    hora_ini: '08:00:00',
-    hora_fin: '13:00:00',
-    titulo: 'Revisión, mantenimiento, respaldos y planificación',
-    tipo: 'DESARROLLO',
-    orden: 1,
   });
   return rows;
+}
+
+async function sembrarPlantilla(colegioId, usuarioId) {
+  const filas = plantillaDefault();
+  for (const f of filas) {
+    await execute(
+      `INSERT INTO sgoi_plantilla_bloques
+        (colegio_id, usuario_id, weekday, hora_ini, hora_fin, titulo, tipo, orden)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [colegioId, usuarioId, f.weekday, f.hora_ini, f.hora_fin, f.titulo, f.tipo, f.orden]
+    );
+  }
 }
 
 async function asegurarPlantilla(colegioId, usuarioId) {
@@ -134,16 +166,27 @@ async function asegurarPlantilla(colegioId, usuarioId) {
     `SELECT COUNT(*) AS n FROM sgoi_plantilla_bloques WHERE colegio_id = ? AND usuario_id = ?`,
     [cid, uid]
   );
-  if (Number(n[0]?.n || 0) > 0) return;
-  const filas = plantillaDefault();
-  for (const f of filas) {
+  const lunes = await query(
+    `SELECT COUNT(*) AS n FROM sgoi_plantilla_bloques
+     WHERE colegio_id = ? AND usuario_id = ? AND weekday = 1`,
+    [cid, uid]
+  );
+  const total = Number(n[0]?.n || 0);
+  const yaNueva = Number(lunes[0]?.n || 0) >= 12;
+  if (total > 0 && yaNueva) return;
+
+  if (total > 0) {
+    const hoy = fechaMySQLLima();
     await execute(
-      `INSERT INTO sgoi_plantilla_bloques
-        (colegio_id, usuario_id, weekday, hora_ini, hora_fin, titulo, tipo, orden)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [cid, uid, f.weekday, f.hora_ini, f.hora_fin, f.titulo, f.tipo, f.orden]
+      `DELETE FROM sgoi_plantilla_bloques WHERE colegio_id = ? AND usuario_id = ?`,
+      [cid, uid]
+    );
+    await execute(
+      `DELETE FROM sgoi_dia_bloques WHERE colegio_id = ? AND usuario_id = ? AND fecha >= ?`,
+      [cid, uid, hoy]
     );
   }
+  await sembrarPlantilla(cid, uid);
 }
 
 async function materializarDia(colegioId, usuarioId, fecha) {
