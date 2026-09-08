@@ -1,9 +1,24 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import Swal from 'sweetalert2';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import {
+  SGOI_TIPOS_FRANJA,
+  etiquetaDiaCorto,
   etiquetaEstado,
   etiquetaTipoTrabajo,
   formatDuracionSeg,
@@ -13,8 +28,30 @@ import {
 } from '../../utils/sgoiFormat';
 import './GestionOperativa.css';
 
+const COLORES_TIPO = {
+  DESARROLLO: '#2563eb',
+  SOPORTE: '#0d9488',
+  PAGOS: '#ca8a04',
+  DESPLIEGUE: '#7c3aed',
+  REUNION: '#db2777',
+  DESCANSO: '#94a3b8',
+  OTRO: '#64748b',
+  CASO: '#dc2626',
+};
+
+const DIAS_SEMANA = [
+  [1, 'Lunes'],
+  [2, 'Martes'],
+  [3, 'Miércoles'],
+  [4, 'Jueves'],
+  [5, 'Viernes'],
+  [6, 'Sábado'],
+  [7, 'Domingo'],
+];
+
 function vistaDesdePath(pathname) {
   if (pathname.endsWith('/tablero')) return 'tablero';
+  if (pathname.endsWith('/horario')) return 'horario';
   if (pathname.endsWith('/casos')) return 'casos';
   if (pathname.endsWith('/trabajos')) return 'trabajos';
   if (pathname.endsWith('/pendientes')) return 'pendientes';
@@ -35,27 +72,67 @@ function escapeHtml(valor) {
     .replace(/"/g, '&quot;');
 }
 
-function lunesDomingoSemana() {
-  const d = new Date();
-  const day = d.getDay() || 7;
-  const lunes = new Date(d);
-  lunes.setDate(d.getDate() - day + 1);
-  const domingo = new Date(lunes);
-  domingo.setDate(lunes.getDate() + 6);
-  const iso = (x) => {
-    const p = (n) => String(n).padStart(2, '0');
-    return `${x.getFullYear()}-${p(x.getMonth() + 1)}-${p(x.getDate())}`;
-  };
-  return { desde: iso(lunes), hasta: iso(domingo) };
+function IconEdit() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M12 20h9" strokeLinecap="round" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconTrash() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M4 7h16" strokeLinecap="round" />
+      <path d="M9 7V5h6v2" />
+      <path d="M6 7l1 13h10l1-13" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconBtn({ title, onClick, danger, children }) {
+  return (
+    <button
+      type="button"
+      className={`sgoi-ico-btn ${danger ? 'is-danger' : ''}`}
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function opcionesTipo(selected) {
+  return SGOI_TIPOS_FRANJA.map(
+    (t) => `<option value="${t}"${t === selected ? ' selected' : ''}>${etiquetaTipoTrabajo(t)}</option>`
+  ).join('');
+}
+
+function TooltipGestion({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="sgoi-chart-tip">
+      {label ? <div className="sgoi-chart-tip-label">{label}</div> : null}
+      {payload.map((entry) => (
+        <div key={entry.dataKey || entry.name} className="sgoi-chart-tip-row">
+          <span style={{ color: entry.color || entry.fill }}>{entry.name}</span>
+          <strong>{entry.value}</strong>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function GestionOperativaPage() {
   const location = useLocation();
   const vista = vistaDesdePath(location.pathname);
   const [fecha, setFecha] = useState(fechaHoyLocal);
-  const [semana] = useState(lunesDomingoSemana);
-  const [diaItems, setDiaItems] = useState([]);
+  const [dia, setDia] = useState({ bloques: [], casos_sueltos: [], items: [] });
   const [tablero, setTablero] = useState(null);
+  const [horario, setHorario] = useState([]);
   const [lista, setLista] = useState([]);
   const [loading, setLoading] = useState(true);
   const [nuevoPendiente, setNuevoPendiente] = useState('');
@@ -65,10 +142,17 @@ export default function GestionOperativaPage() {
     try {
       if (vista === 'dia') {
         const { data } = await api.get('/sgoi/dia', { params: { fecha } });
-        setDiaItems(Array.isArray(data.items) ? data.items : []);
+        setDia({
+          bloques: Array.isArray(data.bloques) ? data.bloques : [],
+          casos_sueltos: Array.isArray(data.casos_sueltos) ? data.casos_sueltos : [],
+          items: Array.isArray(data.items) ? data.items : [],
+        });
       } else if (vista === 'tablero') {
-        const { data } = await api.get('/sgoi/tablero', { params: semana });
+        const { data } = await api.get('/sgoi/tablero');
         setTablero(data);
+      } else if (vista === 'horario') {
+        const { data } = await api.get('/sgoi/horario');
+        setHorario(Array.isArray(data.dias) ? data.dias : []);
       } else if (vista === 'casos') {
         const { data } = await api.get('/sgoi/casos');
         setLista(Array.isArray(data.items) ? data.items : []);
@@ -88,7 +172,7 @@ export default function GestionOperativaPage() {
     } finally {
       setLoading(false);
     }
-  }, [vista, fecha, semana]);
+  }, [vista, fecha]);
 
   useEffect(() => {
     cargar();
@@ -100,30 +184,36 @@ export default function GestionOperativaPage() {
     return () => window.removeEventListener('sgoi-changed', onChange);
   }, [cargar]);
 
-  const totalDiaSeg = useMemo(
-    () => diaItems.reduce((s, it) => s + (it.estado === 'EN_CURSO' ? 0 : Number(it.duracion_seg || 0)), 0),
-    [diaItems]
+  const trabajosDia = useMemo(
+    () => (dia.items || []).filter((it) => it.kind === 'TRABAJO'),
+    [dia.items]
   );
 
-  const continuarPendiente = async (id, como) => {
-    try {
-      await api.post(`/sgoi/pendientes/${id}/continuar`, { como });
-      notificarCambioSgoi();
-      Swal.fire({ icon: 'success', title: 'En curso', timer: 1400, showConfirmButton: false });
-    } catch (e) {
-      Swal.fire({ icon: 'warning', title: 'No se pudo continuar', text: e?.response?.data?.error || e.message });
-    }
-  };
-
-  const marcarHecho = async (id) => {
-    try {
-      await api.post(`/sgoi/pendientes/${id}/hecho`);
-      notificarCambioSgoi();
-      cargar();
-    } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Error', text: e?.response?.data?.error || e.message });
-    }
-  };
+  const r = tablero?.resumen;
+  const dataDias = useMemo(
+    () =>
+      (tablero?.por_dia || []).map((d) => ({
+        dia: etiquetaDiaCorto(d.fecha),
+        Casos: d.casos,
+        Trabajos: d.trabajos,
+      })),
+    [tablero]
+  );
+  const dataTipos = useMemo(() => {
+    const src = tablero?.por_tipo || {};
+    return Object.keys(src).map((k) => ({
+      name: etiquetaTipoTrabajo(k),
+      value: src[k],
+      color: COLORES_TIPO[k] || COLORES_TIPO.OTRO,
+    }));
+  }, [tablero]);
+  const dataTiempo = useMemo(() => {
+    if (!r) return [];
+    return [
+      { name: 'Casos', minutos: Math.round((r.segundos_casos || 0) / 60), fill: COLORES_TIPO.CASO },
+      { name: 'Trabajos', minutos: Math.round((r.segundos_trabajos || 0) / 60), fill: COLORES_TIPO.DESARROLLO },
+    ];
+  }, [r]);
 
   const rutaEntidad = (kind) => {
     if (kind === 'CASO') return 'casos';
@@ -165,9 +255,7 @@ export default function GestionOperativaPage() {
       : esTrabajo
         ? `<label class="sgoi-swal-label">Tipo</label>
            <select id="sgoi-tipo" class="swal2-input">
-             ${['DESARROLLO', 'SOPORTE', 'PAGOS', 'DESPLIEGUE', 'REUNION', 'OTRO'].map((t) =>
-               `<option value="${t}"${it.tipo === t ? ' selected' : ''}>${etiquetaTipoTrabajo(t)}</option>`
-             ).join('')}
+             ${opcionesTipo(it.tipo || 'DESARROLLO')}
            </select>`
         : `<label class="sgoi-swal-label">Prioridad</label>
            <select id="sgoi-prioridad" class="swal2-input">
@@ -178,9 +266,11 @@ export default function GestionOperativaPage() {
     const estadosCerrados = esCaso
       ? [['RESUELTO', 'Resuelto'], ['PENDIENTE', 'Pendiente']]
       : esTrabajo
-        ? [['HECHO', 'Hecho'], ['PENDIENTE', 'Pendiente']]
+        ? (enCurso
+          ? [['EN_CURSO', 'En curso'], ['HECHO', 'Hecho'], ['PENDIENTE', 'Pendiente']]
+          : [['HECHO', 'Hecho'], ['PENDIENTE', 'Pendiente']])
         : [['ABIERTO', 'Abierto'], ['HECHO', 'Hecho']];
-    const estadoSelect = enCurso && (esCaso || esTrabajo)
+    const estadoSelect = enCurso && esCaso
       ? `<p class="sgoi-swal-hint">En curso: el cierre se hace desde el flotante.</p>`
       : `<label class="sgoi-swal-label">Estado</label>
          <select id="sgoi-estado" class="swal2-input">
@@ -225,6 +315,159 @@ export default function GestionOperativaPage() {
     }
   };
 
+  const editarFranja = async (bloque) => {
+    const result = await Swal.fire({
+      title: 'Cambiar franja',
+      html: `
+        <label class="sgoi-swal-label">Título</label>
+        <input id="sgoi-titulo" class="swal2-input" maxlength="160" value="${escapeHtml(bloque.titulo)}" />
+        <div class="sgoi-swal-row">
+          <div>
+            <label class="sgoi-swal-label">Desde</label>
+            <input id="sgoi-hora-ini" class="swal2-input" type="time" value="${escapeHtml(bloque.hora_ini)}" />
+          </div>
+          <div>
+            <label class="sgoi-swal-label">Hasta</label>
+            <input id="sgoi-hora-fin" class="swal2-input" type="time" value="${escapeHtml(bloque.hora_fin)}" />
+          </div>
+        </div>
+        <label class="sgoi-swal-label">Tipo</label>
+        <select id="sgoi-tipo" class="swal2-input">${opcionesTipo(bloque.tipo || 'DESARROLLO')}</select>
+        <p class="sgoi-swal-hint">Por defecto solo cambia este día. La plantilla semanal no se toca.</p>
+        <div class="sgoi-swal-alcance">
+          <label><input type="radio" name="sgoi-alcance" value="DIA" checked /> Solo este día</label>
+          <label><input type="radio" name="sgoi-alcance" value="SIEMPRE" ${bloque.plantilla_id ? '' : 'disabled '}/> Para siempre (este día de la semana)</label>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Guardar',
+      cancelButtonText: 'Cancelar',
+      focusConfirm: false,
+      width: 480,
+      preConfirm: () => {
+        const titulo = document.getElementById('sgoi-titulo')?.value || '';
+        if (!titulo.trim()) {
+          Swal.showValidationMessage('El título es obligatorio');
+          return false;
+        }
+        const alcance = document.querySelector('input[name="sgoi-alcance"]:checked')?.value || 'DIA';
+        return {
+          titulo: titulo.trim(),
+          hora_ini: document.getElementById('sgoi-hora-ini')?.value,
+          hora_fin: document.getElementById('sgoi-hora-fin')?.value,
+          tipo: document.getElementById('sgoi-tipo')?.value,
+          alcance,
+        };
+      },
+    });
+    if (!result.isConfirmed || !result.value) return;
+    try {
+      await api.put(`/sgoi/horario/dia/${bloque.id}`, result.value);
+      notificarCambioSgoi();
+      await cargar();
+      if (result.value.alcance === 'SIEMPRE') {
+        Swal.fire({ icon: 'success', title: 'Plantilla actualizada', timer: 1400, showConfirmButton: false });
+      }
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e?.response?.data?.error || e.message });
+    }
+  };
+
+  const crearFranja = async () => {
+    const result = await Swal.fire({
+      title: 'Agregar franja de hoy',
+      html: `
+        <label class="sgoi-swal-label">Título</label>
+        <input id="sgoi-titulo" class="swal2-input" maxlength="160" placeholder="Ej. Revisión de servidores" />
+        <div class="sgoi-swal-row">
+          <div>
+            <label class="sgoi-swal-label">Desde</label>
+            <input id="sgoi-hora-ini" class="swal2-input" type="time" value="08:00" />
+          </div>
+          <div>
+            <label class="sgoi-swal-label">Hasta</label>
+            <input id="sgoi-hora-fin" class="swal2-input" type="time" value="09:00" />
+          </div>
+        </div>
+        <label class="sgoi-swal-label">Tipo</label>
+        <select id="sgoi-tipo" class="swal2-input">${opcionesTipo('DESARROLLO')}</select>
+        <p class="sgoi-swal-hint">Solo se agrega a este día. La plantilla semanal no cambia.</p>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Agregar',
+      cancelButtonText: 'Cancelar',
+      focusConfirm: false,
+      preConfirm: () => {
+        const titulo = document.getElementById('sgoi-titulo')?.value || '';
+        if (!titulo.trim()) {
+          Swal.showValidationMessage('El título es obligatorio');
+          return false;
+        }
+        return {
+          fecha,
+          titulo: titulo.trim(),
+          hora_ini: document.getElementById('sgoi-hora-ini')?.value,
+          hora_fin: document.getElementById('sgoi-hora-fin')?.value,
+          tipo: document.getElementById('sgoi-tipo')?.value,
+        };
+      },
+    });
+    if (!result.isConfirmed || !result.value) return;
+    try {
+      await api.post('/sgoi/horario/dia', result.value);
+      notificarCambioSgoi();
+      await cargar();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e?.response?.data?.error || e.message });
+    }
+  };
+
+  const borrarFranja = async (bloque) => {
+    const ok = await Swal.fire({
+      icon: 'warning',
+      title: 'Quitar franja de este día',
+      text: 'La plantilla semanal no se modifica.',
+      showCancelButton: true,
+      confirmButtonText: 'Quitar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      await api.delete(`/sgoi/horario/dia/${bloque.id}`);
+      notificarCambioSgoi();
+      await cargar();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e?.response?.data?.error || e.message });
+    }
+  };
+
+  const continuarPendiente = async (id, como) => {
+    try {
+      await api.post(`/sgoi/pendientes/${id}/continuar`, { como });
+      notificarCambioSgoi();
+      Swal.fire({
+        icon: 'success',
+        title: como === 'CASO' ? 'Caso en curso' : 'Registrado como trabajo',
+        timer: 1400,
+        showConfirmButton: false,
+      });
+      await cargar();
+    } catch (e) {
+      Swal.fire({ icon: 'warning', title: 'No se pudo continuar', text: e?.response?.data?.error || e.message });
+    }
+  };
+
+  const marcarHecho = async (id) => {
+    try {
+      await api.post(`/sgoi/pendientes/${id}/hecho`);
+      notificarCambioSgoi();
+      cargar();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e?.response?.data?.error || e.message });
+    }
+  };
+
   const crearPendiente = async (ev) => {
     ev.preventDefault();
     const titulo = nuevoPendiente.trim();
@@ -238,15 +481,25 @@ export default function GestionOperativaPage() {
     }
   };
 
-  const r = tablero?.resumen;
+  const accionesRegistro = (it, kind) => (
+    <div className="sgoi-ico-actions">
+      <IconBtn title="Editar" onClick={() => editarRegistro({ ...it, kind })}>
+        <IconEdit />
+      </IconBtn>
+      <IconBtn title="Eliminar" danger onClick={() => eliminarItem(kind, it.id, it.codigo || it.titulo)}>
+        <IconTrash />
+      </IconBtn>
+    </div>
+  );
 
   return (
     <DashboardLayout>
       <div className="sgoi-page">
         <div className="sgoi-hero">
           <div>
+            <p className="sgoi-hero-kicker">Sistemas · VanguardNet</p>
             <h1>Gestión operativa</h1>
-            <p>El flotante de la esquina inicia el reloj. Aquí ves, editas o eliminas todo lo registrado.</p>
+            <p>El horario es el esqueleto del día. Si te interrumpen, el flotante atiende el caso sin romper la plantilla.</p>
           </div>
         </div>
 
@@ -258,6 +511,10 @@ export default function GestionOperativaPage() {
           <NavLink to="/admin/gestion-operativa/tablero" className={({ isActive }) => `sgoi-tab ${isActive ? 'active' : ''}`}>
             <span className="sgoi-tab-ico" aria-hidden>📊</span>
             <span>Tablero</span>
+          </NavLink>
+          <NavLink to="/admin/gestion-operativa/horario" className={({ isActive }) => `sgoi-tab ${isActive ? 'active' : ''}`}>
+            <span className="sgoi-tab-ico" aria-hidden>🗓️</span>
+            <span>Horario</span>
           </NavLink>
           <NavLink to="/admin/gestion-operativa/casos" className={({ isActive }) => `sgoi-tab ${isActive ? 'active' : ''}`}>
             <span className="sgoi-tab-ico" aria-hidden>🚨</span>
@@ -282,44 +539,113 @@ export default function GestionOperativaPage() {
                 Fecha
                 <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
               </label>
-              <div className="sgoi-chip">Registrado: {formatDuracionSeg(totalDiaSeg)}</div>
+              <button type="button" className="sgoi-btn sgoi-btn-ghost" onClick={crearFranja}>
+                + Franja de hoy
+              </button>
             </div>
-            {diaItems.length === 0 ? (
-              <div className="sgoi-empty">Aún no hay movimientos este día. Usa el flotante de la esquina para registrar.</div>
-            ) : (
-              <ol className="sgoi-timeline">
-                {diaItems.map((it) => (
-                  <li key={`${it.kind}-${it.id}`} className={`sgoi-tl ${it.kind === 'CASO' ? 'is-caso' : 'is-trabajo'}`}>
-                    <div className="sgoi-tl-time">
-                      {formatHoraItem(it.inicio_at)}
-                      {it.fin_at ? ` – ${formatHoraItem(it.fin_at)}` : ' – …'}
+            {dia.bloques.length === 0 && dia.items.length === 0 ? (
+              <div className="sgoi-empty">
+                Aún no hay horario para este día. Si acabas de activar el módulo, ejecuta la migración 081.
+                Los casos se atienden desde el flotante.
+              </div>
+            ) : null}
+            {dia.bloques.length > 0 ? (
+              <ol className="sgoi-agenda">
+                {dia.bloques.map((b) => (
+                  <li key={b.id} className={`sgoi-slot sgoi-slot-${(b.tipo || 'OTRO').toLowerCase()} ${b.descanso ? 'is-descanso' : ''}`}>
+                    <div className="sgoi-slot-time">
+                      <strong>{b.hora_ini}</strong>
+                      <span>{b.hora_fin}</span>
                     </div>
-                    <div className="sgoi-tl-body">
-                      <div className="sgoi-tl-top">
-                        <span className="sgoi-badge">{it.kind === 'CASO' ? 'Caso' : 'Trabajo'}</span>
-                        <strong>{it.titulo}</strong>
-                        <span className={`sgoi-st sgoi-st-${it.estado}`}>{etiquetaEstado(it.estado)}</span>
+                    <div className="sgoi-slot-body">
+                      <div className="sgoi-slot-top">
+                        <span className="sgoi-badge" style={{ background: `${COLORES_TIPO[b.tipo] || COLORES_TIPO.OTRO}22`, color: COLORES_TIPO[b.tipo] || COLORES_TIPO.OTRO }}>
+                          {etiquetaTipoTrabajo(b.tipo)}
+                        </span>
+                        <strong>{b.titulo}</strong>
+                        <div className="sgoi-slot-actions">
+                          <IconBtn title="Editar franja" onClick={() => editarFranja(b)}>
+                            <IconEdit />
+                          </IconBtn>
+                          <IconBtn title="Quitar de este día" danger onClick={() => borrarFranja(b)}>
+                            <IconTrash />
+                          </IconBtn>
+                        </div>
                       </div>
-                      <div className="sgoi-tl-meta">
-                        {it.codigo}
-                        {it.tipo ? ` · ${etiquetaTipoTrabajo(it.tipo)}` : ''}
-                        {it.usuario_nombre ? ` · ${it.usuario_nombre}` : ''}
-                        {it.estado !== 'EN_CURSO' ? ` · ${formatDuracionSeg(it.duracion_seg)}` : ''}
-                      </div>
-                      {it.nota ? <p className="sgoi-tl-nota">{it.nota}</p> : null}
-                      <div className="sgoi-card-actions">
-                        <button type="button" className="sgoi-btn sgoi-btn-ghost" onClick={() => editarRegistro({ ...it, kind: it.kind })}>
-                          Editar
-                        </button>
-                        <button type="button" className="sgoi-btn sgoi-btn-danger" onClick={() => eliminarItem(it.kind, it.id, it.codigo || it.titulo)}>
-                          Eliminar
-                        </button>
-                      </div>
+                      {(b.interrupciones || []).length > 0 ? (
+                        <ul className="sgoi-inter">
+                          {b.interrupciones.map((c) => (
+                            <li key={c.id} className="sgoi-inter-item">
+                              <span className="sgoi-badge sgoi-badge-caso">Caso</span>
+                              <div>
+                                <strong>{c.titulo}</strong>
+                                <div className="sgoi-tl-meta">
+                                  {c.codigo} · {formatHoraItem(c.inicio_at)}
+                                  {c.fin_at ? ` – ${formatHoraItem(c.fin_at)}` : ' – …'}
+                                  {c.estado !== 'EN_CURSO' ? ` · ${formatDuracionSeg(c.duracion_seg)}` : ''}
+                                  {' · '}
+                                  {etiquetaEstado(c.estado)}
+                                </div>
+                                {c.nota ? <p className="sgoi-tl-nota">{c.nota}</p> : null}
+                              </div>
+                              {accionesRegistro(c, 'CASO')}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="sgoi-slot-quiet">Sin interrupciones en esta franja.</p>
+                      )}
                     </div>
                   </li>
                 ))}
               </ol>
-            )}
+            ) : null}
+            {dia.casos_sueltos.length > 0 ? (
+              <section className="sgoi-block">
+                <h2>Casos fuera de horario</h2>
+                <ul className="sgoi-entity-list">
+                  {dia.casos_sueltos.map((c) => (
+                    <li key={c.id} className="sgoi-entity is-caso">
+                      <div>
+                        <div className="sgoi-entity-top">
+                          <span className="sgoi-badge sgoi-badge-caso">Caso</span>
+                          <strong>{c.titulo}</strong>
+                          <span className={`sgoi-st sgoi-st-${c.estado}`}>{etiquetaEstado(c.estado)}</span>
+                        </div>
+                        <div className="sgoi-tl-meta">
+                          {c.codigo} · {formatHoraItem(c.inicio_at)}
+                          {c.estado !== 'EN_CURSO' ? ` · ${formatDuracionSeg(c.duracion_seg)}` : ''}
+                        </div>
+                      </div>
+                      {accionesRegistro(c, 'CASO')}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+            {trabajosDia.length > 0 ? (
+              <section className="sgoi-block">
+                <h2>Trabajos registrados</h2>
+                <ul className="sgoi-entity-list">
+                  {trabajosDia.map((it) => (
+                    <li key={it.id} className="sgoi-entity is-trabajo">
+                      <div>
+                        <div className="sgoi-entity-top">
+                          <span className="sgoi-badge">{etiquetaTipoTrabajo(it.tipo)}</span>
+                          <strong>{it.titulo}</strong>
+                          <span className={`sgoi-st sgoi-st-${it.estado}`}>{etiquetaEstado(it.estado)}</span>
+                        </div>
+                        <div className="sgoi-tl-meta">
+                          {it.codigo} · {formatHoraItem(it.inicio_at)}
+                          {it.estado !== 'EN_CURSO' ? ` · ${formatDuracionSeg(it.duracion_seg)}` : ''}
+                        </div>
+                      </div>
+                      {accionesRegistro(it, 'TRABAJO')}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
           </>
         ) : vista === 'tablero' ? (
           <>
@@ -327,20 +653,25 @@ export default function GestionOperativaPage() {
               Semana {formatFechaCorta(tablero?.desde)} – {formatFechaCorta(tablero?.hasta)}
             </p>
             <div className="sgoi-kpis">
-              <div className="sgoi-kpi">
+              <div className="sgoi-kpi sgoi-kpi-casos">
                 <span>Casos</span>
                 <strong>{r?.casos_total ?? 0}</strong>
-                <small>{r?.casos_resueltos ?? 0} resueltos</small>
+                <small>{r?.casos_resueltos ?? 0} resueltos · {r?.casos_pendientes ?? 0} pendientes</small>
+              </div>
+              <div className="sgoi-kpi sgoi-kpi-trab">
+                <span>Trabajos</span>
+                <strong>{r?.trabajos_total ?? 0}</strong>
+                <small>{r?.trabajos_hechos ?? 0} hechos</small>
               </div>
               <div className="sgoi-kpi">
-                <span>Soporte</span>
-                <strong>{formatDuracionSeg(r?.segundos_soporte)}</strong>
-                <small>tiempo atendiendo</small>
+                <span>Tiempo en casos</span>
+                <strong>{formatDuracionSeg(r?.segundos_casos)}</strong>
+                <small>atención e interrupciones</small>
               </div>
               <div className="sgoi-kpi">
-                <span>Desarrollo</span>
-                <strong>{formatDuracionSeg(r?.segundos_desarrollo)}</strong>
-                <small>módulos y despliegues</small>
+                <span>Tiempo en trabajos</span>
+                <strong>{formatDuracionSeg(r?.segundos_trabajos)}</strong>
+                <small>desarrollo, soporte y pagos</small>
               </div>
               <div className="sgoi-kpi">
                 <span>Pendientes</span>
@@ -348,14 +679,85 @@ export default function GestionOperativaPage() {
                 <small>siguen abiertos</small>
               </div>
             </div>
+            <div className="sgoi-charts">
+              <section className="sgoi-chart-card sgoi-chart-wide">
+                <h2>Movimiento de la semana</h2>
+                <p>Cantidad real de casos y trabajos por día.</p>
+                <div className="sgoi-chart-body">
+                  {dataDias.some((d) => d.Casos || d.Trabajos) ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={dataDias} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="dia" tick={{ fontSize: 11, fill: '#64748b' }} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#64748b' }} width={28} />
+                        <Tooltip content={<TooltipGestion />} />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
+                        <Bar dataKey="Casos" fill={COLORES_TIPO.CASO} radius={[5, 5, 0, 0]} maxBarSize={26} />
+                        <Bar dataKey="Trabajos" fill={COLORES_TIPO.DESARROLLO} radius={[5, 5, 0, 0]} maxBarSize={26} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="sgoi-empty">Sin movimientos esta semana.</div>
+                  )}
+                </div>
+              </section>
+              <section className="sgoi-chart-card">
+                <h2>Trabajos por tipo</h2>
+                <p>Distribución de lo registrado.</p>
+                <div className="sgoi-chart-body sgoi-chart-pie">
+                  {dataTipos.length ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={dataTipos} dataKey="value" nameKey="name" innerRadius={48} outerRadius={78} paddingAngle={2}>
+                          {dataTipos.map((d) => (
+                            <Cell key={d.name} fill={d.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip content={<TooltipGestion />} />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="sgoi-empty">Aún no hay trabajos en el rango.</div>
+                  )}
+                </div>
+              </section>
+              <section className="sgoi-chart-card">
+                <h2>Minutos invertidos</h2>
+                <p>Casos vs trabajos (duración cerrada).</p>
+                <div className="sgoi-chart-body">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={dataTiempo} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: '#334155' }} width={72} />
+                      <Tooltip content={<TooltipGestion />} />
+                      <Bar dataKey="minutos" name="Minutos" radius={[0, 6, 6, 0]} maxBarSize={22}>
+                        {dataTiempo.map((d) => (
+                          <Cell key={d.name} fill={d.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </section>
+            </div>
             {tablero?.en_curso?.length ? (
               <section className="sgoi-block">
                 <h2>Ahora mismo</h2>
-                <ul className="sgoi-list">
+                <ul className="sgoi-entity-list">
                   {tablero.en_curso.map((it) => (
-                    <li key={`${it.kind}-${it.id}`}>
-                      <strong>{it.titulo}</strong>
-                      <span>{it.kind === 'CASO' ? 'Caso' : 'Trabajo'} · {it.codigo}</span>
+                    <li key={`${it.kind}-${it.id}`} className={`sgoi-entity ${it.kind === 'CASO' ? 'is-caso' : 'is-trabajo'}`}>
+                      <div>
+                        <div className="sgoi-entity-top">
+                          <span className={`sgoi-badge ${it.kind === 'CASO' ? 'sgoi-badge-caso' : ''}`}>
+                            {it.kind === 'CASO' ? 'Caso' : 'Trabajo'}
+                          </span>
+                          <strong>{it.titulo}</strong>
+                          <span className="sgoi-st sgoi-st-EN_CURSO">En curso</span>
+                        </div>
+                        <div className="sgoi-tl-meta">{it.codigo}</div>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -366,19 +768,53 @@ export default function GestionOperativaPage() {
               {(tablero?.recientes || []).length === 0 ? (
                 <div className="sgoi-empty">Sin movimientos esta semana.</div>
               ) : (
-                <ul className="sgoi-list">
+                <ul className="sgoi-entity-list">
                   {tablero.recientes.map((it) => (
-                    <li key={`${it.kind}-${it.id}`}>
-                      <strong>{it.titulo}</strong>
-                      <span>
-                        {it.kind === 'CASO' ? 'Caso' : 'Trabajo'} · {etiquetaEstado(it.estado)} · {formatHoraItem(it.inicio_at)}
-                        {it.duracion_seg ? ` · ${formatDuracionSeg(it.duracion_seg)}` : ''}
-                      </span>
+                    <li key={`${it.kind}-${it.id}`} className={`sgoi-entity ${it.kind === 'CASO' ? 'is-caso' : 'is-trabajo'}`}>
+                      <div>
+                        <div className="sgoi-entity-top">
+                          <span className={`sgoi-badge ${it.kind === 'CASO' ? 'sgoi-badge-caso' : ''}`}>
+                            {it.kind === 'CASO' ? 'Caso' : etiquetaTipoTrabajo(it.tipo) || 'Trabajo'}
+                          </span>
+                          <strong>{it.titulo}</strong>
+                          <span className={`sgoi-st sgoi-st-${it.estado}`}>{etiquetaEstado(it.estado)}</span>
+                        </div>
+                        <div className="sgoi-tl-meta">
+                          {it.codigo} · {formatHoraItem(it.inicio_at)}
+                          {it.duracion_seg ? ` · ${formatDuracionSeg(it.duracion_seg)}` : ''}
+                        </div>
+                      </div>
+                      {accionesRegistro(it, it.kind)}
                     </li>
                   ))}
                 </ul>
               )}
             </section>
+          </>
+        ) : vista === 'horario' ? (
+          <>
+            <p className="sgoi-range">Plantilla semanal. Si cambias una franja en Mi día, elige “para siempre” solo cuando quieras actualizar este horario.</p>
+            <div className="sgoi-week">
+              {DIAS_SEMANA.map(([wd, nombre]) => {
+                const bloques = horario.find((d) => Number(d.weekday) === wd)?.bloques || [];
+                return (
+                  <section key={wd} className="sgoi-week-day">
+                    <h2>{nombre}</h2>
+                    {bloques.length === 0 ? (
+                      <p className="sgoi-slot-quiet">Sin franjas</p>
+                    ) : (
+                      bloques.map((b) => (
+                        <div key={b.id} className="sgoi-week-slot">
+                          <span>{b.hora_ini}–{b.hora_fin}</span>
+                          <strong>{b.titulo}</strong>
+                          <em>{etiquetaTipoTrabajo(b.tipo)}</em>
+                        </div>
+                      ))
+                    )}
+                  </section>
+                );
+              })}
+            </div>
           </>
         ) : vista === 'pendientes' ? (
           <>
@@ -395,89 +831,65 @@ export default function GestionOperativaPage() {
             {lista.length === 0 ? (
               <div className="sgoi-empty">No hay pendientes abiertos.</div>
             ) : (
-              <ul className="sgoi-cards">
+              <ul className="sgoi-entity-list">
                 {lista.map((it) => (
-                  <li key={it.id} className="sgoi-card">
+                  <li key={it.id} className="sgoi-entity is-pendiente">
                     <div>
-                      <strong>{it.titulo}</strong>
-                      <div className="sgoi-tl-meta">
-                        {etiquetaEstado(it.estado)}
-                        {it.usuario_nombre ? ` · ${it.usuario_nombre}` : ''}
+                      <div className="sgoi-entity-top">
+                        <span className={`sgoi-st sgoi-st-${it.estado}`}>{etiquetaEstado(it.estado)}</span>
+                        <strong>{it.titulo}</strong>
                       </div>
+                      <div className="sgoi-tl-meta">{it.usuario_nombre || ''}</div>
                       {it.descripcion ? <p className="sgoi-tl-nota">{it.descripcion}</p> : null}
-                    </div>
-                    <div className="sgoi-card-actions">
                       {it.estado !== 'HECHO' ? (
-                        <>
+                        <div className="sgoi-card-actions">
                           <button type="button" className="sgoi-btn sgoi-btn-caso" onClick={() => continuarPendiente(it.id, 'CASO')}>
-                            Continuar como caso
+                            Atender como caso
                           </button>
                           <button type="button" className="sgoi-btn" onClick={() => continuarPendiente(it.id, 'TRABAJO')}>
-                            Continuar como trabajo
+                            Registrar como trabajo
                           </button>
                           <button type="button" className="sgoi-btn sgoi-btn-ghost" onClick={() => marcarHecho(it.id)}>
                             Marcar hecho
                           </button>
-                        </>
+                        </div>
                       ) : null}
-                      <button type="button" className="sgoi-btn sgoi-btn-ghost" onClick={() => editarRegistro({ ...it, kind: 'PENDIENTE' })}>
-                        Editar
-                      </button>
-                      <button type="button" className="sgoi-btn sgoi-btn-danger" onClick={() => eliminarItem('PENDIENTE', it.id, it.titulo)}>
-                        Eliminar
-                      </button>
                     </div>
+                    {accionesRegistro(it, 'PENDIENTE')}
                   </li>
                 ))}
               </ul>
             )}
           </>
+        ) : lista.length === 0 ? (
+          <div className="sgoi-empty">No hay registros todavía.</div>
         ) : (
-          lista.length === 0 ? (
-            <div className="sgoi-empty">No hay registros todavía.</div>
-          ) : (
-            <div className="sgoi-table-wrap">
-              <table className="sgoi-table">
-                <thead>
-                  <tr>
-                    <th>Código</th>
-                    <th>Título</th>
-                    <th>Estado</th>
-                    <th>Cuándo</th>
-                    <th>Duración</th>
-                    <th>Quién</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lista.map((it) => (
-                    <tr key={it.id}>
-                      <td>{it.codigo}</td>
-                      <td>
-                        {it.titulo}
-                        {it.tipo ? <div className="sgoi-tl-meta">{etiquetaTipoTrabajo(it.tipo)}</div> : null}
-                        {it.nota ? <div className="sgoi-tl-nota">{it.nota}</div> : null}
-                      </td>
-                      <td><span className={`sgoi-st sgoi-st-${it.estado}`}>{etiquetaEstado(it.estado)}</span></td>
-                      <td>{formatFechaCorta(it.inicio_at)} {formatHoraItem(it.inicio_at)}</td>
-                      <td>{it.estado === 'EN_CURSO' ? '—' : formatDuracionSeg(it.duracion_seg)}</td>
-                      <td>{it.usuario_nombre || '—'}</td>
-                      <td>
-                        <div className="sgoi-card-actions">
-                          <button type="button" className="sgoi-btn sgoi-btn-ghost" onClick={() => editarRegistro({ ...it, kind: vista === 'casos' ? 'CASO' : 'TRABAJO' })}>
-                            Editar
-                          </button>
-                          <button type="button" className="sgoi-btn sgoi-btn-danger" onClick={() => eliminarItem(vista === 'casos' ? 'CASO' : 'TRABAJO', it.id, it.codigo || it.titulo)}>
-                            Eliminar
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )
+          <ul className="sgoi-entity-list">
+            {lista.map((it) => {
+              const kind = vista === 'casos' ? 'CASO' : 'TRABAJO';
+              return (
+                <li key={it.id} className={`sgoi-entity ${kind === 'CASO' ? 'is-caso' : 'is-trabajo'}`}>
+                  <div>
+                    <div className="sgoi-entity-top">
+                      <span className={`sgoi-badge ${kind === 'CASO' ? 'sgoi-badge-caso' : ''}`}>
+                        {it.codigo}
+                      </span>
+                      <strong>{it.titulo}</strong>
+                      <span className={`sgoi-st sgoi-st-${it.estado}`}>{etiquetaEstado(it.estado)}</span>
+                    </div>
+                    <div className="sgoi-tl-meta">
+                      {it.tipo ? `${etiquetaTipoTrabajo(it.tipo)} · ` : ''}
+                      {formatFechaCorta(it.inicio_at)} {formatHoraItem(it.inicio_at)}
+                      {it.estado === 'EN_CURSO' ? '' : ` · ${formatDuracionSeg(it.duracion_seg)}`}
+                      {it.usuario_nombre ? ` · ${it.usuario_nombre}` : ''}
+                    </div>
+                    {it.nota ? <p className="sgoi-tl-nota">{it.nota}</p> : null}
+                  </div>
+                  {accionesRegistro(it, kind)}
+                </li>
+              );
+            })}
+          </ul>
         )}
       </div>
     </DashboardLayout>

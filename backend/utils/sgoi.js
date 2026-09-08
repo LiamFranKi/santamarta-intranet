@@ -22,7 +22,7 @@ function tableMissing(err) {
 
 function sgoiNoTablePayload() {
   return {
-    error: 'Falta ejecutar la migración 079 (Gestión operativa).',
+    error: 'Falta ejecutar la migración de Gestión operativa (079 y, para el horario, 081).',
     code: 'SGOI_NO_TABLE',
   };
 }
@@ -96,15 +96,90 @@ async function obtenerActivo(colegioId, usuarioId) {
      ORDER BY inicio_at DESC LIMIT 1`,
     [cid, uid]
   );
-  if (casos[0]) return casos[0];
-  const trabajos = await query(
-    `SELECT id, codigo, titulo, estado, inicio_at, NULL AS prioridad, pendiente_id, tipo, 'TRABAJO' AS kind
-     FROM sgoi_trabajos
-     WHERE colegio_id = ? AND usuario_id = ? AND estado = 'EN_CURSO'
-     ORDER BY inicio_at DESC LIMIT 1`,
+  return casos[0] || null;
+}
+
+const PLANTILLA_LV = [
+  ['07:30:00', '08:00:00', 'Proceso bancario / pagos', 'PAGOS'],
+  ['08:00:00', '09:00:00', 'Monitoreo y soporte', 'SOPORTE'],
+  ['09:00:00', '09:30:00', 'Desarrollo VanguardNet', 'DESARROLLO'],
+  ['09:30:00', '10:00:00', 'Desayuno', 'DESCANSO'],
+  ['10:00:00', '13:30:00', 'Desarrollo', 'DESARROLLO'],
+  ['13:30:00', '14:00:00', 'Almuerzo', 'DESCANSO'],
+  ['14:00:00', '18:00:00', 'Desarrollo, soporte y despliegues', 'DESARROLLO'],
+];
+
+function plantillaDefault() {
+  const rows = [];
+  for (let d = 1; d <= 5; d += 1) {
+    PLANTILLA_LV.forEach((b, i) => {
+      rows.push({ weekday: d, hora_ini: b[0], hora_fin: b[1], titulo: b[2], tipo: b[3], orden: i + 1 });
+    });
+  }
+  rows.push({
+    weekday: 6,
+    hora_ini: '08:00:00',
+    hora_fin: '13:00:00',
+    titulo: 'Revisión, mantenimiento, respaldos y planificación',
+    tipo: 'DESARROLLO',
+    orden: 1,
+  });
+  return rows;
+}
+
+async function asegurarPlantilla(colegioId, usuarioId) {
+  const cid = parseInt(colegioId, 10);
+  const uid = parseInt(usuarioId, 10);
+  const n = await query(
+    `SELECT COUNT(*) AS n FROM sgoi_plantilla_bloques WHERE colegio_id = ? AND usuario_id = ?`,
     [cid, uid]
   );
-  return trabajos[0] || null;
+  if (Number(n[0]?.n || 0) > 0) return;
+  const filas = plantillaDefault();
+  for (const f of filas) {
+    await execute(
+      `INSERT INTO sgoi_plantilla_bloques
+        (colegio_id, usuario_id, weekday, hora_ini, hora_fin, titulo, tipo, orden)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [cid, uid, f.weekday, f.hora_ini, f.hora_fin, f.titulo, f.tipo, f.orden]
+    );
+  }
+}
+
+async function materializarDia(colegioId, usuarioId, fecha) {
+  await asegurarPlantilla(colegioId, usuarioId);
+  const existen = await query(
+    `SELECT id FROM sgoi_dia_bloques
+     WHERE colegio_id = ? AND usuario_id = ? AND fecha = ?
+     LIMIT 1`,
+    [colegioId, usuarioId, fecha]
+  );
+  if (existen.length) return;
+  const wd = require('moment-timezone').tz(fecha, 'YYYY-MM-DD', 'America/Lima').isoWeekday();
+  const plantilla = await query(
+    `SELECT id, hora_ini, hora_fin, titulo, tipo, orden
+     FROM sgoi_plantilla_bloques
+     WHERE colegio_id = ? AND usuario_id = ? AND weekday = ?
+     ORDER BY hora_ini ASC, orden ASC`,
+    [colegioId, usuarioId, wd]
+  );
+  for (const p of plantilla) {
+    await execute(
+      `INSERT INTO sgoi_dia_bloques
+        (colegio_id, usuario_id, fecha, hora_ini, hora_fin, titulo, tipo, plantilla_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [colegioId, usuarioId, fecha, p.hora_ini, p.hora_fin, p.titulo, p.tipo, p.id]
+    );
+  }
+}
+
+function hhmm(valor) {
+  const s = String(valor || '');
+  return s.length >= 5 ? s.slice(0, 5) : s;
+}
+
+function solapaHora(iniA, finA, iniB, finB) {
+  return hhmm(iniA) < hhmm(finB) && hhmm(iniB) < hhmm(finA);
 }
 
 function padCodigo(prefijo, id) {
@@ -164,6 +239,10 @@ module.exports = {
   requireSgoi,
   asegurarAreaSistemas,
   obtenerActivo,
+  asegurarPlantilla,
+  materializarDia,
+  hhmm,
+  solapaHora,
   padCodigo,
   segundosEntre,
   sanitizarTexto,

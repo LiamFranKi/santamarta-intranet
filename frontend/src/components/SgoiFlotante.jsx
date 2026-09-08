@@ -78,12 +78,11 @@ export default function SgoiFlotante() {
 
   if (!visible) return null;
 
-  const iniciar = async (kind) => {
+  const iniciarCaso = async () => {
     setError('');
     setCargando(true);
     try {
-      const url = kind === 'CASO' ? '/sgoi/casos/iniciar' : '/sgoi/trabajos/iniciar';
-      const { data } = await api.post(url, kind === 'CASO' ? {} : { tipo: 'DESARROLLO' });
+      const { data } = await api.post('/sgoi/casos/iniciar', {});
       setActivo(data?.activo || null);
       setAbierto(true);
       notificarCambioSgoi();
@@ -129,23 +128,20 @@ export default function SgoiFlotante() {
           {!activo ? (
             <>
               <div className="sgoi-float-head">
-                <strong>Gestión operativa</strong>
-                <span>El reloj empieza con el clic.</span>
+                <strong>Atender caso</strong>
+                <span>El horario del día sigue en Mi día. Aquí solo se registra la interrupción.</span>
               </div>
               {error ? <div className="sgoi-float-error">{error}</div> : null}
               <div className="sgoi-float-actions">
-                <button type="button" className="sgoi-float-btn sgoi-float-btn-caso" disabled={cargando} onClick={() => iniciar('CASO')}>
+                <button type="button" className="sgoi-float-btn sgoi-float-btn-caso" disabled={cargando} onClick={iniciarCaso}>
                   Atender caso
-                </button>
-                <button type="button" className="sgoi-float-btn sgoi-float-btn-trabajo" disabled={cargando} onClick={() => iniciar('TRABAJO')}>
-                  Registrar trabajo
                 </button>
               </div>
             </>
           ) : (
             <>
               <div className="sgoi-float-head">
-                <strong>{activo.kind === 'CASO' ? 'Caso en curso' : 'Trabajo en curso'}</strong>
+                <strong>Caso en curso</strong>
                 <span className="sgoi-float-timer">{formatDuracionSeg(transcurrido)} · {activo.codigo}</span>
               </div>
               {error ? <div className="sgoi-float-error">{error}</div> : null}
@@ -156,31 +152,17 @@ export default function SgoiFlotante() {
                   value={form.titulo}
                   maxLength={200}
                   onChange={(e) => setForm((p) => ({ ...p, titulo: e.target.value }))}
-                  placeholder={activo.kind === 'CASO' ? 'Ej. Proyector sin señal' : 'Ej. Módulo de pagos'}
+                  placeholder="Ej. Proyector sin señal"
                 />
               </label>
-              {activo.kind === 'CASO' ? (
-                <label className="sgoi-float-label">
-                  Prioridad
-                  <select value={form.prioridad} onChange={(e) => setForm((p) => ({ ...p, prioridad: e.target.value }))}>
-                    <option value="NORMAL">Normal</option>
-                    <option value="ALTA">Alta</option>
-                    <option value="URGENTE">Urgente</option>
-                  </select>
-                </label>
-              ) : (
-                <label className="sgoi-float-label">
-                  Tipo
-                  <select value={form.tipo} onChange={(e) => setForm((p) => ({ ...p, tipo: e.target.value }))}>
-                    <option value="DESARROLLO">Desarrollo</option>
-                    <option value="SOPORTE">Soporte</option>
-                    <option value="PAGOS">Pagos</option>
-                    <option value="DESPLIEGUE">Despliegue</option>
-                    <option value="REUNION">Reunión</option>
-                    <option value="OTRO">Otro</option>
-                  </select>
-                </label>
-              )}
+              <label className="sgoi-float-label">
+                Prioridad
+                <select value={form.prioridad} onChange={(e) => setForm((p) => ({ ...p, prioridad: e.target.value }))}>
+                  <option value="NORMAL">Normal</option>
+                  <option value="ALTA">Alta</option>
+                  <option value="URGENTE">Urgente</option>
+                </select>
+              </label>
               <label className="sgoi-float-label">
                 Qué pasó
                 <textarea
@@ -191,8 +173,8 @@ export default function SgoiFlotante() {
                 />
               </label>
               <div className="sgoi-float-actions">
-                <button type="button" className="sgoi-float-btn sgoi-float-btn-ok" disabled={cargando} onClick={() => cerrar(activo.kind === 'CASO' ? 'RESUELTO' : 'HECHO')}>
-                  {activo.kind === 'CASO' ? 'Resuelto' : 'Hecho'}
+                <button type="button" className="sgoi-float-btn sgoi-float-btn-ok" disabled={cargando} onClick={() => cerrar('RESUELTO')}>
+                  Resuelto
                 </button>
                 <button type="button" className="sgoi-float-btn sgoi-float-btn-pend" disabled={cargando} onClick={() => cerrar('PENDIENTE')}>
                   Dejar pendiente

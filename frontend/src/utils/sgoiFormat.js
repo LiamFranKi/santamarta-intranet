@@ -43,6 +43,8 @@ export function etiquetaEstado(estado) {
   return map[estado] || estado || '';
 }
 
+export const SGOI_TIPOS_FRANJA = ['DESARROLLO', 'SOPORTE', 'PAGOS', 'DESPLIEGUE', 'REUNION', 'DESCANSO', 'OTRO'];
+
 export function etiquetaTipoTrabajo(tipo) {
   const map = {
     DESARROLLO: 'Desarrollo',
@@ -50,9 +52,17 @@ export function etiquetaTipoTrabajo(tipo) {
     PAGOS: 'Pagos',
     DESPLIEGUE: 'Despliegue',
     REUNION: 'Reunión',
+    DESCANSO: 'Descanso',
     OTRO: 'Otro',
   };
   return map[tipo] || tipo || '';
+}
+
+export function etiquetaDiaCorto(iso) {
+  const raw = String(iso || '').slice(0, 10);
+  const [y, m, d] = raw.split('-').map((n) => parseInt(n, 10));
+  if (!y || !m || !d) return raw;
+  return new Date(y, m - 1, d).toLocaleDateString('es-PE', { weekday: 'short', day: 'numeric' });
 }
 
 export function notificarCambioSgoi() {

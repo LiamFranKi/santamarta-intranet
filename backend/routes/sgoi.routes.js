@@ -15,6 +15,10 @@ const {
   requireSgoi,
   asegurarAreaSistemas,
   obtenerActivo,
+  asegurarPlantilla,
+  materializarDia,
+  hhmm,
+  solapaHora,
   padCodigo,
   segundosEntre,
   sanitizarTexto,
@@ -61,20 +65,61 @@ router.get('/me', async (req, res) => {
   }
 });
 
+function asTime(valor) {
+  const s = String(valor || '').trim();
+  if (/^\d{2}:\d{2}$/.test(s)) return `${s}:00`;
+  if (/^\d{2}:\d{2}:\d{2}$/.test(s)) return s;
+  return '';
+}
+
+function num(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function rangoLima(desde, hasta) {
+  return {
+    desdeAt: `${desde} 00:00:00`,
+    hastaExcl: moment.tz(hasta, 'YYYY-MM-DD', 'America/Lima').add(1, 'day').format('YYYY-MM-DD') + ' 00:00:00',
+  };
+}
+
+function cadaDia(desde, hasta) {
+  const days = [];
+  const cur = moment.tz(desde, 'YYYY-MM-DD', 'America/Lima');
+  const end = moment.tz(hasta, 'YYYY-MM-DD', 'America/Lima');
+  while (!cur.isAfter(end, 'day')) {
+    days.push(cur.format('YYYY-MM-DD'));
+    cur.add(1, 'day');
+  }
+  return days;
+}
+
 router.get('/dia', async (req, res) => {
   try {
-    const { colegio_id } = await contextoUsuario(req);
+    const { colegio_id, usuario_id } = await contextoUsuario(req);
     const fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.fecha || ''))
       ? String(req.query.fecha)
       : fechaMySQLLima();
     const usuarioFiltro = parseInt(req.query.usuario_id, 10);
-    const paramsBase = [colegio_id, fecha];
-    let extra = '';
-    if (Number.isFinite(usuarioFiltro) && usuarioFiltro > 0) {
-      extra = ' AND x.usuario_id = ?';
-      paramsBase.push(usuarioFiltro);
+    const uid = Number.isFinite(usuarioFiltro) && usuarioFiltro > 0 ? usuarioFiltro : usuario_id;
+
+    let bloques = [];
+    try {
+      await materializarDia(colegio_id, uid, fecha);
+      bloques = await query(
+        `SELECT id, fecha, hora_ini, hora_fin, titulo, tipo, plantilla_id
+         FROM sgoi_dia_bloques
+         WHERE colegio_id = ? AND usuario_id = ? AND fecha = ?
+         ORDER BY hora_ini ASC`,
+        [colegio_id, uid, fecha]
+      );
+    } catch (e) {
+      if (!tableMissing(e)) throw e;
     }
 
+    const extra = uid ? ' AND x.usuario_id = ?' : '';
+    const paramsCasos = [colegio_id, `${fecha} 00:00:00`, `${fecha} 23:59:59`, uid];
     const casos = await query(
       `SELECT x.id, x.codigo, x.titulo, x.nota, x.estado, x.prioridad, x.inicio_at, x.fin_at,
               x.duracion_seg, x.usuario_id, ${nombreUsuarioSql()} AS usuario_nombre,
@@ -82,9 +127,9 @@ router.get('/dia', async (req, res) => {
        FROM sgoi_casos x
        LEFT JOIN usuarios u ON u.id = x.usuario_id
        LEFT JOIN personal p ON p.id = u.personal_id
-       WHERE x.colegio_id = ? AND DATE(x.inicio_at) = ?${extra}
+       WHERE x.colegio_id = ? AND x.inicio_at >= ? AND x.inicio_at <= ?${extra}
        ORDER BY x.inicio_at ASC`,
-      paramsBase
+      paramsCasos
     );
     const trabajos = await query(
       `SELECT x.id, x.codigo, x.titulo, x.nota, x.estado, NULL AS prioridad, x.inicio_at, x.fin_at,
@@ -93,15 +138,33 @@ router.get('/dia', async (req, res) => {
        FROM sgoi_trabajos x
        LEFT JOIN usuarios u ON u.id = x.usuario_id
        LEFT JOIN personal p ON p.id = u.personal_id
-       WHERE x.colegio_id = ? AND DATE(x.inicio_at) = ?${extra}
+       WHERE x.colegio_id = ? AND x.inicio_at >= ? AND x.inicio_at <= ?${extra}
        ORDER BY x.inicio_at ASC`,
-      paramsBase
+      paramsCasos
     );
 
+    const usados = new Set();
+    const bloquesOut = bloques.map((b) => {
+      const interrupciones = casos.filter((c) => {
+        const horaIni = String(c.inicio_at).replace('T', ' ').slice(11, 16);
+        const horaFin = c.fin_at ? String(c.fin_at).replace('T', ' ').slice(11, 16) : horaIni;
+        if (!solapaHora(b.hora_ini, b.hora_fin, horaIni, horaFin)) return false;
+        usados.add(`c-${c.id}`);
+        return true;
+      });
+      return {
+        ...b,
+        hora_ini: hhmm(b.hora_ini),
+        hora_fin: hhmm(b.hora_fin),
+        descanso: b.tipo === 'DESCANSO',
+        interrupciones,
+      };
+    });
+    const casosSueltos = casos.filter((c) => !usados.has(`c-${c.id}`));
     const items = [...casos, ...trabajos].sort((a, b) =>
       String(a.inicio_at).localeCompare(String(b.inicio_at))
     );
-    res.json({ fecha, items });
+    res.json({ fecha, bloques: bloquesOut, casos_sueltos: casosSueltos, items });
   } catch (e) {
     return handleSgoiError(res, e, 'dia');
   }
@@ -118,37 +181,58 @@ router.get('/tablero', async (req, res) => {
       desde = m.clone().isoWeekday(1).format('YYYY-MM-DD');
       hasta = m.clone().isoWeekday(7).format('YYYY-MM-DD');
     }
+    const { desdeAt, hastaExcl } = rangoLima(desde, hasta);
 
     const casos = await query(
       `SELECT estado, COUNT(*) AS n, COALESCE(SUM(duracion_seg),0) AS segundos
        FROM sgoi_casos
-       WHERE colegio_id = ? AND DATE(inicio_at) BETWEEN ? AND ?
+       WHERE colegio_id = ? AND inicio_at >= ? AND inicio_at < ?
        GROUP BY estado`,
-      [colegio_id, desde, hasta]
+      [colegio_id, desdeAt, hastaExcl]
     );
     const trabajos = await query(
       `SELECT estado, tipo, COUNT(*) AS n, COALESCE(SUM(duracion_seg),0) AS segundos
        FROM sgoi_trabajos
-       WHERE colegio_id = ? AND DATE(inicio_at) BETWEEN ? AND ?
+       WHERE colegio_id = ? AND inicio_at >= ? AND inicio_at < ?
        GROUP BY estado, tipo`,
-      [colegio_id, desde, hasta]
+      [colegio_id, desdeAt, hastaExcl]
     );
     const pendientesAbiertos = await query(
       `SELECT COUNT(*) AS n FROM sgoi_pendientes
        WHERE colegio_id = ? AND estado IN ('ABIERTO','EN_CURSO')`,
       [colegio_id]
     );
+    const porDia = await query(
+      `SELECT dia, SUM(casos) AS casos, SUM(trabajos) AS trabajos,
+              SUM(seg_casos) AS seg_casos, SUM(seg_trabajos) AS seg_trabajos
+       FROM (
+         SELECT DATE_FORMAT(inicio_at, '%Y-%m-%d') AS dia, COUNT(*) AS casos, 0 AS trabajos,
+                COALESCE(SUM(duracion_seg),0) AS seg_casos, 0 AS seg_trabajos
+         FROM sgoi_casos
+         WHERE colegio_id = ? AND inicio_at >= ? AND inicio_at < ?
+         GROUP BY DATE_FORMAT(inicio_at, '%Y-%m-%d')
+         UNION ALL
+         SELECT DATE_FORMAT(inicio_at, '%Y-%m-%d') AS dia, 0 AS casos, COUNT(*) AS trabajos,
+                0 AS seg_casos, COALESCE(SUM(duracion_seg),0) AS seg_trabajos
+         FROM sgoi_trabajos
+         WHERE colegio_id = ? AND inicio_at >= ? AND inicio_at < ?
+         GROUP BY DATE_FORMAT(inicio_at, '%Y-%m-%d')
+       ) z
+       GROUP BY dia
+       ORDER BY dia ASC`,
+      [colegio_id, desdeAt, hastaExcl, colegio_id, desdeAt, hastaExcl]
+    );
     const recientes = await query(
       `SELECT * FROM (
-         SELECT id, codigo, titulo, estado, inicio_at, fin_at, duracion_seg, usuario_id, 'CASO' AS kind
-         FROM sgoi_casos WHERE colegio_id = ? AND DATE(inicio_at) BETWEEN ? AND ?
+         SELECT id, codigo, titulo, estado, inicio_at, fin_at, duracion_seg, usuario_id, 'CASO' AS kind, NULL AS tipo
+         FROM sgoi_casos WHERE colegio_id = ? AND inicio_at >= ? AND inicio_at < ?
          UNION ALL
-         SELECT id, codigo, titulo, estado, inicio_at, fin_at, duracion_seg, usuario_id, 'TRABAJO' AS kind
-         FROM sgoi_trabajos WHERE colegio_id = ? AND DATE(inicio_at) BETWEEN ? AND ?
+         SELECT id, codigo, titulo, estado, inicio_at, fin_at, duracion_seg, usuario_id, 'TRABAJO' AS kind, tipo
+         FROM sgoi_trabajos WHERE colegio_id = ? AND inicio_at >= ? AND inicio_at < ?
        ) z
        ORDER BY inicio_at DESC
        LIMIT 12`,
-      [colegio_id, desde, hasta, colegio_id, desde, hasta]
+      [colegio_id, desdeAt, hastaExcl, colegio_id, desdeAt, hastaExcl]
     );
     const abiertos = await query(
       `SELECT * FROM (
@@ -162,21 +246,19 @@ router.get('/tablero', async (req, res) => {
       [colegio_id, colegio_id]
     );
 
-    const casosMap = Object.fromEntries(casos.map((r) => [r.estado, r]));
-    const casosTotal = casos.reduce((s, r) => s + Number(r.n || 0), 0);
-    const casosResueltos = Number(casosMap.RESUELTO?.n || 0);
-    const segSoporte = Number(casosMap.RESUELTO?.segundos || 0)
-      + Number(casosMap.PENDIENTE?.segundos || 0)
-      + Number(casosMap.EN_CURSO?.segundos || 0)
-      + trabajos
-        .filter((t) => t.tipo === 'SOPORTE')
-        .reduce((s, t) => s + Number(t.segundos || 0), 0);
-    const segDesarrollo = trabajos
-      .filter((t) => t.tipo === 'DESARROLLO' || t.tipo === 'DESPLIEGUE')
-      .reduce((s, t) => s + Number(t.segundos || 0), 0);
-    const trabajosHechos = trabajos
-      .filter((t) => t.estado === 'HECHO')
-      .reduce((s, t) => s + Number(t.n || 0), 0);
+    const casosTotal = casos.reduce((s, r) => s + num(r.n), 0);
+    const casosResueltos = num(casos.find((r) => r.estado === 'RESUELTO')?.n);
+    const casosPendientes = num(casos.find((r) => r.estado === 'PENDIENTE')?.n);
+    const casosEnCurso = num(casos.find((r) => r.estado === 'EN_CURSO')?.n);
+    const trabajosTotal = trabajos.reduce((s, r) => s + num(r.n), 0);
+    const trabajosHechos = trabajos.filter((t) => t.estado === 'HECHO').reduce((s, t) => s + num(t.n), 0);
+    const segCasos = casos.reduce((s, r) => s + num(r.segundos), 0);
+    const segTrabajos = trabajos.reduce((s, r) => s + num(r.segundos), 0);
+    const porTipo = {};
+    trabajos.forEach((t) => {
+      const k = t.tipo || 'OTRO';
+      porTipo[k] = (porTipo[k] || 0) + num(t.n);
+    });
 
     res.json({
       desde,
@@ -184,13 +266,27 @@ router.get('/tablero', async (req, res) => {
       resumen: {
         casos_total: casosTotal,
         casos_resueltos: casosResueltos,
-        casos_pendientes: Number(casosMap.PENDIENTE?.n || 0),
-        casos_en_curso: Number(casosMap.EN_CURSO?.n || 0),
+        casos_pendientes: casosPendientes,
+        casos_en_curso: casosEnCurso,
+        trabajos_total: trabajosTotal,
         trabajos_hechos: trabajosHechos,
-        pendientes_abiertos: Number(pendientesAbiertos[0]?.n || 0),
-        segundos_soporte: segSoporte,
-        segundos_desarrollo: segDesarrollo,
+        pendientes_abiertos: num(pendientesAbiertos[0]?.n),
+        segundos_casos: segCasos,
+        segundos_trabajos: segTrabajos,
+        segundos_soporte: segCasos + num(trabajos.filter((t) => t.tipo === 'SOPORTE').reduce((s, t) => s + num(t.segundos), 0)),
+        segundos_desarrollo: num(trabajos.filter((t) => t.tipo === 'DESARROLLO' || t.tipo === 'DESPLIEGUE').reduce((s, t) => s + num(t.segundos), 0)),
       },
+      por_dia: cadaDia(desde, hasta).map((fecha) => {
+        const d = porDia.find((row) => String(row.dia || '').slice(0, 10) === fecha);
+        return {
+          fecha,
+          casos: num(d?.casos),
+          trabajos: num(d?.trabajos),
+          seg_casos: num(d?.seg_casos),
+          seg_trabajos: num(d?.seg_trabajos),
+        };
+      }),
+      por_tipo: porTipo,
       recientes,
       en_curso: abiertos,
     });
@@ -226,6 +322,109 @@ async function listarEntidad(req, res, kind) {
   );
   res.json({ items: rows });
 }
+
+router.get('/horario', async (req, res) => {
+  try {
+    const { colegio_id, usuario_id } = await contextoUsuario(req);
+    await asegurarPlantilla(colegio_id, usuario_id);
+    const rows = await query(
+      `SELECT id, weekday, hora_ini, hora_fin, titulo, tipo, orden
+       FROM sgoi_plantilla_bloques
+       WHERE colegio_id = ? AND usuario_id = ?
+       ORDER BY weekday ASC, hora_ini ASC`,
+      [colegio_id, usuario_id]
+    );
+    const dias = [1, 2, 3, 4, 5, 6, 7].map((wd) => ({
+      weekday: wd,
+      bloques: rows
+        .filter((r) => Number(r.weekday) === wd)
+        .map((r) => ({ ...r, hora_ini: hhmm(r.hora_ini), hora_fin: hhmm(r.hora_fin) })),
+    }));
+    res.json({ dias });
+  } catch (e) {
+    return handleSgoiError(res, e, 'horario');
+  }
+});
+
+router.put('/horario/dia/:bloqueId', async (req, res) => {
+  try {
+    const { colegio_id, usuario_id } = await contextoUsuario(req);
+    const id = parseInt(req.params.bloqueId, 10);
+    const alcance = String(req.body?.alcance || 'DIA').toUpperCase() === 'SIEMPRE' ? 'SIEMPRE' : 'DIA';
+    const titulo = sanitizarTexto(req.body?.titulo, 160);
+    const tipo = sanitizarTexto(req.body?.tipo, 24) || 'DESARROLLO';
+    const horaIni = asTime(req.body?.hora_ini) || row[0].hora_ini;
+    const horaFin = asTime(req.body?.hora_fin) || row[0].hora_fin;
+    const row = await query(
+      `SELECT * FROM sgoi_dia_bloques WHERE id = ? AND colegio_id = ? AND usuario_id = ? LIMIT 1`,
+      [id, colegio_id, usuario_id]
+    );
+    if (!row[0]) return res.status(404).json({ error: 'Franja no encontrada.' });
+    await execute(
+      `UPDATE sgoi_dia_bloques SET titulo = ?, tipo = ?, hora_ini = ?, hora_fin = ?
+       WHERE id = ? AND colegio_id = ?`,
+      [titulo || row[0].titulo, tipo, horaIni || row[0].hora_ini, horaFin || row[0].hora_fin, id, colegio_id]
+    );
+    if (alcance === 'SIEMPRE' && row[0].plantilla_id) {
+      await execute(
+        `UPDATE sgoi_plantilla_bloques SET titulo = ?, tipo = ?, hora_ini = ?, hora_fin = ?
+         WHERE id = ? AND colegio_id = ? AND usuario_id = ?`,
+        [titulo || row[0].titulo, tipo, horaIni || row[0].hora_ini, horaFin || row[0].hora_fin, row[0].plantilla_id, colegio_id, usuario_id]
+      );
+    }
+    res.json({ ok: true, alcance });
+  } catch (e) {
+    return handleSgoiError(res, e, 'horario/dia');
+  }
+});
+
+router.post('/horario/dia', async (req, res) => {
+  try {
+    const { colegio_id, usuario_id } = await contextoUsuario(req);
+    const fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(req.body?.fecha || ''))
+      ? String(req.body.fecha)
+      : fechaMySQLLima();
+    await materializarDia(colegio_id, usuario_id, fecha);
+    const titulo = sanitizarTexto(req.body?.titulo, 160);
+    if (!titulo) return res.status(400).json({ error: 'El título es obligatorio.' });
+    const ins = await execute(
+      `INSERT INTO sgoi_dia_bloques
+        (colegio_id, usuario_id, fecha, hora_ini, hora_fin, titulo, tipo)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        colegio_id,
+        usuario_id,
+        fecha,
+        asTime(req.body?.hora_ini) || '08:00:00',
+        asTime(req.body?.hora_fin) || '09:00:00',
+        titulo,
+        sanitizarTexto(req.body?.tipo, 24) || 'DESARROLLO',
+      ]
+    );
+    res.status(201).json({ id: ins.insertId });
+  } catch (e) {
+    return handleSgoiError(res, e, 'horario/dia-crear');
+  }
+});
+
+router.delete('/horario/dia/:bloqueId', async (req, res) => {
+  try {
+    const { colegio_id, usuario_id } = await contextoUsuario(req);
+    const id = parseInt(req.params.bloqueId, 10);
+    const row = await query(
+      `SELECT id FROM sgoi_dia_bloques WHERE id = ? AND colegio_id = ? AND usuario_id = ? LIMIT 1`,
+      [id, colegio_id, usuario_id]
+    );
+    if (!row[0]) return res.status(404).json({ error: 'Franja no encontrada.' });
+    await execute(
+      `DELETE FROM sgoi_dia_bloques WHERE id = ? AND colegio_id = ? AND usuario_id = ?`,
+      [id, colegio_id, usuario_id]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    return handleSgoiError(res, e, 'horario/dia-borrar');
+  }
+});
 
 router.get('/casos', async (req, res) => {
   try {
@@ -545,22 +744,13 @@ router.post('/pendientes/:id/continuar', async (req, res) => {
     if (!rows[0]) {
       return res.status(404).json({ error: 'Pendiente no encontrado.' });
     }
-    const activo = await obtenerActivo(ctx.colegio_id, ctx.usuario_id);
-    if (activo) {
-      return res.status(409).json({
-        error: 'Ya tienes algo en curso. Ciérralo antes de continuar este pendiente.',
-        activo,
-      });
-    }
     const como = String(req.body?.como || 'CASO').toUpperCase() === 'TRABAJO' ? 'TRABAJO' : 'CASO';
     const ahora = fechaHoraMySQLLima();
-    let ins;
-    let codigo;
     if (como === 'TRABAJO') {
-      ins = await execute(
+      const ins = await execute(
         `INSERT INTO sgoi_trabajos
-          (colegio_id, area_id, usuario_id, personal_id, pendiente_id, codigo, tipo, titulo, estado, inicio_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'DESARROLLO', ?, 'EN_CURSO', ?)`,
+          (colegio_id, area_id, usuario_id, personal_id, pendiente_id, codigo, tipo, titulo, estado, inicio_at, fin_at, duracion_seg, nota)
+         VALUES (?, ?, ?, ?, ?, ?, 'DESARROLLO', ?, 'HECHO', ?, ?, 0, ?)`,
         [
           ctx.colegio_id,
           ctx.area_id,
@@ -570,44 +760,57 @@ router.post('/pendientes/:id/continuar', async (req, res) => {
           'TMP',
           rows[0].titulo,
           ahora,
+          ahora,
+          sanitizarTexto(rows[0].descripcion, 4000) || 'Registrado desde pendientes.',
         ]
       );
-      codigo = padCodigo('TRB', ins.insertId);
+      const codigo = padCodigo('TRB', ins.insertId);
       await execute('UPDATE sgoi_trabajos SET codigo = ? WHERE id = ? AND colegio_id = ?', [
         codigo,
         ins.insertId,
         ctx.colegio_id,
       ]);
-    } else {
-      ins = await execute(
-        `INSERT INTO sgoi_casos
-          (colegio_id, area_id, usuario_id, personal_id, pendiente_id, codigo, titulo, prioridad, estado, inicio_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'EN_CURSO', ?)`,
-        [
-          ctx.colegio_id,
-          ctx.area_id,
-          ctx.usuario_id,
-          ctx.personal_id,
-          rows[0].id,
-          'TMP',
-          rows[0].titulo,
-          rows[0].prioridad || 'NORMAL',
-          ahora,
-        ]
+      await execute(
+        `UPDATE sgoi_pendientes SET estado = 'HECHO' WHERE id = ? AND colegio_id = ?`,
+        [rows[0].id, ctx.colegio_id]
       );
-      codigo = padCodigo('CAS', ins.insertId);
-      await execute('UPDATE sgoi_casos SET codigo = ? WHERE id = ? AND colegio_id = ?', [
-        codigo,
-        ins.insertId,
-        ctx.colegio_id,
-      ]);
+      return res.status(201).json({ ok: true, kind: 'TRABAJO', id: ins.insertId, codigo });
     }
+    const activo = await obtenerActivo(ctx.colegio_id, ctx.usuario_id);
+    if (activo) {
+      return res.status(409).json({
+        error: 'Ya tienes un caso en curso. Ciérralo antes de continuar este pendiente.',
+        activo,
+      });
+    }
+    const ins = await execute(
+      `INSERT INTO sgoi_casos
+        (colegio_id, area_id, usuario_id, personal_id, pendiente_id, codigo, titulo, prioridad, estado, inicio_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'EN_CURSO', ?)`,
+      [
+        ctx.colegio_id,
+        ctx.area_id,
+        ctx.usuario_id,
+        ctx.personal_id,
+        rows[0].id,
+        'TMP',
+        rows[0].titulo,
+        rows[0].prioridad || 'NORMAL',
+        ahora,
+      ]
+    );
+    const codigo = padCodigo('CAS', ins.insertId);
+    await execute('UPDATE sgoi_casos SET codigo = ? WHERE id = ? AND colegio_id = ?', [
+      codigo,
+      ins.insertId,
+      ctx.colegio_id,
+    ]);
     await execute(
       `UPDATE sgoi_pendientes SET estado = 'EN_CURSO' WHERE id = ? AND colegio_id = ?`,
       [rows[0].id, ctx.colegio_id]
     );
     const creado = await obtenerActivo(ctx.colegio_id, ctx.usuario_id);
-    res.status(201).json({ activo: creado });
+    res.status(201).json({ activo: creado, kind: 'CASO', codigo });
   } catch (e) {
     return handleSgoiError(res, e, 'pendientes/continuar');
   }
@@ -677,19 +880,24 @@ router.put('/trabajos/:id', async (req, res) => {
     if (!['EN_CURSO', 'HECHO', 'PENDIENTE'].includes(estado)) {
       return res.status(400).json({ error: 'Estado inválido.' });
     }
-    if (rows[0].estado === 'EN_CURSO' && estado !== 'EN_CURSO') {
-      return res.status(400).json({
-        error: 'Un trabajo en curso se cierra desde el flotante (Hecho o Pendiente).',
-      });
-    }
     if (estado === 'EN_CURSO' && rows[0].estado !== 'EN_CURSO') {
       return res.status(400).json({ error: 'No se puede reabrir un trabajo como en curso desde aquí.' });
     }
-    await execute(
-      `UPDATE sgoi_trabajos SET titulo = ?, nota = ?, tipo = ?, estado = ?
-       WHERE id = ? AND colegio_id = ?`,
-      [titulo || rows[0].titulo, nota, tipo, estado, id, ctx.colegio_id]
-    );
+    const tituloFinal = titulo || rows[0].titulo;
+    if (rows[0].estado === 'EN_CURSO' && estado !== 'EN_CURSO') {
+      const ahora = fechaHoraMySQLLima();
+      await execute(
+        `UPDATE sgoi_trabajos SET titulo = ?, nota = ?, tipo = ?, estado = ?, fin_at = ?, duracion_seg = ?
+         WHERE id = ? AND colegio_id = ?`,
+        [tituloFinal, nota, tipo, estado, ahora, segundosEntre(rows[0].inicio_at, ahora), id, ctx.colegio_id]
+      );
+    } else {
+      await execute(
+        `UPDATE sgoi_trabajos SET titulo = ?, nota = ?, tipo = ?, estado = ?
+         WHERE id = ? AND colegio_id = ?`,
+        [tituloFinal, nota, tipo, estado, id, ctx.colegio_id]
+      );
+    }
     auditarSgoi(req, { accion: 'EDITAR', entidad: 'trabajo', entidad_id: id, descripcion: titulo || rows[0].codigo });
     const updated = await query(`SELECT * FROM sgoi_trabajos WHERE id = ? AND colegio_id = ?`, [id, ctx.colegio_id]);
     res.json({ trabajo: updated[0] });
