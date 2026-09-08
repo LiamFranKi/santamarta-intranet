@@ -13,6 +13,7 @@ const {
   tableMissing,
   sgoiNoTablePayload,
   requireSgoi,
+  esTipoHorarioSgoi,
   asegurarAreaSistemas,
   obtenerActivo,
   asegurarPlantilla,
@@ -30,6 +31,13 @@ const {
 const router = express.Router();
 router.use(authenticateToken);
 router.use(requireSgoi);
+
+function requireHorarioAdmin(req, res, next) {
+  if (!esTipoHorarioSgoi(req.user?.tipo)) {
+    return res.status(403).json({ error: 'El horario de Sistemas solo está disponible para Administrador.' });
+  }
+  return next();
+}
 
 function handleSgoiError(res, e, etiqueta) {
   if (tableMissing(e)) {
@@ -106,14 +114,16 @@ router.get('/dia', async (req, res) => {
 
     let bloques = [];
     try {
-      await materializarDia(colegio_id, uid, fecha);
-      bloques = await query(
-        `SELECT id, fecha, hora_ini, hora_fin, titulo, tipo, plantilla_id
-         FROM sgoi_dia_bloques
-         WHERE colegio_id = ? AND usuario_id = ? AND fecha = ?
-         ORDER BY hora_ini ASC`,
-        [colegio_id, uid, fecha]
-      );
+      if (esTipoHorarioSgoi(req.user?.tipo)) {
+        await materializarDia(colegio_id, uid, fecha);
+        bloques = await query(
+          `SELECT id, fecha, hora_ini, hora_fin, titulo, tipo, plantilla_id
+           FROM sgoi_dia_bloques
+           WHERE colegio_id = ? AND usuario_id = ? AND fecha = ?
+           ORDER BY hora_ini ASC`,
+          [colegio_id, uid, fecha]
+        );
+      }
     } catch (e) {
       if (!tableMissing(e)) throw e;
     }
@@ -323,7 +333,7 @@ async function listarEntidad(req, res, kind) {
   res.json({ items: rows });
 }
 
-router.get('/horario', async (req, res) => {
+router.get('/horario', requireHorarioAdmin, async (req, res) => {
   try {
     const { colegio_id, usuario_id } = await contextoUsuario(req);
     await asegurarPlantilla(colegio_id, usuario_id);
@@ -346,30 +356,156 @@ router.get('/horario', async (req, res) => {
   }
 });
 
-router.put('/horario/dia/:bloqueId', async (req, res) => {
+function parseWeekday(valor) {
+  const n = parseInt(valor, 10);
+  return n >= 1 && n <= 7 ? n : 0;
+}
+
+function bloquesDesdeBody(body) {
+  const lista = Array.isArray(body?.bloques) ? body.bloques : [];
+  return lista
+    .map((b, i) => {
+      const titulo = sanitizarTexto(b?.titulo, 160);
+      if (!titulo) return null;
+      return {
+        hora_ini: asTime(b?.hora_ini) || '08:00:00',
+        hora_fin: asTime(b?.hora_fin) || '09:00:00',
+        titulo,
+        tipo: sanitizarTexto(b?.tipo, 24) || 'DESARROLLO',
+        orden: i + 1,
+      };
+    })
+    .filter(Boolean);
+}
+
+router.post('/horario/plantilla', requireHorarioAdmin, async (req, res) => {
+  try {
+    const { colegio_id, usuario_id } = await contextoUsuario(req);
+    await asegurarPlantilla(colegio_id, usuario_id);
+    const weekday = parseWeekday(req.body?.weekday);
+    const titulo = sanitizarTexto(req.body?.titulo, 160);
+    if (!weekday) return res.status(400).json({ error: 'Día inválido.' });
+    if (!titulo) return res.status(400).json({ error: 'El título es obligatorio.' });
+    const ins = await execute(
+      `INSERT INTO sgoi_plantilla_bloques
+        (colegio_id, usuario_id, weekday, hora_ini, hora_fin, titulo, tipo, orden)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        colegio_id,
+        usuario_id,
+        weekday,
+        asTime(req.body?.hora_ini) || '08:00:00',
+        asTime(req.body?.hora_fin) || '09:00:00',
+        titulo,
+        sanitizarTexto(req.body?.tipo, 24) || 'DESARROLLO',
+        parseInt(req.body?.orden, 10) || 99,
+      ]
+    );
+    res.status(201).json({ id: ins.insertId });
+  } catch (e) {
+    return handleSgoiError(res, e, 'horario/plantilla-crear');
+  }
+});
+
+router.put('/horario/semana/:weekday', requireHorarioAdmin, async (req, res) => {
+  try {
+    const { colegio_id, usuario_id } = await contextoUsuario(req);
+    const weekday = parseWeekday(req.params.weekday);
+    if (!weekday) return res.status(400).json({ error: 'Día inválido.' });
+    const bloques = bloquesDesdeBody(req.body);
+    if (!bloques.length) return res.status(400).json({ error: 'Indica al menos una franja.' });
+    await asegurarPlantilla(colegio_id, usuario_id);
+    await execute(
+      `DELETE FROM sgoi_plantilla_bloques
+       WHERE colegio_id = ? AND usuario_id = ? AND weekday = ?`,
+      [colegio_id, usuario_id, weekday]
+    );
+    for (const b of bloques) {
+      await execute(
+        `INSERT INTO sgoi_plantilla_bloques
+          (colegio_id, usuario_id, weekday, hora_ini, hora_fin, titulo, tipo, orden)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [colegio_id, usuario_id, weekday, b.hora_ini, b.hora_fin, b.titulo, b.tipo, b.orden]
+      );
+    }
+    res.json({ ok: true, weekday, n: bloques.length });
+  } catch (e) {
+    return handleSgoiError(res, e, 'horario/semana');
+  }
+});
+
+router.put('/horario/plantilla/:bloqueId', requireHorarioAdmin, async (req, res) => {
+  try {
+    const { colegio_id, usuario_id } = await contextoUsuario(req);
+    const id = parseInt(req.params.bloqueId, 10);
+    const row = await query(
+      `SELECT * FROM sgoi_plantilla_bloques WHERE id = ? AND colegio_id = ? AND usuario_id = ? LIMIT 1`,
+      [id, colegio_id, usuario_id]
+    );
+    if (!row[0]) return res.status(404).json({ error: 'Franja no encontrada.' });
+    const titulo = sanitizarTexto(req.body?.titulo, 160);
+    await execute(
+      `UPDATE sgoi_plantilla_bloques SET titulo = ?, tipo = ?, hora_ini = ?, hora_fin = ?
+       WHERE id = ? AND colegio_id = ? AND usuario_id = ?`,
+      [
+        titulo || row[0].titulo,
+        sanitizarTexto(req.body?.tipo, 24) || row[0].tipo,
+        asTime(req.body?.hora_ini) || row[0].hora_ini,
+        asTime(req.body?.hora_fin) || row[0].hora_fin,
+        id,
+        colegio_id,
+        usuario_id,
+      ]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    return handleSgoiError(res, e, 'horario/plantilla-editar');
+  }
+});
+
+router.delete('/horario/plantilla/:bloqueId', requireHorarioAdmin, async (req, res) => {
+  try {
+    const { colegio_id, usuario_id } = await contextoUsuario(req);
+    const id = parseInt(req.params.bloqueId, 10);
+    const row = await query(
+      `SELECT id FROM sgoi_plantilla_bloques WHERE id = ? AND colegio_id = ? AND usuario_id = ? LIMIT 1`,
+      [id, colegio_id, usuario_id]
+    );
+    if (!row[0]) return res.status(404).json({ error: 'Franja no encontrada.' });
+    await execute(
+      `DELETE FROM sgoi_plantilla_bloques WHERE id = ? AND colegio_id = ? AND usuario_id = ?`,
+      [id, colegio_id, usuario_id]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    return handleSgoiError(res, e, 'horario/plantilla-borrar');
+  }
+});
+
+router.put('/horario/dia/:bloqueId', requireHorarioAdmin, async (req, res) => {
   try {
     const { colegio_id, usuario_id } = await contextoUsuario(req);
     const id = parseInt(req.params.bloqueId, 10);
     const alcance = String(req.body?.alcance || 'DIA').toUpperCase() === 'SIEMPRE' ? 'SIEMPRE' : 'DIA';
     const titulo = sanitizarTexto(req.body?.titulo, 160);
     const tipo = sanitizarTexto(req.body?.tipo, 24) || 'DESARROLLO';
-    const horaIni = asTime(req.body?.hora_ini) || row[0].hora_ini;
-    const horaFin = asTime(req.body?.hora_fin) || row[0].hora_fin;
     const row = await query(
       `SELECT * FROM sgoi_dia_bloques WHERE id = ? AND colegio_id = ? AND usuario_id = ? LIMIT 1`,
       [id, colegio_id, usuario_id]
     );
     if (!row[0]) return res.status(404).json({ error: 'Franja no encontrada.' });
+    const horaIni = asTime(req.body?.hora_ini) || row[0].hora_ini;
+    const horaFin = asTime(req.body?.hora_fin) || row[0].hora_fin;
     await execute(
       `UPDATE sgoi_dia_bloques SET titulo = ?, tipo = ?, hora_ini = ?, hora_fin = ?
        WHERE id = ? AND colegio_id = ?`,
-      [titulo || row[0].titulo, tipo, horaIni || row[0].hora_ini, horaFin || row[0].hora_fin, id, colegio_id]
+      [titulo || row[0].titulo, tipo, horaIni, horaFin, id, colegio_id]
     );
     if (alcance === 'SIEMPRE' && row[0].plantilla_id) {
       await execute(
         `UPDATE sgoi_plantilla_bloques SET titulo = ?, tipo = ?, hora_ini = ?, hora_fin = ?
          WHERE id = ? AND colegio_id = ? AND usuario_id = ?`,
-        [titulo || row[0].titulo, tipo, horaIni || row[0].hora_ini, horaFin || row[0].hora_fin, row[0].plantilla_id, colegio_id, usuario_id]
+        [titulo || row[0].titulo, tipo, horaIni, horaFin, row[0].plantilla_id, colegio_id, usuario_id]
       );
     }
     res.json({ ok: true, alcance });
@@ -378,7 +514,7 @@ router.put('/horario/dia/:bloqueId', async (req, res) => {
   }
 });
 
-router.post('/horario/dia', async (req, res) => {
+router.post('/horario/dia', requireHorarioAdmin, async (req, res) => {
   try {
     const { colegio_id, usuario_id } = await contextoUsuario(req);
     const fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(req.body?.fecha || ''))
@@ -407,7 +543,7 @@ router.post('/horario/dia', async (req, res) => {
   }
 });
 
-router.delete('/horario/dia/:bloqueId', async (req, res) => {
+router.delete('/horario/dia/:bloqueId', requireHorarioAdmin, async (req, res) => {
   try {
     const { colegio_id, usuario_id } = await contextoUsuario(req);
     const id = parseInt(req.params.bloqueId, 10);

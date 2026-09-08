@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, Navigate, useLocation } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import {
   ResponsiveContainer,
@@ -15,6 +15,7 @@ import {
   Cell,
 } from 'recharts';
 import DashboardLayout from '../../components/DashboardLayout';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import {
   SGOI_TIPOS_FRANJA,
@@ -25,7 +26,10 @@ import {
   formatFechaCorta,
   formatHoraItem,
   notificarCambioSgoi,
+  usuarioPuedeHorarioSgoi,
+  colorFranjaIgual,
 } from '../../utils/sgoiFormat';
+import { exportarHorarioSgoiPdf } from '../../utils/sgoiHorarioPdf';
 import './GestionOperativa.css';
 
 const COLORES_TIPO = {
@@ -111,6 +115,25 @@ function opcionesTipo(selected) {
   ).join('');
 }
 
+function htmlFilaPlantilla(b = {}) {
+  return `<div class="sgoi-day-row">
+    <input type="time" class="sgoi-r-ini" value="${escapeHtml(b.hora_ini || '08:00')}" />
+    <input type="time" class="sgoi-r-fin" value="${escapeHtml(b.hora_fin || '09:00')}" />
+    <input type="text" class="sgoi-r-tit" maxlength="160" placeholder="Actividad" value="${escapeHtml(b.titulo || '')}" />
+    <select class="sgoi-r-tipo">${opcionesTipo(b.tipo || 'DESARROLLO')}</select>
+    <button type="button" class="sgoi-r-del" title="Quitar franja">×</button>
+  </div>`;
+}
+
+function leerFilasPlantilla() {
+  return Array.from(document.querySelectorAll('#sgoi-day-rows .sgoi-day-row')).map((row) => ({
+    hora_ini: row.querySelector('.sgoi-r-ini')?.value,
+    hora_fin: row.querySelector('.sgoi-r-fin')?.value,
+    titulo: (row.querySelector('.sgoi-r-tit')?.value || '').trim(),
+    tipo: row.querySelector('.sgoi-r-tipo')?.value || 'DESARROLLO',
+  })).filter((b) => b.titulo);
+}
+
 function TooltipGestion({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
@@ -128,7 +151,9 @@ function TooltipGestion({ active, payload, label }) {
 
 export default function GestionOperativaPage() {
   const location = useLocation();
+  const { user } = useAuth();
   const vista = vistaDesdePath(location.pathname);
+  const puedeHorario = usuarioPuedeHorarioSgoi(user?.tipo);
   const [fecha, setFecha] = useState(fechaHoyLocal);
   const [dia, setDia] = useState({ bloques: [], casos_sueltos: [], items: [] });
   const [tablero, setTablero] = useState(null);
@@ -151,6 +176,7 @@ export default function GestionOperativaPage() {
         const { data } = await api.get('/sgoi/tablero');
         setTablero(data);
       } else if (vista === 'horario') {
+        if (!puedeHorario) return;
         const { data } = await api.get('/sgoi/horario');
         setHorario(Array.isArray(data.dias) ? data.dias : []);
       } else if (vista === 'casos') {
@@ -172,7 +198,7 @@ export default function GestionOperativaPage() {
     } finally {
       setLoading(false);
     }
-  }, [vista, fecha]);
+  }, [vista, fecha, puedeHorario]);
 
   useEffect(() => {
     cargar();
@@ -442,6 +468,177 @@ export default function GestionOperativaPage() {
     }
   };
 
+  const editarFranjaPlantilla = async (bloque) => {
+    const result = await Swal.fire({
+      title: 'Editar franja de la plantilla',
+      html: `
+        <label class="sgoi-swal-label">Título</label>
+        <input id="sgoi-titulo" class="swal2-input" maxlength="160" value="${escapeHtml(bloque.titulo)}" />
+        <div class="sgoi-swal-row">
+          <div>
+            <label class="sgoi-swal-label">Desde</label>
+            <input id="sgoi-hora-ini" class="swal2-input" type="time" value="${escapeHtml(bloque.hora_ini)}" />
+          </div>
+          <div>
+            <label class="sgoi-swal-label">Hasta</label>
+            <input id="sgoi-hora-fin" class="swal2-input" type="time" value="${escapeHtml(bloque.hora_fin)}" />
+          </div>
+        </div>
+        <label class="sgoi-swal-label">Tipo</label>
+        <select id="sgoi-tipo" class="swal2-input">${opcionesTipo(bloque.tipo || 'DESARROLLO')}</select>
+        <p class="sgoi-swal-hint">Cambia la plantilla de este día de la semana (para siempre). Mi día de hoy no se reescribe.</p>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Guardar',
+      cancelButtonText: 'Cancelar',
+      focusConfirm: false,
+      width: 480,
+      preConfirm: () => {
+        const titulo = document.getElementById('sgoi-titulo')?.value || '';
+        if (!titulo.trim()) {
+          Swal.showValidationMessage('El título es obligatorio');
+          return false;
+        }
+        return {
+          titulo: titulo.trim(),
+          hora_ini: document.getElementById('sgoi-hora-ini')?.value,
+          hora_fin: document.getElementById('sgoi-hora-fin')?.value,
+          tipo: document.getElementById('sgoi-tipo')?.value,
+        };
+      },
+    });
+    if (!result.isConfirmed || !result.value) return;
+    try {
+      await api.put(`/sgoi/horario/plantilla/${bloque.id}`, result.value);
+      notificarCambioSgoi();
+      await cargar();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e?.response?.data?.error || e.message });
+    }
+  };
+
+  const borrarFranjaPlantilla = async (bloque) => {
+    const ok = await Swal.fire({
+      icon: 'warning',
+      title: 'Quitar de la plantilla',
+      text: 'Se elimina de este día de la semana para siempre. Los días ya pasados no se tocan.',
+      showCancelButton: true,
+      confirmButtonText: 'Quitar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      await api.delete(`/sgoi/horario/plantilla/${bloque.id}`);
+      notificarCambioSgoi();
+      await cargar();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e?.response?.data?.error || e.message });
+    }
+  };
+
+  const agregarFranjaPlantilla = async (weekday, nombre) => {
+    const result = await Swal.fire({
+      title: `Nueva franja · ${nombre}`,
+      html: `
+        <label class="sgoi-swal-label">Título</label>
+        <input id="sgoi-titulo" class="swal2-input" maxlength="160" placeholder="Ej. Testing" />
+        <div class="sgoi-swal-row">
+          <div>
+            <label class="sgoi-swal-label">Desde</label>
+            <input id="sgoi-hora-ini" class="swal2-input" type="time" value="08:00" />
+          </div>
+          <div>
+            <label class="sgoi-swal-label">Hasta</label>
+            <input id="sgoi-hora-fin" class="swal2-input" type="time" value="09:00" />
+          </div>
+        </div>
+        <label class="sgoi-swal-label">Tipo</label>
+        <select id="sgoi-tipo" class="swal2-input">${opcionesTipo('DESARROLLO')}</select>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Agregar',
+      cancelButtonText: 'Cancelar',
+      focusConfirm: false,
+      preConfirm: () => {
+        const titulo = document.getElementById('sgoi-titulo')?.value || '';
+        if (!titulo.trim()) {
+          Swal.showValidationMessage('El título es obligatorio');
+          return false;
+        }
+        return {
+          weekday,
+          titulo: titulo.trim(),
+          hora_ini: document.getElementById('sgoi-hora-ini')?.value,
+          hora_fin: document.getElementById('sgoi-hora-fin')?.value,
+          tipo: document.getElementById('sgoi-tipo')?.value,
+        };
+      },
+    });
+    if (!result.isConfirmed || !result.value) return;
+    try {
+      await api.post('/sgoi/horario/plantilla', result.value);
+      notificarCambioSgoi();
+      await cargar();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e?.response?.data?.error || e.message });
+    }
+  };
+
+  const editarDiaPlantilla = async (weekday, nombre, bloques) => {
+    const iniciales = bloques.length ? bloques : [{ hora_ini: '08:00', hora_fin: '09:00', titulo: '', tipo: 'DESARROLLO' }];
+    const result = await Swal.fire({
+      title: `Editar ${nombre}`,
+      html: `
+        <p class="sgoi-swal-hint">Reemplaza todas las franjas de este día en la plantilla semanal.</p>
+        <div id="sgoi-day-rows">${iniciales.map((b) => htmlFilaPlantilla(b)).join('')}</div>
+        <button type="button" id="sgoi-add-row" class="sgoi-btn sgoi-btn-ghost">+ Franja</button>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Guardar día',
+      cancelButtonText: 'Cancelar',
+      width: 640,
+      focusConfirm: false,
+      didOpen: () => {
+        const box = document.getElementById('sgoi-day-rows');
+        document.getElementById('sgoi-add-row')?.addEventListener('click', () => {
+          box.insertAdjacentHTML('beforeend', htmlFilaPlantilla());
+        });
+        box.addEventListener('click', (ev) => {
+          const btn = ev.target.closest('.sgoi-r-del');
+          if (!btn) return;
+          const rows = box.querySelectorAll('.sgoi-day-row');
+          if (rows.length <= 1) return;
+          btn.closest('.sgoi-day-row')?.remove();
+        });
+      },
+      preConfirm: () => {
+        const filas = leerFilasPlantilla();
+        if (!filas.length) {
+          Swal.showValidationMessage('Deja al menos una franja con título');
+          return false;
+        }
+        return { bloques: filas };
+      },
+    });
+    if (!result.isConfirmed || !result.value) return;
+    try {
+      await api.put(`/sgoi/horario/semana/${weekday}`, result.value);
+      notificarCambioSgoi();
+      await cargar();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e?.response?.data?.error || e.message });
+    }
+  };
+
+  const exportarHorarioPdf = () => {
+    try {
+      exportarHorarioSgoiPdf(horario);
+    } catch (e) {
+      Swal.fire({ icon: 'info', title: 'PDF', text: e.message || 'No se pudo exportar.' });
+    }
+  };
+
   const continuarPendiente = async (id, como) => {
     try {
       await api.post(`/sgoi/pendientes/${id}/continuar`, { como });
@@ -492,6 +689,14 @@ export default function GestionOperativaPage() {
     </div>
   );
 
+  if (vista === 'horario' && !puedeHorario) {
+    return (
+      <DashboardLayout>
+        <Navigate to="/admin/gestion-operativa" replace />
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="sgoi-page">
@@ -512,10 +717,12 @@ export default function GestionOperativaPage() {
             <span className="sgoi-tab-ico" aria-hidden>📊</span>
             <span>Tablero</span>
           </NavLink>
-          <NavLink to="/admin/gestion-operativa/horario" className={({ isActive }) => `sgoi-tab ${isActive ? 'active' : ''}`}>
-            <span className="sgoi-tab-ico" aria-hidden>🗓️</span>
-            <span>Horario</span>
-          </NavLink>
+          {puedeHorario ? (
+            <NavLink to="/admin/gestion-operativa/horario" className={({ isActive }) => `sgoi-tab ${isActive ? 'active' : ''}`}>
+              <span className="sgoi-tab-ico" aria-hidden>🗓️</span>
+              <span>Horario</span>
+            </NavLink>
+          ) : null}
           <NavLink to="/admin/gestion-operativa/casos" className={({ isActive }) => `sgoi-tab ${isActive ? 'active' : ''}`}>
             <span className="sgoi-tab-ico" aria-hidden>🚨</span>
             <span>Casos</span>
@@ -539,14 +746,17 @@ export default function GestionOperativaPage() {
                 Fecha
                 <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
               </label>
-              <button type="button" className="sgoi-btn sgoi-btn-ghost" onClick={crearFranja}>
-                + Franja de hoy
-              </button>
+              {puedeHorario ? (
+                <button type="button" className="sgoi-btn sgoi-btn-ghost" onClick={crearFranja}>
+                  + Franja de hoy
+                </button>
+              ) : null}
             </div>
             {dia.bloques.length === 0 && dia.items.length === 0 ? (
               <div className="sgoi-empty">
-                Aún no hay horario para este día. Si acabas de activar el módulo, ejecuta la migración 081.
-                Los casos se atienden desde el flotante.
+                {puedeHorario
+                  ? 'Aún no hay horario para este día. Si acabas de activar el módulo, ejecuta la migración 081. Los casos se atienden desde el flotante.'
+                  : 'Aún no hay movimientos este día. Los casos se atienden desde el flotante.'}
               </div>
             ) : null}
             {dia.bloques.length > 0 ? (
@@ -793,23 +1003,61 @@ export default function GestionOperativaPage() {
           </>
         ) : vista === 'horario' ? (
           <>
-            <p className="sgoi-range">Plantilla semanal. Si cambias una franja en Mi día, elige “para siempre” solo cuando quieras actualizar este horario.</p>
+            <div className="sgoi-toolbar">
+              <p className="sgoi-range sgoi-range-inline">
+                Plantilla semanal. Aquí se edita para siempre. En Mi día puedes cambiar solo una fecha.
+              </p>
+              <button type="button" className="sgoi-btn" onClick={exportarHorarioPdf}>
+                Exportar PDF
+              </button>
+            </div>
             <div className="sgoi-week">
-              {DIAS_SEMANA.map(([wd, nombre]) => {
+              {DIAS_SEMANA.filter(([wd]) => {
+                if (wd <= 6) return true;
+                const bloquesDom = horario.find((d) => Number(d.weekday) === wd)?.bloques || [];
+                return bloquesDom.length > 0;
+              }).map(([wd, nombre]) => {
                 const bloques = horario.find((d) => Number(d.weekday) === wd)?.bloques || [];
                 return (
                   <section key={wd} className="sgoi-week-day">
-                    <h2>{nombre}</h2>
+                    <div className="sgoi-week-head">
+                      <h2>{nombre}</h2>
+                      <div className="sgoi-week-head-actions">
+                        <button type="button" className="sgoi-btn sgoi-btn-ghost sgoi-btn-mini" onClick={() => editarDiaPlantilla(wd, nombre, bloques)}>
+                          Editar día
+                        </button>
+                        <button type="button" className="sgoi-btn sgoi-btn-ghost sgoi-btn-mini" onClick={() => agregarFranjaPlantilla(wd, nombre)}>
+                          + Franja
+                        </button>
+                      </div>
+                    </div>
                     {bloques.length === 0 ? (
                       <p className="sgoi-slot-quiet">Sin franjas</p>
                     ) : (
-                      bloques.map((b) => (
-                        <div key={b.id} className="sgoi-week-slot">
-                          <span>{b.hora_ini}–{b.hora_fin}</span>
+                      bloques.map((b) => {
+                        const tint = colorFranjaIgual(b.titulo, b.tipo);
+                        return (
+                        <div
+                          key={b.id}
+                          className="sgoi-week-slot"
+                          style={{ background: tint.bg, borderColor: tint.fg }}
+                        >
+                          <div className="sgoi-week-slot-top">
+                            <span style={{ color: tint.fg }}>{b.hora_ini}–{b.hora_fin}</span>
+                            <div className="sgoi-ico-actions">
+                              <IconBtn title="Editar franja" onClick={() => editarFranjaPlantilla(b)}>
+                                <IconEdit />
+                              </IconBtn>
+                              <IconBtn title="Quitar franja" danger onClick={() => borrarFranjaPlantilla(b)}>
+                                <IconTrash />
+                              </IconBtn>
+                            </div>
+                          </div>
                           <strong>{b.titulo}</strong>
-                          <em>{etiquetaTipoTrabajo(b.tipo)}</em>
+                          <em style={{ color: tint.fg }}>{etiquetaTipoTrabajo(b.tipo)}</em>
                         </div>
-                      ))
+                        );
+                      })
                     )}
                   </section>
                 );

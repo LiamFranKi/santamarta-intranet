@@ -499,10 +499,85 @@
   min-height: 10rem;
 }
 
-.sgoi-week-day h2 {
-  margin: 0 0 0.6rem;
+.sgoi-range-inline {
+  flex: 1;
+  margin: 0;
+}
+
+.sgoi-btn-mini {
+  padding: 0.28rem 0.55rem;
+  font-size: 0.72rem;
+}
+
+.sgoi-week-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.sgoi-week-head h2 {
+  margin: 0;
   font-size: 0.88rem;
   color: #1e3a8a;
+}
+
+.sgoi-week-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.sgoi-week-slot-top {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.sgoi-week-slot-top .sgoi-ico-actions {
+  margin-left: auto;
+}
+
+.sgoi-week-slot-top .sgoi-ico-btn {
+  width: 1.65rem;
+  height: 1.65rem;
+}
+
+.sgoi-day-row {
+  display: grid;
+  grid-template-columns: 5.4rem 5.4rem 1fr 7.2rem 2rem;
+  gap: 0.35rem;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.sgoi-day-row input,
+.sgoi-day-row select {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.35rem 0.4rem;
+  font-size: 0.8rem;
+}
+
+.sgoi-r-del {
+  border: none;
+  background: #fef2f2;
+  color: #b91c1c;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  height: 2rem;
+}
+
+#sgoi-add-row {
+  margin-top: 0.35rem;
+}
+
+@media (max-width: 640px) {
+  .sgoi-day-row {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .sgoi-week-slot {
@@ -513,6 +588,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
+  border: 1px solid transparent;
 }
 
 .sgoi-week-slot span {

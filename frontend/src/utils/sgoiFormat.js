@@ -4,6 +4,10 @@ export function usuarioPuedeSgoi(tipo) {
   return SGOI_TIPOS.includes(String(tipo || '').toUpperCase());
 }
 
+export function usuarioPuedeHorarioSgoi(tipo) {
+  return String(tipo || '').toUpperCase() === 'ADMINISTRADOR';
+}
+
 export function formatDuracionSeg(seg) {
   const n = Math.max(0, parseInt(seg, 10) || 0);
   const h = Math.floor(n / 3600);
@@ -56,6 +60,31 @@ export function etiquetaTipoTrabajo(tipo) {
     OTRO: 'Otro',
   };
   return map[tipo] || tipo || '';
+}
+
+/** Color suave estable: misma actividad (mismo título) = mismo color en toda la semana. */
+const PASTELES_FRANJA = [
+  { bg: '#dbeafe', fg: '#1e40af' },
+  { bg: '#ccfbf1', fg: '#0f766e' },
+  { bg: '#fef3c7', fg: '#b45309' },
+  { bg: '#ede9fe', fg: '#6d28d9' },
+  { bg: '#fce7f3', fg: '#be185d' },
+  { bg: '#e0f2fe', fg: '#0369a1' },
+  { bg: '#dcfce7', fg: '#15803d' },
+  { bg: '#ffedd5', fg: '#c2410c' },
+  { bg: '#f1f5f9', fg: '#475569' },
+  { bg: '#fae8ff', fg: '#a21caf' },
+  { bg: '#e0e7ff', fg: '#3730a3' },
+  { bg: '#fef9c3', fg: '#a16207' },
+];
+
+export function colorFranjaIgual(titulo, tipo) {
+  const clave = String(titulo || '').trim().toLowerCase() || String(tipo || '').toLowerCase();
+  let h = 0;
+  for (let i = 0; i < clave.length; i += 1) {
+    h = (h * 31 + clave.charCodeAt(i)) >>> 0;
+  }
+  return PASTELES_FRANJA[h % PASTELES_FRANJA.length];
 }
 
 export function etiquetaDiaCorto(iso) {

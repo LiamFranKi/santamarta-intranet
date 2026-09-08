@@ -16,6 +16,11 @@ function esTipoSgoi(tipo) {
   return TIPOS_SGOI.includes(String(tipo || '').toUpperCase());
 }
 
+/** Temporal: plantilla/horario de Sistemas solo ADMINISTRADOR. */
+function esTipoHorarioSgoi(tipo) {
+  return String(tipo || '').toUpperCase() === 'ADMINISTRADOR';
+}
+
 function tableMissing(err) {
   return err && (err.code === 'ER_NO_SUCH_TABLE' || String(err.message || '').includes("doesn't exist"));
 }
@@ -276,6 +281,7 @@ module.exports = {
   ESTADOS_TRABAJO_CIERRE,
   TIPOS_TRABAJO,
   esTipoSgoi,
+  esTipoHorarioSgoi,
   tableMissing,
   sgoiNoTablePayload,
   puedeUsarSgoi,
