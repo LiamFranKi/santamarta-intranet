@@ -538,7 +538,6 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
     };
 
     if (abrir === 'tarea') {
-      setExpandedCard('tareas');
       abrirModalTarea(id);
       limpiarQuery();
       return;
@@ -546,7 +545,6 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
 
     if (abrir === 'examen') {
       if (examenes.length === 0) return;
-      setExpandedCard('examenes');
       const ex = examenes.find((e) => Number(e.id) === id);
       limpiarQuery();
       if (ex) {
