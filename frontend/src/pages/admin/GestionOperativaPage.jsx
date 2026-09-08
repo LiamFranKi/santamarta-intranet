@@ -31,6 +31,7 @@ import {
   colorFranjaIgual,
 } from '../../utils/sgoiFormat';
 import { exportarHorarioSgoiPdf } from '../../utils/sgoiHorarioPdf';
+import { exportarReporteSgoiPdf } from '../../utils/sgoiReportePdf';
 import './GestionOperativa.css';
 
 const COLORES_TIPO = {
@@ -674,6 +675,14 @@ export default function GestionOperativaPage() {
     }
   };
 
+  const exportarReportePdf = () => {
+    try {
+      exportarReporteSgoiPdf({ reporte, periodo: periodoReporte });
+    } catch (e) {
+      Swal.fire({ icon: 'info', title: 'PDF', text: e.message || 'No se pudo exportar.' });
+    }
+  };
+
   const continuarPendiente = async (id, como) => {
     try {
       await api.post(`/sgoi/pendientes/${id}/continuar`, { como });
@@ -1021,6 +1030,9 @@ export default function GestionOperativaPage() {
                 {periodoReporte === 'dia' ? 'Fecha' : periodoReporte === 'mes' ? 'Mes (cualquier día)' : 'Semana (cualquier día)'}
                 <input type="date" value={fechaReporte} onChange={(e) => setFechaReporte(e.target.value)} />
               </label>
+              <button type="button" className="sgoi-btn sgoi-toolbar-export" onClick={exportarReportePdf}>
+                Exportar PDF
+              </button>
             </div>
             <p className="sgoi-range">
               {periodoReporte === 'dia' ? 'Reporte del día' : periodoReporte === 'mes' ? 'Reporte mensual' : 'Reporte semanal'}
@@ -1045,33 +1057,83 @@ export default function GestionOperativaPage() {
                 <small>en el periodo</small>
               </div>
             </div>
-            {(reporte?.dias || []).filter((d) => d.casos.length > 0).length === 0 ? (
-              <div className="sgoi-empty">No hay incidencias en este periodo.</div>
+            {(reporte?.dias || []).length === 0 ? (
+              <div className="sgoi-empty">No hay horario ni incidencias en este periodo.</div>
             ) : (
-              (reporte.dias || []).filter((d) => d.casos.length > 0).map((d) => (
+              (reporte.dias || []).map((d) => (
                 <section key={d.fecha} className="sgoi-report-day">
                   <h2>{etiquetaDiaLargo(d.fecha)}</h2>
-                  <h3>Incidencias</h3>
-                  <ul className="sgoi-entity-list">
-                    {d.casos.map((c) => (
-                      <li key={c.id} className="sgoi-entity is-caso">
-                        <div>
-                          <div className="sgoi-entity-top">
-                            <span className="sgoi-badge sgoi-badge-caso">{c.codigo}</span>
-                            <strong>{c.titulo}</strong>
-                            <span className={`sgoi-st sgoi-st-${c.estado}`}>{etiquetaEstado(c.estado)}</span>
+                  {(d.bloques || []).length > 0 ? (
+                    <ol className="sgoi-agenda sgoi-agenda-report">
+                      {d.bloques.map((b) => (
+                        <li key={b.id} className={`sgoi-slot sgoi-slot-${(b.tipo || 'OTRO').toLowerCase()} ${b.descanso ? 'is-descanso' : ''}`}>
+                          <div className="sgoi-slot-time">
+                            <strong>{b.hora_ini}</strong>
+                            <span>{b.hora_fin}</span>
                           </div>
-                          <div className="sgoi-tl-meta">
-                            {formatHoraItem(c.inicio_at)}
-                            {c.fin_at ? ` – ${formatHoraItem(c.fin_at)}` : ''}
-                            {c.estado !== 'EN_CURSO' ? ` · ${formatDuracionSeg(c.duracion_seg)}` : ''}
-                            {c.usuario_nombre ? ` · ${c.usuario_nombre}` : ''}
+                          <div className="sgoi-slot-body">
+                            <div className="sgoi-slot-top">
+                              <span className="sgoi-badge" style={{ background: `${COLORES_TIPO[b.tipo] || COLORES_TIPO.OTRO}22`, color: COLORES_TIPO[b.tipo] || COLORES_TIPO.OTRO }}>
+                                {etiquetaTipoTrabajo(b.tipo)}
+                              </span>
+                              <strong>{b.titulo}</strong>
+                              {(b.interrupciones || []).length > 0 ? (
+                                <span className="sgoi-badge sgoi-badge-caso">
+                                  {b.interrupciones.length} incidencia{b.interrupciones.length === 1 ? '' : 's'}
+                                </span>
+                              ) : null}
+                            </div>
+                            {(b.interrupciones || []).length > 0 ? (
+                              <ul className="sgoi-inter">
+                                {b.interrupciones.map((c) => (
+                                  <li key={c.id} className="sgoi-inter-item">
+                                    <span className="sgoi-badge sgoi-badge-caso">Incidencia</span>
+                                    <div>
+                                      <strong>{c.titulo}</strong>
+                                      <div className="sgoi-tl-meta">
+                                        {c.codigo} · {formatHoraItem(c.inicio_at)}
+                                        {c.fin_at ? ` – ${formatHoraItem(c.fin_at)}` : ' – …'}
+                                        {c.estado !== 'EN_CURSO' ? ` · ${formatDuracionSeg(c.duracion_seg)}` : ''}
+                                        {' · '}
+                                        {etiquetaEstado(c.estado)}
+                                        {c.usuario_nombre ? ` · ${c.usuario_nombre}` : ''}
+                                      </div>
+                                      {c.nota ? <p className="sgoi-tl-nota">{c.nota}</p> : null}
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
                           </div>
-                          {c.nota ? <p className="sgoi-tl-nota">{c.nota}</p> : null}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                        </li>
+                      ))}
+                    </ol>
+                  ) : null}
+                  {(d.casos_sueltos || []).length > 0 || (!(d.bloques || []).length && d.casos.length > 0) ? (
+                    <>
+                      <h3>{(d.bloques || []).length ? 'Incidencias fuera de horario' : 'Incidencias'}</h3>
+                      <ul className="sgoi-entity-list">
+                        {((d.bloques || []).length ? d.casos_sueltos : d.casos).map((c) => (
+                          <li key={c.id} className="sgoi-entity is-caso">
+                            <div>
+                              <div className="sgoi-entity-top">
+                                <span className="sgoi-badge sgoi-badge-caso">{c.codigo}</span>
+                                <strong>{c.titulo}</strong>
+                                <span className={`sgoi-st sgoi-st-${c.estado}`}>{etiquetaEstado(c.estado)}</span>
+                              </div>
+                              <div className="sgoi-tl-meta">
+                                {formatHoraItem(c.inicio_at)}
+                                {c.fin_at ? ` – ${formatHoraItem(c.fin_at)}` : ''}
+                                {c.estado !== 'EN_CURSO' ? ` · ${formatDuracionSeg(c.duracion_seg)}` : ''}
+                                {c.usuario_nombre ? ` · ${c.usuario_nombre}` : ''}
+                              </div>
+                              {c.nota ? <p className="sgoi-tl-nota">{c.nota}</p> : null}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : null}
                 </section>
               ))
             )}

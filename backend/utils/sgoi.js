@@ -273,6 +273,31 @@ function solapaHora(iniA, finA, iniB, finB) {
   return hhmm(iniA) < hhmm(finB) && hhmm(iniB) < hhmm(finA);
 }
 
+/** Cuelga cada caso en las franjas que se solapan (Mi día / reporte). */
+function colgarCasosEnBloques(bloques, casos) {
+  const usados = new Set();
+  const bloquesOut = (bloques || []).map((b) => {
+    const interrupciones = (casos || []).filter((c) => {
+      const horaIni = c.hora_ini_hm || hhmm(c.inicio_at);
+      const horaFin = c.hora_fin_hm || horaIni;
+      if (!solapaHora(b.hora_ini, b.hora_fin, horaIni, horaFin)) return false;
+      usados.add(`c-${c.id}`);
+      return true;
+    });
+    return {
+      ...b,
+      hora_ini: hhmm(b.hora_ini),
+      hora_fin: hhmm(b.hora_fin),
+      descanso: b.tipo === 'DESCANSO',
+      interrupciones: serializarFilasSgoi(interrupciones),
+    };
+  });
+  return {
+    bloques: bloquesOut,
+    casos_sueltos: serializarFilasSgoi((casos || []).filter((c) => !usados.has(`c-${c.id}`))),
+  };
+}
+
 function padCodigo(prefijo, id) {
   return `${prefijo}-${String(id).padStart(5, '0')}`;
 }
@@ -345,6 +370,7 @@ module.exports = {
   materializarDia,
   hhmm,
   solapaHora,
+  colgarCasosEnBloques,
   padCodigo,
   segundosEntre,
   sanitizarTexto,

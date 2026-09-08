@@ -177,6 +177,19 @@
   font-size: 1.1rem;
 }
 
+.sgoi-toolbar-export {
+  margin-left: auto;
+}
+
+.sgoi-agenda-report {
+  gap: 0.5rem;
+}
+
+.sgoi-agenda-report .sgoi-slot {
+  box-shadow: none;
+  padding: 0.7rem 0.85rem;
+}
+
 .sgoi-btn {
   background: #2563eb;
   color: #fff;

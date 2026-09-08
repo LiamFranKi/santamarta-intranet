@@ -19,7 +19,7 @@ const {
   asegurarPlantilla,
   materializarDia,
   hhmm,
-  solapaHora,
+  colgarCasosEnBloques,
   padCodigo,
   segundosEntre,
   sanitizarTexto,
@@ -158,24 +158,7 @@ router.get('/dia', async (req, res) => {
       paramsCasos
     );
 
-    const usados = new Set();
-    const bloquesOut = bloques.map((b) => {
-      const interrupciones = casos.filter((c) => {
-        const horaIni = c.hora_ini_hm || hhmm(c.inicio_at);
-        const horaFin = c.hora_fin_hm || horaIni;
-        if (!solapaHora(b.hora_ini, b.hora_fin, horaIni, horaFin)) return false;
-        usados.add(`c-${c.id}`);
-        return true;
-      });
-      return {
-        ...b,
-        hora_ini: hhmm(b.hora_ini),
-        hora_fin: hhmm(b.hora_fin),
-        descanso: b.tipo === 'DESCANSO',
-        interrupciones: serializarFilasSgoi(interrupciones),
-      };
-    });
-    const casosSueltos = casos.filter((c) => !usados.has(`c-${c.id}`));
+    const { bloques: bloquesOut, casos_sueltos: casosSueltos } = colgarCasosEnBloques(bloques, casos);
     const items = serializarFilasSgoi([...casos, ...trabajos]).sort((a, b) =>
       String(a.inicio_at).localeCompare(String(b.inicio_at))
     );
@@ -334,7 +317,7 @@ function rangoPeriodo(periodo, fecha) {
 
 router.get('/reporte', async (req, res) => {
   try {
-    const { colegio_id } = await contextoUsuario(req);
+    const { colegio_id, usuario_id } = await contextoUsuario(req);
     const periodo = ['dia', 'semana', 'mes'].includes(String(req.query.periodo || ''))
       ? String(req.query.periodo)
       : 'semana';
@@ -343,11 +326,14 @@ router.get('/reporte', async (req, res) => {
       : fechaMySQLLima();
     const { desde, hasta } = rangoPeriodo(periodo, fecha);
     const { desdeAt, hastaExcl } = rangoLima(desde, hasta);
+    const fechas = cadaDia(desde, hasta);
 
     const casosRows = await query(
       `SELECT x.id, x.codigo, x.titulo, x.nota, x.estado, x.prioridad, ${sqlDt('x.inicio_at', 'inicio_at')}, ${sqlDt('x.fin_at', 'fin_at')},
               x.duracion_seg, x.usuario_id, ${nombreUsuarioSql()} AS usuario_nombre,
-              'CASO' AS kind, NULL AS tipo, DATE_FORMAT(x.inicio_at, '%Y-%m-%d') AS dia
+              'CASO' AS kind, NULL AS tipo, DATE_FORMAT(x.inicio_at, '%Y-%m-%d') AS dia,
+              DATE_FORMAT(x.inicio_at, '%H:%i') AS hora_ini_hm,
+              DATE_FORMAT(x.fin_at, '%H:%i') AS hora_fin_hm
        FROM sgoi_casos x
        LEFT JOIN usuarios u ON u.id = x.usuario_id
        LEFT JOIN personal p ON p.id = u.personal_id
@@ -391,13 +377,43 @@ router.get('/reporte', async (req, res) => {
       porDiaMap[f].seg_trabajos += num(t.duracion_seg);
     });
 
-    const dias = cadaDia(desde, hasta)
-      .map((dia) => ({
-        fecha: dia,
-        casos: serializarFilasSgoi(casosRows.filter((c) => String(c.dia).slice(0, 10) === dia)),
-        trabajos: serializarFilasSgoi(trabajosRows.filter((t) => String(t.dia).slice(0, 10) === dia)),
-      }))
-      .filter((d) => d.casos.length || d.trabajos.length);
+    const bloquesPorFecha = {};
+    if (esTipoHorarioSgoi(req.user?.tipo)) {
+      try {
+        for (const f of fechas) {
+          await materializarDia(colegio_id, usuario_id, f);
+        }
+        const bloquesRows = await query(
+          `SELECT id, DATE_FORMAT(fecha, '%Y-%m-%d') AS fecha, hora_ini, hora_fin, titulo, tipo
+           FROM sgoi_dia_bloques
+           WHERE colegio_id = ? AND usuario_id = ? AND fecha >= ? AND fecha <= ?
+           ORDER BY fecha ASC, hora_ini ASC`,
+          [colegio_id, usuario_id, desde, hasta]
+        );
+        bloquesRows.forEach((b) => {
+          const f = String(b.fecha || '').slice(0, 10);
+          if (!bloquesPorFecha[f]) bloquesPorFecha[f] = [];
+          bloquesPorFecha[f].push(b);
+        });
+      } catch (e) {
+        if (!tableMissing(e)) throw e;
+      }
+    }
+
+    const dias = fechas
+      .map((dia) => {
+        const casos = serializarFilasSgoi(casosRows.filter((c) => String(c.dia).slice(0, 10) === dia));
+        const trabajos = serializarFilasSgoi(trabajosRows.filter((t) => String(t.dia).slice(0, 10) === dia));
+        const colgados = colgarCasosEnBloques(bloquesPorFecha[dia] || [], casos);
+        return {
+          fecha: dia,
+          casos,
+          trabajos,
+          bloques: colgados.bloques,
+          casos_sueltos: colgados.casos_sueltos,
+        };
+      })
+      .filter((d) => d.casos.length || d.trabajos.length || d.bloques.length);
 
     res.json({
       periodo,
@@ -414,7 +430,7 @@ router.get('/reporte', async (req, res) => {
         pendientes_abiertos: num(pendientesAbiertos[0]?.n),
         segundos_casos: casosRows.reduce((s, c) => s + num(c.duracion_seg), 0),
         segundos_trabajos: trabajosRows.reduce((s, t) => s + num(t.duracion_seg), 0),
-        dias_con_actividad: dias.length,
+        dias_con_actividad: dias.filter((d) => d.casos.length).length,
       },
       por_dia: cadaDia(desde, hasta).map((f) => ({
         fecha: f,
