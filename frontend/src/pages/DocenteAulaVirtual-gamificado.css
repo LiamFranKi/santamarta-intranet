@@ -220,26 +220,40 @@
 }
 
 .tema-fila-pendiente {
-  background: #f3f4f6 !important;
-  color: #6b7280;
+  background: #fffdf8 !important;
 }
 
-.tema-fila-pendiente .tema-nombre-cell {
+.tema-nombre-inner {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+  min-height: 2.25rem;
+  text-align: left;
+}
+
+.tema-nombre-texto {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #334155;
+  line-height: 1.25;
+}
+
+.tema-fila-pendiente .tema-nombre-texto {
+  color: #64748b;
+  font-weight: 500;
 }
 
 .tema-pendiente-tag {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  background: #e5e7eb;
-  color: #4b5563;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fdba74;
   border-radius: 999px;
-  padding: 0.15rem 0.5rem;
+  padding: 0.1rem 0.42rem;
+  line-height: 1.2;
 }
 
 .tema-pendiente-fecha {
@@ -811,10 +825,15 @@
   padding: 1rem;
   border-bottom: 1px solid #e5e7eb;
   text-align: center;
+  vertical-align: middle;
 }
 
 .card-content-expanded tbody tr {
   transition: background 0.2s;
+}
+
+.card-content-expanded tbody tr > td {
+  vertical-align: middle;
 }
 
 .card-content-expanded tbody tr:hover {
@@ -1638,7 +1657,7 @@
   max-width: 3.25rem;
   text-align: center;
   vertical-align: middle;
-  padding: 0.35rem 0.2rem;
+  padding: 1rem 0.2rem;
   box-sizing: border-box;
 }
 
@@ -1675,10 +1694,19 @@ button.drag-handle {
 }
 
 .drag-handle-grips {
-  font-size: 0.95rem;
-  letter-spacing: -0.35em;
-  display: inline-block;
-  transform: translateX(-1px);
+  display: grid;
+  grid-template-columns: 3px 3px;
+  grid-auto-rows: 3px;
+  gap: 2.5px;
+  line-height: 0;
+}
+
+.drag-handle-grips i {
+  display: block;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .drag-handle-placeholder {
@@ -1689,6 +1717,8 @@ button.drag-handle {
 
 .tema-nombre-cell {
   touch-action: pan-x pan-y;
+  vertical-align: middle;
+  text-align: left;
 }
 
 .drag-handle:hover {

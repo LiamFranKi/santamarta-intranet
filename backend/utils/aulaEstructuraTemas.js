@@ -3,6 +3,14 @@ const { fechaHoraMySQLLima } = require('./fechaHoraLima');
 
 const MAX_TEMAS_BIMESTRE = 20;
 const BIMESTRES = [1, 2, 3, 4];
+/** Solo 2026: B1–B3 ya se dictaron; no mostrar ni volver a sembrar huecos vacíos. */
+const ANIO_OCULTAR_HUECOS_BIM_CERRADOS = 2026;
+
+function ocultarHuecosPendientes({ ciclo, anio }) {
+  const a = parseInt(anio, 10);
+  const c = parseInt(ciclo, 10);
+  return a === ANIO_OCULTAR_HUECOS_BIM_CERRADOS && c >= 1 && c <= 3;
+}
 
 let _colsCache = null;
 
@@ -173,7 +181,8 @@ async function insertarHueco({ asignaturaId, trabajadorId, ciclo, tipo, numero }
   );
 }
 
-async function completarHuecosCiclo({ asignaturaId, trabajadorId, ciclo, cantidad }) {
+async function completarHuecosCiclo({ asignaturaId, trabajadorId, ciclo, cantidad, anio }) {
+  if (ocultarHuecosPendientes({ ciclo, anio })) return 0;
   const n = clampCantidad(cantidad);
   if (n <= 0) return 0;
   const tieneCols = await archivosTieneEstructuraCols();
@@ -227,6 +236,7 @@ async function sembrarEstructuraAsignatura({ asignaturaId, colegioId, trabajador
       trabajadorId,
       ciclo,
       cantidad: cantidadParaCiclo(cfg, ciclo),
+      anio: anioUsar,
     });
   }
   return total;
@@ -269,7 +279,8 @@ async function aplicarEstructuraColegio({ colegioId, anio }) {
   };
 }
 
-async function asegurarFichaHermana({ asignaturaId, trabajadorId, ciclo, numero }) {
+async function asegurarFichaHermana({ asignaturaId, trabajadorId, ciclo, numero, anio }) {
+  if (ocultarHuecosPendientes({ ciclo, anio })) return;
   const tieneCols = await archivosTieneEstructuraCols();
   if (!tieneCols) return;
   const n = parseInt(numero, 10);
@@ -302,6 +313,8 @@ module.exports = {
   extraerSufijoNombre,
   componerNombreEstructura,
   esTemaPendiente,
+  ANIO_OCULTAR_HUECOS_BIM_CERRADOS,
+  ocultarHuecosPendientes,
   clasificarFila,
   obtenerConfigEstructura,
   guardarConfigEstructura,

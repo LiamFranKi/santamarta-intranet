@@ -38,6 +38,18 @@ function mismoCicloAula(cicloArchivo, cicloRef) {
   return Number(cicloArchivo) === Number(cicloRef);
 }
 
+/** 2026: B1–B3 ya dictados; no mostrar huecos vacíos a los maestros. */
+const ANIO_OCULTAR_HUECOS_BIM_CERRADOS = 2026;
+
+function archivoVisibleEnBimestre(archivo, bimestre, anio) {
+  if (!mismoCicloAula(archivo.ciclo, bimestre)) return false;
+  if (!archivo?.pendiente) return true;
+  const ciclo = parseInt(bimestre, 10);
+  const year = parseInt(anio, 10);
+  if (year === ANIO_OCULTAR_HUECOS_BIM_CERRADOS && ciclo >= 1 && ciclo <= 3) return false;
+  return true;
+}
+
 function mismoIdTema(a, b) {
   return String(a) === String(b);
 }
@@ -153,15 +165,19 @@ function SortableItem({ archivo, onEdit, onDelete, onFill, openDropdown, toggleD
             title="Arrastrar para reordenar (solo aquí)"
             aria-label="Arrastrar fila para reordenar temas"
           >
-            <span className="drag-handle-grips" aria-hidden>⋮⋮</span>
+            <span className="drag-handle-grips" aria-hidden>
+              <i /><i /><i /><i /><i /><i />
+            </span>
           </button>
         ) : (
           <span className="drag-handle-placeholder" aria-hidden />
         )}
       </td>
       <td className="tema-nombre-cell">
-        {archivo.nombre}
-        {archivo.pendiente && <span className="tema-pendiente-tag">Sin llenar</span>}
+        <div className="tema-nombre-inner">
+          <span className="tema-nombre-texto">{archivo.nombre}</span>
+          {archivo.pendiente && <span className="tema-pendiente-tag">Por completar</span>}
+        </div>
       </td>
       <td className="text-center">
         {archivo.pendiente ? (
@@ -1087,7 +1103,9 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
 
     if (over && active.id !== over.id) {
       // Filtrar archivos por el bimestre actual
-      const archivosFiltrados = archivos.filter((archivo) => mismoCicloAula(archivo.ciclo, bimestreGlobal));
+      const archivosFiltrados = archivos.filter((archivo) =>
+        archivoVisibleEnBimestre(archivo, bimestreGlobal, curso?.anio)
+      );
 
       const oldIndex = archivosFiltrados.findIndex((item) => mismoIdTema(item.id, active.id));
       const newIndex = archivosFiltrados.findIndex((item) => mismoIdTema(item.id, over.id));
@@ -1855,7 +1873,9 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
 
   const renderTemasContent = () => {
     // Filtrar archivos por el bimestre global
-    const archivosFiltrados = archivos.filter((archivo) => mismoCicloAula(archivo.ciclo, bimestreGlobal));
+    const archivosFiltrados = archivos.filter((archivo) =>
+      archivoVisibleEnBimestre(archivo, bimestreGlobal, curso?.anio)
+    );
 
     const temasTable = (
       <table>
@@ -3885,7 +3905,9 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
               <div className="card-icon">📚</div>
               <div className="card-info">
                 <h3 className="card-title">Temas Interactivos</h3>
-                <p className="card-count">{archivos.filter(a => a.ciclo === bimestreGlobal).length}</p>
+                <p className="card-count">{archivos.filter((a) =>
+                  archivoVisibleEnBimestre(a, bimestreGlobal, curso?.anio)
+                ).length}</p>
                 <p className="card-subtitle">Temas disponibles</p>
               </div>
               <div className="card-action-btns">

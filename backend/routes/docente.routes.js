@@ -50,6 +50,7 @@ const { mountSelfServiceCvRoutes } = require('../utils/personalCv');
 const { listarEvidenciasSafe, mapearEvidencia, tipoDesdeNombre } = require('../utils/aulaEvidencias');
 const {
   esTemaPendiente,
+  ocultarHuecosPendientes,
   componerNombreEstructura,
   archivosTieneEstructuraCols,
   asegurarFichaHermana,
@@ -7892,7 +7893,11 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/archivos', async (req, res) =>
       };
     });
 
-    res.json({ archivos: archivosConUrls || [] });
+    const archivosVisibles = ocultarHuecosPendientes({ ciclo: cicloFiltro, anio: anio_activo })
+      ? archivosConUrls.filter((a) => !a.pendiente)
+      : archivosConUrls;
+
+    res.json({ archivos: archivosVisibles || [] });
   } catch (error) {
     console.error('❌ [TUTOR-ARCHIVOS] Error obteniendo archivos:', error);
     console.error('❌ [TUTOR-ARCHIVOS] Stack:', error.stack);
@@ -21327,7 +21332,11 @@ router.get('/aula-virtual/archivos', async (req, res) => {
       };
     });
 
-    res.json({ archivos: archivosConUrls || [] });
+    const archivosVisibles = ocultarHuecosPendientes({ ciclo: cicloFiltro, anio: anio_activo })
+      ? archivosConUrls.filter((a) => !a.pendiente)
+      : archivosConUrls;
+
+    res.json({ archivos: archivosVisibles || [] });
   } catch (error) {
     console.error('Error obteniendo archivos:', error);
     res.status(500).json({ error: 'Error al obtener archivos' });
@@ -21541,6 +21550,7 @@ router.post('/aula-virtual/archivos/:id/llenar-biblioteca', async (req, res) => 
  */
 router.post('/aula-virtual/archivos/desde-biblioteca', async (req, res) => {
   try {
+    const { anio_activo } = req.user;
     const { asignatura_id, ciclo, item_tipo, item_numero, asignatura_origen_id, tema_id } = req.body || {};
     if (!asignatura_id || !asignatura_origen_id || !tema_id) {
       return res.status(400).json({ error: 'Datos incompletos para copiar desde biblioteca' });
@@ -21603,6 +21613,7 @@ router.post('/aula-virtual/archivos/desde-biblioteca', async (req, res) => {
         trabajadorId,
         ciclo: cicloNum,
         numero: numeroNorm,
+        anio: anio_activo,
       });
     }
 
@@ -22390,6 +22401,7 @@ router.post('/aula-virtual/archivos', uploadAulaVirtual.single('archivo'), async
           trabajadorId,
           ciclo: parseInt(ciclo, 10) || 1,
           numero: numeroNorm,
+          anio: anio_activo,
         });
       } catch (eFicha) {
         console.warn('[estructura-temas] No se pudo crear ficha hermana:', eFicha.message);
