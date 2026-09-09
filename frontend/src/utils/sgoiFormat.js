@@ -1,11 +1,26 @@
 export const SGOI_TIPOS = ['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR', 'COORDINADOR'];
+export const SGOI_TIPOS_AREA = ['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR'];
 
 export function usuarioPuedeSgoi(tipo) {
   return SGOI_TIPOS.includes(String(tipo || '').toUpperCase());
 }
 
+/** Tablero/listados de toda el área. Coordinador solo ve lo suyo. */
+export function usuarioVeAreaSgoi(tipo) {
+  return SGOI_TIPOS_AREA.includes(String(tipo || '').toUpperCase());
+}
+
 export function usuarioPuedeHorarioSgoi(tipo) {
-  return String(tipo || '').toUpperCase() === 'ADMINISTRADOR';
+  return usuarioPuedeSgoi(tipo);
+}
+
+export function idUsuarioSesion(user) {
+  return Number(user?.id ?? user?.usuario_id) || 0;
+}
+
+export function esRegistroSgoiPropio(item, user) {
+  const uid = idUsuarioSesion(user);
+  return uid > 0 && Number(item?.usuario_id) === uid;
 }
 
 /** Nombre del personal/usuario para reportes (API o sesión). */

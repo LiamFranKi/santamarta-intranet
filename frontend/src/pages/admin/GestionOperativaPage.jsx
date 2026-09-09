@@ -29,6 +29,9 @@ import {
   nombrePersonaSgoi,
   notificarCambioSgoi,
   usuarioPuedeHorarioSgoi,
+  usuarioVeAreaSgoi,
+  idUsuarioSesion,
+  esRegistroSgoiPropio,
   colorFranjaIgual,
 } from '../../utils/sgoiFormat';
 import { exportarHorarioSgoiPdf } from '../../utils/sgoiHorarioPdf';
@@ -158,6 +161,8 @@ export default function GestionOperativaPage() {
   const { user } = useAuth();
   const vista = vistaDesdePath(location.pathname);
   const puedeHorario = usuarioPuedeHorarioSgoi(user?.tipo);
+  const veArea = usuarioVeAreaSgoi(user?.tipo);
+  const miUsuarioId = idUsuarioSesion(user);
   const [fecha, setFecha] = useState(fechaHoyLocal);
   const [dia, setDia] = useState({ bloques: [], casos_sueltos: [], items: [] });
   const [tablero, setTablero] = useState(null);
@@ -225,9 +230,25 @@ export default function GestionOperativaPage() {
   }, [cargar]);
 
   const incidenciasDia = useMemo(
-    () => (dia.items || []).filter((it) => it.kind === 'CASO'),
-    [dia.items]
+    () =>
+      (dia.items || []).filter((it) => {
+        if (it.kind !== 'CASO') return false;
+        if (veArea) return true;
+        return Number(it.usuario_id) === miUsuarioId;
+      }),
+    [dia.items, veArea, miUsuarioId]
   );
+
+  const listaPropia = useMemo(() => {
+    if (veArea) return lista;
+    return (lista || []).filter((it) => Number(it.usuario_id) === miUsuarioId);
+  }, [lista, veArea, miUsuarioId]);
+
+  const soloMios = (arr) => {
+    const list = Array.isArray(arr) ? arr : [];
+    if (veArea) return list;
+    return list.filter((it) => Number(it.usuario_id) === miUsuarioId);
+  };
 
   const r = tablero?.resumen;
   const rr = reporte?.resumen;
@@ -737,7 +758,9 @@ export default function GestionOperativaPage() {
     }
   };
 
-  const accionesRegistro = (it, kind) => (
+  const accionesRegistro = (it, kind) => {
+    if (!veArea && !esRegistroSgoiPropio(it, user)) return null;
+    return (
     <div className="sgoi-ico-actions">
       <IconBtn title="Editar" onClick={() => editarRegistro({ ...it, kind })}>
         <IconEdit />
@@ -746,7 +769,8 @@ export default function GestionOperativaPage() {
         <IconTrash />
       </IconBtn>
     </div>
-  );
+    );
+  };
 
   if ((vista === 'horario' && !puedeHorario) || vista === 'trabajos') {
     return (
@@ -877,11 +901,11 @@ export default function GestionOperativaPage() {
                 ))}
               </ol>
             ) : null}
-            {dia.casos_sueltos.length > 0 ? (
+            {soloMios(dia.casos_sueltos).length > 0 ? (
               <section className="sgoi-block">
                 <h2>Incidencias fuera de horario</h2>
                 <ul className="sgoi-entity-list">
-                  {dia.casos_sueltos.map((c) => (
+                  {soloMios(dia.casos_sueltos).map((c) => (
                     <li key={c.id} className="sgoi-entity is-caso">
                       <div>
                         <div className="sgoi-entity-top">
@@ -981,11 +1005,11 @@ export default function GestionOperativaPage() {
                 </div>
               </section>
             </div>
-            {tablero?.en_curso?.filter((it) => it.kind === 'CASO').length ? (
+            {soloMios(tablero?.en_curso?.filter((it) => it.kind === 'CASO')).length ? (
               <section className="sgoi-block">
                 <h2>Ahora mismo</h2>
                 <ul className="sgoi-entity-list">
-                  {tablero.en_curso.filter((it) => it.kind === 'CASO').map((it) => (
+                  {soloMios(tablero.en_curso.filter((it) => it.kind === 'CASO')).map((it) => (
                     <li key={`${it.kind}-${it.id}`} className="sgoi-entity is-caso">
                       <div>
                         <div className="sgoi-entity-top">
@@ -1002,11 +1026,11 @@ export default function GestionOperativaPage() {
             ) : null}
             <section className="sgoi-block">
               <h2>Actividad reciente</h2>
-              {(tablero?.recientes || []).filter((it) => it.kind === 'CASO').length === 0 ? (
+              {(soloMios((tablero?.recientes || []).filter((it) => it.kind === 'CASO'))).length === 0 ? (
                 <div className="sgoi-empty">Sin incidencias esta semana.</div>
               ) : (
                 <ul className="sgoi-entity-list">
-                  {tablero.recientes.filter((it) => it.kind === 'CASO').map((it) => (
+                  {soloMios(tablero.recientes.filter((it) => it.kind === 'CASO')).map((it) => (
                     <li key={`${it.kind}-${it.id}`} className="sgoi-entity is-caso">
                       <div>
                         <div className="sgoi-entity-top">
@@ -1125,11 +1149,11 @@ export default function GestionOperativaPage() {
                       ))}
                     </ol>
                   ) : null}
-                  {(d.casos_sueltos || []).length > 0 || (!(d.bloques || []).length && d.casos.length > 0) ? (
+                  {(soloMios(d.casos_sueltos).length > 0 || (!(d.bloques || []).length && soloMios(d.casos).length > 0)) ? (
                     <>
                       <h3>{(d.bloques || []).length ? 'Incidencias fuera de horario' : 'Incidencias'}</h3>
                       <ul className="sgoi-entity-list">
-                        {((d.bloques || []).length ? d.casos_sueltos : d.casos).map((c) => (
+                        {soloMios((d.bloques || []).length ? d.casos_sueltos : d.casos).map((c) => (
                           <li key={c.id} className="sgoi-entity is-caso">
                             <div>
                               <div className="sgoi-entity-top">
@@ -1225,11 +1249,7 @@ export default function GestionOperativaPage() {
               </button>
             </div>
             <div className="sgoi-week">
-              {DIAS_SEMANA.filter(([wd]) => {
-                if (wd <= 6) return true;
-                const bloquesDom = horario.find((d) => Number(d.weekday) === wd)?.bloques || [];
-                return bloquesDom.length > 0;
-              }).map(([wd, nombre]) => {
+              {DIAS_SEMANA.map(([wd, nombre]) => {
                 const bloques = horario.find((d) => Number(d.weekday) === wd)?.bloques || [];
                 return (
                   <section key={wd} className="sgoi-week-day">
@@ -1289,11 +1309,11 @@ export default function GestionOperativaPage() {
               />
               <button type="submit" className="sgoi-btn">Agregar</button>
             </form>
-            {lista.length === 0 ? (
+            {listaPropia.length === 0 ? (
               <div className="sgoi-empty">No hay pendientes abiertos.</div>
             ) : (
               <ul className="sgoi-entity-list">
-                {lista.map((it) => (
+                {listaPropia.map((it) => (
                   <li key={it.id} className="sgoi-entity is-pendiente">
                     <div>
                       <div className="sgoi-entity-top">
@@ -1319,11 +1339,11 @@ export default function GestionOperativaPage() {
               </ul>
             )}
           </>
-        ) : lista.length === 0 ? (
+        ) : listaPropia.length === 0 ? (
           <div className="sgoi-empty">No hay registros todavía.</div>
         ) : (
           <ul className="sgoi-entity-list">
-            {lista.map((it) => {
+            {listaPropia.map((it) => {
               const kind = vista === 'casos' ? 'CASO' : 'TRABAJO';
               return (
                 <li key={it.id} className={`sgoi-entity ${kind === 'CASO' ? 'is-caso' : 'is-trabajo'}`}>

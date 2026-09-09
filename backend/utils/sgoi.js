@@ -8,6 +8,8 @@ const { resolvePersonalId } = require('./tutoriaGeneral');
 const { registrarAccion } = require('./auditoria');
 
 const TIPOS_SGOI = ['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR', 'COORDINADOR'];
+/** Tablero/reporte de toda el área. COORDINADOR y miembros solo ven lo propio. */
+const TIPOS_SGOI_AREA = ['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR'];
 const ESTADOS_CASO_CIERRE = ['RESUELTO', 'PENDIENTE'];
 const ESTADOS_TRABAJO_CIERRE = ['HECHO', 'PENDIENTE'];
 const TIPOS_TRABAJO = ['DESARROLLO', 'SOPORTE', 'PAGOS', 'DESPLIEGUE', 'REUNION', 'OTRO'];
@@ -16,9 +18,27 @@ function esTipoSgoi(tipo) {
   return TIPOS_SGOI.includes(String(tipo || '').toUpperCase());
 }
 
-/** Temporal: plantilla/horario de Sistemas solo ADMINISTRADOR. */
+function veTodoElAreaSgoi(tipo) {
+  return TIPOS_SGOI_AREA.includes(String(tipo || '').toUpperCase());
+}
+
+/** Extra SQL para listados: vacío si ve el área; si no, solo su usuario_id. */
+function filtroPropioSgoi(tipo, usuarioId, alias = '') {
+  if (veTodoElAreaSgoi(tipo)) return { sql: '', params: [] };
+  const uid = parseInt(usuarioId, 10);
+  if (!uid) return { sql: ' AND 1=0', params: [] };
+  const col = alias ? `${alias}.usuario_id` : 'usuario_id';
+  return { sql: ` AND ${col} = ?`, params: [uid] };
+}
+
+function esRegistroPropioOArea(tipo, rowUsuarioId, miUsuarioId) {
+  if (veTodoElAreaSgoi(tipo)) return true;
+  return parseInt(rowUsuarioId, 10) === parseInt(miUsuarioId, 10);
+}
+
+/** Cada usuario con Gestión operativa arma su propia plantilla semanal. */
 function esTipoHorarioSgoi(tipo) {
-  return String(tipo || '').toUpperCase() === 'ADMINISTRADOR';
+  return esTipoSgoi(tipo);
 }
 
 function tableMissing(err) {
@@ -202,7 +222,7 @@ async function sembrarPlantilla(colegioId, usuarioId) {
   }
 }
 
-async function asegurarPlantilla(colegioId, usuarioId) {
+async function asegurarPlantilla(colegioId, usuarioId, { sembrarSiVacio = false } = {}) {
   const cid = parseInt(colegioId, 10);
   const uid = parseInt(usuarioId, 10);
   const n = await query(
@@ -217,6 +237,7 @@ async function asegurarPlantilla(colegioId, usuarioId) {
   const total = Number(n[0]?.n || 0);
   const yaNueva = Number(lunes[0]?.n || 0) >= 12;
   if (total > 0 && yaNueva) return;
+  if (!sembrarSiVacio) return;
 
   if (total > 0) {
     const hoy = fechaMySQLLima();
@@ -232,8 +253,8 @@ async function asegurarPlantilla(colegioId, usuarioId) {
   await sembrarPlantilla(cid, uid);
 }
 
-async function materializarDia(colegioId, usuarioId, fecha) {
-  await asegurarPlantilla(colegioId, usuarioId);
+async function materializarDia(colegioId, usuarioId, fecha, opts = {}) {
+  await asegurarPlantilla(colegioId, usuarioId, opts);
   const existen = await query(
     `SELECT id FROM sgoi_dia_bloques
      WHERE colegio_id = ? AND usuario_id = ? AND fecha = ?
@@ -368,6 +389,10 @@ function auditarSgoi(req, { accion, entidad, entidad_id, descripcion }) {
 
 module.exports = {
   TIPOS_SGOI,
+  TIPOS_SGOI_AREA,
+  veTodoElAreaSgoi,
+  filtroPropioSgoi,
+  esRegistroPropioOArea,
   ESTADOS_CASO_CIERRE,
   ESTADOS_TRABAJO_CIERRE,
   TIPOS_TRABAJO,

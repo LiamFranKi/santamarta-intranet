@@ -136,6 +136,11 @@ export default function ReporteHorariosPersonal() {
     setElegidos(elegidos.filter((p) => Number(p.personal_id) !== Number(id)));
   };
 
+  const limpiarElegidos = () => {
+    setElegidos([]);
+    setMarcados(new Set());
+  };
+
   const verReporte = async () => {
     if (!Number.isFinite(anioN)) {
       Swal.fire({ icon: 'warning', title: 'Año', text: 'Indique el año académico.' });
@@ -192,7 +197,7 @@ export default function ReporteHorariosPersonal() {
           </div>
         ) : (
           <div className="rg-hp-form">
-            <div className="rg-filtros-toolbar rg-filtros-toolbar--fill">
+            <div className="rg-filtros-toolbar rg-filtros-toolbar--fill rg-hp-toolbar">
               <TextField
                 size="small"
                 label="Año"
@@ -234,10 +239,20 @@ export default function ReporteHorariosPersonal() {
                 </TextField>
               ) : null}
               {alcance === 'elegir' ? (
-                <button type="button" className="rg-alum-btn rg-alum-btn--secondary" onClick={abrirPicker}>
-                  <PersonAddAlt1Icon fontSize="small" aria-hidden />
-                  Elegir docentes
-                </button>
+                <>
+                  <button type="button" className="rg-alum-btn rg-alum-btn--secondary" onClick={abrirPicker}>
+                    <PersonAddAlt1Icon fontSize="small" aria-hidden />
+                    Elegir docentes
+                  </button>
+                  <button
+                    type="button"
+                    className="rg-alum-btn rg-alum-btn--secondary"
+                    onClick={limpiarElegidos}
+                    disabled={elegidos.length === 0}
+                  >
+                    Limpiar
+                  </button>
+                </>
               ) : null}
               <div className="rg-filtros-toolbar__actions">
                 <button type="button" className="rg-alum-btn rg-alum-btn--primary" onClick={verReporte}>

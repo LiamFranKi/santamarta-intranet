@@ -1616,6 +1616,30 @@
   gap: 0.65rem;
 }
 
+.rg-hp-toolbar .rg-alum-field--anio.MuiFormControl-root {
+  flex: 0 0 6.25rem !important;
+  width: 6.25rem !important;
+  min-width: 6.25rem !important;
+  max-width: 6.25rem !important;
+}
+
+.rg-hp-toolbar .rg-alum-field--anio input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.rg-hp-toolbar .rg-alum-field--anio input[type='number']::-webkit-outer-spin-button,
+.rg-hp-toolbar .rg-alum-field--anio input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.rg-hp-toolbar .rg-alum-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .rg-hp-alcance {
   display: flex;
   flex-wrap: wrap;

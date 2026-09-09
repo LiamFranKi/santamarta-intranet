@@ -31,7 +31,7 @@ function wrapText(doc, text, maxWidth) {
 }
 
 /**
- * PDF del horario semanal. Solo días con franjas escritas (L–S; domingo si hay).
+ * PDF del horario semanal. Incluye domingo si tiene franjas.
  */
 export function exportarHorarioSgoiPdf(dias, { nombre } = {}) {
   const conContenido = DIAS.map(([wd, nombre]) => {
@@ -66,7 +66,7 @@ export function exportarHorarioSgoiPdf(dias, { nombre } = {}) {
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
-  doc.text('Horario semanal · Área de Sistemas', margin, 12);
+  doc.text('Horario semanal · Gestión operativa', margin, 12);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(191, 219, 254);
