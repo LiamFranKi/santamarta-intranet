@@ -44,7 +44,7 @@ function Overlay({ title, subtitle, onClose, children, footer, wide }) {
   );
 }
 
-export default function AdminWebFaqs() {
+export default function AdminWebFaqs({ soloLectura = false }) {
   const [subTab, setSubTab] = useState('preguntas'); // preguntas | categorias | preview
   const [categorias, setCategorias] = useState([]);
   const [preguntas, setPreguntas] = useState([]);
@@ -203,25 +203,27 @@ export default function AdminWebFaqs() {
             <button type="button" className="rs-btn rs-btn-primary" onClick={cargarPreguntas}>
               Filtrar
             </button>
-            <button
-              type="button"
-              className="rs-btn rs-btn-primary"
-              onClick={() =>
-                setModalFaq({
-                  open: true,
-                  mode: 'create',
-                  item: {
-                    categoria_id: catFiltro || categorias[0]?.id,
-                    pregunta: '',
-                    respuesta: '',
-                    orden: (preguntas[preguntas.length - 1]?.orden || 0) + 1,
-                    activo: 1,
-                  },
-                })
-              }
-            >
-              ➕ Nueva pregunta
-            </button>
+            {!soloLectura && (
+              <button
+                type="button"
+                className="rs-btn rs-btn-primary"
+                onClick={() =>
+                  setModalFaq({
+                    open: true,
+                    mode: 'create',
+                    item: {
+                      categoria_id: catFiltro || categorias[0]?.id,
+                      pregunta: '',
+                      respuesta: '',
+                      orden: (preguntas[preguntas.length - 1]?.orden || 0) + 1,
+                      activo: 1,
+                    },
+                  })
+                }
+              >
+                ➕ Nueva pregunta
+              </button>
+            )}
           </div>
 
           {preguntas.length === 0 ? (
@@ -261,13 +263,18 @@ export default function AdminWebFaqs() {
                               <button
                                 type="button"
                                 className="rs-btn rs-btn-ghost rs-btn-sm"
-                                onClick={() => setModalFaq({ open: true, mode: 'edit', item: p })}
+                                title={soloLectura ? 'Ver' : 'Editar'}
+                                onClick={() =>
+                                  setModalFaq({ open: true, mode: soloLectura ? 'view' : 'edit', item: p })
+                                }
                               >
-                                ✏️
+                                {soloLectura ? '👁️' : '✏️'}
                               </button>
-                              <button type="button" className="rs-btn rs-btn-danger rs-btn-sm" onClick={() => eliminarFaq(p)}>
-                                🗑️
-                              </button>
+                              {!soloLectura && (
+                                <button type="button" className="rs-btn rs-btn-danger rs-btn-sm" onClick={() => eliminarFaq(p)}>
+                                  🗑️
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -283,21 +290,23 @@ export default function AdminWebFaqs() {
 
       {subTab === 'categorias' && (
         <>
-          <div style={{ marginBottom: '0.75rem' }}>
-            <button
-              type="button"
-              className="rs-btn rs-btn-primary rs-btn-sm"
-              onClick={() =>
-                setModalCat({
-                  open: true,
-                  mode: 'create',
-                  item: { codigo: '', etiqueta: '', orden: (categorias[categorias.length - 1]?.orden || 0) + 1, activo: 1 },
-                })
-              }
-            >
-              ➕ Nueva categoría
-            </button>
-          </div>
+          {!soloLectura && (
+            <div style={{ marginBottom: '0.75rem' }}>
+              <button
+                type="button"
+                className="rs-btn rs-btn-primary rs-btn-sm"
+                onClick={() =>
+                  setModalCat({
+                    open: true,
+                    mode: 'create',
+                    item: { codigo: '', etiqueta: '', orden: (categorias[categorias.length - 1]?.orden || 0) + 1, activo: 1 },
+                  })
+                }
+              >
+                ➕ Nueva categoría
+              </button>
+            </div>
+          )}
           <div className="rs-table-wrap">
             <table className="rs-table">
               <thead>
@@ -327,13 +336,18 @@ export default function AdminWebFaqs() {
                         <button
                           type="button"
                           className="rs-btn rs-btn-ghost rs-btn-sm"
-                          onClick={() => setModalCat({ open: true, mode: 'edit', item: c })}
+                          title={soloLectura ? 'Ver' : 'Editar'}
+                          onClick={() =>
+                            setModalCat({ open: true, mode: soloLectura ? 'view' : 'edit', item: c })
+                          }
                         >
-                          ✏️
+                          {soloLectura ? '👁️' : '✏️'}
                         </button>
-                        <button type="button" className="rs-btn rs-btn-danger rs-btn-sm" onClick={() => eliminarCat(c)}>
-                          🗑️
-                        </button>
+                        {!soloLectura && (
+                          <button type="button" className="rs-btn rs-btn-danger rs-btn-sm" onClick={() => eliminarCat(c)}>
+                            🗑️
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -466,34 +480,42 @@ function CatModal({ mode, item, saving, onClose, onSave }) {
     activo: esActivo(item?.activo ?? 1),
   }));
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const soloVer = mode === 'view';
 
   return (
     <Overlay
-      title={mode === 'edit' ? '✏️ Editar categoría' : '➕ Nueva categoría'}
+      title={soloVer ? '👁️ Ver categoría' : mode === 'edit' ? '✏️ Editar categoría' : '➕ Nueva categoría'}
       onClose={onClose}
       footer={
-        <>
+        soloVer ? (
           <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
-            Cancelar
+            Cerrar
           </button>
-          <button
-            type="button"
-            className="rs-btn rs-btn-primary"
-            disabled={saving}
-            onClick={() =>
-              onSave({
-                codigo: form.codigo,
-                etiqueta: form.etiqueta,
-                orden: Number(form.orden) || 0,
-                activo: form.activo ? 1 : 0,
-              })
-            }
-          >
-            {saving ? 'Guardando…' : '💾 Guardar'}
-          </button>
-        </>
+        ) : (
+          <>
+            <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="rs-btn rs-btn-primary"
+              disabled={saving}
+              onClick={() =>
+                onSave({
+                  codigo: form.codigo,
+                  etiqueta: form.etiqueta,
+                  orden: Number(form.orden) || 0,
+                  activo: form.activo ? 1 : 0,
+                })
+              }
+            >
+              {saving ? 'Guardando…' : '💾 Guardar'}
+            </button>
+          </>
+        )
       }
     >
+      <fieldset disabled={soloVer} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <div className="rs-form-grid">
         <div className="rs-field">
           <label>Código (slug) *</label>
@@ -525,6 +547,7 @@ function CatModal({ mode, item, saving, onClose, onSave }) {
           </div>
         </div>
       </div>
+      </fieldset>
     </Overlay>
   );
 }
@@ -538,36 +561,44 @@ function FaqModal({ mode, item, categorias, saving, onClose, onSave }) {
     activo: esActivo(item?.activo ?? 1),
   }));
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const soloVer = mode === 'view';
 
   return (
     <Overlay
-      title={mode === 'edit' ? '✏️ Editar pregunta' : '➕ Nueva pregunta'}
+      title={soloVer ? '👁️ Ver pregunta' : mode === 'edit' ? '✏️ Editar pregunta' : '➕ Nueva pregunta'}
       wide
       onClose={onClose}
       footer={
-        <>
+        soloVer ? (
           <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
-            Cancelar
+            Cerrar
           </button>
-          <button
-            type="button"
-            className="rs-btn rs-btn-primary"
-            disabled={saving}
-            onClick={() =>
-              onSave({
-                categoria_id: Number(form.categoria_id),
-                pregunta: form.pregunta,
-                respuesta: form.respuesta,
-                orden: Number(form.orden) || 0,
-                activo: form.activo ? 1 : 0,
-              })
-            }
-          >
-            {saving ? 'Guardando…' : '💾 Guardar'}
-          </button>
-        </>
+        ) : (
+          <>
+            <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="rs-btn rs-btn-primary"
+              disabled={saving}
+              onClick={() =>
+                onSave({
+                  categoria_id: Number(form.categoria_id),
+                  pregunta: form.pregunta,
+                  respuesta: form.respuesta,
+                  orden: Number(form.orden) || 0,
+                  activo: form.activo ? 1 : 0,
+                })
+              }
+            >
+              {saving ? 'Guardando…' : '💾 Guardar'}
+            </button>
+          </>
+        )
       }
     >
+      <fieldset disabled={soloVer} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <div className="rs-form-grid">
         <div className="rs-field rs-field--full">
           <label>Categoría *</label>
@@ -601,6 +632,7 @@ function FaqModal({ mode, item, categorias, saving, onClose, onSave }) {
           </div>
         </div>
       </div>
+      </fieldset>
     </Overlay>
   );
 }

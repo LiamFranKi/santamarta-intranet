@@ -103,7 +103,7 @@ function buildFormData(payload, file) {
   return fd;
 }
 
-export default function AdminWebUtiles() {
+export default function AdminWebUtiles({ soloLectura = false }) {
   const [subTab, setSubTab] = useState('grados');
   const [niveles, setNiveles] = useState([]);
   const [grados, setGrados] = useState([]);
@@ -191,6 +191,10 @@ export default function AdminWebUtiles() {
     cargar();
   }, [cargar]);
 
+  useEffect(() => {
+    if (soloLectura && subTab !== 'grados') setSubTab('grados');
+  }, [soloLectura, subTab]);
+
   const eliminarNivel = async (row) => {
     const conf = await Swal.fire({
       icon: 'warning',
@@ -269,13 +273,16 @@ export default function AdminWebUtiles() {
           <input
             type="checkbox"
             checked={descargasOn}
+            disabled={soloLectura}
             onChange={(e) => setDescargasOn(e.target.checked)}
           />
           Permitir descarga de todas las listas de útiles en la web pública
         </label>
-        <button type="button" className="rs-btn rs-btn-primary rs-btn-sm" disabled={savingConfig} onClick={guardarConfig}>
-          {savingConfig ? 'Guardando…' : 'Guardar'}
-        </button>
+        {!soloLectura && (
+          <button type="button" className="rs-btn rs-btn-primary rs-btn-sm" disabled={savingConfig} onClick={guardarConfig}>
+            {savingConfig ? 'Guardando…' : 'Guardar'}
+          </button>
+        )}
         <span className={`rs-badge ${descargasOn ? 'rs-badge--ok' : 'rs-badge--off'}`}>
           {descargasOn ? 'Descargas activas' : 'Descargas desactivadas'}
         </span>
@@ -284,6 +291,7 @@ export default function AdminWebUtiles() {
           (la página lee <code>/api/public/utiles</code>). Los grados individuales siguen igual.
         </p>
       </div>
+      {!soloLectura && (
       <nav className="rs-tabs" aria-label="Útiles internas" style={{ marginBottom: '1rem' }}>
         {[
           { id: 'grados', label: '📄 Grados / PDFs' },
@@ -300,6 +308,7 @@ export default function AdminWebUtiles() {
           </button>
         ))}
       </nav>
+      )}
 
       {subTab === 'grados' && (
         <>
@@ -322,27 +331,29 @@ export default function AdminWebUtiles() {
             <button type="button" className="rs-btn rs-btn-primary" onClick={cargarGrados}>
               Filtrar
             </button>
-            <button
-              type="button"
-              className="rs-btn rs-btn-primary"
-              onClick={() =>
-                setModalGrado({
-                  open: true,
-                  mode: 'create',
-                  item: {
-                    nivel_id: nivelFiltro || niveles[0]?.id,
-                    codigo: '',
-                    nombre: '',
-                    archivo: '',
-                    ruta: '',
-                    orden: (grados[grados.length - 1]?.orden || 0) + 1,
-                    activo: 1,
-                  },
-                })
-              }
-            >
-              ➕ Nuevo grado
-            </button>
+            {!soloLectura && (
+              <button
+                type="button"
+                className="rs-btn rs-btn-primary"
+                onClick={() =>
+                  setModalGrado({
+                    open: true,
+                    mode: 'create',
+                    item: {
+                      nivel_id: nivelFiltro || niveles[0]?.id,
+                      codigo: '',
+                      nombre: '',
+                      archivo: '',
+                      ruta: '',
+                      orden: (grados[grados.length - 1]?.orden || 0) + 1,
+                      activo: 1,
+                    },
+                  })
+                }
+              >
+                ➕ Nuevo grado
+              </button>
+            )}
           </div>
           <p className="rs-muted" style={{ marginBottom: '0.75rem' }}>
             Los PDF se guardan en web-vanguard/public/utiles/ y la ruta en BD queda /utiles/archivo.pdf
@@ -394,13 +405,18 @@ export default function AdminWebUtiles() {
                               <button
                                 type="button"
                                 className="rs-btn rs-btn-ghost rs-btn-sm"
-                                onClick={() => setModalGrado({ open: true, mode: 'edit', item: row })}
+                                title={soloLectura ? 'Ver' : 'Editar'}
+                                onClick={() =>
+                                  setModalGrado({ open: true, mode: soloLectura ? 'view' : 'edit', item: row })
+                                }
                               >
-                                ✏️
+                                {soloLectura ? '👁️' : '✏️'}
                               </button>
-                              <button type="button" className="rs-btn rs-btn-danger rs-btn-sm" onClick={() => eliminarGrado(row)}>
-                                🗑️
-                              </button>
+                              {!soloLectura && (
+                                <button type="button" className="rs-btn rs-btn-danger rs-btn-sm" onClick={() => eliminarGrado(row)}>
+                                  🗑️
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -721,41 +737,49 @@ function GradoModal({ mode, item, niveles, saving, onClose, onSave }) {
   }));
   const [file, setFile] = useState(null);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const soloVer = mode === 'view';
 
   return (
     <Overlay
-      title={mode === 'edit' ? '✏️ Editar grado' : '➕ Nuevo grado'}
+      title={soloVer ? '👁️ Ver grado' : mode === 'edit' ? '✏️ Editar grado' : '➕ Nuevo grado'}
       wide
       onClose={onClose}
       footer={
-        <>
+        soloVer ? (
           <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
-            Cancelar
+            Cerrar
           </button>
-          <button
-            type="button"
-            className="rs-btn rs-btn-primary"
-            disabled={saving}
-            onClick={() =>
-              onSave(
-                {
-                  nivel_id: Number(form.nivel_id),
-                  codigo: form.codigo,
-                  nombre: form.nombre,
-                  archivo: form.archivo,
-                  ruta: form.ruta,
-                  orden: Number(form.orden) || 0,
-                  activo: form.activo ? 1 : 0,
-                },
-                file
-              )
-            }
-          >
-            {saving ? 'Guardando…' : '💾 Guardar'}
-          </button>
-        </>
+        ) : (
+          <>
+            <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="rs-btn rs-btn-primary"
+              disabled={saving}
+              onClick={() =>
+                onSave(
+                  {
+                    nivel_id: Number(form.nivel_id),
+                    codigo: form.codigo,
+                    nombre: form.nombre,
+                    archivo: form.archivo,
+                    ruta: form.ruta,
+                    orden: Number(form.orden) || 0,
+                    activo: form.activo ? 1 : 0,
+                  },
+                  file
+                )
+              }
+            >
+              {saving ? 'Guardando…' : '💾 Guardar'}
+            </button>
+          </>
+        )
       }
     >
+      <fieldset disabled={soloVer} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <div className="rs-form-grid">
         <div className="rs-field rs-field--full">
           <label>Nivel *</label>
@@ -817,6 +841,7 @@ function GradoModal({ mode, item, niveles, saving, onClose, onSave }) {
           </div>
         </div>
       </div>
+      </fieldset>
     </Overlay>
   );
 }

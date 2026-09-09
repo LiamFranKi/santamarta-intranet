@@ -816,7 +816,6 @@ a.rs-pdf-open {
   }
 }
 
-body.coord-web-solo-lectura .rs-btn-primary,
 body.coord-web-solo-lectura .rs-btn-danger {
   display: none !important;
 }

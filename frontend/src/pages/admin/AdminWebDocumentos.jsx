@@ -82,7 +82,7 @@ function buildFormData(payload, file) {
   return fd;
 }
 
-export default function AdminWebDocumentos() {
+export default function AdminWebDocumentos({ soloLectura = false }) {
   const [subTab, setSubTab] = useState('documentos');
   const [categorias, setCategorias] = useState([]);
   const [documentos, setDocumentos] = useState([]);
@@ -241,28 +241,30 @@ export default function AdminWebDocumentos() {
             <button type="button" className="rs-btn rs-btn-primary" onClick={cargarDocumentos}>
               Filtrar
             </button>
-            <button
-              type="button"
-              className="rs-btn rs-btn-primary"
-              onClick={() =>
-                setModalDoc({
-                  open: true,
-                  mode: 'create',
-                  item: {
-                    categoria_id: catFiltro || categorias[0]?.id,
-                    codigo: '',
-                    nombre: '',
-                    tipo: 'PDF',
-                    archivo: '',
-                    ruta: '',
-                    orden: (documentos[documentos.length - 1]?.orden || 0) + 1,
-                    activo: 1,
-                  },
-                })
-              }
-            >
-              ➕ Nuevo documento
-            </button>
+            {!soloLectura && (
+              <button
+                type="button"
+                className="rs-btn rs-btn-primary"
+                onClick={() =>
+                  setModalDoc({
+                    open: true,
+                    mode: 'create',
+                    item: {
+                      categoria_id: catFiltro || categorias[0]?.id,
+                      codigo: '',
+                      nombre: '',
+                      tipo: 'PDF',
+                      archivo: '',
+                      ruta: '',
+                      orden: (documentos[documentos.length - 1]?.orden || 0) + 1,
+                      activo: 1,
+                    },
+                  })
+                }
+              >
+                ➕ Nuevo documento
+              </button>
+            )}
           </div>
           <p className="rs-muted" style={{ marginBottom: '0.75rem' }}>
             Los PDF se guardan en web-vanguard/public/documentos/ y la ruta en BD queda /documentos/archivo.pdf
@@ -311,13 +313,18 @@ export default function AdminWebDocumentos() {
                               <button
                                 type="button"
                                 className="rs-btn rs-btn-ghost rs-btn-sm"
-                                onClick={() => setModalDoc({ open: true, mode: 'edit', item: row })}
+                                title={soloLectura ? 'Ver' : 'Editar'}
+                                onClick={() =>
+                                  setModalDoc({ open: true, mode: soloLectura ? 'view' : 'edit', item: row })
+                                }
                               >
-                                ✏️
+                                {soloLectura ? '👁️' : '✏️'}
                               </button>
-                              <button type="button" className="rs-btn rs-btn-danger rs-btn-sm" onClick={() => eliminarDoc(row)}>
-                                🗑️
-                              </button>
+                              {!soloLectura && (
+                                <button type="button" className="rs-btn rs-btn-danger rs-btn-sm" onClick={() => eliminarDoc(row)}>
+                                  🗑️
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -333,26 +340,28 @@ export default function AdminWebDocumentos() {
 
       {subTab === 'categorias' && (
         <>
-          <div style={{ marginBottom: '0.75rem' }}>
-            <button
-              type="button"
-              className="rs-btn rs-btn-primary rs-btn-sm"
-              onClick={() =>
-                setModalCat({
-                  open: true,
-                  mode: 'create',
-                  item: {
-                    codigo: '',
-                    etiqueta: '',
-                    orden: (categorias[categorias.length - 1]?.orden || 0) + 1,
-                    activo: 1,
-                  },
-                })
-              }
-            >
-              ➕ Nueva categoría
-            </button>
-          </div>
+          {!soloLectura && (
+            <div style={{ marginBottom: '0.75rem' }}>
+              <button
+                type="button"
+                className="rs-btn rs-btn-primary rs-btn-sm"
+                onClick={() =>
+                  setModalCat({
+                    open: true,
+                    mode: 'create',
+                    item: {
+                      codigo: '',
+                      etiqueta: '',
+                      orden: (categorias[categorias.length - 1]?.orden || 0) + 1,
+                      activo: 1,
+                    },
+                  })
+                }
+              >
+                ➕ Nueva categoría
+              </button>
+            </div>
+          )}
           <div className="rs-table-wrap">
             <table className="rs-table">
               <thead>
@@ -382,13 +391,18 @@ export default function AdminWebDocumentos() {
                         <button
                           type="button"
                           className="rs-btn rs-btn-ghost rs-btn-sm"
-                          onClick={() => setModalCat({ open: true, mode: 'edit', item: c })}
+                          title={soloLectura ? 'Ver' : 'Editar'}
+                          onClick={() =>
+                            setModalCat({ open: true, mode: soloLectura ? 'view' : 'edit', item: c })
+                          }
                         >
-                          ✏️
+                          {soloLectura ? '👁️' : '✏️'}
                         </button>
-                        <button type="button" className="rs-btn rs-btn-danger rs-btn-sm" onClick={() => eliminarCat(c)}>
-                          🗑️
-                        </button>
+                        {!soloLectura && (
+                          <button type="button" className="rs-btn rs-btn-danger rs-btn-sm" onClick={() => eliminarCat(c)}>
+                            🗑️
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -514,34 +528,42 @@ function CatModal({ mode, item, saving, onClose, onSave }) {
     activo: esActivo(item?.activo ?? 1),
   }));
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const soloVer = mode === 'view';
 
   return (
     <Overlay
-      title={mode === 'edit' ? '✏️ Editar categoría' : '➕ Nueva categoría'}
+      title={soloVer ? '👁️ Ver categoría' : mode === 'edit' ? '✏️ Editar categoría' : '➕ Nueva categoría'}
       onClose={onClose}
       footer={
-        <>
+        soloVer ? (
           <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
-            Cancelar
+            Cerrar
           </button>
-          <button
-            type="button"
-            className="rs-btn rs-btn-primary"
-            disabled={saving}
-            onClick={() =>
-              onSave({
-                codigo: form.codigo,
-                etiqueta: form.etiqueta,
-                orden: Number(form.orden) || 0,
-                activo: form.activo ? 1 : 0,
-              })
-            }
-          >
-            {saving ? 'Guardando…' : '💾 Guardar'}
-          </button>
-        </>
+        ) : (
+          <>
+            <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="rs-btn rs-btn-primary"
+              disabled={saving}
+              onClick={() =>
+                onSave({
+                  codigo: form.codigo,
+                  etiqueta: form.etiqueta,
+                  orden: Number(form.orden) || 0,
+                  activo: form.activo ? 1 : 0,
+                })
+              }
+            >
+              {saving ? 'Guardando…' : '💾 Guardar'}
+            </button>
+          </>
+        )
       }
     >
+      <fieldset disabled={soloVer} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <div className="rs-form-grid">
         <div className="rs-field">
           <label>Código *</label>
@@ -565,6 +587,7 @@ function CatModal({ mode, item, saving, onClose, onSave }) {
           </div>
         </div>
       </div>
+      </fieldset>
     </Overlay>
   );
 }
@@ -582,42 +605,50 @@ function DocModal({ mode, item, categorias, saving, onClose, onSave }) {
   }));
   const [file, setFile] = useState(null);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const soloVer = mode === 'view';
 
   return (
     <Overlay
-      title={mode === 'edit' ? '✏️ Editar documento' : '➕ Nuevo documento'}
+      title={soloVer ? '👁️ Ver documento' : mode === 'edit' ? '✏️ Editar documento' : '➕ Nuevo documento'}
       wide
       onClose={onClose}
       footer={
-        <>
+        soloVer ? (
           <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
-            Cancelar
+            Cerrar
           </button>
-          <button
-            type="button"
-            className="rs-btn rs-btn-primary"
-            disabled={saving}
-            onClick={() =>
-              onSave(
-                {
-                  categoria_id: Number(form.categoria_id),
-                  codigo: form.codigo,
-                  nombre: form.nombre,
-                  tipo: form.tipo,
-                  archivo: form.archivo,
-                  ruta: form.ruta,
-                  orden: Number(form.orden) || 0,
-                  activo: form.activo ? 1 : 0,
-                },
-                file
-              )
-            }
-          >
-            {saving ? 'Guardando…' : '💾 Guardar'}
-          </button>
-        </>
+        ) : (
+          <>
+            <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="rs-btn rs-btn-primary"
+              disabled={saving}
+              onClick={() =>
+                onSave(
+                  {
+                    categoria_id: Number(form.categoria_id),
+                    codigo: form.codigo,
+                    nombre: form.nombre,
+                    tipo: form.tipo,
+                    archivo: form.archivo,
+                    ruta: form.ruta,
+                    orden: Number(form.orden) || 0,
+                    activo: form.activo ? 1 : 0,
+                  },
+                  file
+                )
+              }
+            >
+              {saving ? 'Guardando…' : '💾 Guardar'}
+            </button>
+          </>
+        )
       }
     >
+      <fieldset disabled={soloVer} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <div className="rs-form-grid">
         <div className="rs-field rs-field--full">
           <label>Categoría *</label>
@@ -683,6 +714,7 @@ function DocModal({ mode, item, categorias, saving, onClose, onSave }) {
           </div>
         </div>
       </div>
+      </fieldset>
     </Overlay>
   );
 }

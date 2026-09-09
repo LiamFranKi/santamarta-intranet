@@ -87,7 +87,7 @@ function PdfOpenLink({ href, title }) {
  * habilitar formulario, intros opcionales de correo, documentos a aceptar.
  * Destinatarios: Correos de envío → canal Matrícula.
  */
-export default function AdminWebMatricula({ onOpenCorreos }) {
+export default function AdminWebMatricula({ onOpenCorreos, soloLectura = false }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -110,6 +110,11 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
     const cats = data.categorias || [];
     let cat = cats.find((c) => esCategoriaMatricula(c.nombre));
     if (!cat) {
+      if (soloLectura) {
+        setCategoriaId(null);
+        setDocs([]);
+        return null;
+      }
       const created = await api.post('/admin/institucional/categorias', {
         nombre: 'Matrícula',
         descripcion: 'Documentos que el apoderado debe aceptar en matrícula online',
@@ -133,16 +138,17 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
       setDocs([]);
     }
     return id;
-  }, []);
+  }, [soloLectura]);
 
   const cargar = useCallback(async () => {
     try {
       setLoading(true);
-      // Migra en silencio los correos que estaban en Configuración → canal Matrícula
-      try {
-        await api.post(`${API_WEB}/matricula-online/sync-correos-legacy`);
-      } catch (syncErr) {
-        console.warn('[web-matricula] sync correos:', syncErr.response?.data?.error || syncErr.message);
+      if (!soloLectura) {
+        try {
+          await api.post(`${API_WEB}/matricula-online/sync-correos-legacy`);
+        } catch (syncErr) {
+          console.warn('[web-matricula] sync correos:', syncErr.response?.data?.error || syncErr.message);
+        }
       }
       const { data } = await api.get('/admin/configuracion');
       setForm({
@@ -164,7 +170,7 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
     } finally {
       setLoading(false);
     }
-  }, [asegurarCategoriaYDocs]);
+  }, [asegurarCategoriaYDocs, soloLectura]);
 
   useEffect(() => {
     cargar();
@@ -298,6 +304,7 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
             <strong>Temporal</strong>. El año académico se toma de Configuración → Año.
           </p>
         </header>
+        <fieldset disabled={soloLectura} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
         <div className="rs-form-grid rs-matricula-form">
           <div className="rs-field">
             <label>Habilitar formulario</label>
@@ -329,6 +336,7 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
             <span className="rs-field-hint">Texto que ve el apoderado como encabezado del formulario.</span>
           </div>
         </div>
+        </fieldset>
       </section>
 
       <section className="rs-card rs-matricula-card">
@@ -340,6 +348,7 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
             <strong>Correos de envío → Matrícula</strong>.
           </p>
         </header>
+        <fieldset disabled={soloLectura} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
         <div className="rs-form-grid rs-matricula-form">
           <div className="rs-field rs-field--full">
             <label>Intro correo al apoderado (opcional)</label>
@@ -375,6 +384,8 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
             />
           </div>
         </div>
+        </fieldset>
+        {!soloLectura && (
         <div className="rs-matricula-actions">
           <button type="button" className="rs-btn rs-btn-primary" onClick={guardarConfig} disabled={saving}>
             {saving ? 'Guardando…' : '💾 Guardar configuración'}
@@ -385,6 +396,7 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
             </button>
           )}
         </div>
+        )}
       </section>
 
       <section className="rs-card rs-matricula-card">
@@ -395,14 +407,18 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
               PDF que el apoderado debe marcar en el formulario. Se gestionan aquí (ocultos en Institucional).
             </p>
           </div>
-          <button type="button" className="rs-btn rs-btn-primary" onClick={() => abrirDoc(null)}>
-            ➕ Nuevo documento
-          </button>
+          {!soloLectura && (
+            <button type="button" className="rs-btn rs-btn-primary" onClick={() => abrirDoc(null)}>
+              ➕ Nuevo documento
+            </button>
+          )}
         </header>
 
         {docs.length === 0 ? (
           <p className="rs-empty rs-matricula-empty">
-            No hay documentos. Agregue al menos uno si el formulario debe exigir aceptación.
+            {soloLectura
+              ? 'No hay documentos configurados para matrícula online.'
+              : 'No hay documentos. Agregue al menos uno si el formulario debe exigir aceptación.'}
           </p>
         ) : (
           <div className="rs-matricula-docs">
@@ -422,18 +438,20 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
                       type="button"
                       className="rs-btn rs-btn-ghost rs-btn-sm"
                       onClick={() => abrirDoc(d)}
-                      title="Editar"
+                      title={soloLectura ? 'Ver' : 'Editar'}
                     >
-                      ✏️
+                      {soloLectura ? '👁️' : '✏️'}
                     </button>
-                    <button
-                      type="button"
-                      className="rs-btn rs-btn-danger rs-btn-sm"
-                      onClick={() => eliminarDoc(d)}
-                      title="Eliminar"
-                    >
-                      🗑️
-                    </button>
+                    {!soloLectura && (
+                      <button
+                        type="button"
+                        className="rs-btn rs-btn-danger rs-btn-sm"
+                        onClick={() => eliminarDoc(d)}
+                        title="Eliminar"
+                      >
+                        🗑️
+                      </button>
+                    )}
                   </div>
                 </div>
               </article>
@@ -444,19 +462,26 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
 
       {modalDoc && (
         <Overlay
-          title={docEdit ? 'Editar documento' : 'Nuevo documento'}
+          title={soloLectura ? '👁️ Ver documento' : docEdit ? 'Editar documento' : 'Nuevo documento'}
           onClose={() => setModalDoc(false)}
           footer={
-            <>
+            soloLectura ? (
               <button type="button" className="rs-btn rs-btn-ghost" onClick={() => setModalDoc(false)}>
-                Cancelar
+                Cerrar
               </button>
-              <button type="button" className="rs-btn rs-btn-primary" onClick={guardarDoc}>
-                Guardar
-              </button>
-            </>
+            ) : (
+              <>
+                <button type="button" className="rs-btn rs-btn-ghost" onClick={() => setModalDoc(false)}>
+                  Cancelar
+                </button>
+                <button type="button" className="rs-btn rs-btn-primary" onClick={guardarDoc}>
+                  Guardar
+                </button>
+              </>
+            )
           }
         >
+          <fieldset disabled={soloLectura} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
           <div className="rs-form-grid">
             <div className="rs-field rs-field--full">
               <label>Título *</label>
@@ -491,6 +516,7 @@ export default function AdminWebMatricula({ onOpenCorreos }) {
               />
             </div>
           </div>
+          </fieldset>
         </Overlay>
       )}
     </div>

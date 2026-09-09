@@ -67,7 +67,7 @@ function labelMes(n) {
 /**
  * Panel Calendarización — tab dentro de Comunicaciones / Web
  */
-export default function AdminWebCalendarizacion() {
+export default function AdminWebCalendarizacion({ soloLectura = false }) {
   const [anios, setAnios] = useState([]);
   const [anioSel, setAnioSel] = useState(null);
   const [conceptos, setConceptos] = useState([]);
@@ -293,11 +293,13 @@ export default function AdminWebCalendarizacion() {
 
       {subTab === 'anios' && (
         <>
-          <div style={{ marginBottom: '0.75rem' }}>
-            <button type="button" className="rs-btn rs-btn-primary rs-btn-sm" onClick={crearAnio}>
-              ➕ Nuevo año
-            </button>
-          </div>
+          {!soloLectura && (
+            <div style={{ marginBottom: '0.75rem' }}>
+              <button type="button" className="rs-btn rs-btn-primary rs-btn-sm" onClick={crearAnio}>
+                ➕ Nuevo año
+              </button>
+            </div>
+          )}
           <div className="rs-table-wrap">
             <table className="rs-table">
               <thead>
@@ -317,9 +319,13 @@ export default function AdminWebCalendarizacion() {
                       </span>
                     </td>
                     <td>
-                      <button type="button" className="rs-btn rs-btn-ghost rs-btn-sm" onClick={() => toggleAnioActivo(a)}>
-                        {esActivo(a.activo) ? 'Desactivar' : 'Activar (único)'}
-                      </button>
+                      {soloLectura ? (
+                        <span className="rs-muted">—</span>
+                      ) : (
+                        <button type="button" className="rs-btn rs-btn-ghost rs-btn-sm" onClick={() => toggleAnioActivo(a)}>
+                          {esActivo(a.activo) ? 'Desactivar' : 'Activar (único)'}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -334,15 +340,17 @@ export default function AdminWebCalendarizacion() {
 
       {subTab === 'conceptos' && (
         <>
-          <div style={{ marginBottom: '0.75rem' }}>
-            <button
-              type="button"
-              className="rs-btn rs-btn-primary rs-btn-sm"
-              onClick={() => setModalCon({ open: true, mode: 'create', item: null })}
-            >
-              ➕ Nuevo concepto
-            </button>
-          </div>
+          {!soloLectura && (
+            <div style={{ marginBottom: '0.75rem' }}>
+              <button
+                type="button"
+                className="rs-btn rs-btn-primary rs-btn-sm"
+                onClick={() => setModalCon({ open: true, mode: 'create', item: null })}
+              >
+                ➕ Nuevo concepto
+              </button>
+            </div>
+          )}
           <div className="rs-table-wrap">
             <table className="rs-table">
               <thead>
@@ -386,13 +394,18 @@ export default function AdminWebCalendarizacion() {
                         <button
                           type="button"
                           className="rs-btn rs-btn-ghost rs-btn-sm"
-                          onClick={() => setModalCon({ open: true, mode: 'edit', item: c })}
+                          title={soloLectura ? 'Ver' : 'Editar'}
+                          onClick={() =>
+                            setModalCon({ open: true, mode: soloLectura ? 'view' : 'edit', item: c })
+                          }
                         >
-                          ✏️
+                          {soloLectura ? '👁️' : '✏️'}
                         </button>
-                        <button type="button" className="rs-btn rs-btn-danger rs-btn-sm" onClick={() => eliminarConcepto(c)}>
-                          🗑️
-                        </button>
+                        {!soloLectura && (
+                          <button type="button" className="rs-btn rs-btn-danger rs-btn-sm" onClick={() => eliminarConcepto(c)}>
+                            🗑️
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -406,31 +419,33 @@ export default function AdminWebCalendarizacion() {
       {subTab === 'eventos' && (
         <>
           <div style={{ marginBottom: '0.75rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="rs-btn rs-btn-primary rs-btn-sm"
-              disabled={!anioSel}
-              onClick={() =>
-                setModalEv({
-                  open: true,
-                  mode: 'create',
-                  item: {
-                    anio: anioSel,
-                    mes: mesFiltro || 3,
-                    modo: 'dia',
-                    dia: 1,
-                    tipo: conceptos.find((c) => esActivo(c.activo))?.codigo || 'evento',
-                    color: '#3b82f6',
-                    color_texto: '#ffffff',
-                    texto: '',
-                    orden: (eventos[eventos.length - 1]?.orden || 0) + 1,
-                    activo: 1,
-                  },
-                })
-              }
-            >
-              ➕ Nuevo evento
-            </button>
+            {!soloLectura && (
+              <button
+                type="button"
+                className="rs-btn rs-btn-primary rs-btn-sm"
+                disabled={!anioSel}
+                onClick={() =>
+                  setModalEv({
+                    open: true,
+                    mode: 'create',
+                    item: {
+                      anio: anioSel,
+                      mes: mesFiltro || 3,
+                      modo: 'dia',
+                      dia: 1,
+                      tipo: conceptos.find((c) => esActivo(c.activo))?.codigo || 'evento',
+                      color: '#3b82f6',
+                      color_texto: '#ffffff',
+                      texto: '',
+                      orden: (eventos[eventos.length - 1]?.orden || 0) + 1,
+                      activo: 1,
+                    },
+                  })
+                }
+              >
+                ➕ Nuevo evento
+              </button>
+            )}
             <span className="rs-muted" style={{ alignSelf: 'center' }}>
               {eventos.length} evento(s) · año {anioSel}
             </span>
@@ -500,10 +515,11 @@ export default function AdminWebCalendarizacion() {
                                 <button
                                   type="button"
                                   className="rs-btn rs-btn-ghost rs-btn-sm"
+                                  title={soloLectura ? 'Ver' : 'Editar'}
                                   onClick={() =>
                                     setModalEv({
                                       open: true,
-                                      mode: 'edit',
+                                      mode: soloLectura ? 'view' : 'edit',
                                       item: {
                                         ...ev,
                                         modo: ev.dia != null ? 'dia' : 'rango',
@@ -511,15 +527,17 @@ export default function AdminWebCalendarizacion() {
                                     })
                                   }
                                 >
-                                  ✏️
+                                  {soloLectura ? '👁️' : '✏️'}
                                 </button>
-                                <button
-                                  type="button"
-                                  className="rs-btn rs-btn-danger rs-btn-sm"
-                                  onClick={() => eliminarEvento(ev)}
-                                >
-                                  🗑️
-                                </button>
+                                {!soloLectura && (
+                                  <button
+                                    type="button"
+                                    className="rs-btn rs-btn-danger rs-btn-sm"
+                                    onClick={() => eliminarEvento(ev)}
+                                  >
+                                    🗑️
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -621,6 +639,7 @@ function EventoModal({ mode, item, conceptos, saving, onClose, onSave }) {
   }));
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const soloVer = mode === 'view';
 
   const onTipoChange = (codigo) => {
     const c = conceptos.find((x) => x.codigo === codigo);
@@ -634,41 +653,48 @@ function EventoModal({ mode, item, conceptos, saving, onClose, onSave }) {
 
   return (
     <Overlay
-      title={mode === 'edit' ? '✏️ Editar evento' : '➕ Nuevo evento'}
+      title={soloVer ? '👁️ Ver evento' : mode === 'edit' ? '✏️ Editar evento' : '➕ Nuevo evento'}
       subtitle={`Año ${form.anio}`}
       wide
       onClose={onClose}
       footer={
-        <>
+        soloVer ? (
           <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
-            Cancelar
+            Cerrar
           </button>
-          <button
-            type="button"
-            className="rs-btn rs-btn-primary"
-            disabled={saving}
-            onClick={() =>
-              onSave({
-                anio: form.anio,
-                mes: Number(form.mes),
-                modo: form.modo,
-                dia: form.modo === 'dia' ? Number(form.dia) : null,
-                rango_inicio: form.modo === 'rango' ? Number(form.rango_inicio) : null,
-                rango_fin: form.modo === 'rango' ? Number(form.rango_fin) : null,
-                tipo: form.tipo,
-                color: form.color,
-                color_texto: form.color_texto,
-                texto: form.texto,
-                orden: Number(form.orden) || 0,
-                activo: form.activo ? 1 : 0,
-              })
-            }
-          >
-            {saving ? 'Guardando…' : '💾 Guardar'}
-          </button>
-        </>
+        ) : (
+          <>
+            <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="rs-btn rs-btn-primary"
+              disabled={saving}
+              onClick={() =>
+                onSave({
+                  anio: form.anio,
+                  mes: Number(form.mes),
+                  modo: form.modo,
+                  dia: form.modo === 'dia' ? Number(form.dia) : null,
+                  rango_inicio: form.modo === 'rango' ? Number(form.rango_inicio) : null,
+                  rango_fin: form.modo === 'rango' ? Number(form.rango_fin) : null,
+                  tipo: form.tipo,
+                  color: form.color,
+                  color_texto: form.color_texto,
+                  texto: form.texto,
+                  orden: Number(form.orden) || 0,
+                  activo: form.activo ? 1 : 0,
+                })
+              }
+            >
+              {saving ? 'Guardando…' : '💾 Guardar'}
+            </button>
+          </>
+        )
       }
     >
+      <fieldset disabled={soloVer} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <div className="rs-form-grid">
         <div className="rs-field">
           <label>Mes *</label>
@@ -773,6 +799,7 @@ function EventoModal({ mode, item, conceptos, saving, onClose, onSave }) {
           </div>
         </div>
       </div>
+      </fieldset>
     </Overlay>
   );
 }
@@ -787,33 +814,41 @@ function ConceptoModal({ mode, item, saving, onClose, onSave }) {
     activo: esActivo(item?.activo ?? 1),
   }));
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const soloVer = mode === 'view';
 
   return (
     <Overlay
-      title={mode === 'edit' ? '✏️ Editar concepto' : '➕ Nuevo concepto'}
+      title={soloVer ? '👁️ Ver concepto' : mode === 'edit' ? '✏️ Editar concepto' : '➕ Nuevo concepto'}
       onClose={onClose}
       footer={
-        <>
+        soloVer ? (
           <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
-            Cancelar
+            Cerrar
           </button>
-          <button
-            type="button"
-            className="rs-btn rs-btn-primary"
-            disabled={saving}
-            onClick={() =>
-              onSave({
-                ...form,
-                activo: form.activo ? 1 : 0,
-                orden: Number(form.orden) || 0,
-              })
-            }
-          >
-            {saving ? 'Guardando…' : '💾 Guardar'}
-          </button>
-        </>
+        ) : (
+          <>
+            <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="rs-btn rs-btn-primary"
+              disabled={saving}
+              onClick={() =>
+                onSave({
+                  ...form,
+                  activo: form.activo ? 1 : 0,
+                  orden: Number(form.orden) || 0,
+                })
+              }
+            >
+              {saving ? 'Guardando…' : '💾 Guardar'}
+            </button>
+          </>
+        )
       }
     >
+      <fieldset disabled={soloVer} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <div className="rs-form-grid">
         <div className="rs-field">
           <label>Código *</label>
@@ -821,7 +856,7 @@ function ConceptoModal({ mode, item, saving, onClose, onSave }) {
             value={form.codigo}
             onChange={(e) => set('codigo', e.target.value)}
             placeholder="feriado"
-            disabled={mode === 'edit'}
+            disabled={mode === 'edit' || soloVer}
           />
         </div>
         <div className="rs-field">
@@ -850,6 +885,7 @@ function ConceptoModal({ mode, item, saving, onClose, onSave }) {
           </div>
         </div>
       </div>
+      </fieldset>
     </Overlay>
   );
 }

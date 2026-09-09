@@ -152,7 +152,8 @@ function BadgeEstado({ estado }) {
   return <span className={`rs-badge rs-badge--${key}`}>{etiquetaEstado(estado)}</span>;
 }
 
-function tabValido(raw) {
+function tabValido(raw, ocultarPaginas = false) {
+  if (ocultarPaginas && raw === 'paginas') return 'reclamos';
   return TAB_IDS.includes(raw) ? raw : 'reclamos';
 }
 
@@ -2106,7 +2107,15 @@ export default function AdminReclamosSugerencias() {
     document.body.classList.add('coord-web-solo-lectura');
     return () => document.body.classList.remove('coord-web-solo-lectura');
   }, [soloLectura]);
-  const tab = tabValido(searchParams.get('tab'));
+
+  useEffect(() => {
+    if (soloLectura && searchParams.get('tab') === 'paginas') {
+      setSearchParams({ tab: 'reclamos' }, { replace: true });
+    }
+  }, [soloLectura, searchParams, setSearchParams]);
+
+  const tab = tabValido(searchParams.get('tab'), soloLectura);
+  const tabsVisibles = soloLectura ? TABS.filter((t) => t.id !== 'paginas') : TABS;
 
   const [listas, setListas] = useState({
     reclamos: [],
@@ -2229,7 +2238,7 @@ export default function AdminReclamosSugerencias() {
     };
     const cfg = map[tipo];
     let item = row;
-    if (row?.estado === 'nuevo') {
+    if (row?.estado === 'nuevo' && !soloLectura) {
       try {
         const { data } = await api.post(`${API}/${cfg.path}/${row.id}/marcar-visto`);
         if (data?.[cfg.respKey]) {
@@ -2386,7 +2395,7 @@ export default function AdminReclamosSugerencias() {
         </header>
 
         <nav className="rs-tabs rs-tabs--grid" aria-label="Secciones">
-          {TABS.map((t) => (
+          {tabsVisibles.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -2400,16 +2409,16 @@ export default function AdminReclamosSugerencias() {
         </nav>
 
         {tab === 'calendarizacion' ? (
-          <AdminWebCalendarizacion />
+          <AdminWebCalendarizacion soloLectura={soloLectura} />
         ) : tab === 'faqs' ? (
-          <AdminWebFaqs />
+          <AdminWebFaqs soloLectura={soloLectura} />
         ) : tab === 'utiles' ? (
-          <AdminWebUtiles />
+          <AdminWebUtiles soloLectura={soloLectura} />
         ) : tab === 'documentos' ? (
-          <AdminWebDocumentos />
+          <AdminWebDocumentos soloLectura={soloLectura} />
         ) : tab === 'matricula' ? (
-          <AdminWebMatricula onOpenCorreos={() => setModalCorreos(true)} />
-        ) : tab === 'paginas' ? (
+          <AdminWebMatricula soloLectura={soloLectura} onOpenCorreos={() => setModalCorreos(true)} />
+        ) : tab === 'paginas' && !soloLectura ? (
           <AdminWebPaginas />
         ) : (
           <>
@@ -2561,22 +2570,26 @@ export default function AdminReclamosSugerencias() {
                           >
                             👁️
                           </button>
-                          <button
-                            type="button"
-                            className="rs-btn rs-btn-ghost rs-btn-sm"
-                            title="Editar"
-                            onClick={() => marcarVistoYAbrir('reclamos', row, 'edit')}
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            type="button"
-                            className="rs-btn rs-btn-danger rs-btn-sm"
-                            title="Eliminar"
-                            onClick={() => eliminarRegistro('reclamos', row, `${row.numero || row.id} — ${row.nombre}`)}
-                          >
-                            🗑️
-                          </button>
+                          {!soloLectura && (
+                            <>
+                              <button
+                                type="button"
+                                className="rs-btn rs-btn-ghost rs-btn-sm"
+                                title="Editar"
+                                onClick={() => marcarVistoYAbrir('reclamos', row, 'edit')}
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                type="button"
+                                className="rs-btn rs-btn-danger rs-btn-sm"
+                                title="Eliminar"
+                                onClick={() => eliminarRegistro('reclamos', row, `${row.numero || row.id} — ${row.nombre}`)}
+                              >
+                                🗑️
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -2619,24 +2632,31 @@ export default function AdminReclamosSugerencias() {
                           <button
                             type="button"
                             className="rs-btn rs-btn-ghost rs-btn-sm"
+                            title="Ver"
                             onClick={() => marcarVistoYAbrir('sugerencias', row, 'view')}
                           >
                             👁️
                           </button>
-                          <button
-                            type="button"
-                            className="rs-btn rs-btn-ghost rs-btn-sm"
-                            onClick={() => marcarVistoYAbrir('sugerencias', row, 'edit')}
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            type="button"
-                            className="rs-btn rs-btn-danger rs-btn-sm"
-                            onClick={() => eliminarRegistro('sugerencias', row, row.nombre)}
-                          >
-                            🗑️
-                          </button>
+                          {!soloLectura && (
+                            <>
+                              <button
+                                type="button"
+                                className="rs-btn rs-btn-ghost rs-btn-sm"
+                                title="Editar"
+                                onClick={() => marcarVistoYAbrir('sugerencias', row, 'edit')}
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                type="button"
+                                className="rs-btn rs-btn-danger rs-btn-sm"
+                                title="Eliminar"
+                                onClick={() => eliminarRegistro('sugerencias', row, row.nombre)}
+                              >
+                                🗑️
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -2679,24 +2699,31 @@ export default function AdminReclamosSugerencias() {
                           <button
                             type="button"
                             className="rs-btn rs-btn-ghost rs-btn-sm"
+                            title="Ver"
                             onClick={() => marcarVistoYAbrir('contacto', row, 'view')}
                           >
                             👁️
                           </button>
-                          <button
-                            type="button"
-                            className="rs-btn rs-btn-ghost rs-btn-sm"
-                            onClick={() => marcarVistoYAbrir('contacto', row, 'edit')}
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            type="button"
-                            className="rs-btn rs-btn-danger rs-btn-sm"
-                            onClick={() => eliminarRegistro('contacto', row, row.nombre)}
-                          >
-                            🗑️
-                          </button>
+                          {!soloLectura && (
+                            <>
+                              <button
+                                type="button"
+                                className="rs-btn rs-btn-ghost rs-btn-sm"
+                                title="Editar"
+                                onClick={() => marcarVistoYAbrir('contacto', row, 'edit')}
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                type="button"
+                                className="rs-btn rs-btn-danger rs-btn-sm"
+                                title="Eliminar"
+                                onClick={() => eliminarRegistro('contacto', row, row.nombre)}
+                              >
+                                🗑️
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -2738,24 +2765,31 @@ export default function AdminReclamosSugerencias() {
                           <button
                             type="button"
                             className="rs-btn rs-btn-ghost rs-btn-sm"
+                            title="Ver"
                             onClick={() => marcarVistoYAbrir('visitas', row, 'view')}
                           >
                             👁️
                           </button>
-                          <button
-                            type="button"
-                            className="rs-btn rs-btn-ghost rs-btn-sm"
-                            onClick={() => marcarVistoYAbrir('visitas', row, 'edit')}
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            type="button"
-                            className="rs-btn rs-btn-danger rs-btn-sm"
-                            onClick={() => eliminarRegistro('visitas', row, row.nombre)}
-                          >
-                            🗑️
-                          </button>
+                          {!soloLectura && (
+                            <>
+                              <button
+                                type="button"
+                                className="rs-btn rs-btn-ghost rs-btn-sm"
+                                title="Editar"
+                                onClick={() => marcarVistoYAbrir('visitas', row, 'edit')}
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                type="button"
+                                className="rs-btn rs-btn-danger rs-btn-sm"
+                                title="Eliminar"
+                                onClick={() => eliminarRegistro('visitas', row, row.nombre)}
+                              >
+                                🗑️
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -2806,24 +2840,31 @@ export default function AdminReclamosSugerencias() {
                           <button
                             type="button"
                             className="rs-btn rs-btn-ghost rs-btn-sm"
+                            title="Ver"
                             onClick={() => marcarVistoYAbrir('trabaja', row, 'view')}
                           >
                             👁️
                           </button>
-                          <button
-                            type="button"
-                            className="rs-btn rs-btn-ghost rs-btn-sm"
-                            onClick={() => marcarVistoYAbrir('trabaja', row, 'edit')}
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            type="button"
-                            className="rs-btn rs-btn-danger rs-btn-sm"
-                            onClick={() => eliminarRegistro('trabaja', row, row.nombre)}
-                          >
-                            🗑️
-                          </button>
+                          {!soloLectura && (
+                            <>
+                              <button
+                                type="button"
+                                className="rs-btn rs-btn-ghost rs-btn-sm"
+                                title="Editar"
+                                onClick={() => marcarVistoYAbrir('trabaja', row, 'edit')}
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                type="button"
+                                className="rs-btn rs-btn-danger rs-btn-sm"
+                                title="Eliminar"
+                                onClick={() => eliminarRegistro('trabaja', row, row.nombre)}
+                              >
+                                🗑️
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -2867,30 +2908,37 @@ export default function AdminReclamosSugerencias() {
                           <button
                             type="button"
                             className="rs-btn rs-btn-ghost rs-btn-sm"
+                            title="Ver"
                             onClick={() => marcarVistoYAbrir('admision', row, 'view')}
                           >
                             👁️
                           </button>
-                          <button
-                            type="button"
-                            className="rs-btn rs-btn-ghost rs-btn-sm"
-                            onClick={() => marcarVistoYAbrir('admision', row, 'edit')}
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            type="button"
-                            className="rs-btn rs-btn-danger rs-btn-sm"
-                            onClick={() =>
-                              eliminarRegistro(
-                                'admision',
-                                row,
-                                `${row.nombres_estudiante} ${row.apellidos_estudiante}`
-                              )
-                            }
-                          >
-                            🗑️
-                          </button>
+                          {!soloLectura && (
+                            <>
+                              <button
+                                type="button"
+                                className="rs-btn rs-btn-ghost rs-btn-sm"
+                                title="Editar"
+                                onClick={() => marcarVistoYAbrir('admision', row, 'edit')}
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                type="button"
+                                className="rs-btn rs-btn-danger rs-btn-sm"
+                                title="Eliminar"
+                                onClick={() =>
+                                  eliminarRegistro(
+                                    'admision',
+                                    row,
+                                    `${row.nombres_estudiante} ${row.apellidos_estudiante}`
+                                  )
+                                }
+                              >
+                                🗑️
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
