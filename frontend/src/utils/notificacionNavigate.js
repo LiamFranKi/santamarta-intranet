@@ -12,6 +12,7 @@ export function dashboardPorTipoUsuario(tipo) {
   if (tipo === 'ADMINISTRADOR') return '/admin/dashboard';
   if (tipo === 'PROMOTORIA') return '/promotoria/dashboard';
   if (tipo === 'PSICOLOGA') return '/admin/psicologa-dashboard';
+  if (tipo === 'COORDINADOR') return '/docente/dashboard';
   return '/';
 }
 

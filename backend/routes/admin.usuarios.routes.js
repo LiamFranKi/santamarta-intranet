@@ -100,6 +100,20 @@ function requireAdminOrPsicologaUsuarios(req, res, next) {
     }
     return res.status(403).json({ error: 'No autorizado' });
   }
+  if (tipo === 'COORDINADOR') {
+    const { esMetodoLectura } = require('../utils/coordinadorAcceso');
+    const rel = req.path || '';
+    const okPath =
+      rel.startsWith('/alumnos')
+      || rel.startsWith('/apoderados')
+      || rel.startsWith('/personal')
+      || rel.startsWith('/equipo')
+      || rel === '/personal-por-dni';
+    if (okPath && esMetodoLectura(req.method)) {
+      return next();
+    }
+    return res.status(403).json({ error: 'El coordinador solo puede consultar usuarios.' });
+  }
   return res.status(403).json({ error: 'Solo administradores pueden gestionar usuarios' });
 }
 

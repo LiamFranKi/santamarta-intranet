@@ -84,7 +84,11 @@ export default function DashboardLayout({ children }) {
     psicologaCom: null,
     psicologaUsuarios: null,
     psicologaAcademico: null,
-    psicologaHerramientas: null
+    psicologaHerramientas: null,
+    coordinadorUsuarios: null,
+    coordinadorAcademico: null,
+    coordinadorHerramientas: null,
+    coordinadorCom: null,
   });
 
   // Mantener abierto el submenú que contiene la ruta actual (evita que se "bloquee" la navegación en Config, etc.)
@@ -132,6 +136,23 @@ export default function DashboardLayout({ children }) {
           ? { psicologaHerramientas: true }
           : {}
       ),
+      ...(path.startsWith('/admin/usuarios') && user?.tipo === 'COORDINADOR' ? { coordinadorUsuarios: true } : {}),
+      ...(path.startsWith('/admin/academico') && user?.tipo === 'COORDINADOR' ? { coordinadorAcademico: true } : {}),
+      ...(
+        (
+          path.startsWith('/admin/documentos-gestion')
+          || path.startsWith('/docente/herramientas')
+          || path.startsWith('/admin/herramientas')
+          || path.startsWith('/herramientas-examenes')
+          || path.startsWith('/encuestas')
+          || path.startsWith('/elecciones-campana')
+        ) && user?.tipo === 'COORDINADOR'
+          ? { coordinadorHerramientas: true }
+          : {}
+      ),
+      ...(path.startsWith('/admin/comunicaciones') && !path.startsWith('/admin/comunicaciones/web') && user?.tipo === 'COORDINADOR'
+        ? { coordinadorCom: true }
+        : {}),
       ...(
         (
           path.startsWith('/alumno/herramientas') ||
@@ -186,6 +207,7 @@ export default function DashboardLayout({ children }) {
     'PSICOLOGA',
     'DIRECTOR',
     'ASISTENCIA',
+    'COORDINADOR',
   ];
 
   useEffect(() => {
@@ -301,6 +323,7 @@ export default function DashboardLayout({ children }) {
       || user?.tipo === 'PROMOTORIA'
       || user?.tipo === 'SECRETARIA'
       || user?.tipo === 'PSICOLOGA'
+      || user?.tipo === 'COORDINADOR'
     ) {
       resetNoDocenteAcademico();
       cargarRolesAdicionalesSolo();
@@ -516,6 +539,8 @@ export default function DashboardLayout({ children }) {
                             ? '/promotoria/dashboard'
                             : role === 'DIRECTOR'
                               ? '/admin/gestion-operativa/tablero'
+                            : role === 'COORDINADOR'
+                              ? '/docente/dashboard'
                             : role === 'SECRETARIA'
                               ? '/admin/dashboard'
                               : '/admin/dashboard'
@@ -1412,6 +1437,232 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
             </>
+          ) : role === 'COORDINADOR' ? (
+            <>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/dashboard" end>
+                  <span className="sidebar-icon">📊</span>
+                  <span className="sidebar-label">Dashboard</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/perfil">
+                  <span className="sidebar-icon">👤</span>
+                  <span className="sidebar-label">Mi Perfil</span>
+                </NavLink>
+              </div>
+              <SgoiSidebarItem />
+              {tienePersonalAsistencias && (
+                <div className="sidebar-item">
+                  <button
+                    type="button"
+                    className="sidebar-link"
+                    onClick={() => setMostrarModalAsistencias(true)}
+                    style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    <span className="sidebar-icon">⏰</span>
+                    <span className="sidebar-label">Mis Asistencias</span>
+                  </button>
+                </div>
+              )}
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/web">
+                  <span className="sidebar-icon">🌐</span>
+                  <span className="sidebar-label">Web</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/institucional">
+                  <span className="sidebar-icon">🏛️</span>
+                  <span className="sidebar-label">Institucional</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-menu-item">
+                <button
+                  type="button"
+                  className={`sidebar-menu-toggle ${expandedMenus.coordinadorUsuarios ? 'expanded' : ''}`}
+                  onClick={() => toggleSubmenu('coordinadorUsuarios')}
+                >
+                  <div className="sidebar-menu-toggle-content">
+                    <span className="sidebar-icon">👥</span>
+                    <span className="sidebar-label">Usuarios</span>
+                  </div>
+                  <span className="sidebar-menu-arrow">▶</span>
+                </button>
+                <div
+                  ref={(el) => { submenuRefs.current.coordinadorUsuarios = el; }}
+                  className={`sidebar-submenu ${expandedMenus.coordinadorUsuarios ? 'expanded' : ''}`}
+                >
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/usuarios/equipo">
+                    <span className="sidebar-icon" aria-hidden>👔</span>
+                    <span className="sidebar-label">Personal</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/usuarios/alumnos">
+                    <span className="sidebar-icon" aria-hidden>🎓</span>
+                    <span className="sidebar-label">Alumnos</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/usuarios/apoderados">
+                    <span className="sidebar-icon" aria-hidden>👨‍👩‍👧</span>
+                    <span className="sidebar-label">Apoderados</span>
+                  </NavLink>
+                </div>
+              </div>
+              <div className="sidebar-menu-item">
+                <button
+                  type="button"
+                  className={`sidebar-menu-toggle ${expandedMenus.coordinadorAcademico ? 'expanded' : ''}`}
+                  onClick={() => toggleSubmenu('coordinadorAcademico')}
+                >
+                  <div className="sidebar-menu-toggle-content">
+                    <span className="sidebar-icon">🎓</span>
+                    <span className="sidebar-label">Académico</span>
+                  </div>
+                  <span className="sidebar-menu-arrow">▶</span>
+                </button>
+                <div
+                  ref={(el) => { submenuRefs.current.coordinadorAcademico = el; }}
+                  className={`sidebar-submenu ${expandedMenus.coordinadorAcademico ? 'expanded' : ''}`}
+                >
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/academico/niveles">
+                    <span className="sidebar-icon" aria-hidden>🏫</span>
+                    <span className="sidebar-label">Niveles</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/academico/grados">
+                    <span className="sidebar-icon" aria-hidden>📑</span>
+                    <span className="sidebar-label">Grados</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/academico/cursos">
+                    <span className="sidebar-icon" aria-hidden>📚</span>
+                    <span className="sidebar-label">Cursos</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/academico/asignaturas">
+                    <span className="sidebar-icon" aria-hidden>📖</span>
+                    <span className="sidebar-label">Asignaturas</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/academico/areas">
+                    <span className="sidebar-icon" aria-hidden>🧩</span>
+                    <span className="sidebar-label">Áreas</span>
+                  </NavLink>
+                </div>
+              </div>
+              <div className="sidebar-menu-item">
+                <button
+                  type="button"
+                  className={`sidebar-menu-toggle ${expandedMenus.coordinadorHerramientas ? 'expanded' : ''}`}
+                  onClick={() => toggleSubmenu('coordinadorHerramientas')}
+                >
+                  <div className="sidebar-menu-toggle-content">
+                    <span className="sidebar-icon">🧰</span>
+                    <span className="sidebar-label">Herramientas</span>
+                  </div>
+                  <span className="sidebar-menu-arrow">▶</span>
+                </button>
+                <div
+                  ref={(el) => { submenuRefs.current.coordinadorHerramientas = el; }}
+                  className={`sidebar-submenu ${expandedMenus.coordinadorHerramientas ? 'expanded' : ''}`}
+                >
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/documentos-gestion">
+                    <span className="sidebar-icon" aria-hidden>📄</span>
+                    <span className="sidebar-label">Documentos</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/docente/herramientas/examenes">
+                    <span className="sidebar-icon" aria-hidden>🎯</span>
+                    <span className="sidebar-label">Exámenes</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/docente/herramientas/encuestas">
+                    <span className="sidebar-icon" aria-hidden>📋</span>
+                    <span className="sidebar-label">Encuestas</span>
+                  </NavLink>
+                  <NavLink
+                    className={({ isActive }) =>
+                      `sidebar-sublink ${isActive || location.pathname.startsWith('/elecciones-campana') ? 'active' : ''}`
+                    }
+                    to="/elecciones-campana"
+                  >
+                    <span className="sidebar-icon" aria-hidden>🗳️</span>
+                    <span className="sidebar-label">Elecciones</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/vocabularios">
+                    <span className="sidebar-icon" aria-hidden>📚</span>
+                    <span className="sidebar-label">Vocabulario</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/disenador-fichas">
+                    <span className="sidebar-icon" aria-hidden>✨</span>
+                    <span className="sidebar-label">Fichas IA</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/docente/herramientas/supervision">
+                    <span className="sidebar-icon" aria-hidden>👁️</span>
+                    <span className="sidebar-label">Supervisión</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/reuniones">
+                    <span className="sidebar-icon" aria-hidden>🤝</span>
+                    <span className="sidebar-label">Reuniones</span>
+                  </NavLink>
+                </div>
+              </div>
+              <div className="sidebar-menu-item">
+                <button
+                  type="button"
+                  className={`sidebar-menu-toggle ${expandedMenus.coordinadorCom ? 'expanded' : ''}`}
+                  onClick={() => toggleSubmenu('coordinadorCom')}
+                >
+                  <div className="sidebar-menu-toggle-content">
+                    <span className="sidebar-icon">📣</span>
+                    <span className="sidebar-label">Comunicaciones</span>
+                  </div>
+                  <span className="sidebar-menu-arrow">▶</span>
+                </button>
+                <div
+                  ref={(el) => { submenuRefs.current.coordinadorCom = el; }}
+                  className={`sidebar-submenu ${expandedMenus.coordinadorCom ? 'expanded' : ''}`}
+                >
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/publicaciones">
+                    <span className="sidebar-icon" aria-hidden>📰</span>
+                    <span className="sidebar-label">Publicaciones</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/conexiones">
+                    <span className="sidebar-icon" aria-hidden>🔗</span>
+                    <span className="sidebar-label">Conexiones</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/comunicados">
+                    <span className="sidebar-icon" aria-hidden>📢</span>
+                    <span className="sidebar-label">Comunicados</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/actividades">
+                    <span className="sidebar-icon" aria-hidden>📅</span>
+                    <span className="sidebar-label">Actividades</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/eventos">
+                    <span className="sidebar-icon" aria-hidden>🎉</span>
+                    <span className="sidebar-label">Eventos</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/notificaciones">
+                    <span className="sidebar-icon" aria-hidden>🔔</span>
+                    <span className="sidebar-label">Notificaciones</span>
+                  </NavLink>
+                </div>
+              </div>
+              {rolesAdicionales.es_apoderado && (
+                <div className="sidebar-item">
+                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/hijos">
+                    <span className="sidebar-icon">👨‍👩‍👧‍👦</span>
+                    <span className="sidebar-label">Estudiantes a cargo</span>
+                  </NavLink>
+                </div>
+              )}
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/reportes">
+                  <span className="sidebar-icon">📈</span>
+                  <span className="sidebar-label">Reportes</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/mensajes">
+                  <span className="sidebar-icon">✉️</span>
+                  <span className="sidebar-label">Mensajes</span>
+                </NavLink>
+              </div>
+            </>
           ) : role === 'DIRECTOR' ? (
             <>
               <div className="sidebar-item">
@@ -1871,7 +2122,8 @@ export default function DashboardLayout({ children }) {
               || role === 'PROMOTORIA'
               || role === 'SECRETARIA'
               || role === 'PSICOLOGA'
-              || role === 'DIRECTOR') && <NotificacionesWidget />}
+              || role === 'DIRECTOR'
+              || role === 'COORDINADOR') && <NotificacionesWidget />}
             <button
               className="header-btn"
               type="button"
@@ -1884,7 +2136,7 @@ export default function DashboardLayout({ children }) {
                       ? '/alumno/perfil'
                       : role === 'APODERADO'
                         ? '/apoderado/perfil'
-                        : role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA' || role === 'PSICOLOGA' || role === 'DIRECTOR'
+                        : role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA' || role === 'PSICOLOGA' || role === 'DIRECTOR' || role === 'COORDINADOR'
                           ? '/admin/perfil'
                           : '/perfil'
                 )
@@ -1911,11 +2163,11 @@ export default function DashboardLayout({ children }) {
           <main className="dashboard-main">{children}</main>
           
           {/* Columna derecha: solo se monta en web/tablet para evitar requests ocultos en móvil */}
-          {!isMobile && (role === 'DOCENTE' || role === 'ALUMNO' || role === 'APODERADO') && (
+          {!isMobile && (role === 'DOCENTE' || role === 'COORDINADOR' || role === 'ALUMNO' || role === 'APODERADO') && (
             <aside className="dashboard-sidebar-right">
               {role === 'ALUMNO' && <AlumnoAvatarWidget />}
               <CalendarioWidget />
-              {role === 'DOCENTE' && (
+              {(role === 'DOCENTE' || role === 'COORDINADOR') && (
                 <div id="dashboard-publicaciones" className="publicaciones-widget-sidebar">
                   <PublicacionesWidget />
                 </div>

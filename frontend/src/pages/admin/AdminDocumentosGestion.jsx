@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
@@ -17,6 +18,8 @@ function baseArchivoUrl(rutaRelativa) {
 }
 
 function AdminDocumentosGestion() {
+  const { user } = useAuth();
+  const soloLectura = user?.tipo === 'COORDINADOR';
   const [loading, setLoading] = useState(true);
   const [categorias, setCategorias] = useState([]);
   const [documentos, setDocumentos] = useState([]);
@@ -295,6 +298,7 @@ function AdminDocumentosGestion() {
                   </div>
                   <h4>{c.nombre}</h4>
                   {c.descripcion ? <p className="dg-cat-meta">{c.descripcion}</p> : null}
+                  {!soloLectura && (
                   <div className="dg-cat-actions">
                     <Tooltip title="Editar categoría">
                       <IconButton size="small" color="primary" onClick={() => abrirModalCat(c)} aria-label="Editar">
@@ -307,6 +311,7 @@ function AdminDocumentosGestion() {
                       </IconButton>
                     </Tooltip>
                   </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -324,6 +329,7 @@ function AdminDocumentosGestion() {
                 <p>Suba archivos y asigne a quién van dirigidos.</p>
               </div>
             </div>
+            {!soloLectura && (
             <button
               type="button"
               className="dg-btn-primary"
@@ -332,6 +338,7 @@ function AdminDocumentosGestion() {
             >
               + Subir documento
             </button>
+            )}
           </div>
 
           <div className="dg-filters">
@@ -413,16 +420,20 @@ function AdminDocumentosGestion() {
                               <VisibilityOutlinedIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
+                          {!soloLectura && (
                           <Tooltip title="Editar">
                             <IconButton size="small" color="primary" onClick={() => abrirModalDoc(d)} aria-label="Editar">
                               <EditOutlinedIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
+                          )}
+                          {!soloLectura && (
                           <Tooltip title="Eliminar">
                             <IconButton size="small" color="error" onClick={() => eliminarDocumento(d)} aria-label="Eliminar">
                               <DeleteOutlineIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
+                          )}
                         </div>
                       </td>
                     </tr>

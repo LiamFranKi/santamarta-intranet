@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import Swal from 'sweetalert2';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
@@ -2096,7 +2097,15 @@ function ModalAdmision({ open, mode, item, onClose, onSaved }) {
 /* ─── Página principal ─────────────────────────────────────────────────────── */
 
 export default function AdminReclamosSugerencias() {
+  const { user } = useAuth();
+  const soloLectura = user?.tipo === 'COORDINADOR';
   const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (!soloLectura) return undefined;
+    document.body.classList.add('coord-web-solo-lectura');
+    return () => document.body.classList.remove('coord-web-solo-lectura');
+  }, [soloLectura]);
   const tab = tabValido(searchParams.get('tab'));
 
   const [listas, setListas] = useState({
@@ -2342,10 +2351,14 @@ export default function AdminReclamosSugerencias() {
         <header className="rs-hero">
           <div>
             <h1>Web</h1>
-            <p>Formularios y calendarización de la web pública Vanguard (gestión desde intranet).</p>
+            <p>
+              {soloLectura
+                ? 'Consulta de formularios y calendarización de la web pública (solo lectura).'
+                : 'Formularios y calendarización de la web pública Vanguard (gestión desde intranet).'}
+            </p>
           </div>
           <div className="rs-hero-actions">
-            {tab !== 'calendarizacion' && tab !== 'faqs' && tab !== 'utiles' && tab !== 'documentos' && tab !== 'paginas' && (
+            {!soloLectura && tab !== 'calendarizacion' && tab !== 'faqs' && tab !== 'utiles' && tab !== 'documentos' && tab !== 'paginas' && (
               <>
                 <button type="button" className="rs-btn rs-btn-light" onClick={() => setModalCorreos(true)}>
                   📧 Correos de envío

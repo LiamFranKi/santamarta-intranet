@@ -205,6 +205,12 @@ router.use((req, res, next) => {
       return next();
     }
   }
+  if (req.user.tipo === 'COORDINADOR') {
+    const { coordinadorPuedeAdminCore } = require('../utils/coordinadorAcceso');
+    if (coordinadorPuedeAdminCore(req.path || '', req.method)) {
+      return next();
+    }
+  }
   return res.status(403).json({
     error: 'No tienes permisos para acceder a este recurso'
   });
@@ -218,6 +224,14 @@ function requireSoloAdministrador(req, res, next) {
     });
   }
   next();
+}
+
+function requireAdminOCoordinadorGetInstitucional(req, res, next) {
+  if (req.user?.tipo === 'ADMINISTRADOR') return next();
+  if (req.user?.tipo === 'COORDINADOR') return next();
+  return res.status(403).json({
+    error: 'Solo el perfil Administrador puede acceder a este módulo.'
+  });
 }
 
 function buildArchivoUrlAdmin(nombreArchivo) {
@@ -2586,7 +2600,7 @@ router.delete('/gestion-documentos/:id', async (req, res) => {
 // ========== Institucional (PDFs por categoría; solo ADMINISTRADOR) ==========
 // Notificaciones por fecha de vencimiento: definir en otro trabajo; destinatarios solo ADMINISTRADOR.
 
-router.get('/institucional/categorias', requireSoloAdministrador, async (req, res) => {
+router.get('/institucional/categorias', requireAdminOCoordinadorGetInstitucional, async (req, res) => {
   try {
     const { colegio_id } = req.user;
     const excluirMatricula =
@@ -2685,7 +2699,7 @@ router.delete('/institucional/categorias/:id', requireSoloAdministrador, async (
   }
 });
 
-router.get('/institucional/documentos', requireSoloAdministrador, async (req, res) => {
+router.get('/institucional/documentos', requireAdminOCoordinadorGetInstitucional, async (req, res) => {
   try {
     const { colegio_id } = req.user;
     const { categoria_id } = req.query;

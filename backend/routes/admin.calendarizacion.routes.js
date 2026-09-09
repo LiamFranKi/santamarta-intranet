@@ -8,10 +8,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { query, execute } = require('../utils/mysql');
 
 router.use(authenticateToken);
-router.use((req, res, next) => {
-  if (req.user?.tipo === 'ADMINISTRADOR') return next();
-  return res.status(403).json({ error: 'Solo el administrador puede gestionar la calendarización.' });
-});
+router.use(require('../utils/coordinadorAcceso').requireAdminOCoordinadorGet);
 
 const MESES = [
   { value: 1, label: 'Enero' },

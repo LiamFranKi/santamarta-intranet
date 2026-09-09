@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Swal from 'sweetalert2';
+import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import '../DocenteGrupos.css';
@@ -67,6 +68,8 @@ function tituloPreview(icono, titulo) {
 }
 
 export default function AdminNotificacionesEnvio() {
+  const { user } = useAuth();
+  const soloLectura = user?.tipo === 'COORDINADOR';
   const [items, setItems] = useState([]);
   const [paginaActual, setPaginaActual] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -290,9 +293,11 @@ export default function AdminNotificacionesEnvio() {
             style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}
           >
             <h2 className="section-title-blue">Filtros y acciones</h2>
+            {!soloLectura && (
             <button type="button" className="admin-conexiones-btn-nuevo" onClick={abrirModalNuevo}>
               + Nueva Notificación
             </button>
+            )}
           </div>
 
           <div className="admin-cf-filtros">

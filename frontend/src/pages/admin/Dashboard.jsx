@@ -34,6 +34,38 @@ const PSICOLOGA_RUTAS_ADMIN = [
   '/admin/academico/grados'
 ];
 
+function rutaAdminPermitidaCoordinador(pathname) {
+  const p = String(pathname || '');
+  if (p === '/admin/reportes') return true;
+  if (p.startsWith('/admin/reportes/')) return false;
+  const ok = [
+    '/admin/perfil',
+    '/admin/institucional',
+    '/admin/comunicaciones/web',
+    '/admin/comunicaciones/publicaciones',
+    '/admin/comunicaciones/conexiones',
+    '/admin/comunicaciones/actividades',
+    '/admin/comunicaciones/comunicados',
+    '/admin/comunicaciones/eventos',
+    '/admin/comunicaciones/notificaciones',
+    '/admin/usuarios/equipo',
+    '/admin/usuarios/alumnos',
+    '/admin/usuarios/apoderados',
+    '/admin/academico/niveles',
+    '/admin/academico/grados',
+    '/admin/academico/cursos',
+    '/admin/academico/asignaturas',
+    '/admin/academico/areas',
+    '/admin/documentos-gestion',
+    '/admin/herramientas/disenador-fichas',
+    '/admin/herramientas/vocabularios',
+    '/admin/herramientas/reuniones',
+    '/admin/mensajes',
+    '/admin/gestion-operativa',
+  ];
+  return ok.some((base) => p === base || p.startsWith(`${base}/`));
+}
+
 /** Rutas /admin/* que la psicóloga puede abrir sin redirigir al panel (comunicaciones, perfil, bandeja, etc.). */
 function rutaAdminPermitidaPsicologa(pathname) {
   if (pathname === '/admin/psicologa-dashboard') return true;
@@ -351,6 +383,25 @@ function Dashboard() {
     && !rutaAdminPermitidaPsicologa(location.pathname)
   ) {
     return <Navigate to="/admin/psicologa-dashboard" replace />;
+  }
+
+  if (
+    user?.tipo === 'COORDINADOR'
+    && location.pathname.startsWith('/admin/')
+    && !rutaAdminPermitidaCoordinador(location.pathname)
+  ) {
+    return <Navigate to="/docente/dashboard" replace />;
+  }
+
+  if (location.pathname === '/admin/reportes' && user?.tipo === 'COORDINADOR') {
+    return (
+      <DashboardLayout>
+        <div className="dashboard-container" style={{ padding: '1.5rem' }}>
+          <h1 style={{ margin: '0 0 0.5rem' }}>Reportes</h1>
+          <p style={{ color: '#64748b' }}>Este módulo se habilitará más adelante.</p>
+        </div>
+      </DashboardLayout>
+    );
   }
 
   // Si es una ruta específica de admin (pero NO el dashboard principal), mostrar contenido específico (placeholder)

@@ -1,4 +1,4 @@
-export const SGOI_TIPOS = ['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR'];
+export const SGOI_TIPOS = ['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR', 'COORDINADOR'];
 
 export function usuarioPuedeSgoi(tipo) {
   return SGOI_TIPOS.includes(String(tipo || '').toUpperCase());

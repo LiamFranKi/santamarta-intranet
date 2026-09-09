@@ -7,7 +7,7 @@ const { fechaHoraMySQLLima, fechaMySQLLima } = require('./fechaHoraLima');
 const { resolvePersonalId } = require('./tutoriaGeneral');
 const { registrarAccion } = require('./auditoria');
 
-const TIPOS_SGOI = ['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR'];
+const TIPOS_SGOI = ['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR', 'COORDINADOR'];
 const ESTADOS_CASO_CIERRE = ['RESUELTO', 'PENDIENTE'];
 const ESTADOS_TRABAJO_CIERRE = ['HECHO', 'PENDIENTE'];
 const TIPOS_TRABAJO = ['DESARROLLO', 'SOPORTE', 'PAGOS', 'DESPLIEGUE', 'REUNION', 'OTRO'];

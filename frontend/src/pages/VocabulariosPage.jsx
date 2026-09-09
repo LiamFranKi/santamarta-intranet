@@ -71,7 +71,7 @@ export default function VocabulariosPage({ variant = 'admin' }) {
   const { user } = useAuth();
   const copy = VARIANT_COPY[variant] || VARIANT_COPY.admin;
   const puedeGestionar =
-    (variant === 'admin' || variant === 'docente') && user?.tipo !== 'PSICOLOGA';
+    (variant === 'admin' || variant === 'docente') && user?.tipo !== 'PSICOLOGA' && user?.tipo !== 'COORDINADOR';
   const cargaOpcionesGrado = variant === 'admin' || variant === 'docente';
 
   const [loading, setLoading] = useState(true);

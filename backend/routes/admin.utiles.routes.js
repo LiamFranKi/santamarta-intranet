@@ -21,10 +21,7 @@ const {
 } = require('../utils/webVanguardFiles');
 
 router.use(authenticateToken);
-router.use((req, res, next) => {
-  if (req.user?.tipo === 'ADMINISTRADOR') return next();
-  return res.status(403).json({ error: 'Solo el administrador puede gestionar la lista de útiles.' });
-});
+router.use(require('../utils/coordinadorAcceso').requireAdminOCoordinadorGet);
 
 const COLORES = new Set(['pink', 'blue', 'purple']);
 

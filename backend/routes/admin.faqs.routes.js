@@ -8,10 +8,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { query, execute } = require('../utils/mysql');
 
 router.use(authenticateToken);
-router.use((req, res, next) => {
-  if (req.user?.tipo === 'ADMINISTRADOR') return next();
-  return res.status(403).json({ error: 'Solo el administrador puede gestionar las FAQs.' });
-});
+router.use(require('../utils/coordinadorAcceso').requireAdminOCoordinadorGet);
 
 function parseId(raw) {
   const id = parseInt(raw, 10);

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
@@ -36,6 +37,8 @@ function estadoVencimiento(fechaVenc) {
 }
 
 export default function AdminInstitucional() {
+  const { user } = useAuth();
+  const soloLectura = user?.tipo === 'COORDINADOR';
   const [loading, setLoading] = useState(true);
   const [categorias, setCategorias] = useState([]);
   const [documentos, setDocumentos] = useState([]);
@@ -326,6 +329,8 @@ export default function AdminInstitucional() {
             </button>
           </nav>
           <div className="inst-toolbar-actions">
+            {!soloLectura && (
+              <>
             <button type="button" className="inst-btn-primary" onClick={() => abrirModalCat(null)}>
               + Nueva categoría
             </button>
@@ -337,6 +342,8 @@ export default function AdminInstitucional() {
             >
               + Subir documento
             </button>
+              </>
+            )}
           </div>
           <div className="inst-filter">
             <label>
@@ -395,6 +402,7 @@ export default function AdminInstitucional() {
                         </div>
                       </span>
                     </button>
+                    {!soloLectura && (
                     <div className="inst-acc-actions">
                       <Tooltip title="Editar categoría">
                         <IconButton
@@ -417,6 +425,7 @@ export default function AdminInstitucional() {
                         </IconButton>
                       </Tooltip>
                     </div>
+                    )}
                   </div>
 
                   <div
@@ -433,6 +442,7 @@ export default function AdminInstitucional() {
                             <span className="inst-acc-meta" style={{ marginTop: 0 }}>
                               Documentos en esta categoría
                             </span>
+                            {!soloLectura && (
                             <button
                               type="button"
                               className="inst-btn-nuevo-doc"
@@ -441,6 +451,7 @@ export default function AdminInstitucional() {
                             >
                               + Nuevo
                             </button>
+                            )}
                           </div>
                           {lista.length === 0 ? (
                             <p className="inst-empty">
@@ -489,6 +500,7 @@ export default function AdminInstitucional() {
                                                 <VisibilityOutlinedIcon fontSize="small" />
                                               </IconButton>
                                             </Tooltip>
+                                            {!soloLectura && (
                                             <Tooltip title="Editar">
                                               <IconButton
                                                 size="small"
@@ -499,6 +511,8 @@ export default function AdminInstitucional() {
                                                 <EditOutlinedIcon fontSize="small" />
                                               </IconButton>
                                             </Tooltip>
+                                            )}
+                                            {!soloLectura && (
                                             <Tooltip title="Eliminar">
                                               <IconButton
                                                 size="small"
@@ -509,6 +523,7 @@ export default function AdminInstitucional() {
                                                 <DeleteOutlineIcon fontSize="small" />
                                               </IconButton>
                                             </Tooltip>
+                                            )}
                                           </div>
                                         </td>
                                       </tr>

@@ -437,12 +437,14 @@ async function elegibilidadVotanteUsuario(req, procesoRow, colegioId, anio) {
   const tipo = String(req.user?.tipo || '').toUpperCase();
   const perfiles = parsePerfilesVoto(procesoRow);
   if (!tipo || !perfiles.includes(tipo)) {
-    return {
-      ok: false,
-      codigo: 'PERFIL',
-      mensaje: 'Tu perfil de usuario no está habilitado para este proceso electoral.',
-      contextoMatricula: null
-    };
+    if (!(tipo === 'COORDINADOR' && perfiles.includes('DOCENTE'))) {
+      return {
+        ok: false,
+        codigo: 'PERFIL',
+        mensaje: 'Tu perfil de usuario no está habilitado para este proceso electoral.',
+        contextoMatricula: null
+      };
+    }
   }
   if (tipo === 'ALUMNO') {
     const ctx = await matriculaContextoAlumno(req.user.alumno_id, colegioId, anio);

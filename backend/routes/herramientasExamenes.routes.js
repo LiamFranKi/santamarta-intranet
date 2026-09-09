@@ -161,7 +161,7 @@ function requireDocenteOPsicologa(req, res, next) {
     return res.status(403).json({ error: 'No autorizado' });
   }
   const t = String(req.user.tipo || '').toUpperCase();
-  if (t === 'DOCENTE' || t === 'PSICOLOGA') {
+  if (t === 'DOCENTE' || t === 'PSICOLOGA' || t === 'COORDINADOR') {
     return next();
   }
   return res.status(403).json({ error: 'Solo docentes' });

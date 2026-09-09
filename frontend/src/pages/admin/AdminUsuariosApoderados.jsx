@@ -63,7 +63,7 @@ function formatFechaNacimiento(val) {
 
 export default function AdminUsuariosApoderados() {
   const { user } = useAuth();
-  const vistaRestringidaPsicologa = user?.tipo === 'PSICOLOGA';
+  const vistaRestringidaPsicologa = user?.tipo === 'PSICOLOGA' || user?.tipo === 'COORDINADOR';
   const [searchParams] = useSearchParams();
   const vistaTabla = searchParams.get('vista') === 'tabla';
   const [items, setItems] = useState([]);

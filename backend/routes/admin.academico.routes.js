@@ -64,6 +64,20 @@ router.use((req, res, next) => {
     }
     return res.status(403).json({ error: 'No autorizado para esta sección del catálogo académico.' });
   }
+  if (req.user?.tipo === 'COORDINADOR') {
+    const { esMetodoLectura } = require('../utils/coordinadorAcceso');
+    const p = req.path || '';
+    const ok =
+      p === '/meta'
+      || p.startsWith('/grupos')
+      || p.startsWith('/grados')
+      || p.startsWith('/niveles')
+      || p.startsWith('/cursos')
+      || p.startsWith('/asignaturas')
+      || p.startsWith('/areas');
+    if (ok && esMetodoLectura(req.method)) return next();
+    return res.status(403).json({ error: 'El coordinador solo puede consultar el catálogo académico.' });
+  }
   return res.status(403).json({ error: 'Solo el perfil Administrador puede gestionar el catálogo académico.' });
 });
 

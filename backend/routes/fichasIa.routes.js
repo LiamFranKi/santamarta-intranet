@@ -40,7 +40,7 @@ const router = express.Router();
 ensureFichasIaDirs();
 
 const puedeUsar = (tipo) =>
-  tipo === 'ADMINISTRADOR' || tipo === 'DOCENTE' || tipo === 'PROMOTORIA';
+  tipo === 'ADMINISTRADOR' || tipo === 'DOCENTE' || tipo === 'PROMOTORIA' || tipo === 'COORDINADOR';
 
 const uploadOrigen = multer({
   storage: multer.diskStorage({

@@ -1488,6 +1488,12 @@ router.use((req, res, next) => {
     if (req.user.tipo === 'PSICOLOGA' && psicologaRutaDocentePermitida(req.path || '')) {
       return next();
     }
+    if (req.user.tipo === 'COORDINADOR') {
+      const { coordinadorPuedeDocente } = require('../utils/coordinadorAcceso');
+      if (coordinadorPuedeDocente(req.path || '', req.method)) {
+        return next();
+      }
+    }
     if (req.path.includes('/hijos/') && req.path.includes('/aula-virtual')) {
       console.error(`❌ [MIDDLEWARE-GLOBAL] Tipo de usuario no permitido: ${req.user.tipo}`);
     }

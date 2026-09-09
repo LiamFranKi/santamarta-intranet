@@ -81,6 +81,8 @@ function useSection() {
 }
 
 export default function AdminAcademico() {
+  const { user } = useAuth();
+  const soloLectura = user?.tipo === 'COORDINADOR';
   const section = useSection();
   const asignaturasAccionesRef = useRef({ openNew: null });
   const [meta, setMeta] = useState(null);
@@ -156,7 +158,7 @@ export default function AdminAcademico() {
           <h1>{info.title}</h1>
           <p>{info.desc}</p>
         </div>
-        {section === 'asignaturas' && (
+        {section === 'asignaturas' && !soloLectura && (
           <button
             type="button"
             className="admin-academico-grupos-btn-nuevo admin-academico-asignaturas-header-btn"
@@ -690,6 +692,8 @@ function GrupoOpcionesMenuPortal({ open, anchorEl, onClose, children }) {
 }
 
 function NivelesPanel({ onRefreshMeta }) {
+  const { user } = useAuth();
+  const soloLectura = user?.tipo === 'COORDINADOR';
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
@@ -822,7 +826,7 @@ function NivelesPanel({ onRefreshMeta }) {
     <section className="dg-section">
       <div className="dg-section-title">
         <span>Listado</span>
-        <Btn onClick={openNew}>+ Nuevo nivel</Btn>
+        {!soloLectura && <Btn onClick={openNew}>+ Nuevo nivel</Btn>}
       </div>
       {loading ? (
         <p>Cargando…</p>
@@ -944,7 +948,7 @@ function NivelesPanel({ onRefreshMeta }) {
 
 function GruposPanel({ meta }) {
   const { user } = useAuth();
-  const vistaSoloLecturaGrados = user?.tipo === 'PSICOLOGA';
+  const vistaSoloLecturaGrados = user?.tipo === 'PSICOLOGA' || user?.tipo === 'COORDINADOR';
   const opcionesGrupoMenuVisibles = useMemo(
     () =>
       vistaSoloLecturaGrados
@@ -2044,6 +2048,8 @@ const OPCIONES_CURSO_MENU = [
 ];
 
 function CursosPanel({ meta }) {
+  const { user } = useAuth();
+  const soloLectura = user?.tipo === 'COORDINADOR';
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
@@ -2266,7 +2272,7 @@ function CursosPanel({ meta }) {
               aria-label="Buscar curso"
             />
           </label>
-          <Btn onClick={abrirNuevoCurso}>+ Nuevo curso</Btn>
+          {!soloLectura && <Btn onClick={abrirNuevoCurso}>+ Nuevo curso</Btn>}
         </div>
       </div>
       {loading ? (
@@ -2421,6 +2427,8 @@ const OPCIONES_AREA_MENU = [
 ];
 
 function AreasPanel({ meta }) {
+  const { user } = useAuth();
+  const soloLectura = user?.tipo === 'COORDINADOR';
   const [areas, setAreas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalArea, setModalArea] = useState(null);
@@ -2692,6 +2700,7 @@ function AreasPanel({ meta }) {
               aria-label="Buscar por nombre de área o curso"
             />
           </label>
+          {!soloLectura && (
           <Btn
             onClick={() => {
               setAreaForm({ nombre: '', nivel_id: meta?.niveles?.[0]?.id != null ? String(meta.niveles[0].id) : '' });
@@ -2700,6 +2709,7 @@ function AreasPanel({ meta }) {
           >
             + Nueva área
           </Btn>
+          )}
         </div>
       </div>
       {loading ? (

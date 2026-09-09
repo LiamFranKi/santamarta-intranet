@@ -122,7 +122,7 @@ router.get('/opciones-grado', async (req, res) => {
       const opciones = await gruposTodosColegio(colegio_id, anio);
       return res.json({ opciones });
     }
-    if (esPsicologa(tipo)) {
+    if (esPsicologa(tipo) || tipo === 'COORDINADOR') {
       const opciones = await gruposTodosColegio(colegio_id, anio);
       return res.json({ opciones });
     }
@@ -174,7 +174,7 @@ router.get('/', async (req, res) => {
       });
     }
 
-    if (esPsicologa(tipo)) {
+    if (esPsicologa(tipo) || tipo === 'COORDINADOR') {
       sql += ' ORDER BY v.created_at DESC';
       const list = await query(sql, params);
       return res.json({
@@ -247,7 +247,7 @@ router.get('/', async (req, res) => {
 router.post('/', uploadPdf.single('archivo'), async (req, res) => {
   try {
     const { colegio_id, anio_activo, tipo, personal_id, usuario_id } = req.user;
-    if (tipo === 'ALUMNO' || esPsicologa(tipo)) {
+    if (tipo === 'ALUMNO' || esPsicologa(tipo) || tipo === 'COORDINADOR') {
       if (req.file?.path) fs.unlink(req.file.path, () => {});
       return res.status(403).json({ error: 'No autorizado' });
     }
@@ -388,7 +388,7 @@ router.post('/', uploadPdf.single('archivo'), async (req, res) => {
 router.put('/:id', uploadPdf.single('archivo'), async (req, res) => {
   try {
     const { colegio_id, anio_activo, tipo, personal_id, usuario_id } = req.user;
-    if (tipo === 'ALUMNO' || esPsicologa(tipo)) {
+    if (tipo === 'ALUMNO' || esPsicologa(tipo) || tipo === 'COORDINADOR') {
       if (req.file?.path) fs.unlink(req.file.path, () => {});
       return res.status(403).json({ error: 'No autorizado' });
     }

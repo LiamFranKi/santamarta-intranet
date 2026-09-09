@@ -304,7 +304,13 @@ publicRouter.post('/:token/visitante', async (req, res) => {
 /** --- Admin: mismo router con prefijo /api/admin/eventos --- */
 
 router.use(authenticateToken);
-router.use(requireUserType('ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA'));
+router.use(requireUserType('ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA', 'COORDINADOR'));
+router.use((req, res, next) => {
+  if (req.user?.tipo === 'COORDINADOR' && !['GET', 'HEAD', 'OPTIONS'].includes(String(req.method || '').toUpperCase())) {
+    return res.status(403).json({ error: 'El coordinador solo puede ver eventos.' });
+  }
+  next();
+});
 
 /** Listar grupos del año (antes de /:id) */
 router.get('/grupos-disponibles', async (req, res) => {

@@ -64,7 +64,7 @@ const PARENTESCO_VINC_LABEL = {
 
 export default function AdminUsuariosAlumnos() {
   const { user } = useAuth();
-  const vistaRestringidaPsicologa = user?.tipo === 'PSICOLOGA';
+  const vistaRestringidaPsicologa = user?.tipo === 'PSICOLOGA' || user?.tipo === 'COORDINADOR';
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);

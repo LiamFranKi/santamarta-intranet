@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { jsPDF } from 'jspdf';
@@ -42,6 +43,8 @@ function nombreApoderadoDesdeFila(a) {
 }
 
 export default function AdminUsuariosEquipo() {
+  const { user } = useAuth();
+  const soloLectura = user?.tipo === 'COORDINADOR';
   const [searchParams, setSearchParams] = useSearchParams();
   const perfilFilter = (searchParams.get('perfil') || '').toUpperCase();
 
@@ -751,9 +754,11 @@ export default function AdminUsuariosEquipo() {
         <button type="button" className="admin-usu-btn admin-usu-btn-search" onClick={() => { setPage(1); cargar(); }}>
           Buscar
         </button>
+        {!soloLectura && (
         <button type="button" className="admin-usu-btn admin-usu-btn-new" onClick={abrirCrear}>
           + Registrar nuevo
         </button>
+        )}
       </div>
 
       <div className="admin-usu-cards-wrap">
@@ -839,6 +844,8 @@ export default function AdminUsuariosEquipo() {
           <button type="button" onClick={() => { abrirModalMensaje(menuRow); cerrarMenus(); }}>
             ✉️ Enviar mensaje
           </button>
+          {!soloLectura && (
+          <>
           <hr />
           <button type="button" onClick={() => { abrirEditar(menuRow); cerrarMenus(); }}>
             ✏️ Editar
@@ -846,6 +853,8 @@ export default function AdminUsuariosEquipo() {
           <button type="button" className="admin-usu-dropdown-danger" onClick={() => { eliminarPersonal(menuRow); cerrarMenus(); }}>
             🗑️ Eliminar
           </button>
+          </>
+          )}
         </div>,
         document.body
       )}
