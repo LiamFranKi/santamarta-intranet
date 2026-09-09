@@ -18,6 +18,7 @@ const { obtenerListaAlumnosPuntuales } = require('../utils/reportesGeneralAlumno
 const { obtenerResumenIngresos } = require('../utils/reportesGeneralResumenIngresos');
 const { obtenerListaMaestrosPorAula } = require('../utils/reportesGeneralMaestrosPorAula');
 const { obtenerListaPersonal } = require('../utils/reportesGeneralListaPersonal');
+const { obtenerHorariosPersonal } = require('../utils/reportesGeneralHorariosPersonal');
 const { obtenerAsistenciaMensual } = require('../utils/reportesGeneralAsistenciaMensual');
 const { generarExcelMontoPagarReal } = require('../utils/reportesGeneralMontoPagarReal');
 const { generarExcelReporteAlumnos } = require('../utils/reportesGeneralAlumnos');
@@ -302,6 +303,31 @@ router.get('/lista-personal', async (req, res) => {
   } catch (e) {
     console.error('[reportes/general/lista-personal]', e);
     res.status(500).json({ error: e.message || 'Error al generar lista de personal' });
+  }
+});
+
+/** GET /api/admin/reportes/general/horarios-personal */
+router.get('/horarios-personal', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const anio = parseInt(req.query.anio, 10);
+    const nivelRaw = req.query.nivel_id;
+    const nivelId = nivelRaw !== undefined && nivelRaw !== '' ? parseInt(nivelRaw, 10) : null;
+    const soloLista = String(req.query.solo_lista || '') === '1';
+
+    const result = await obtenerHorariosPersonal(cid, {
+      anio,
+      nivelId: Number.isFinite(nivelId) ? nivelId : null,
+      personalIds: req.query.personal_ids,
+      soloLista,
+    });
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (e) {
+    console.error('[reportes/general/horarios-personal]', e);
+    res.status(500).json({ error: e.message || 'Error al generar horarios del personal' });
   }
 });
 

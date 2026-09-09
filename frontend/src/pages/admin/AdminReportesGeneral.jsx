@@ -15,6 +15,7 @@ import ReporteAlumnos from './reportesGeneral/ReporteAlumnos';
 import ReporteDeudaAnual from './reportesGeneral/ReporteDeudaAnual';
 import ReporteRankingNotas from './reportesGeneral/ReporteRankingNotas';
 import ReporteAsistenciaPersonal from './reportesGeneral/ReporteAsistenciaPersonal';
+import ReporteHorariosPersonal from './reportesGeneral/ReporteHorariosPersonal';
 import ReporteConsolidadoPromedios from './reportesGeneral/ReporteConsolidadoPromedios';
 import ReporteConsolidadoPromediosDetallado from './reportesGeneral/ReporteConsolidadoPromediosDetallado';
 import ReporteNominasAlumnos from './reportesGeneral/ReporteNominasAlumnos';
@@ -145,6 +146,13 @@ const REPORT_CATALOG = [
         icon: '🕒',
         ayuda: 'Marcaciones, tardanzas y descuentos por rango de fechas.',
         Component: ReporteAsistenciaPersonal,
+      },
+      {
+        id: 'horarios-personal',
+        label: 'Horarios',
+        icon: '🗓️',
+        ayuda: 'Horario de clases de cada docente (lunes a viernes, curso y grado), igual al de «Mi horario».',
+        Component: ReporteHorariosPersonal,
       },
     ],
   },

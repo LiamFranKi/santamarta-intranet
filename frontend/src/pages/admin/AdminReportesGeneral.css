@@ -1608,3 +1608,317 @@
 .rg-nomina-modal .rg-maestros-aula-total {
   margin-bottom: 0.35rem;
 }
+
+/* ——— Horarios del personal ——— */
+.rg-hp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.rg-hp-alcance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.rg-hp-alcance__opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.38rem 0.7rem;
+  border-radius: 999px;
+  border: 1.5px solid #93c5fd;
+  background: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1e40af;
+  cursor: pointer;
+}
+
+.rg-hp-alcance__opt input {
+  margin: 0;
+}
+
+.rg-hp-alcance__opt.is-on {
+  background: #1e40af;
+  border-color: #1e40af;
+  color: #fff;
+}
+
+.rg-hp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-height: 1.8rem;
+}
+
+.rg-hp-chips__hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.rg-hp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  border-radius: 999px;
+  padding: 0.22rem 0.45rem 0.22rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1e3a8a;
+}
+
+.rg-hp-chip button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #64748b;
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+}
+
+.rg-hp-picker-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.rg-hp-search {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.55rem 0.75rem;
+  font: inherit;
+  margin-bottom: 0.55rem;
+}
+
+.rg-hp-todos {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 0.5rem;
+}
+
+.rg-hp-todos.is-disabled {
+  opacity: 0.5;
+}
+
+.rg-hp-picker-list {
+  max-height: 360px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.rg-hp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.rg-hp-row.is-on {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.rg-hp-row.is-ya {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.rg-hp-row strong {
+  display: block;
+  font-size: 0.88rem;
+  color: #0f172a;
+}
+
+.rg-hp-row small {
+  color: #64748b;
+}
+
+.rg-hp-avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1e40af;
+  font-size: 0.72rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rg-hp-empty {
+  margin: 0.5rem 0;
+  color: #64748b;
+  font-size: 0.88rem;
+  text-align: center;
+}
+
+.rg-hp-preview {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) 1fr;
+  gap: 1rem;
+  min-height: 420px;
+}
+
+.rg-hp-preview__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 70vh;
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+
+.rg-hp-preview__count {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.rg-hp-preview__item {
+  text-align: left;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 10px;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+}
+
+.rg-hp-preview__item.is-on {
+  background: #1e40af;
+  border-color: #1e40af;
+  color: #fff;
+}
+
+.rg-hp-preview__head {
+  margin-bottom: 0.75rem;
+}
+
+.rg-hp-preview__kicker {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #2563eb;
+}
+
+.rg-hp-preview__head h3 {
+  margin: 0.15rem 0 0.15rem;
+  font-size: 1.2rem;
+  color: #0f172a;
+}
+
+.rg-hp-preview__head p:last-child {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.rg-hp-table-wrap {
+  overflow-x: auto;
+}
+
+.rg-hp-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  font-size: 0.78rem;
+  border: 2px solid #4a83c1;
+}
+
+.rg-hp-table thead {
+  background: linear-gradient(135deg, #4a83c1 0%, #2d5a8f 100%);
+  color: #fff;
+}
+
+.rg-hp-table thead th {
+  padding: 0.5rem 0.35rem;
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.rg-hp-hora-col {
+  width: 118px;
+}
+
+.rg-hp-hora {
+  padding: 0.5rem 0.6rem;
+  font-weight: 700;
+  color: #4a83c1;
+  white-space: nowrap;
+  background: #f9fafb;
+  border: 1px solid #4a83c1;
+}
+
+.rg-hp-celda {
+  padding: 0.45rem 0.4rem;
+  text-align: center;
+  color: #1f2937;
+  line-height: 1.3;
+  vertical-align: middle;
+  min-height: 48px;
+  border: 1px solid #4a83c1;
+}
+
+.rg-hp-celda strong {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.rg-hp-celda small {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: #475569;
+}
+
+.rg-hp-celda--vacia {
+  background: #e3f2fd !important;
+  font-weight: 400;
+}
+
+@media (max-width: 900px) {
+  .rg-hp-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .rg-hp-preview__list {
+    max-height: 180px;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
