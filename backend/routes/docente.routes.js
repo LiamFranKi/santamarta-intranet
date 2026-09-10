@@ -178,7 +178,7 @@ async function verificarAccesoAsignatura(
 }
 
 function trabajadorIdParaAsignatura(req, asignaturaRow) {
-  if (esAdminOPromotoria(req.user?.tipo)) {
+  if (esAdminPromotoriaOCoordinador(req.user?.tipo)) {
     const tid = parseInt(asignaturaRow?.personal_id, 10);
     if (Number.isFinite(tid) && tid > 0) return tid;
   }

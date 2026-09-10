@@ -3,7 +3,7 @@
  * docente titular o staff (admin/promotoría) del mismo colegio y año activo.
  */
 function esStaffColegio(tipo) {
-  return tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA';
+  return tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA' || tipo === 'COORDINADOR';
 }
 
 const FROM_ASIGNATURA_BASE = `

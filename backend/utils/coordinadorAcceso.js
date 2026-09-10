@@ -35,12 +35,8 @@ function coordinadorPuedeDocente(path, method) {
   const p = String(path || '');
   const lectura = esMetodoLectura(method);
   if (pathMatch(p, ['/documentos-gestion'])) return lectura;
-  if (pathMatch(p, ['/aula-virtual'])) return lectura;
-  if (pathMatch(p, ['/cursos'])) {
-    if (lectura) return true;
-    if (p.includes('/aula-virtual') || p.includes('/copiar-contenido')) return false;
-    return true;
-  }
+  if (pathMatch(p, ['/aula-virtual'])) return true;
+  if (pathMatch(p, ['/cursos'])) return true;
   return pathMatch(p, [
     '/dashboard',
     '/roles-adicionales',
@@ -57,22 +53,10 @@ function coordinadorPuedeDocente(path, method) {
 }
 
 /**
- * /api/admin/academico: consulta de catálogo; en grados/grupos todos los procesos
- * salvo editar o borrar el grupo.
+ * /api/admin/academico: mismo acceso que el administrador (catálogo y procesos).
  */
-function coordinadorPuedeAcademico(path, method) {
-  const p = String(path || '');
-  const m = String(method || '').toUpperCase();
-  const lectura = esMetodoLectura(m);
-  if (p === '/meta') return lectura;
-  if (pathMatch(p, ['/niveles', '/cursos', '/asignaturas', '/areas'])) return lectura;
-  if (p === '/grupos' || p === '/grados') {
-    return lectura || m === 'POST';
-  }
-  if (p === '/grupos/upload-horario') return true;
-  if (/^\/grupos\/\d+$/.test(p) || /^\/grados\/\d+$/.test(p)) return lectura;
-  if (p.startsWith('/grupos/') || p.startsWith('/grados/')) return true;
-  return false;
+function coordinadorPuedeAcademico(_path, _method) {
+  return true;
 }
 
 /** Middleware: administrador todo; coordinador solo GET/HEAD. */

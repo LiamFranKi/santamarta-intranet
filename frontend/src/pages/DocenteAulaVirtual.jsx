@@ -274,8 +274,10 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
     10
   );
   const soloLecturaTutor =
-    user?.tipo === 'COORDINADOR'
-    || (tutorGrupoId != null && tutorGrupoId !== undefined && String(tutorGrupoId).trim() !== '');
+    user?.tipo !== 'COORDINADOR'
+    && tutorGrupoId != null
+    && tutorGrupoId !== undefined
+    && String(tutorGrupoId).trim() !== '';
 
   const gridCardsClases =
     user?.tipo === 'DOCENTE'

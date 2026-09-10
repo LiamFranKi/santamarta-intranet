@@ -81,8 +81,6 @@ function useSection() {
 }
 
 export default function AdminAcademico() {
-  const { user } = useAuth();
-  const soloLectura = user?.tipo === 'COORDINADOR';
   const section = useSection();
   const asignaturasAccionesRef = useRef({ openNew: null });
   const [meta, setMeta] = useState(null);
@@ -158,7 +156,7 @@ export default function AdminAcademico() {
           <h1>{info.title}</h1>
           <p>{info.desc}</p>
         </div>
-        {section === 'asignaturas' && !soloLectura && (
+        {section === 'asignaturas' && (
           <button
             type="button"
             className="admin-academico-grupos-btn-nuevo admin-academico-asignaturas-header-btn"
@@ -692,8 +690,6 @@ function GrupoOpcionesMenuPortal({ open, anchorEl, onClose, children }) {
 }
 
 function NivelesPanel({ onRefreshMeta }) {
-  const { user } = useAuth();
-  const soloLectura = user?.tipo === 'COORDINADOR';
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
@@ -826,7 +822,7 @@ function NivelesPanel({ onRefreshMeta }) {
     <section className="dg-section">
       <div className="dg-section-title">
         <span>Listado</span>
-        {!soloLectura && <Btn onClick={openNew}>+ Nuevo nivel</Btn>}
+        <Btn onClick={openNew}>+ Nuevo nivel</Btn>
       </div>
       {loading ? (
         <p>Cargando…</p>
@@ -893,7 +889,6 @@ function NivelesPanel({ onRefreshMeta }) {
                 </div>
 
                 <div className="admin-academico-nivel-card__foot">
-                  {!soloLectura && (
                   <div className="admin-academico-nivel-card__actions">
                     <button
                       type="button"
@@ -914,7 +909,6 @@ function NivelesPanel({ onRefreshMeta }) {
                       <IconoPapelera />
                     </button>
                   </div>
-                  )}
                   <div className="admin-academico-nivel-card__foot-meta">
                     <span className="admin-academico-nivel-card__clock" title="Hora de entrada (asistencia)">
                       Entrada {r.hora_entrada || '—'}
@@ -951,20 +945,16 @@ function NivelesPanel({ onRefreshMeta }) {
 function GruposPanel({ meta }) {
   const { user } = useAuth();
   const esPsicologa = user?.tipo === 'PSICOLOGA';
-  const esCoordinador = user?.tipo === 'COORDINADOR';
   const vistaSoloLecturaGrados = esPsicologa;
-  const ocultarMutacionGrado = esPsicologa || esCoordinador;
+  const ocultarMutacionGrado = esPsicologa;
   const opcionesGrupoMenuVisibles = useMemo(
     () => {
       if (esPsicologa) {
         return OPCIONES_GRUPO_MENU.filter((op) => KEYS_OPCIONES_GRUPO_PSICOLOGA.has(op.key));
       }
-      if (esCoordinador) {
-        return OPCIONES_GRUPO_MENU.filter((op) => op.key !== 'editar' && op.key !== 'eliminar');
-      }
       return OPCIONES_GRUPO_MENU;
     },
-    [esPsicologa, esCoordinador]
+    [esPsicologa]
   );
   const anioDef = meta?.anio_activo || new Date().getFullYear();
   const anioActual = new Date().getFullYear();
@@ -2060,8 +2050,6 @@ const OPCIONES_CURSO_MENU = [
 ];
 
 function CursosPanel({ meta }) {
-  const { user } = useAuth();
-  const soloLectura = user?.tipo === 'COORDINADOR';
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
@@ -2250,7 +2238,7 @@ function CursosPanel({ meta }) {
     else if (key === 'eliminar') eliminar(row);
   };
 
-  const colCount = (cursoTieneNivel ? 1 : 0) + 3 + (soloLectura ? 0 : 1);
+  const colCount = (cursoTieneNivel ? 1 : 0) + 4;
 
   return (
     <section className="dg-section">
@@ -2284,7 +2272,7 @@ function CursosPanel({ meta }) {
               aria-label="Buscar curso"
             />
           </label>
-          {!soloLectura && <Btn onClick={abrirNuevoCurso}>+ Nuevo curso</Btn>}
+          <Btn onClick={abrirNuevoCurso}>+ Nuevo curso</Btn>
         </div>
       </div>
       {loading ? (
@@ -2298,7 +2286,7 @@ function CursosPanel({ meta }) {
                 <th>Nombre</th>
                 <th>Abreviatura</th>
                 <th>Descripción</th>
-                {!soloLectura && <th className="admin-academico-areas-th-opciones">Opciones</th>}
+                <th className="admin-academico-areas-th-opciones">Opciones</th>
               </tr>
             </thead>
             <tbody>
@@ -2338,7 +2326,6 @@ function CursosPanel({ meta }) {
                     <td className="admin-academico-cursos-descripcion" title={r.descripcion || ''}>
                       {r.descripcion || '—'}
                     </td>
-                    {!soloLectura && (
                     <td className="admin-academico-areas-td-opciones">
                       <button
                         type="button"
@@ -2350,7 +2337,6 @@ function CursosPanel({ meta }) {
                         Opciones
                       </button>
                     </td>
-                    )}
                   </tr>
                 ))
               )}
@@ -2441,8 +2427,6 @@ const OPCIONES_AREA_MENU = [
 ];
 
 function AreasPanel({ meta }) {
-  const { user } = useAuth();
-  const soloLectura = user?.tipo === 'COORDINADOR';
   const [areas, setAreas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalArea, setModalArea] = useState(null);
@@ -2714,7 +2698,6 @@ function AreasPanel({ meta }) {
               aria-label="Buscar por nombre de área o curso"
             />
           </label>
-          {!soloLectura && (
           <Btn
             onClick={() => {
               setAreaForm({ nombre: '', nivel_id: meta?.niveles?.[0]?.id != null ? String(meta.niveles[0].id) : '' });
@@ -2723,7 +2706,6 @@ function AreasPanel({ meta }) {
           >
             + Nueva área
           </Btn>
-          )}
         </div>
       </div>
       {loading ? (
@@ -3020,8 +3002,6 @@ function grupoLibretaDesdeResultados(filtrosAplicados, rows) {
 }
 
 function AsignaturasPanel({ meta, accionesRef }) {
-  const { user } = useAuth();
-  const esCoordinador = user?.tipo === 'COORDINADOR';
   const navigate = useNavigate();
   const anioDef = meta?.anio_activo || new Date().getFullYear();
   const nivelesLista = useMemo(
@@ -3077,16 +3057,12 @@ function AsignaturasPanel({ meta, accionesRef }) {
   );
 
   const opcionesMenuVisibles = useMemo(() => {
-    const ocultasCoord = new Set(['copiar_contenido', 'registrar_asistencia', 'editar', 'eliminar']);
     let ops = OPCIONES_ASIGNATURA_MENU;
     if (esInicialBuscado) {
       ops = ops.filter((op) => op.key !== 'criterios' && op.key !== 'registrar_notas');
     }
-    if (esCoordinador) {
-      ops = ops.filter((op) => !ocultasCoord.has(op.key));
-    }
     return ops;
-  }, [esInicialBuscado, esCoordinador]);
+  }, [esInicialBuscado]);
 
   const loadGruposModal = useCallback(async (anio) => {
     const { data } = await api.get('/admin/academico/grupos', { params: { anio } });
@@ -3373,9 +3349,6 @@ function AsignaturasPanel({ meta, accionesRef }) {
 
   const accionAsignaturaMenu = async (accion, row) => {
     cerrarMenuAsignatura();
-    if (esCoordinador && ['editar', 'eliminar', 'copiar_contenido', 'registrar_asistencia'].includes(accion)) {
-      return;
-    }
     if (accion === 'editar') {
       openEdit(row);
       return;

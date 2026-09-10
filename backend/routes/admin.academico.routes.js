@@ -1279,7 +1279,7 @@ router.get('/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req, res) =>
  */
 router.delete('/grupos/:grupoId/alumnos/:alumnoId/incidencias/:incidentId', async (req, res) => {
   try {
-    if (req.user?.tipo !== 'ADMINISTRADOR') {
+    if (req.user?.tipo !== 'ADMINISTRADOR' && req.user?.tipo !== 'COORDINADOR') {
       return res.status(403).json({ error: 'Solo el administrador puede eliminar incidencias.' });
     }
 
