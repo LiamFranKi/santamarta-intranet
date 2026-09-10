@@ -340,6 +340,8 @@ const adminReclamosSugerenciasRoutes = require('./routes/admin.reclamosSugerenci
 app.use('/api/admin/reclamos-sugerencias', adminReclamosSugerenciasRoutes);
 const adminCalendarizacionRoutes = require('./routes/admin.calendarizacion.routes');
 app.use('/api/admin/calendarizacion', adminCalendarizacionRoutes);
+const agendaInternaRoutes = require('./routes/agendaInterna.routes');
+app.use('/api/agenda-interna', agendaInternaRoutes);
 const adminFaqsRoutes = require('./routes/admin.faqs.routes');
 app.use('/api/admin/faqs', adminFaqsRoutes);
 const adminUtilesRoutes = require('./routes/admin.utiles.routes');
@@ -500,6 +502,32 @@ app.listen(PORT, () => {
     }
   };
   iniciarInstitucionalVencimiento();
+
+  const iniciarAgendaInternaVencimiento = () => {
+    try {
+      const { ejecutarNotificacionesAgendaInterna } = require('./services/agendaInternaNotificacionService');
+      setTimeout(async () => {
+        try {
+          console.log('📅 [AGENDA-INTERNA] Primera verificación de vencimientos...');
+          await ejecutarNotificacionesAgendaInterna();
+        } catch (e) {
+          console.error('❌ [AGENDA-INTERNA] Error en primera ejecución:', e);
+        }
+      }, 110000);
+      setInterval(async () => {
+        try {
+          console.log('📅 [AGENDA-INTERNA] Verificación periódica (cada 24 h)...');
+          await ejecutarNotificacionesAgendaInterna();
+        } catch (e) {
+          console.error('❌ [AGENDA-INTERNA] Error en ejecución periódica:', e);
+        }
+      }, 24 * 60 * 60 * 1000);
+      console.log('📅 [AGENDA-INTERNA] Programado: primera ejecución ~110 s, luego cada 24 h (zona Lima).');
+    } catch (error) {
+      console.error('❌ [AGENDA-INTERNA] Error configurando:', error);
+    }
+  };
+  iniciarAgendaInternaVencimiento();
 
   // Examenes: cerrar intentos ACTIVO vencidos / examen cerrado y notificar apoderados pendientes
   const iniciarCierreExamenesPendientes = () => {

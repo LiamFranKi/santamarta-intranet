@@ -205,6 +205,16 @@ router.use((req, res, next) => {
       return next();
     }
   }
+  if (req.user.tipo === 'DIRECTOR') {
+    const p = req.path || '';
+    const method = String(req.method || '').toUpperCase();
+    const lectura = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
+    if (p === '/perfil' || p.startsWith('/perfil/')) return next();
+    if (p === '/notificaciones' || p.startsWith('/notificaciones/')) {
+      if (lectura) return next();
+      if (method === 'PUT' && p.includes('marcar-leido')) return next();
+    }
+  }
   if (req.user.tipo === 'COORDINADOR') {
     const { coordinadorPuedeAdminCore } = require('../utils/coordinadorAcceso');
     if (coordinadorPuedeAdminCore(req.path || '', req.method)) {

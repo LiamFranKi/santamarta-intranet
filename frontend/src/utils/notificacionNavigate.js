@@ -13,6 +13,7 @@ export function dashboardPorTipoUsuario(tipo) {
   if (tipo === 'PROMOTORIA') return '/promotoria/dashboard';
   if (tipo === 'PSICOLOGA') return '/admin/psicologa-dashboard';
   if (tipo === 'COORDINADOR') return '/docente/dashboard';
+  if (tipo === 'DIRECTOR') return '/admin/gestion-operativa/tablero';
   return '/';
 }
 
@@ -310,6 +311,11 @@ export function normalizarUrlNotificacion(notif, user) {
       return '/docente/hijos';
     }
     return '/apoderado/hijos';
+  }
+
+  if (tipoAccion === 'agenda_interna') {
+    const eid = payload.evento_id;
+    return eid ? `/agenda-interna?id=${eid}` : '/agenda-interna';
   }
 
   if (tipoAccion === 'reunion') {

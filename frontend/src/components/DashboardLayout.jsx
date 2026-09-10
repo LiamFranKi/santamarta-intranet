@@ -34,6 +34,20 @@ function SgoiSidebarItem() {
   );
 }
 
+function AgendaInternaSidebarItem() {
+  return (
+    <div className="sidebar-item">
+      <NavLink
+        className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+        to="/agenda-interna"
+      >
+        <span className="sidebar-icon">🗓️</span>
+        <span className="sidebar-label">Agenda interna</span>
+      </NavLink>
+    </div>
+  );
+}
+
 /** En `false`, el ítem no se muestra; la ruta `/admin/auditoria` sigue existiendo. */
 const MOSTRAR_MENU_AUDITORIA = false;
 
@@ -848,6 +862,7 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Actividades</span>
                 </NavLink>
               </div>
+              <AgendaInternaSidebarItem />
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/mensajes">
                   <span className="sidebar-icon">✉️</span>
@@ -995,6 +1010,7 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               {puedeVerSgoi && <SgoiSidebarItem />}
+              <AgendaInternaSidebarItem />
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/psicologia">
                   <span className="sidebar-icon">🧠</span>
@@ -1477,6 +1493,7 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Institucional</span>
                 </NavLink>
               </div>
+              <AgendaInternaSidebarItem />
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -1703,6 +1720,7 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               <SgoiSidebarItem />
+              <AgendaInternaSidebarItem />
             </>
           ) : (
             <>
@@ -1744,6 +1762,7 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Web</span>
                 </NavLink>
               </div>
+              {role === 'ADMINISTRADOR' && <AgendaInternaSidebarItem />}
               {false && (
                 <div className="sidebar-item">
                   <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/estadisticas">
