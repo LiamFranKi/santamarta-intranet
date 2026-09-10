@@ -19,6 +19,7 @@ const { sqlFiltroAnioPago } = require('../utils/pagoFechaHora');
 const { normalizarUrlsImagenesEnHtml } = require('../utils/mensajesHtml');
 const { listarPensionesVencidasHastaHoy } = require('../utils/deudaPensiones');
 const { mountSelfServiceCvRoutes } = require('../utils/personalCv');
+const { sqlPersonalSinSuperadmin, TIPO_SUPERADMIN } = require('../utils/superadminOculto');
 const {
   guardarReglaConducta,
   textoReglaConducta,
@@ -333,7 +334,8 @@ router.get('/dashboard', async (req, res) => {
 
     // Total Trabajadores
     const [rTrabajadores] = await query(
-      'SELECT COUNT(*) as total FROM personal WHERE colegio_id = ?',
+      `SELECT COUNT(*) as total FROM personal p
+       WHERE p.colegio_id = ? AND ${sqlPersonalSinSuperadmin('p')}`,
       [colegio_id]
     );
 
@@ -2267,8 +2269,8 @@ router.post('/configuracion/reiniciar-accesos', async (req, res) => {
       `SELECT u.id, p.nro_documento
        FROM usuarios u
        INNER JOIN personal p ON p.id = u.personal_id AND p.colegio_id = u.colegio_id
-       WHERE u.colegio_id = ? AND u.personal_id > 0 AND u.tipo != 'ADMINISTRADOR' AND u.estado = 'ACTIVO'`,
-      [colegio_id]
+       WHERE u.colegio_id = ? AND u.personal_id > 0 AND u.tipo NOT IN ('ADMINISTRADOR', ?) AND u.estado = 'ACTIVO'`,
+      [colegio_id, TIPO_SUPERADMIN]
     );
     for (const row of personal) {
       const dni = String(row.nro_documento || '').trim();
@@ -3981,7 +3983,7 @@ router.get('/tutoria-general/personal-candidatos', requireSoloAdministrador, asy
                  ORDER BY u2.id ASC
                  LIMIT 1
                )
-               WHERE p.colegio_id = ?`;
+               WHERE p.colegio_id = ? AND ${sqlPersonalSinSuperadmin('p')}`;
     const params = [colegio_id];
     if (q) {
       sql += ` AND (
@@ -4090,7 +4092,7 @@ router.get('/caja-chica-cajeros/personal-candidatos', requireSoloAdministrador, 
                  ORDER BY u2.id ASC
                  LIMIT 1
                )
-               WHERE p.colegio_id = ?`;
+               WHERE p.colegio_id = ? AND ${sqlPersonalSinSuperadmin('p')}`;
     const params = [colegio_id];
     if (q) {
       sql += ` AND (

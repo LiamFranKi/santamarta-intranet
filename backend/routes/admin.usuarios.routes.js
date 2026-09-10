@@ -32,6 +32,15 @@ const {
   normalizeSaludBody,
   mountAlumnoFichaByIdRoutes
 } = require('../utils/alumnoPerfilExtra');
+const { sqlPersonalSinSuperadmin, personalEsSuperadmin } = require('../utils/superadminOculto');
+
+async function hideSuperadminPersonal(res, personalId, colegioId) {
+  if (await personalEsSuperadmin(query, personalId, colegioId)) {
+    res.status(404).json({ error: 'No encontrado' });
+    return true;
+  }
+  return false;
+}
 
 /** Valores del ENUM `usuarios.tipo` en MySQL (orden de negocio). */
 const TIPOS_ENUM_USUARIO = [
@@ -51,13 +60,17 @@ const TIPOS_ENUM_USUARIO = [
   'CONTADOR',
   'TUTOR',
   'MANTENIMIENTO',
+  'SUPERADMINISTRADOR',
 ];
 
 /**
  * Perfiles asignables en el módulo Personal (tabla `personal` + usuario).
  * ALUMNO y APODERADO no se eligen aquí: se gestionan en sus propios módulos.
+ * SUPERADMINISTRADOR no se asigna desde la UI.
  */
-const TIPOS_PERSONAL = TIPOS_ENUM_USUARIO.filter((t) => t !== 'ALUMNO' && t !== 'APODERADO');
+const TIPOS_PERSONAL = TIPOS_ENUM_USUARIO.filter(
+  (t) => t !== 'ALUMNO' && t !== 'APODERADO' && t !== 'SUPERADMINISTRADOR'
+);
 const TIPOS_PERSONAL_SET = new Set(TIPOS_PERSONAL);
 
 function sha1Password(plain) {
@@ -1639,7 +1652,7 @@ router.get('/equipo', async (req, res) => {
     const search = (req.query.search || '').trim();
     const perfil = (req.query.perfil || '').trim().toUpperCase();
 
-    const whereParts = ['p.colegio_id = ?'];
+    const whereParts = ['p.colegio_id = ?', sqlPersonalSinSuperadmin('p')];
     const params = [colegio_id];
 
     if (search) {
@@ -1711,6 +1724,7 @@ router.get('/equipo/:personalId', async (req, res) => {
     if (!personalId) {
       return res.status(400).json({ error: 'ID inválido' });
     }
+    if (await hideSuperadminPersonal(res, personalId, colegio_id)) return;
     const rows = await query(
       `SELECT p.*, u.id AS usuario_id, u.tipo AS usuario_tipo, u.estado AS usuario_estado, u.usuario AS login_usuario
        FROM personal p
@@ -2079,6 +2093,7 @@ router.put('/equipo/:personalId', async (req, res) => {
     if (!personalId) {
       return res.status(400).json({ error: 'ID inválido' });
     }
+    if (await hideSuperadminPersonal(res, personalId, colegio_id)) return;
 
     const exist = await query(
       'SELECT id, nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1',
@@ -2249,6 +2264,7 @@ router.put('/equipo/:personalId/foto', uploadUsuarioFoto.single('foto'), async (
     if (!personalId) {
       return res.status(400).json({ error: 'ID inválido' });
     }
+    if (await hideSuperadminPersonal(res, personalId, colegio_id)) return;
     if (!req.file) {
       return res.status(400).json({ error: 'Debe adjuntar una imagen' });
     }
@@ -2270,6 +2286,7 @@ router.post('/equipo/:personalId/acceso', async (req, res) => {
   try {
     const { colegio_id } = req.user;
     const personalId = parseInt(req.params.personalId, 10);
+    if (await hideSuperadminPersonal(res, personalId, colegio_id)) return;
     const tipo = String(req.body.tipo || 'DOCENTE').toUpperCase();
     if (!TIPOS_PERSONAL_SET.has(tipo)) {
       return res.status(400).json({ error: 'Tipo no válido' });
@@ -2308,6 +2325,7 @@ router.post('/equipo/:personalId/reset-password', async (req, res) => {
   try {
     const { colegio_id } = req.user;
     const personalId = parseInt(req.params.personalId, 10);
+    if (await hideSuperadminPersonal(res, personalId, colegio_id)) return;
     const urows = await query(
       `SELECT u.id, p.nro_documento
        FROM usuarios u
@@ -2346,6 +2364,7 @@ router.post('/equipo/:personalId/password', async (req, res) => {
     if (!personalId) {
       return res.status(400).json({ error: 'ID inválido' });
     }
+    if (await hideSuperadminPersonal(res, personalId, colegio_id)) return;
     if (password.length < 4) {
       return res.status(400).json({ error: 'La contraseña debe tener al menos 4 caracteres' });
     }
@@ -2383,6 +2402,7 @@ router.get('/equipo/:personalId/horario', async (req, res) => {
     if (!personalId) {
       return res.status(400).json({ error: 'ID inválido' });
     }
+    if (await hideSuperadminPersonal(res, personalId, colegio_id)) return;
     const prow = await query(
       'SELECT id, nombres, apellidos FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1',
       [personalId, colegio_id]
@@ -2455,6 +2475,7 @@ router.delete('/equipo/:personalId', async (req, res) => {
     if (!personalId) {
       return res.status(400).json({ error: 'ID inválido' });
     }
+    if (await hideSuperadminPersonal(res, personalId, colegio_id)) return;
     const prow = await query(
       'SELECT id, nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1',
       [personalId, colegio_id]
@@ -4694,6 +4715,9 @@ router.get('/personal-por-dni', async (req, res) => {
       [colegio_id, dni]
     );
     if (!rows.length) {
+      return res.json({ encontrado: false });
+    }
+    if (await personalEsSuperadmin(query, rows[0].id, colegio_id)) {
       return res.json({ encontrado: false });
     }
     const p = rows[0];

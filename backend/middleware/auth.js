@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { query } = require('../utils/mysql');
+const { tipoSesionPublico } = require('../utils/superadminOculto');
 
 /**
  * Middleware para autenticar requests con JWT.
@@ -28,14 +29,14 @@ const authenticateToken = (req, res, next) => {
       let estadoRow;
       try {
         const rows = await query(
-          `SELECT estado, token_version FROM usuarios WHERE id = ? LIMIT 1`,
+          `SELECT estado, token_version, tipo FROM usuarios WHERE id = ? LIMIT 1`,
           [usuarioId]
         );
         estadoRow = rows?.[0];
       } catch (e) {
         if (e.code === 'ER_BAD_FIELD_ERROR' || String(e.message || '').includes('token_version')) {
           const rows = await query(
-            `SELECT estado FROM usuarios WHERE id = ? LIMIT 1`,
+            `SELECT estado, tipo FROM usuarios WHERE id = ? LIMIT 1`,
             [usuarioId]
           );
           estadoRow = rows?.[0] ? { ...rows[0], token_version: 1 } : null;
@@ -62,7 +63,10 @@ const authenticateToken = (req, res, next) => {
         });
       }
 
-      req.user = user;
+      req.user = {
+        ...user,
+        tipo: tipoSesionPublico(estadoRow.tipo || user.tipo),
+      };
       next();
     } catch (e) {
       console.error('[auth] validación sesión:', e.message);

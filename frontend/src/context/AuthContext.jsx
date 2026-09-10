@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api';
 import { suscribirNotificacionesPush, desuscribirPushEsteDispositivo } from '../services/pushNotificationService';
 import { limpiarStorageSesion } from '../utils/limpiarSesionLocal';
+import { normalizarUsuarioSesion } from '../utils/superadminOculto';
 
 /** Perfiles que registran Web Push al iniciar sesión (incluye staff que recibe derivaciones psicología, encuestas, etc.). */
 const TIPOS_CON_PUSH_AUTOMATICO = new Set([
@@ -41,7 +42,7 @@ export const AuthProvider = ({ children }) => {
       // Si hay usuario guardado, restaurarlo inmediatamente para evitar flash de login
       if (savedUser) {
         try {
-          const userData = JSON.parse(savedUser);
+          const userData = normalizarUsuarioSesion(JSON.parse(savedUser));
           setUser(userData);
           setIsAuthenticated(true);
         } catch (e) {
@@ -52,13 +53,14 @@ export const AuthProvider = ({ children }) => {
       // Verificar token con el servidor
       api.get('/auth/me')
         .then(response => {
-          setUser(response.data.user);
+          const userMe = normalizarUsuarioSesion(response.data.user);
+          setUser(userMe);
           setIsAuthenticated(true);
           // Actualizar usuario guardado
-          localStorage.setItem('user', JSON.stringify(response.data.user));
+          localStorage.setItem('user', JSON.stringify(userMe));
           
           // Web Push: antes solo alumno/apoderado/docente; staff (admin, psicología…) también debe suscribirse o no llegan pushes.
-          if (TIPOS_CON_PUSH_AUTOMATICO.has(String(response.data.user.tipo || '').toUpperCase())) {
+          if (TIPOS_CON_PUSH_AUTOMATICO.has(String(userMe.tipo || '').toUpperCase())) {
             setTimeout(() => {
               suscribirNotificacionesPush().catch((err) => {
                 console.warn('No se pudo suscribir a notificaciones push:', err);
@@ -94,7 +96,8 @@ export const AuthProvider = ({ children }) => {
   const login = async (usuario, password) => {
     try {
       const response = await api.post('/auth/login', { usuario, password });
-      const { token, user: userData } = response.data;
+      const { token, user: rawUser } = response.data;
+      const userData = normalizarUsuarioSesion(rawUser);
 
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(userData));

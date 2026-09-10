@@ -10,6 +10,7 @@ const { query } = require('../utils/mysql');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
 const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente');
 const { obtenerPayloadBienvenidaModal } = require('../services/cumpleanosPushService');
+const { sqlPersonalSinSuperadmin, personalEsSuperadmin } = require('../utils/superadminOculto');
 
 router.use(authenticateToken);
 router.use(
@@ -142,6 +143,9 @@ router.get('/detalle/:id', async (req, res) => {
     };
 
     if (kind === 'personal') {
+      if (await personalEsSuperadmin(query, entityId, colegio_id)) {
+        return res.status(404).json({ error: 'No encontrado' });
+      }
       const rows = await query(
         `SELECT p.id, CONCAT(COALESCE(p.apellidos,''), ', ', COALESCE(p.nombres,'')) as nombre_completo,
                 p.foto, p.fecha_nacimiento
@@ -332,6 +336,7 @@ router.get('/', async (req, res) => {
           'Personal' as perfil
          FROM personal p
          WHERE p.colegio_id = ? 
+           AND ${sqlPersonalSinSuperadmin('p')}
            AND p.fecha_nacimiento IS NOT NULL 
            AND p.fecha_nacimiento != '0000-00-00'
            AND MONTH(p.fecha_nacimiento) = ?`,

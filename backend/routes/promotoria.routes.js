@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../utils/mysql');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
+const { sqlPersonalSinSuperadmin } = require('../utils/superadminOculto');
 
 router.use(authenticateToken);
 router.use(requireUserType('PROMOTORIA'));
@@ -66,7 +67,8 @@ router.get('/dashboard', async (req, res) => {
 
     // Total Trabajadores
     const [rTrabajadores] = await query(
-      'SELECT COUNT(*) as total FROM personal WHERE colegio_id = ?',
+      `SELECT COUNT(*) as total FROM personal p
+       WHERE p.colegio_id = ? AND ${sqlPersonalSinSuperadmin('p')}`,
       [colegio_id]
     );
 

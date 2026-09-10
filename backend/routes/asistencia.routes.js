@@ -7,6 +7,7 @@ const { enviarCorreoAsistencia, isEmailEnvioHabilitado, enviarCorreoHtml } = req
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
 const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { urlPortalHijoPorTipoUsuario } = require('../utils/notificacionUrls');
+const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
 const { lineaAlumnoGrado, etiquetaGradoGrupo } = require('../utils/notificacionExamenApoderadoTexto');
 const mensajesConfig = require('../config/mensajes.json');
 const {
@@ -1426,6 +1427,7 @@ router.post('/buscar', async (req, res) => {
        FROM usuarios u
        INNER JOIN personal p ON p.id = u.personal_id
        WHERE u.colegio_id = ? AND u.estado = 'ACTIVO'
+         AND ${sqlUsuariosSinSuperadmin('u')}
          AND (
            u.usuario LIKE ? OR
            p.nombres LIKE ? OR

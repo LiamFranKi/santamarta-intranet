@@ -31,6 +31,7 @@ const {
 } = require('../utils/conductaGrupoMatriculas');
 const { registrarAccion } = require('../utils/auditoria');
 const { sembrarEstructuraAsignatura } = require('../utils/aulaEstructuraTemas');
+const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
 const {
   sincronizarConductaMatriculaPorFecha,
   sincronizarConductaMatriculaBimestre,
@@ -176,6 +177,7 @@ router.get('/meta', async (req, res) => {
               TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS nombre
        FROM personal p
        INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = ? AND u.estado = 'ACTIVO'
+         AND ${sqlUsuariosSinSuperadmin('u')}
        ORDER BY p.apellidos, p.nombres`,
       [cid]
     ).catch(() => []);

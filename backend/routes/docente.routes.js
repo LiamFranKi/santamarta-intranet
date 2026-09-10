@@ -4,6 +4,15 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
+const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
+const {
+  verificarAccesoGrupoTutoria,
+  listarGruposTutoriaGeneral,
+  filaGrupoTutoriaOGeneral,
+  esTutoriaGeneralUsuario
+} = require('../utils/tutoriaGrupoAcceso');
+const { esTutoriaGeneralActivo } = require('../utils/tutoriaGeneral');
+const { esCajeroCajaChicaActivo } = require('../utils/cajaChicaCajeros');
 const PDFDocument = require('pdfkit');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
 const { registrarAccion } = require('../utils/auditoria');
@@ -2815,7 +2824,10 @@ router.get('/grupos/:grupoId/mensajes-historial', async (req, res) => {
       return res.status(400).json({ error: 'Parámetros requeridos' });
     }
 
-    if (esStaffAccesoGrupo(req.user.tipo)) {
+    /** Staff y tutoría general ven todo el historial del aula; el docente solo lo suyo. */
+    let esTutoriaGeneral = esStaffAccesoGrupo(req.user.tipo);
+
+    if (esTutoriaGeneral) {
       const gStaff = await query(
         `SELECT g.id FROM grupos g WHERE g.id = ? AND g.colegio_id = ? LIMIT 1`,
         [grupoId, colegio_id]
@@ -2840,7 +2852,7 @@ router.get('/grupos/:grupoId/mensajes-historial', async (req, res) => {
          WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
         [grupoId, personal_id, personal_id, colegio_id, anio_activo]
       );
-      const esTutoriaGeneral = await esTutoriaGeneralUsuario(req);
+      esTutoriaGeneral = await esTutoriaGeneralUsuario(req);
 
       if ((!tieneAccesoAsignatura || tieneAccesoAsignatura.length === 0) &&
           (!esTutorDelGrupo || esTutorDelGrupo.length === 0) &&
@@ -3579,6 +3591,7 @@ router.get('/cursos/:cursoId/alumnos/:alumnoId/estrellas', async (req, res) => {
 
     const asignaturaOk = await verificarAccesoAsignatura(req, res, cursoId, 'a.id');
     if (!asignaturaOk) return;
+    const personal_id = trabajadorIdParaAsignatura(req, asignaturaOk);
 
     // Obtener matrícula del alumno en el grupo del curso
     // IMPORTANTE: Verificar que la matrícula pertenezca al año activo
@@ -6556,15 +6569,6 @@ router.put('/cursos/:cursoId/aula-virtual', async (req, res) => {
     res.status(500).json({ error: 'Error al actualizar link del aula virtual' });
   }
 });
-
-const {
-  verificarAccesoGrupoTutoria,
-  listarGruposTutoriaGeneral,
-  filaGrupoTutoriaOGeneral,
-  esTutoriaGeneralUsuario
-} = require('../utils/tutoriaGrupoAcceso');
-const { esTutoriaGeneralActivo } = require('../utils/tutoriaGeneral');
-const { esCajeroCajaChicaActivo } = require('../utils/cajaChicaCajeros');
 
 router.use('/tutoria/grupos/:grupoId', async (req, res, next) => {
   try {
@@ -15386,6 +15390,7 @@ router.get('/mensajes/buscar-destinatarios', async (req, res) => {
        FROM personal p
        INNER JOIN usuarios u ON u.personal_id = p.id AND u.estado = 'ACTIVO'
        WHERE p.colegio_id = ?
+         AND ${sqlUsuariosSinSuperadmin('u')}
          AND (
            p.nombres LIKE ? OR
            p.apellidos LIKE ? OR

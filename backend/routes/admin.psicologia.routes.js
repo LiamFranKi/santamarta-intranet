@@ -12,6 +12,7 @@ const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
 const { fechaHoraMySQLLima, fechaHoraTextoLima, fechaTextoLima } = require('../utils/fechaHoraLima');
 const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = require('../utils/notificacionInsert');
+const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
 
 const PSICOLOGIA_TIPOS = new Set(['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA']);
 
@@ -115,7 +116,7 @@ router.get('/meta', async (req, res) => {
        INNER JOIN (
          SELECT u.personal_id
          FROM usuarios u
-         WHERE u.colegio_id = ? AND u.estado = 'ACTIVO'
+         WHERE u.colegio_id = ? AND u.estado = 'ACTIVO' AND ${sqlUsuariosSinSuperadmin('u')}
          GROUP BY u.personal_id
        ) ux ON ux.personal_id = p.id
        WHERE p.colegio_id = ?

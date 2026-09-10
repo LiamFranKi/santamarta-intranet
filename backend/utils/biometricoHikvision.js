@@ -8,6 +8,7 @@
 const multer = require('multer');
 const { query, execute } = require('./mysql');
 const { DEFAULT_COLEGIO_ID } = require('./defaultColegio');
+const { sqlPersonalSinSuperadmin } = require('./superadminOculto');
 const {
   getAnioActivo,
   upsertMarcacionEntradaSalida,
@@ -436,6 +437,7 @@ async function loadPersonalForBiometrico(colegioId) {
        LIMIT 1
      )
      WHERE p.colegio_id = ?
+       AND ${sqlPersonalSinSuperadmin('p')}
      ORDER BY p.apellidos ASC, p.nombres ASC`;
   try {
     const rows = await query(sql('p.nro_documento, p.codigo_biometrico,'), [colegioId]);

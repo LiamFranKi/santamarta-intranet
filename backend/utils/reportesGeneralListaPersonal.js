@@ -2,6 +2,7 @@
  * Reporte «Lista de Personal» / Personal Administrativo (admin reportes general).
  */
 const { query } = require('./mysql');
+const { sqlPersonalSinSuperadmin } = require('./superadminOculto');
 
 const ORDEN_CAMPOS = {
   NOMBRES: 'p.nombres',
@@ -126,6 +127,7 @@ async function obtenerListaPersonal(colegioId, filtros) {
        LIMIT 1
      )
      WHERE p.colegio_id = ?
+       AND ${sqlPersonalSinSuperadmin('p')}
      ORDER BY ${ordenCampo} ${ordenDir}, ${orderSecondary}`,
     [colegioId]
   );

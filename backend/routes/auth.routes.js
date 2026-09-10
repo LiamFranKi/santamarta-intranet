@@ -11,6 +11,7 @@ const { calcularPensionesAVerificar } = require('../utils/deudaPensiones');
 const { urlStaticFotos } = require('../utils/staticStorage');
 const { verificarMatriculaPortalLogin, MENSAJE_SIN_MATRICULA, sqlExistePagoMatriculaCancelado } = require('../utils/matriculaAnioActivo');
 const { deudasLog, deudasWarn, deudasError, deudasInfo } = require('../utils/deudasLogger');
+const { tipoSesionPublico } = require('../utils/superadminOculto');
 
 /**
  * POST /api/auth/login
@@ -95,13 +96,14 @@ router.post('/login', async (req, res) => {
     const tokenVersion = Number.isFinite(parseInt(usuarioDB.token_version, 10))
       ? parseInt(usuarioDB.token_version, 10)
       : 1;
+    const tipoPublico = tipoSesionPublico(usuarioDB.tipo);
 
     // Generar token JWT
     const token = jwt.sign(
       {
         usuario_id: usuarioDB.id,
         colegio_id: usuarioDB.colegio_id,
-        tipo: usuarioDB.tipo,
+        tipo: tipoPublico,
         alumno_id: usuarioDB.alumno_id,
         personal_id: usuarioDB.personal_id,
         apoderado_id: usuarioDB.apoderado_id,
@@ -170,7 +172,7 @@ router.post('/login', async (req, res) => {
     const userData = {
       id: usuarioDB.id,
       usuario: usuarioDB.usuario,
-      tipo: usuarioDB.tipo,
+      tipo: tipoPublico,
       colegio_id: usuarioDB.colegio_id,
       anio_activo: anioActivo,
       nombres: nombres.trim() || usuarioDB.usuario,
@@ -190,7 +192,7 @@ router.post('/login', async (req, res) => {
     registrarAccion({
       usuario_id: usuarioDB.id,
       colegio_id: usuarioDB.colegio_id,
-      tipo_usuario: usuarioDB.tipo,
+      tipo_usuario: tipoPublico,
       accion: 'LOGIN',
       modulo: 'AUTENTICACION',
       descripcion: 'Inicio de sesión exitoso',
@@ -317,7 +319,7 @@ router.get('/me', authenticateToken, async (req, res) => {
     const userData = {
       id: usuarioDB.id,
       usuario: usuarioDB.usuario,
-      tipo: usuarioDB.tipo,
+      tipo: tipoSesionPublico(usuarioDB.tipo),
       colegio_id: usuarioDB.colegio_id,
       anio_activo: anio_activo,
       nombres: nombres.trim() || usuarioDB.usuario,

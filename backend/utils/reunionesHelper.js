@@ -7,6 +7,7 @@ const { fechaMySQLLima, fechaHoraMySQLLima } = require('./fechaHoraLima');
 const { insertNotificacionUsuario } = require('./notificacionInsert');
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
 const { mezclarSupervisionVisitasEnActividades } = require('./supervisionVisitasHelper');
+const { sqlUsuariosSinSuperadmin } = require('./superadminOculto');
 
 const ESTADOS_VISIBLES_CALENDARIO = ['CONVOCADA', 'EN_CURSO', 'CERRADA'];
 const TIPOS_GESTOR = new Set(['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA']);
@@ -553,6 +554,7 @@ async function resolverUsuarioPersonal(queryFn, colegioId, usuarioId) {
      FROM usuarios u
      INNER JOIN personal p ON p.id = u.personal_id
      WHERE u.id = ? AND u.colegio_id = ? AND (u.estado = 'ACTIVO' OR u.estado IS NULL)
+       AND ${sqlUsuariosSinSuperadmin('u')}
      LIMIT 1`,
     [id, colegioId]
   );
@@ -631,6 +633,7 @@ async function buscarParticipantesReunion(queryFn, { colegio_id, anio_activo, q,
      FROM personal p
      INNER JOIN usuarios u ON u.personal_id = p.id AND u.estado = 'ACTIVO'
      WHERE p.colegio_id = ?
+       AND ${sqlUsuariosSinSuperadmin('u')}
        AND (
          p.nombres LIKE ? OR p.apellidos LIKE ? OR
          CONCAT(p.nombres, ' ', p.apellidos) LIKE ?
@@ -685,6 +688,7 @@ async function listarPersonalColegio(queryFn, colegio_id) {
      FROM personal p
      INNER JOIN usuarios u ON u.personal_id = p.id AND u.estado = 'ACTIVO'
      WHERE p.colegio_id = ?
+       AND ${sqlUsuariosSinSuperadmin('u')}
      ORDER BY p.apellidos ASC, p.nombres ASC`,
     [colegio_id]
   );

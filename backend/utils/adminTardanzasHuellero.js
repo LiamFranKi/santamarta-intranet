@@ -2,6 +2,7 @@
  * Importación Excel huellero y listado de tardanzas del personal.
  */
 const XLSX = require('xlsx');
+const { sqlPersonalSinSuperadmin } = require('./superadminOculto');
 
 /** @deprecated La tarifa real es por persona: sueldo / 30 / 8 / 60. Se deja en 0 para no reutilizar S/ 1. */
 const DESCUENTO_POR_MINUTO = 0;
@@ -659,6 +660,7 @@ async function loadPersonalColegio(query, colegioId) {
      FROM personal p
      ${SQL_USUARIO_ACTIVO_CANONICO}
      WHERE p.colegio_id = ?
+       AND ${sqlPersonalSinSuperadmin('p')}
      ORDER BY p.apellidos ASC, p.nombres ASC`;
   const run = async (extraCols, mapRow) => {
     const rows = await query(sql(extraCols), [colegioId]);

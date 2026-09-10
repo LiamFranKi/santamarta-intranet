@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const multer = require('multer');
 const { query, execute, getAnioActivo, mysqlReadPool } = require('../utils/mysql');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
+const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
 
 const STAFF_TYPES = new Set(['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA', 'PSICOLOGA']);
 const PROCESO_ESTADOS = ['BORRADOR', 'CAMPAÑA', 'VOTACION', 'RESULTADOS', 'CERRADA', 'ARCHIVO'];
@@ -958,7 +959,7 @@ router.get('/admin/procesos/:id/votos', authenticateToken, requireStaff, async (
     const offset = (page - 1) * limit;
 
     let where =
-      `v.proceso_id = ? AND v.colegio_id = ?`;
+      `v.proceso_id = ? AND v.colegio_id = ? AND ${sqlUsuariosSinSuperadmin('u')}`;
     const params = [procesoId, colegioId];
 
     const stripLikeWild = (s) => String(s || '').trim().replace(/[%_\\]/g, '');

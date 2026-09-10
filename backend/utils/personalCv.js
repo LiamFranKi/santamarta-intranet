@@ -418,6 +418,11 @@ function mountAdminEquipoCvRoutes(router) {
       res.status(404).json({ error: 'Personal no encontrado' });
       return null;
     }
+    const { personalEsSuperadmin } = require('./superadminOculto');
+    if (await personalEsSuperadmin(query, personalId, colegio_id)) {
+      res.status(404).json({ error: 'Personal no encontrado' });
+      return null;
+    }
     return { personalId, colegioId: colegio_id };
   }
 

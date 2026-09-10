@@ -3,6 +3,7 @@
  * Misma fuente que GET /docente/horario: grupos_horarios + asignaturas + grupos.
  */
 const { query } = require('./mysql');
+const { sqlPersonalSinSuperadmin } = require('./superadminOculto');
 
 function tituloCadaPalabra(texto) {
   return String(texto || '')
@@ -68,6 +69,7 @@ async function obtenerHorariosPersonal(colegioId, filtros = {}) {
     `SELECT p.id AS personal_id, p.nombres, p.apellidos
      FROM personal p
      WHERE p.colegio_id = ?
+       AND ${sqlPersonalSinSuperadmin('p')}
        AND p.id IN (
          SELECT DISTINCT COALESCE(a.personal_id, gh.personal_id)
          FROM grupos_horarios gh

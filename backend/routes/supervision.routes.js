@@ -13,6 +13,7 @@ const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
 const { enviarCorreoNotificacion } = require('../services/emailService');
 const { fechaMySQLLima } = require('../utils/fechaHoraLima');
+const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
 
 router.use(authenticateToken);
 
@@ -839,7 +840,8 @@ router.get('/personal-candidatos', requireAdmin, async (req, res) => {
     let sql = `SELECT u.id as usuario_id, u.usuario as dni, p.nombres, p.apellidos, u.tipo
                FROM usuarios u
                INNER JOIN personal p ON p.id = u.personal_id
-               WHERE u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.personal_id IS NOT NULL`;
+               WHERE u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.personal_id IS NOT NULL
+                 AND ${sqlUsuariosSinSuperadmin('u')}`;
     const params = [colegio_id];
     if (q) {
       sql += ` AND (u.usuario LIKE ? OR p.nombres LIKE ? OR p.apellidos LIKE ?)`;

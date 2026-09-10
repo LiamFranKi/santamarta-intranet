@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
+const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
 const { requireMatriculaPortalActiva } = require('../middleware/matriculaPortal');
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
@@ -2865,6 +2866,7 @@ router.get('/mensajes/buscar-destinatarios', async (req, res) => {
        FROM personal p
        INNER JOIN usuarios u ON u.personal_id = p.id AND u.estado = 'ACTIVO'
        WHERE p.colegio_id = ?
+         AND ${sqlUsuariosSinSuperadmin('u')}
          AND (p.nombres LIKE ? OR p.apellidos LIKE ? OR u.usuario LIKE ?)
        ORDER BY p.nombres, p.apellidos
        LIMIT 20`,
