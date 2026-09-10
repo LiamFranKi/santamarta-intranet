@@ -72,6 +72,15 @@ function aInput(n, fallback) {
   return Number.isFinite(v) ? v.toFixed(2) : fallback;
 }
 
+function TamanoFoto({ ancho, alto, extra }) {
+  return (
+    <p className="wp-tamano">
+      Medida recomendada: <strong>{ancho} × {alto} px</strong>
+      {extra ? <span> · {extra}</span> : null}
+    </p>
+  );
+}
+
 function NivelFoto({ ruta, alt, className }) {
   const [src, setSrc] = useState('');
 
@@ -413,6 +422,7 @@ export default function AdminWebPaginas() {
                     Esta foto sale en la <strong>página de inicio</strong>, en las 3 tarjetas de “Niveles Educativos”
                     (Inicial, Primaria o Secundaria). No es el banner grande de la página del nivel.
                   </p>
+                  <TamanoFoto ancho={1200} alto={800} extra="horizontal, JPG o PNG" />
                   <label className={`wp-file${uploading === `${tab.id}-home` ? ' is-busy' : ''}`}>
                     <input
                       type="file"
@@ -434,7 +444,8 @@ export default function AdminWebPaginas() {
                 <div className="wp-hero-edit__copy">
                   <p className="wp-kicker">Página /niveles/{tab.id}</p>
                   <h4>Banner principal del nivel</h4>
-                  <p>La foto grande al entrar a Educación {tab.label}. JPG, PNG o WEBP, hasta 8 MB.</p>
+                  <p>La foto grande al entrar a Educación {tab.label}.</p>
+                  <TamanoFoto ancho={1920} alto={1080} extra="horizontal, JPG o PNG" />
                   <label className={`wp-file${uploading === `${tab.id}-hero` ? ' is-busy' : ''}`}>
                     <input
                       type="file"
@@ -456,6 +467,7 @@ export default function AdminWebPaginas() {
             <section>
               <h4 className="wp-campus-title">Campus que se vive</h4>
               <p className="wp-campus-lead">Tres tarjetas: cada una con título, texto corto y foto.</p>
+              <TamanoFoto ancho={1200} alto={800} extra="horizontal, igual para las tres" />
               <div className="wp-campus-grid">
                 {CAMPUS.map((c) => (
                   <div key={c.slot} className="wp-campus-card">
@@ -556,7 +568,10 @@ export default function AdminWebPaginas() {
           <NivelFoto ruta={inicioRuta} alt="Banner principal del inicio" className="wp-banner-preview" />
 
           <div className="wp-hero-edit__copy" style={{ marginTop: '1rem' }}>
-            <p className="rs-muted">JPG, PNG o WEBP. Recomendado: horizontal, al menos 1920 px de ancho. Máx. 12 MB.</p>
+            <p className="rs-muted" style={{ marginBottom: '0.45rem' }}>
+              JPG, PNG o WEBP. Máx. 12 MB.
+            </p>
+            <TamanoFoto ancho={1920} alto={1080} extra="horizontal, a pantalla completa" />
             <label className={`wp-file${uploading === 'inicio-banner' ? ' is-busy' : ''}`}>
               <input
                 type="file"

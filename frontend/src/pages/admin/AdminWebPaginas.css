@@ -266,9 +266,30 @@
 }
 
 .wp-campus-lead {
-  margin: 0 0 0.85rem;
+  margin: 0 0 0.35rem;
   color: #64748b;
   font-size: 0.88rem;
+}
+
+.wp-tamano {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem 0.25rem;
+  margin: 0.45rem 0 0.7rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: #ecfeff;
+  border: 1px solid #a5f3fc;
+  color: #155e75;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.wp-tamano strong {
+  font-weight: 800;
+  color: #0e7490;
+  letter-spacing: 0.01em;
 }
 
 .wp-campus-grid {
