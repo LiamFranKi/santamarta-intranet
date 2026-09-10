@@ -69,9 +69,16 @@ const DOCENTE_PASTELS = [
 
 export default function VocabulariosPage({ variant = 'admin' }) {
   const { user } = useAuth();
-  const copy = VARIANT_COPY[variant] || VARIANT_COPY.admin;
+  const copyBase = VARIANT_COPY[variant] || VARIANT_COPY.admin;
   const puedeGestionar =
     (variant === 'admin' || variant === 'docente') && user?.tipo !== 'PSICOLOGA' && user?.tipo !== 'COORDINADOR';
+  const copy =
+    user?.tipo === 'COORDINADOR'
+      ? {
+          ...copyBase,
+          subtitle: 'Consulte los vocabularios publicados. No puede subir ni crear material.',
+        }
+      : copyBase;
   const cargaOpcionesGrado = variant === 'admin' || variant === 'docente';
 
   const [loading, setLoading] = useState(true);
@@ -273,7 +280,9 @@ export default function VocabulariosPage({ variant = 'admin' }) {
             <div className="voc-empty">
               {variant === 'alumno'
                 ? 'Aún no hay vocabularios publicados para su grupo.'
-                : 'No hay registros. Use «Subir vocabulario» para agregar el primero.'}
+                : puedeGestionar
+                  ? 'No hay registros. Use «Subir vocabulario» para agregar el primero.'
+                  : 'No hay vocabularios publicados.'}
             </div>
           ) : variant === 'docente' ? (
             <div className="voc-doc-cards-grid">

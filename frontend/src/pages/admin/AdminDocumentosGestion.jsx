@@ -260,10 +260,15 @@ function AdminDocumentosGestion() {
           </div>
           <div className="dg-hero-text">
             <h1>Documentos Vanguard</h1>
-            <p>Suba PDFs, organícelos por categoría y defina qué perfil de usuario puede verlos.</p>
+            <p>
+              {soloLectura
+                ? 'Consulte los PDF publicados. Puede abrirlos, no subirlos ni administrar categorías.'
+                : 'Suba PDFs, organícelos por categoría y defina qué perfil de usuario puede verlos.'}
+            </p>
           </div>
         </header>
 
+        {!soloLectura && (
         <section className="dg-section dg-section--cats" aria-labelledby="dg-cat-heading">
           <div className="dg-section-title" id="dg-cat-heading">
             <div className="dg-section-title-left">
@@ -317,6 +322,7 @@ function AdminDocumentosGestion() {
             </div>
           )}
         </section>
+        )}
 
         <section className="dg-section dg-section--docs" aria-labelledby="dg-doc-heading">
           <div className="dg-section-title" id="dg-doc-heading">
@@ -326,7 +332,11 @@ function AdminDocumentosGestion() {
               </span>
               <div className="dg-section-title-text">
                 <h2>Documentos PDF</h2>
-                <p>Suba archivos y asigne a quién van dirigidos.</p>
+                <p>
+                  {soloLectura
+                    ? 'Listado de documentos publicados. Ábralos con el ícono de ver.'
+                    : 'Suba archivos y asigne a quién van dirigidos.'}
+                </p>
               </div>
             </div>
             {!soloLectura && (

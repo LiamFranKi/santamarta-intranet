@@ -1586,10 +1586,6 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>📚</span>
                     <span className="sidebar-label">Vocabulario</span>
                   </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/disenador-fichas">
-                    <span className="sidebar-icon" aria-hidden>✨</span>
-                    <span className="sidebar-label">Fichas IA</span>
-                  </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/docente/herramientas/supervision">
                     <span className="sidebar-icon" aria-hidden>👁️</span>
                     <span className="sidebar-label">Supervisión</span>
@@ -1650,11 +1646,40 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               )}
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/reportes">
-                  <span className="sidebar-icon">📈</span>
-                  <span className="sidebar-label">Reportes</span>
-                </NavLink>
+              <div className="sidebar-menu-item">
+                <button
+                  type="button"
+                  className={`sidebar-menu-toggle ${expandedMenus.reportes ? 'expanded' : ''}`}
+                  onClick={() => toggleSubmenu('reportes')}
+                >
+                  <div className="sidebar-menu-toggle-content">
+                    <span className="sidebar-icon">📈</span>
+                    <span className="sidebar-label">Reportes</span>
+                  </div>
+                  <span className="sidebar-menu-arrow">▶</span>
+                </button>
+                <div ref={(el) => { submenuRefs.current.reportes = el; }} className={`sidebar-submenu ${expandedMenus.reportes ? 'expanded' : ''}`}>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/general">
+                    <span className="sidebar-icon" aria-hidden>🗂️</span>
+                    <span className="sidebar-label">General</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/temas">
+                    <span className="sidebar-icon" aria-hidden>📚</span>
+                    <span className="sidebar-label">Temas</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/asistencias">
+                    <span className="sidebar-icon" aria-hidden>✅</span>
+                    <span className="sidebar-label">Asistencias</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/notas">
+                    <span className="sidebar-icon" aria-hidden>📊</span>
+                    <span className="sidebar-label">Notas</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/deudores">
+                    <span className="sidebar-icon" aria-hidden>📋</span>
+                    <span className="sidebar-label">Deudores</span>
+                  </NavLink>
+                </div>
               </div>
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/mensajes">

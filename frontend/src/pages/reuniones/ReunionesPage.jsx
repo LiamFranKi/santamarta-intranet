@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
@@ -136,6 +136,7 @@ function ReunionesPage() {
   const esGestor = esGestorReunionesFront(user?.tipo);
 
   if (id === 'nueva') {
+    if (!esGestor) return <Navigate to={base} replace />;
     return <FormularioReunion base={base} esGestor={esGestor} />;
   }
   if (id) {

@@ -66,7 +66,9 @@ const PARENTESCO_VINC_LABEL = {
 
 export default function AdminUsuariosAlumnosTabla() {
   const { user } = useAuth();
-  const vistaRestringidaPsicologa = user?.tipo === 'PSICOLOGA' || user?.tipo === 'COORDINADOR';
+  const esPsicologa = user?.tipo === 'PSICOLOGA';
+  const esCoordinador = user?.tipo === 'COORDINADOR';
+  const ocultarAltasYEdicion = esPsicologa || esCoordinador;
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -251,6 +253,21 @@ export default function AdminUsuariosAlumnosTabla() {
   const guardarInfoAcceso = async () => {
     if (!modalAcceso) return;
     try {
+      if (esCoordinador) {
+        const pwd = (accesoForm.password || '').trim();
+        if (!modalAcceso.usuario_id) {
+          Swal.fire({ icon: 'warning', text: 'Este alumno no tiene usuario de acceso.' });
+          return;
+        }
+        if (!pwd) {
+          Swal.fire({ icon: 'info', text: 'Escriba la nueva contraseña.' });
+          return;
+        }
+        await api.post(`/admin/usuarios/alumnos/${modalAcceso.id}/password`, { password: pwd });
+        Swal.fire({ icon: 'success', title: 'Clave actualizada' });
+        setModalAcceso(null);
+        return;
+      }
       if (!modalAcceso.usuario_id) {
         await api.post(`/admin/usuarios/alumnos/${modalAcceso.id}/acceso`);
       } else {
@@ -676,7 +693,7 @@ export default function AdminUsuariosAlumnosTabla() {
         <button type="button" className="admin-usu-btn admin-usu-btn-search" onClick={() => { setPage(1); cargar(); }}>
           Buscar
         </button>
-        {!vistaRestringidaPsicologa && (
+        {!ocultarAltasYEdicion && (
           <button type="button" className="admin-usu-btn admin-usu-btn-new" onClick={abrirCrear}>
             + Registrar nuevo
           </button>
@@ -766,7 +783,17 @@ export default function AdminUsuariosAlumnosTabla() {
           <button type="button" onClick={() => { abrirModalMensaje(menuRow); cerrarMenus(); }}>
             ✉️ Enviar Mensaje
           </button>
-          {!vistaRestringidaPsicologa && (
+          {esCoordinador && (
+            <>
+              <button type="button" onClick={() => { historialPagos(menuRow); cerrarMenus(); }}>
+                💰 Historial de Pagos
+              </button>
+              <button type="button" onClick={() => { abrirInfoAcceso(menuRow); cerrarMenus(); }}>
+                🔐 Información de Acceso
+              </button>
+            </>
+          )}
+          {!ocultarAltasYEdicion && (
             <>
               <button type="button" onClick={() => { historialMatriculas(menuRow); cerrarMenus(); }}>
                 📋 Historial de Matriculas
@@ -1059,6 +1086,7 @@ export default function AdminUsuariosAlumnosTabla() {
                 <div className="admin-usu-profile-section">
                   <div className="admin-usu-section-head">
                     <h3>Apoderados</h3>
+                    {!ocultarAltasYEdicion && (
                     <button
                       type="button"
                       className="admin-usu-btn admin-usu-btn-secondary admin-usu-btn-compact"
@@ -1069,6 +1097,7 @@ export default function AdminUsuariosAlumnosTabla() {
                     >
                       + Nuevo
                     </button>
+                    )}
                   </div>
                   {(modalInfo.apoderados || []).length === 0 ? (
                     <span className="admin-usu-info-value">Sin apoderados vinculados</span>
@@ -1081,6 +1110,7 @@ export default function AdminUsuariosAlumnosTabla() {
                               <span className="admin-usu-info-label">Apoderado</span>
                               <span className="admin-usu-info-value">{[ap.apellido_paterno, ap.apellido_materno, ap.nombres].filter(Boolean).join(' ') || '—'}</span>
                             </div>
+                            {!ocultarAltasYEdicion && (
                             <button
                               type="button"
                               className="admin-usu-btn admin-usu-btn-danger admin-usu-btn-compact"
@@ -1088,6 +1118,7 @@ export default function AdminUsuariosAlumnosTabla() {
                             >
                               Quitar vínculo
                             </button>
+                            )}
                           </div>
                           <div className="admin-usu-info-item">
                             <span className="admin-usu-info-label">DNI</span>
@@ -1266,7 +1297,7 @@ export default function AdminUsuariosAlumnosTabla() {
                     <label>Nueva contraseña</label>
                     <input
                       type="text"
-                      placeholder="Opcional: dejar vacío para no cambiar"
+                      placeholder={esCoordinador ? 'Escriba la nueva clave' : 'Opcional: dejar vacío para no cambiar'}
                       value={accesoForm.password}
                       onChange={(e) => setAccesoForm({ ...accesoForm, password: e.target.value })}
                     />
@@ -1279,7 +1310,7 @@ export default function AdminUsuariosAlumnosTabla() {
                     <label>Estado</label>
                     <select
                       value={accesoForm.estado}
-                      disabled={!modalAcceso.usuario_id}
+                      disabled={esCoordinador || !modalAcceso.usuario_id}
                       onChange={(e) => setAccesoForm({ ...accesoForm, estado: e.target.value })}
                     >
                       <option value="ACTIVO">ACTIVO</option>
@@ -1287,7 +1318,7 @@ export default function AdminUsuariosAlumnosTabla() {
                     </select>
                   </div>
                 </div>
-                {!modalAcceso.usuario_id && (
+                {!esCoordinador && !modalAcceso.usuario_id && (
                   <p className="admin-usu-hint">Este alumno no tiene usuario. Al guardar se creará su acceso con usuario = DNI.</p>
                 )}
               </div>
@@ -1296,7 +1327,7 @@ export default function AdminUsuariosAlumnosTabla() {
                   Cancelar
                 </button>
                 <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarInfoAcceso}>
-                  Guardar datos
+                  {esCoordinador ? 'Guardar clave' : 'Guardar datos'}
                 </button>
               </div>
             </div>
@@ -1323,7 +1354,7 @@ export default function AdminUsuariosAlumnosTabla() {
             <div className="admin-usu-modal-body">
               <div className="admin-usu-matriculas-toolbar">
                 <p className="admin-usu-matriculas-nombre">{nombreAlumno(modalMatriculas.alumno)}</p>
-                {!vistaRestringidaPsicologa && (
+                {!ocultarAltasYEdicion && (
                   <button
                     type="button"
                     className="admin-usu-btn admin-usu-btn-new"

@@ -198,6 +198,9 @@ module.exports = function mountVisitas(router, { requireAdmin, requireAdminOrSup
 
   router.post('/visitas', requireAdminOrSupervisor, async (req, res) => {
     try {
+      if (req.user?.tipo === 'COORDINADOR') {
+        return res.status(403).json({ error: 'El coordinador no puede crear supervisiones.' });
+      }
       const { colegio_id, anio_activo } = req.user;
       const uid = uidDe(req);
       const titulo = String(req.body.titulo || '').trim();

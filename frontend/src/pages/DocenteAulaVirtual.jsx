@@ -274,7 +274,8 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
     10
   );
   const soloLecturaTutor =
-    tutorGrupoId != null && tutorGrupoId !== undefined && String(tutorGrupoId).trim() !== '';
+    user?.tipo === 'COORDINADOR'
+    || (tutorGrupoId != null && tutorGrupoId !== undefined && String(tutorGrupoId).trim() !== '');
 
   const gridCardsClases =
     user?.tipo === 'DOCENTE'
@@ -3848,7 +3849,9 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
           <button
             className="btn-back"
             onClick={() => {
-              if (soloLecturaTutor) {
+              if (user?.tipo === 'COORDINADOR' || location.state?.adminReturnTo) {
+                navigate(location.state?.adminReturnTo || '/admin/academico/asignaturas');
+              } else if (soloLecturaTutor) {
                 // Preferir retorno explícito a Cursos Asignados para restaurar estado local
                 const returnTo = location.state?.returnTo;
                 if (returnTo) {
@@ -3862,8 +3865,6 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                 } else {
                   navigate('/docente/tutoria');
                 }
-              } else if (location.state?.adminReturnTo) {
-                navigate(location.state.adminReturnTo);
               } else {
                 navigate('/docente/cursos');
               }
@@ -3873,11 +3874,15 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
           </button>
           <h1>
             🎓 Aula Virtual
-            {soloLecturaTutor && (
+            {user?.tipo === 'COORDINADOR' ? (
+              <span style={{ fontSize: '0.55em', color: '#6b7280', fontWeight: 'normal', marginLeft: 10 }}>
+                (solo lectura)
+              </span>
+            ) : soloLecturaTutor ? (
               <span style={{ fontSize: '0.55em', color: '#6b7280', fontWeight: 'normal', marginLeft: 10 }}>
                 (Tutor · solo lectura)
               </span>
-            )}
+            ) : null}
           </h1>
           {curso ? <p>{subtituloAulaVirtualCurso(curso)}</p> : null}
         </div>

@@ -20,6 +20,7 @@ function coordinadorPuedeAdminCore(path, method) {
   if (pathMatch(p, ['/institucional']) && lectura) return true;
   if (pathMatch(p, ['/gestion-documentos']) && lectura) return true;
   if (pathMatch(p, ['/conexiones'])) return true;
+  if (pathMatch(p, ['/estadisticas']) && lectura) return true;
   if (p === '/notificaciones' || p.startsWith('/notificaciones/')) {
     if (lectura) return true;
     if (String(method).toUpperCase() === 'PUT' && p.includes('marcar-leido')) return true;
@@ -34,6 +35,12 @@ function coordinadorPuedeDocente(path, method) {
   const p = String(path || '');
   const lectura = esMetodoLectura(method);
   if (pathMatch(p, ['/documentos-gestion'])) return lectura;
+  if (pathMatch(p, ['/aula-virtual'])) return lectura;
+  if (pathMatch(p, ['/cursos'])) {
+    if (lectura) return true;
+    if (p.includes('/aula-virtual') || p.includes('/copiar-contenido')) return false;
+    return true;
+  }
   return pathMatch(p, [
     '/dashboard',
     '/roles-adicionales',
@@ -47,6 +54,25 @@ function coordinadorPuedeDocente(path, method) {
     '/alumnos',
     '/conexiones',
   ]);
+}
+
+/**
+ * /api/admin/academico: consulta de catálogo; en grados/grupos todos los procesos
+ * salvo editar o borrar el grupo.
+ */
+function coordinadorPuedeAcademico(path, method) {
+  const p = String(path || '');
+  const m = String(method || '').toUpperCase();
+  const lectura = esMetodoLectura(m);
+  if (p === '/meta') return lectura;
+  if (pathMatch(p, ['/niveles', '/cursos', '/asignaturas', '/areas'])) return lectura;
+  if (p === '/grupos' || p === '/grados') {
+    return lectura || m === 'POST';
+  }
+  if (p === '/grupos/upload-horario') return true;
+  if (/^\/grupos\/\d+$/.test(p) || /^\/grados\/\d+$/.test(p)) return lectura;
+  if (p.startsWith('/grupos/') || p.startsWith('/grados/')) return true;
+  return false;
 }
 
 /** Middleware: administrador todo; coordinador solo GET/HEAD. */
@@ -63,5 +89,6 @@ module.exports = {
   pathMatch,
   coordinadorPuedeAdminCore,
   coordinadorPuedeDocente,
+  coordinadorPuedeAcademico,
   requireAdminOCoordinadorGet,
 };

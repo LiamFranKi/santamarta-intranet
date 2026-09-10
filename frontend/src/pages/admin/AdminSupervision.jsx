@@ -185,7 +185,7 @@ export default function AdminSupervision() {
             <p>Abre una supervisión para ver lo registrado, dejar un comentario y firmar.</p>
           </div>
         </div>
-        <SupervisionVisitas canCrear={!!canExecute} canConfig={false} />
+        <SupervisionVisitas canCrear={!!canExecute && user?.tipo !== 'COORDINADOR'} canConfig={false} />
       </div>
     );
   })();
@@ -580,7 +580,7 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
         ) : null}
       </div>
 
-      {seccion === 'visitas' ? <SupervisionVisitas canCrear={canExecute} canConfig /> : null}
+      {seccion === 'visitas' ? <SupervisionVisitas canCrear={canExecute && user?.tipo !== 'COORDINADOR'} canConfig /> : null}
       {seccion === 'supervisores' ? (
         <div className="admin-usu-table-card admin-sup-table-card">
           <div className="admin-sup-panel-body">

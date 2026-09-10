@@ -893,6 +893,7 @@ function NivelesPanel({ onRefreshMeta }) {
                 </div>
 
                 <div className="admin-academico-nivel-card__foot">
+                  {!soloLectura && (
                   <div className="admin-academico-nivel-card__actions">
                     <button
                       type="button"
@@ -913,6 +914,7 @@ function NivelesPanel({ onRefreshMeta }) {
                       <IconoPapelera />
                     </button>
                   </div>
+                  )}
                   <div className="admin-academico-nivel-card__foot-meta">
                     <span className="admin-academico-nivel-card__clock" title="Hora de entrada (asistencia)">
                       Entrada {r.hora_entrada || '—'}
@@ -948,13 +950,21 @@ function NivelesPanel({ onRefreshMeta }) {
 
 function GruposPanel({ meta }) {
   const { user } = useAuth();
-  const vistaSoloLecturaGrados = user?.tipo === 'PSICOLOGA' || user?.tipo === 'COORDINADOR';
+  const esPsicologa = user?.tipo === 'PSICOLOGA';
+  const esCoordinador = user?.tipo === 'COORDINADOR';
+  const vistaSoloLecturaGrados = esPsicologa;
+  const ocultarMutacionGrado = esPsicologa || esCoordinador;
   const opcionesGrupoMenuVisibles = useMemo(
-    () =>
-      vistaSoloLecturaGrados
-        ? OPCIONES_GRUPO_MENU.filter((op) => KEYS_OPCIONES_GRUPO_PSICOLOGA.has(op.key))
-        : OPCIONES_GRUPO_MENU,
-    [vistaSoloLecturaGrados]
+    () => {
+      if (esPsicologa) {
+        return OPCIONES_GRUPO_MENU.filter((op) => KEYS_OPCIONES_GRUPO_PSICOLOGA.has(op.key));
+      }
+      if (esCoordinador) {
+        return OPCIONES_GRUPO_MENU.filter((op) => op.key !== 'editar' && op.key !== 'eliminar');
+      }
+      return OPCIONES_GRUPO_MENU;
+    },
+    [esPsicologa, esCoordinador]
   );
   const anioDef = meta?.anio_activo || new Date().getFullYear();
   const anioActual = new Date().getFullYear();
@@ -1299,10 +1309,12 @@ function GruposPanel({ meta }) {
 
   const accionGrupoMenu = async (accion, row) => {
     if (accion === 'editar') {
+      if (ocultarMutacionGrado) return;
       openEdit(row);
       return;
     }
     if (accion === 'eliminar') {
+      if (ocultarMutacionGrado) return;
       await eliminar(row);
       return;
     }
@@ -1668,7 +1680,7 @@ function GruposPanel({ meta }) {
             Ver todo
           </button>
         </div>
-        {!vistaSoloLecturaGrados && (
+        {!esPsicologa && (
           <button type="button" className="admin-academico-grupos-btn-nuevo" onClick={openNew}>
             + Nuevo grado
           </button>
@@ -1679,7 +1691,7 @@ function GruposPanel({ meta }) {
         <p className="admin-academico-grupos-loading">Cargando…</p>
       ) : rows.length === 0 ? (
         <p className="admin-academico-niveles-empty">
-          {vistaSoloLecturaGrados
+          {esPsicologa
             ? 'No hay grupos para este año y filtros.'
             : 'No hay grupos para este año y filtros. Use «+ Nuevo grado».'}
         </p>
@@ -2238,7 +2250,7 @@ function CursosPanel({ meta }) {
     else if (key === 'eliminar') eliminar(row);
   };
 
-  const colCount = (cursoTieneNivel ? 1 : 0) + 4;
+  const colCount = (cursoTieneNivel ? 1 : 0) + 3 + (soloLectura ? 0 : 1);
 
   return (
     <section className="dg-section">
@@ -2286,7 +2298,7 @@ function CursosPanel({ meta }) {
                 <th>Nombre</th>
                 <th>Abreviatura</th>
                 <th>Descripción</th>
-                <th className="admin-academico-areas-th-opciones">Opciones</th>
+                {!soloLectura && <th className="admin-academico-areas-th-opciones">Opciones</th>}
               </tr>
             </thead>
             <tbody>
@@ -2326,6 +2338,7 @@ function CursosPanel({ meta }) {
                     <td className="admin-academico-cursos-descripcion" title={r.descripcion || ''}>
                       {r.descripcion || '—'}
                     </td>
+                    {!soloLectura && (
                     <td className="admin-academico-areas-td-opciones">
                       <button
                         type="button"
@@ -2337,6 +2350,7 @@ function CursosPanel({ meta }) {
                         Opciones
                       </button>
                     </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -3006,6 +3020,8 @@ function grupoLibretaDesdeResultados(filtrosAplicados, rows) {
 }
 
 function AsignaturasPanel({ meta, accionesRef }) {
+  const { user } = useAuth();
+  const esCoordinador = user?.tipo === 'COORDINADOR';
   const navigate = useNavigate();
   const anioDef = meta?.anio_activo || new Date().getFullYear();
   const nivelesLista = useMemo(
@@ -3061,11 +3077,16 @@ function AsignaturasPanel({ meta, accionesRef }) {
   );
 
   const opcionesMenuVisibles = useMemo(() => {
-    if (!esInicialBuscado) return OPCIONES_ASIGNATURA_MENU;
-    return OPCIONES_ASIGNATURA_MENU.filter(
-      (op) => op.key !== 'criterios' && op.key !== 'registrar_notas'
-    );
-  }, [esInicialBuscado]);
+    const ocultasCoord = new Set(['copiar_contenido', 'registrar_asistencia', 'editar', 'eliminar']);
+    let ops = OPCIONES_ASIGNATURA_MENU;
+    if (esInicialBuscado) {
+      ops = ops.filter((op) => op.key !== 'criterios' && op.key !== 'registrar_notas');
+    }
+    if (esCoordinador) {
+      ops = ops.filter((op) => !ocultasCoord.has(op.key));
+    }
+    return ops;
+  }, [esInicialBuscado, esCoordinador]);
 
   const loadGruposModal = useCallback(async (anio) => {
     const { data } = await api.get('/admin/academico/grupos', { params: { anio } });
@@ -3352,6 +3373,9 @@ function AsignaturasPanel({ meta, accionesRef }) {
 
   const accionAsignaturaMenu = async (accion, row) => {
     cerrarMenuAsignatura();
+    if (esCoordinador && ['editar', 'eliminar', 'copiar_contenido', 'registrar_asistencia'].includes(accion)) {
+      return;
+    }
     if (accion === 'editar') {
       openEdit(row);
       return;

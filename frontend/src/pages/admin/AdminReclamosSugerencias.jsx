@@ -152,8 +152,8 @@ function BadgeEstado({ estado }) {
   return <span className={`rs-badge rs-badge--${key}`}>{etiquetaEstado(estado)}</span>;
 }
 
-function tabValido(raw, ocultarPaginas = false) {
-  if (ocultarPaginas && raw === 'paginas') return 'reclamos';
+function tabValido(raw, ocultarTabs = false) {
+  if (ocultarTabs && (raw === 'paginas' || raw === 'matricula')) return 'reclamos';
   return TAB_IDS.includes(raw) ? raw : 'reclamos';
 }
 
@@ -2109,13 +2109,14 @@ export default function AdminReclamosSugerencias() {
   }, [soloLectura]);
 
   useEffect(() => {
-    if (soloLectura && searchParams.get('tab') === 'paginas') {
+    const t = searchParams.get('tab');
+    if (soloLectura && (t === 'paginas' || t === 'matricula')) {
       setSearchParams({ tab: 'reclamos' }, { replace: true });
     }
   }, [soloLectura, searchParams, setSearchParams]);
 
   const tab = tabValido(searchParams.get('tab'), soloLectura);
-  const tabsVisibles = soloLectura ? TABS.filter((t) => t.id !== 'paginas') : TABS;
+  const tabsVisibles = soloLectura ? TABS.filter((t) => t.id !== 'paginas' && t.id !== 'matricula') : TABS;
 
   const [listas, setListas] = useState({
     reclamos: [],
@@ -2416,7 +2417,7 @@ export default function AdminReclamosSugerencias() {
           <AdminWebUtiles soloLectura={soloLectura} />
         ) : tab === 'documentos' ? (
           <AdminWebDocumentos soloLectura={soloLectura} />
-        ) : tab === 'matricula' ? (
+        ) : tab === 'matricula' && !soloLectura ? (
           <AdminWebMatricula soloLectura={soloLectura} onOpenCorreos={() => setModalCorreos(true)} />
         ) : tab === 'paginas' && !soloLectura ? (
           <AdminWebPaginas />

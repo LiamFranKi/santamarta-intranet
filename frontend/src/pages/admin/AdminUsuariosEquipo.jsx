@@ -288,6 +288,21 @@ export default function AdminUsuariosEquipo() {
   const guardarInfoAcceso = async () => {
     if (!modalAcceso) return;
     try {
+      if (soloLectura) {
+        const pwd = (accesoForm.password || '').trim();
+        if (!modalAcceso.usuario_id) {
+          Swal.fire({ icon: 'warning', text: 'Este personal no tiene usuario de acceso.' });
+          return;
+        }
+        if (!pwd) {
+          Swal.fire({ icon: 'info', text: 'Escriba la nueva contraseña.' });
+          return;
+        }
+        await api.post(`/admin/usuarios/equipo/${modalAcceso.id}/password`, { password: pwd });
+        Swal.fire({ icon: 'success', title: 'Clave actualizada' });
+        setModalAcceso(null);
+        return;
+      }
       if (!modalAcceso.usuario_id) {
         await api.post(`/admin/usuarios/equipo/${modalAcceso.id}/acceso`, { tipo: accesoForm.tipo });
       } else {
@@ -1245,6 +1260,7 @@ export default function AdminUsuariosEquipo() {
                 <div className="admin-usu-profile-section">
                   <div className="admin-usu-section-head">
                     <h3>Hijos en el colegio</h3>
+                    {!soloLectura && (
                     <button
                       type="button"
                       className="admin-usu-btn admin-usu-btn-secondary admin-usu-btn-compact"
@@ -1255,6 +1271,7 @@ export default function AdminUsuariosEquipo() {
                     >
                       + Vincular alumno
                     </button>
+                    )}
                   </div>
                   <p className="admin-usu-hint" style={{ marginTop: 0, marginBottom: '0.75rem' }}>
                     Misma lógica que en Apoderados: se usa la ficha de apoderado con el DNI de este personal en familias.
@@ -1268,7 +1285,7 @@ export default function AdminUsuariosEquipo() {
                         <div key={h.alumno_id} className="admin-usu-familia-card">
                           <div className="admin-usu-familia-card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', flexWrap: 'wrap' }}>
                             <span>{nombreAlumnoDesdeHijo(h)}</span>
-                            {modalInfo.apoderado_id_para_familias ? (
+                            {!soloLectura && modalInfo.apoderado_id_para_familias ? (
                               <button
                                 type="button"
                                 className="admin-usu-btn admin-usu-btn-danger admin-usu-btn-compact"
@@ -1455,14 +1472,14 @@ export default function AdminUsuariosEquipo() {
                     <label>Nueva contraseña</label>
                     <input
                       type="text"
-                      placeholder="Opcional: dejar vacío para no cambiar"
+                      placeholder={soloLectura ? 'Escriba la nueva clave' : 'Opcional: dejar vacío para no cambiar'}
                       value={accesoForm.password}
                       onChange={(e) => setAccesoForm({ ...accesoForm, password: e.target.value })}
                     />
                   </div>
                   <div className="admin-usu-field">
                     <label>Tipo</label>
-                    <select value={accesoForm.tipo} onChange={(e) => setAccesoForm({ ...accesoForm, tipo: e.target.value })}>
+                    <select value={accesoForm.tipo} disabled={soloLectura} onChange={(e) => setAccesoForm({ ...accesoForm, tipo: e.target.value })}>
                       {tipos.map((t) => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>
@@ -1470,7 +1487,7 @@ export default function AdminUsuariosEquipo() {
                     <label>Estado</label>
                     <select
                       value={accesoForm.estado}
-                      disabled={!modalAcceso.usuario_id}
+                      disabled={soloLectura || !modalAcceso.usuario_id}
                       onChange={(e) => setAccesoForm({ ...accesoForm, estado: e.target.value })}
                     >
                       <option value="ACTIVO">ACTIVO</option>
@@ -1478,13 +1495,15 @@ export default function AdminUsuariosEquipo() {
                     </select>
                   </div>
                 </div>
-                {!modalAcceso.usuario_id && (
+                {!soloLectura && !modalAcceso.usuario_id && (
                   <p className="admin-usu-hint">Este personal aún no tiene usuario. Al guardar se creará su acceso con usuario = DNI.</p>
                 )}
               </div>
               <div className="admin-usu-modal-actions">
                 <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalAcceso(null)}>Cancelar</button>
-                <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarInfoAcceso}>Guardar datos</button>
+                <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarInfoAcceso}>
+                  {soloLectura ? 'Guardar clave' : 'Guardar datos'}
+                </button>
               </div>
             </div>
           </div>

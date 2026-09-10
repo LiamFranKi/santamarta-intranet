@@ -136,6 +136,16 @@ function esAdminOPromotoria(tipo) {
   return tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA';
 }
 
+/** Administrador, Promotoría o Coordinador: crear/editar comunicados y actividades como el admin. */
+function esAdminPromotoriaOCoordinador(tipo) {
+  return esAdminOPromotoria(tipo) || tipo === 'COORDINADOR';
+}
+
+function tipoAuditoriaStaff(tipo) {
+  if (tipo === 'PROMOTORIA' || tipo === 'COORDINADOR') return tipo;
+  return 'ADMINISTRADOR';
+}
+
 /** Gate común para /hijos/:hijoId/* (docente-apoderado o staff del colegio). */
 async function gateAlumnoHijoDocente(req, res, hijoId) {
   const hijoIdNum = parseInt(hijoId, 10);
@@ -14446,8 +14456,8 @@ router.post('/comunicados', uploadComunicado.single('archivo'), async (req, res)
   try {
     const { usuario_id, colegio_id } = req.user;
     
-    // Solo administradores o promotoría pueden crear comunicados
-    if (!esAdminOPromotoria(req.user.tipo)) {
+    // Administradores, promotoría o coordinador pueden crear comunicados
+    if (!esAdminPromotoriaOCoordinador(req.user.tipo)) {
       return res.status(403).json({ error: 'Solo los administradores pueden crear comunicados' });
     }
 
@@ -14482,7 +14492,7 @@ router.post('/comunicados', uploadComunicado.single('archivo'), async (req, res)
     registrarAccion({
       usuario_id,
       colegio_id,
-      tipo_usuario: req.user.tipo === 'PROMOTORIA' ? 'PROMOTORIA' : 'ADMINISTRADOR',
+      tipo_usuario: tipoAuditoriaStaff(req.user.tipo),
       accion: 'CREAR',
       modulo: 'COMUNICADOS',
       entidad: 'comunicado',
@@ -14540,7 +14550,7 @@ router.put('/comunicados/:id', uploadComunicado.single('archivo'), async (req, r
   try {
     const { usuario_id, colegio_id } = req.user;
     
-    if (!esAdminOPromotoria(req.user.tipo)) {
+    if (!esAdminPromotoriaOCoordinador(req.user.tipo)) {
       return res.status(403).json({ error: 'Solo los administradores pueden editar comunicados' });
     }
 
@@ -14580,7 +14590,7 @@ router.put('/comunicados/:id', uploadComunicado.single('archivo'), async (req, r
     registrarAccion({
       usuario_id,
       colegio_id,
-      tipo_usuario: req.user.tipo === 'PROMOTORIA' ? 'PROMOTORIA' : 'ADMINISTRADOR',
+      tipo_usuario: tipoAuditoriaStaff(req.user.tipo),
       accion: 'ACTUALIZAR',
       modulo: 'COMUNICADOS',
       entidad: 'comunicado',
@@ -14615,7 +14625,7 @@ router.delete('/comunicados/:id', async (req, res) => {
   try {
     const { usuario_id, colegio_id } = req.user;
     
-    if (!esAdminOPromotoria(req.user.tipo)) {
+    if (!esAdminPromotoriaOCoordinador(req.user.tipo)) {
       return res.status(403).json({ error: 'Solo los administradores pueden eliminar comunicados' });
     }
 
@@ -14641,7 +14651,7 @@ router.delete('/comunicados/:id', async (req, res) => {
     registrarAccion({
       usuario_id,
       colegio_id,
-      tipo_usuario: req.user.tipo === 'PROMOTORIA' ? 'PROMOTORIA' : 'ADMINISTRADOR',
+      tipo_usuario: tipoAuditoriaStaff(req.user.tipo),
       accion: 'ELIMINAR',
       modulo: 'COMUNICADOS',
       entidad: 'comunicado',
@@ -14688,8 +14698,8 @@ router.get('/comunicados', async (req, res) => {
     `;
     const params = [colegio_id];
 
-    // Si NO es administrador ni promotoría, filtrar por año activo
-    if (!esAdminOPromotoria(tipo)) {
+    // Si NO es administrador, promotoría ni coordinador, filtrar por año activo
+    if (!esAdminPromotoriaOCoordinador(tipo)) {
       querySql += ` AND YEAR(c.fecha_hora) = ?`;
       params.push(anio_activo);
       querySql += ` AND c.estado = 'ACTIVO'`;
@@ -14844,8 +14854,8 @@ router.post('/actividades', async (req, res) => {
   try {
     const { usuario_id, colegio_id } = req.user;
     
-    // Solo administradores o promotoría pueden crear actividades
-    if (!esAdminOPromotoria(req.user.tipo)) {
+    // Administradores, promotoría o coordinador pueden crear actividades
+    if (!esAdminPromotoriaOCoordinador(req.user.tipo)) {
       return res.status(403).json({ error: 'Solo los administradores pueden crear actividades' });
     }
 
@@ -14884,7 +14894,7 @@ router.post('/actividades', async (req, res) => {
     registrarAccion({
       usuario_id,
       colegio_id,
-      tipo_usuario: req.user.tipo === 'PROMOTORIA' ? 'PROMOTORIA' : 'ADMINISTRADOR',
+      tipo_usuario: tipoAuditoriaStaff(req.user.tipo),
       accion: 'CREAR',
       modulo: 'ACTIVIDADES',
       entidad: 'actividad',
@@ -14926,7 +14936,7 @@ router.put('/actividades/:id', async (req, res) => {
   try {
     const { usuario_id, colegio_id } = req.user;
     
-    if (!esAdminOPromotoria(req.user.tipo)) {
+    if (!esAdminPromotoriaOCoordinador(req.user.tipo)) {
       return res.status(403).json({ error: 'Solo los administradores pueden editar actividades' });
     }
 
@@ -14977,7 +14987,7 @@ router.put('/actividades/:id', async (req, res) => {
     registrarAccion({
       usuario_id,
       colegio_id,
-      tipo_usuario: req.user.tipo === 'PROMOTORIA' ? 'PROMOTORIA' : 'ADMINISTRADOR',
+      tipo_usuario: tipoAuditoriaStaff(req.user.tipo),
       accion: 'ACTUALIZAR',
       modulo: 'ACTIVIDADES',
       entidad: 'actividad',
@@ -15012,7 +15022,7 @@ router.delete('/actividades/:id', async (req, res) => {
   try {
     const { usuario_id, colegio_id } = req.user;
     
-    if (!esAdminOPromotoria(req.user.tipo)) {
+    if (!esAdminPromotoriaOCoordinador(req.user.tipo)) {
       return res.status(403).json({ error: 'Solo los administradores pueden eliminar actividades' });
     }
 
@@ -15038,7 +15048,7 @@ router.delete('/actividades/:id', async (req, res) => {
     registrarAccion({
       usuario_id,
       colegio_id,
-      tipo_usuario: req.user.tipo === 'PROMOTORIA' ? 'PROMOTORIA' : 'ADMINISTRADOR',
+      tipo_usuario: tipoAuditoriaStaff(req.user.tipo),
       accion: 'ELIMINAR',
       modulo: 'ACTIVIDADES',
       entidad: 'actividad',

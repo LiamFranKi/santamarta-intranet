@@ -36,8 +36,7 @@ const PSICOLOGA_RUTAS_ADMIN = [
 
 function rutaAdminPermitidaCoordinador(pathname) {
   const p = String(pathname || '');
-  if (p === '/admin/reportes') return true;
-  if (p.startsWith('/admin/reportes/')) return false;
+  if (p === '/admin/reportes' || p.startsWith('/admin/reportes/')) return true;
   const ok = [
     '/admin/perfil',
     '/admin/institucional',
@@ -57,7 +56,6 @@ function rutaAdminPermitidaCoordinador(pathname) {
     '/admin/academico/asignaturas',
     '/admin/academico/areas',
     '/admin/documentos-gestion',
-    '/admin/herramientas/disenador-fichas',
     '/admin/herramientas/vocabularios',
     '/admin/herramientas/reuniones',
     '/admin/mensajes',
@@ -103,7 +101,7 @@ function Dashboard() {
   const [loadingNiveles, setLoadingNiveles] = useState(true);
 
   useEffect(() => {
-    if (user?.tipo === 'PSICOLOGA') {
+    if (user?.tipo === 'PSICOLOGA' || user?.tipo === 'COORDINADOR') {
       setStats(null);
       setLoadingStats(false);
       return;
@@ -115,7 +113,7 @@ function Dashboard() {
 
   // Cargar KPIs de pagos/pensiones para el cuadro por concepto
   useEffect(() => {
-    if (user?.tipo === 'PSICOLOGA') {
+    if (user?.tipo === 'PSICOLOGA' || user?.tipo === 'COORDINADOR') {
       setKpis(null);
       setErrorKpis(null);
       setLoadingKpis(false);
@@ -391,17 +389,6 @@ function Dashboard() {
     && !rutaAdminPermitidaCoordinador(location.pathname)
   ) {
     return <Navigate to="/docente/dashboard" replace />;
-  }
-
-  if (location.pathname === '/admin/reportes' && user?.tipo === 'COORDINADOR') {
-    return (
-      <DashboardLayout>
-        <div className="dashboard-container" style={{ padding: '1.5rem' }}>
-          <h1 style={{ margin: '0 0 0.5rem' }}>Reportes</h1>
-          <p style={{ color: '#64748b' }}>Este módulo se habilitará más adelante.</p>
-        </div>
-      </DashboardLayout>
-    );
   }
 
   // Si es una ruta específica de admin (pero NO el dashboard principal), mostrar contenido específico (placeholder)

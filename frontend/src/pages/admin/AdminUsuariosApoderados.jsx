@@ -63,7 +63,9 @@ function formatFechaNacimiento(val) {
 
 export default function AdminUsuariosApoderados() {
   const { user } = useAuth();
-  const vistaRestringidaPsicologa = user?.tipo === 'PSICOLOGA' || user?.tipo === 'COORDINADOR';
+  const esPsicologa = user?.tipo === 'PSICOLOGA';
+  const esCoordinador = user?.tipo === 'COORDINADOR';
+  const ocultarAltasYEdicion = esPsicologa || esCoordinador;
   const [searchParams] = useSearchParams();
   const vistaTabla = searchParams.get('vista') === 'tabla';
   const [items, setItems] = useState([]);
@@ -418,6 +420,21 @@ export default function AdminUsuariosApoderados() {
   const guardarInfoAcceso = async () => {
     if (!modalAcceso) return;
     try {
+      if (esCoordinador) {
+        const pwd = (accesoForm.password || '').trim();
+        if (!modalAcceso.usuario_id) {
+          Swal.fire({ icon: 'warning', text: 'Este apoderado no tiene usuario de acceso.' });
+          return;
+        }
+        if (!pwd) {
+          Swal.fire({ icon: 'info', text: 'Escriba la nueva contraseña.' });
+          return;
+        }
+        await api.post(`/admin/usuarios/apoderados/${modalAcceso.id}/password`, { password: pwd });
+        Swal.fire({ icon: 'success', title: 'Clave actualizada' });
+        setModalAcceso(null);
+        return;
+      }
       if (!modalAcceso.usuario_id) {
         await api.post(`/admin/usuarios/apoderados/${modalAcceso.id}/acceso`);
       } else {
@@ -625,7 +642,7 @@ export default function AdminUsuariosApoderados() {
         <button type="button" className="admin-usu-btn admin-usu-btn-search" onClick={() => { setPage(1); cargar(); }}>
           Buscar
         </button>
-        {!vistaRestringidaPsicologa && (
+        {!ocultarAltasYEdicion && (
           <button type="button" className="admin-usu-btn admin-usu-btn-new" onClick={abrirCrear}>
             + Registrar nuevo
           </button>
@@ -761,7 +778,19 @@ export default function AdminUsuariosApoderados() {
           <button type="button" onClick={() => { abrirModalMensaje(menuRow); cerrarMenus(); }}>
             ✉️ Enviar Mensaje
           </button>
-          {!vistaRestringidaPsicologa && (
+          {esCoordinador && (
+            <>
+              <button type="button" onClick={() => { abrirInfoAcceso(menuRow); cerrarMenus(); }}>
+                🔐 Información de Acceso
+              </button>
+              {menuRow.usuario_id && (
+                <button type="button" onClick={() => { resetPass(menuRow); cerrarMenus(); }}>
+                  🔑 Restablecer clave a DNI
+                </button>
+              )}
+            </>
+          )}
+          {!ocultarAltasYEdicion && (
             <>
               <button type="button" onClick={() => { abrirInfoAcceso(menuRow); cerrarMenus(); }}>
                 🔐 Información de Acceso
@@ -1095,6 +1124,7 @@ export default function AdminUsuariosApoderados() {
                   <div className="admin-usu-profile-section">
                     <div className="admin-usu-section-head">
                       <h3>Estudiantes a cargo</h3>
+                      {!ocultarAltasYEdicion && (
                       <button
                         type="button"
                         className="admin-usu-btn admin-usu-btn-secondary admin-usu-btn-compact"
@@ -1105,6 +1135,7 @@ export default function AdminUsuariosApoderados() {
                       >
                         + Nuevo
                       </button>
+                      )}
                     </div>
                     {(modalInfo.hijos || []).length === 0 ? (
                       <span className="admin-usu-info-value">Sin alumnos vinculados en familias</span>
@@ -1119,6 +1150,7 @@ export default function AdminUsuariosApoderados() {
                                   {[h.apellido_paterno, h.apellido_materno, h.nombres].filter(Boolean).join(' ') || '—'}
                                 </span>
                               </div>
+                              {!ocultarAltasYEdicion && (
                               <button
                                 type="button"
                                 className="admin-usu-btn admin-usu-btn-danger admin-usu-btn-compact"
@@ -1126,6 +1158,7 @@ export default function AdminUsuariosApoderados() {
                               >
                                 Quitar vínculo
                               </button>
+                              )}
                             </div>
                             <div className="admin-usu-info-item">
                               <span className="admin-usu-info-label">DNI</span>
@@ -1213,7 +1246,7 @@ export default function AdminUsuariosApoderados() {
                     <label>Nueva contraseña</label>
                     <input
                       type="text"
-                      placeholder="Opcional: dejar vacío para no cambiar"
+                      placeholder={esCoordinador ? 'Escriba la nueva clave' : 'Opcional: dejar vacío para no cambiar'}
                       value={accesoForm.password}
                       onChange={(e) => setAccesoForm({ ...accesoForm, password: e.target.value })}
                     />
@@ -1230,7 +1263,7 @@ export default function AdminUsuariosApoderados() {
                     <label>Estado</label>
                     <select
                       value={accesoForm.estado}
-                      disabled={!modalAcceso.usuario_id}
+                      disabled={esCoordinador || !modalAcceso.usuario_id}
                       onChange={(e) => setAccesoForm({ ...accesoForm, estado: e.target.value })}
                     >
                       <option value="ACTIVO">ACTIVO</option>
@@ -1238,7 +1271,7 @@ export default function AdminUsuariosApoderados() {
                     </select>
                   </div>
                 </div>
-                {!modalAcceso.usuario_id && (
+                {!esCoordinador && !modalAcceso.usuario_id && (
                   <p className="admin-usu-hint">
                     Este apoderado no tiene usuario propio. Al guardar se vinculará al DNI existente o se creará usuario APODERADO.
                   </p>
@@ -1254,7 +1287,7 @@ export default function AdminUsuariosApoderados() {
                   Cancelar
                 </button>
                 <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarInfoAcceso}>
-                  Guardar datos
+                  {esCoordinador ? 'Guardar clave' : 'Guardar datos'}
                 </button>
               </div>
             </div>

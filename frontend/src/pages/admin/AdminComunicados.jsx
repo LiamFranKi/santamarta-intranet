@@ -31,7 +31,7 @@ function esMostrarEnInicio(valor) {
 function AdminComunicados() {
   const { user } = useAuth();
   const puedeGestionarComunicados =
-    user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA';
+    user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA' || user?.tipo === 'COORDINADOR';
   const [loading, setLoading] = useState(true);
   const [comunicados, setComunicados] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');

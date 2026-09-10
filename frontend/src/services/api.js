@@ -235,6 +235,8 @@ api.interceptors.response.use(
     const skipLogoutMensajesApi = isMensajesIntranetRoute && (status === 403 || status === 500);
     const skipLogoutAdminImpresiones = isAdminImpresionesRoute && status === 500;
     const skipLogoutAdminAcademico500 = status === 500 && isAdminAcademicoRoute;
+    const skipLogoutAdminAcademico403 = status === 403 && isAdminAcademicoRoute;
+    const skipLogoutDocenteCursos403 = status === 403 && reqUrl.includes('/docente/cursos');
     const skipLogoutAdminPsicologiaCritical =
       isAdminPsicologiaRoute && (status === 500 || status === 503);
     const skipLogoutAlumnoExamen =
@@ -260,6 +262,10 @@ api.interceptors.response.use(
     const skipLogoutFichasIa500 = isFichasIaRoute && status === 500;
     const isReunionesRoute = /\/reuniones(\/|$|\?)/.test(reqUrl);
     const skipLogoutReuniones = isReunionesRoute && (status === 403 || status === 500 || status === 503);
+    /** Coordinador: 403 en usuarios o KPIs de admin no implica sesión inválida. */
+    const skipLogoutAdminUsuarios403 = status === 403 && reqUrl.includes('/admin/usuarios');
+    const skipLogoutAdminDashboardStats403 =
+      status === 403 && /\/admin\/(dashboard|estadisticas|reportes)(\/|$|\?)/.test(reqUrl);
 
     if (
       status &&
@@ -282,6 +288,8 @@ api.interceptors.response.use(
       !skipLogoutMensajesApi &&
       !skipLogoutAdminImpresiones &&
       !skipLogoutAdminAcademico500 &&
+      !skipLogoutAdminAcademico403 &&
+      !skipLogoutDocenteCursos403 &&
       !skipLogoutAdminPsicologiaCritical &&
       !skipLogoutAlumnoExamen &&
       !skipLogoutEleccionesIntranet &&
@@ -289,6 +297,8 @@ api.interceptors.response.use(
       !skipLogoutPublicColegioServerErrors &&
       !skipLogoutFichasIa500 &&
       !skipLogoutReuniones &&
+      !skipLogoutAdminUsuarios403 &&
+      !skipLogoutAdminDashboardStats403 &&
       !isPublicEventosRoute
     ) {
       const errorInfo = criticalErrors[status];

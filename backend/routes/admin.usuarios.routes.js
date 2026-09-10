@@ -103,13 +103,24 @@ function requireAdminOrPsicologaUsuarios(req, res, next) {
   if (tipo === 'COORDINADOR') {
     const { esMetodoLectura } = require('../utils/coordinadorAcceso');
     const rel = req.path || '';
+    const method = String(req.method || '').toUpperCase();
     const okPath =
       rel.startsWith('/alumnos')
       || rel.startsWith('/apoderados')
       || rel.startsWith('/personal')
       || rel.startsWith('/equipo')
       || rel === '/personal-por-dni';
-    if (okPath && esMetodoLectura(req.method)) {
+    if (okPath && esMetodoLectura(method)) {
+      return next();
+    }
+    if (
+      method === 'POST'
+      && (
+        /^\/apoderados\/[^/]+\/(reset-password|password)$/.test(rel)
+        || /^\/equipo\/[^/]+\/password$/.test(rel)
+        || /^\/alumnos\/[^/]+\/password$/.test(rel)
+      )
+    ) {
       return next();
     }
     return res.status(403).json({ error: 'El coordinador solo puede consultar usuarios.' });
