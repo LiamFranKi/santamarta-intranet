@@ -10,6 +10,26 @@ Ruta del proyecto: `/home/vanguard/intranet2026`
 Repo: https://github.com/LiamFranKi/intranet-2026
 Proceso PM2 de **esta** app: `intranet2026-backend` (NO usar `pm2 restart all` salvo que el usuario lo pida explicitamente; reinicia otras apps ajenas y demora mucho).
 
+## Web publica (otro repo)
+
+Cuando el cambio es la web (`c:\web-vanguard` / vanguardschools.com), **no** usar `intranet2026-backend` ni el nombre `vanguard-web` (ese proceso no existe en el VPS).
+
+- Ruta VPS: `/home/vanguard/web-vanguard`
+- Repo: https://github.com/LiamFranKi/vanguard-web
+- Proceso PM2 **siempre**: `vanguard-web-test`
+
+**Web sin deps nuevas:**
+```bash
+cd /home/vanguard/web-vanguard && git pull origin main && npm run build && pm2 restart vanguard-web-test
+```
+
+**Web con deps nuevas** (`package.json` / lock):
+```bash
+cd /home/vanguard/web-vanguard && git pull origin main && npm install && npm run build && pm2 restart vanguard-web-test
+```
+
+Si el pull+build ya corrio y solo falto el restart: `pm2 restart vanguard-web-test`
+
 ## Como armar el comando (segun lo que se subio)
 
 Incluir **solo** los pasos necesarios. Evaluar el commit/diff antes de dar el PuTTY:
