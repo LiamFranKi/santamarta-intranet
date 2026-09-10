@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../../context/AuthContext';
+import { esPaqueteCoordinador } from '../../utils/coordinadorAcceso';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { fotoUsuarioAdmin } from '../../utils/adminUsuariosFoto';
@@ -67,7 +68,7 @@ const PARENTESCO_VINC_LABEL = {
 export default function AdminUsuariosAlumnosTabla() {
   const { user } = useAuth();
   const esPsicologa = user?.tipo === 'PSICOLOGA';
-  const esCoordinador = user?.tipo === 'COORDINADOR';
+  const esCoordinador = esPaqueteCoordinador(user?.tipo);
   const ocultarAltasYEdicion = esPsicologa || esCoordinador;
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);

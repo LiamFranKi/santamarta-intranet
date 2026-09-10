@@ -100,7 +100,7 @@ function requireAdminOrPsicologaUsuarios(req, res, next) {
     }
     return res.status(403).json({ error: 'No autorizado' });
   }
-  if (tipo === 'COORDINADOR') {
+  if (tipo === 'COORDINADOR' || tipo === 'DIRECTOR') {
     const { esMetodoLectura } = require('../utils/coordinadorAcceso');
     const rel = req.path || '';
     const method = String(req.method || '').toUpperCase();

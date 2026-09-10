@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { esPaqueteCoordinador } from '../../utils/coordinadorAcceso';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { jsPDF } from 'jspdf';
@@ -44,7 +45,7 @@ function nombreApoderadoDesdeFila(a) {
 
 export default function AdminUsuariosEquipo() {
   const { user } = useAuth();
-  const soloLectura = user?.tipo === 'COORDINADOR';
+  const soloLectura = esPaqueteCoordinador(user?.tipo);
   const [searchParams, setSearchParams] = useSearchParams();
   const perfilFilter = (searchParams.get('perfil') || '').toUpperCase();
 

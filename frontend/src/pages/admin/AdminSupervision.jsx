@@ -4,6 +4,7 @@ import { Accordion, AccordionDetails, AccordionSummary, Box, Stack, Typography }
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { esPaqueteCoordinador } from '../../utils/coordinadorAcceso';
 import DashboardLayout from '../../components/DashboardLayout';
 import Swal from 'sweetalert2';
 import './AdminUsuarios.css';
@@ -185,7 +186,7 @@ export default function AdminSupervision() {
             <p>Abre una supervisión para ver lo registrado, dejar un comentario y firmar.</p>
           </div>
         </div>
-        <SupervisionVisitas canCrear={!!canExecute && user?.tipo !== 'COORDINADOR'} canConfig={false} />
+        <SupervisionVisitas canCrear={!!canExecute && !esPaqueteCoordinador(user?.tipo)} canConfig={false} />
       </div>
     );
   })();
@@ -580,7 +581,7 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
         ) : null}
       </div>
 
-      {seccion === 'visitas' ? <SupervisionVisitas canCrear={canExecute && user?.tipo !== 'COORDINADOR'} canConfig /> : null}
+      {seccion === 'visitas' ? <SupervisionVisitas canCrear={canExecute && !esPaqueteCoordinador(user?.tipo)} canConfig /> : null}
       {seccion === 'supervisores' ? (
         <div className="admin-usu-table-card admin-sup-table-card">
           <div className="admin-sup-panel-body">

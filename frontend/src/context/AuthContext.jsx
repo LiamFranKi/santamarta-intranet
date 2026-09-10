@@ -13,6 +13,7 @@ const TIPOS_CON_PUSH_AUTOMATICO = new Set([
   'SECRETARIA',
   'PSICOLOGA',
   'COORDINADOR',
+  'DIRECTOR',
 ]);
 
 const AuthContext = createContext();

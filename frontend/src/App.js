@@ -128,7 +128,7 @@ const theme = createTheme({
 });
 
 /** Personal intranet que puede previsualizar campañas con la misma URL que alumno (usa API portal en cliente). */
-const ELECCIONES_PORTAL_STAFF_TIPOS = ['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA', 'PSICOLOGA', 'COORDINADOR'];
+const ELECCIONES_PORTAL_STAFF_TIPOS = ['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR'];
 const ELECCIONES_ALUMNO_RUTA_TIPOS = ['ALUMNO', ...ELECCIONES_PORTAL_STAFF_TIPOS];
 const ELECCIONES_CAMPANA_RUTA_TIPOS = ['ALUMNO', 'APODERADO', 'DOCENTE', ...ELECCIONES_PORTAL_STAFF_TIPOS];
 
@@ -173,9 +173,7 @@ function PrivateRoute({ children, requiredType = null, requiredTypes = null }) {
       return <Navigate to="/admin/dashboard" />;
     } else if (user?.tipo === 'PSICOLOGA') {
       return <Navigate to="/admin/psicologa-dashboard" replace />;
-    } else if (user?.tipo === 'DIRECTOR') {
-      return <Navigate to="/admin/gestion-operativa/tablero" replace />;
-    } else if (user?.tipo === 'COORDINADOR') {
+    } else if (user?.tipo === 'DIRECTOR' || user?.tipo === 'COORDINADOR') {
       return <Navigate to="/docente/dashboard" replace />;
     }
     // Si no tiene un tipo válido, redirigir al login
@@ -293,9 +291,7 @@ function NavigateToDashboard() {
     return <Navigate to="/admin/dashboard" replace />;
   } else if (tipo === 'PSICOLOGA') {
     return <Navigate to="/admin/psicologa-dashboard" replace />;
-  } else if (tipo === 'DIRECTOR') {
-    return <Navigate to="/admin/gestion-operativa/tablero" replace />;
-  } else if (tipo === 'COORDINADOR') {
+  } else if (tipo === 'DIRECTOR' || tipo === 'COORDINADOR') {
     return <Navigate to="/docente/dashboard" replace />;
   }
 
@@ -392,7 +388,7 @@ function AppRoutes() {
       <Route
         path="/admin/institucional"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR', 'DIRECTOR']}>
             <AdminInstitucional />
           </PrivateRoute>
         }
@@ -409,7 +405,7 @@ function AppRoutes() {
       <Route
         path="/admin/comunicaciones/publicaciones"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR']}>
             <AdminPublicaciones />
           </PrivateRoute>
         }
@@ -417,7 +413,7 @@ function AppRoutes() {
       <Route
         path="/admin/comunicaciones/conexiones"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR']}>
             <AdminConexiones />
           </PrivateRoute>
         }
@@ -425,7 +421,7 @@ function AppRoutes() {
       <Route
         path="/admin/reportes/incidencias"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR']}>
             <AdminIncidencias />
           </PrivateRoute>
         }
@@ -445,7 +441,7 @@ function AppRoutes() {
       <Route
         path="/admin/comunicaciones/actividades"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR']}>
             <AdminActividades />
           </PrivateRoute>
         }
@@ -453,7 +449,7 @@ function AppRoutes() {
       <Route
         path="/admin/comunicaciones/comunicados"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR']}>
             <AdminComunicados />
           </PrivateRoute>
         }
@@ -461,7 +457,7 @@ function AppRoutes() {
       <Route
         path="/admin/comunicaciones/eventos"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'COORDINADOR', 'DIRECTOR']}>
             <AdminEventos />
           </PrivateRoute>
         }
@@ -469,7 +465,7 @@ function AppRoutes() {
       <Route
         path="/admin/comunicaciones/notificaciones"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR']}>
             <AdminNotificacionesEnvio />
           </PrivateRoute>
         }
@@ -485,7 +481,7 @@ function AppRoutes() {
       <Route
         path="/admin/comunicaciones/web"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR', 'DIRECTOR']}>
             <AdminReclamosSugerencias />
           </PrivateRoute>
         }
@@ -639,7 +635,7 @@ function AppRoutes() {
       <Route
         path="/admin/herramientas/vocabularios"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'COORDINADOR', 'DIRECTOR']}>
             <AdminVocabularios />
           </PrivateRoute>
         }
@@ -695,7 +691,7 @@ function AppRoutes() {
       <Route
         path="/admin/herramientas/reuniones/:id/:accion"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR']}>
             <ReunionesPage />
           </PrivateRoute>
         }
@@ -703,7 +699,7 @@ function AppRoutes() {
       <Route
         path="/admin/herramientas/reuniones/:id"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR']}>
             <ReunionesPage />
           </PrivateRoute>
         }
@@ -711,7 +707,7 @@ function AppRoutes() {
       <Route
         path="/admin/herramientas/reuniones"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR']}>
             <ReunionesPage />
           </PrivateRoute>
         }
@@ -765,7 +761,7 @@ function AppRoutes() {
       <Route
         path="/docente/herramientas/documentos"
         element={
-          <PrivateRoute requiredTypes={['DOCENTE', 'PSICOLOGA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['DOCENTE', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR']}>
             <DocenteHerramientas />
           </PrivateRoute>
         }
@@ -773,7 +769,7 @@ function AppRoutes() {
       <Route
         path="/docente/herramientas/examenes"
         element={
-          <PrivateRoute requiredTypes={['DOCENTE', 'PSICOLOGA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['DOCENTE', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR']}>
             <MisHerramientasExamenes />
           </PrivateRoute>
         }
@@ -781,7 +777,7 @@ function AppRoutes() {
       <Route
         path="/docente/herramientas/examenes/realizar/:id"
         element={
-          <PrivateRoute requiredTypes={['DOCENTE', 'PSICOLOGA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['DOCENTE', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR']}>
             <HerramientasExamenRealizar />
           </PrivateRoute>
         }
@@ -789,7 +785,7 @@ function AppRoutes() {
       <Route
         path="/docente/herramientas/examenes/resultado/:examenId"
         element={
-          <PrivateRoute requiredTypes={['DOCENTE', 'PSICOLOGA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['DOCENTE', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR']}>
             <HerramientasExamenMiResultado />
           </PrivateRoute>
         }
@@ -797,7 +793,7 @@ function AppRoutes() {
       <Route
         path="/docente/herramientas/encuestas"
         element={
-          <PrivateRoute requiredTypes={['DOCENTE', 'PSICOLOGA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['DOCENTE', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR']}>
             <MisEncuestas />
           </PrivateRoute>
         }
@@ -805,7 +801,7 @@ function AppRoutes() {
       <Route
         path="/docente/herramientas/vocabularios"
         element={
-          <PrivateRoute requiredTypes={['DOCENTE', 'PSICOLOGA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['DOCENTE', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR']}>
             <DocenteVocabularios />
           </PrivateRoute>
         }
@@ -821,7 +817,7 @@ function AppRoutes() {
       <Route
         path="/docente/herramientas/supervision"
         element={
-          <PrivateRoute requiredTypes={['DOCENTE', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['DOCENTE', 'COORDINADOR', 'DIRECTOR']}>
             <AdminSupervision />
           </PrivateRoute>
         }
@@ -1446,7 +1442,7 @@ function AppRoutes() {
       <Route
         path="/admin/usuarios/equipo"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR', 'DIRECTOR']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -1454,7 +1450,7 @@ function AppRoutes() {
       <Route
         path="/admin/usuarios/alumnos"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PSICOLOGA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -1462,7 +1458,7 @@ function AppRoutes() {
       <Route
         path="/admin/usuarios/apoderados"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PSICOLOGA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -1470,7 +1466,7 @@ function AppRoutes() {
       <Route
         path="/admin/academico/niveles"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR', 'DIRECTOR']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -1478,7 +1474,7 @@ function AppRoutes() {
       <Route
         path="/admin/academico/grados"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PSICOLOGA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -1486,7 +1482,7 @@ function AppRoutes() {
       <Route
         path="/admin/academico/cursos"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR', 'DIRECTOR']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -1494,7 +1490,7 @@ function AppRoutes() {
       <Route
         path="/admin/academico/asignaturas"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR', 'DIRECTOR']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -1502,7 +1498,7 @@ function AppRoutes() {
       <Route
         path="/admin/academico/areas"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR', 'DIRECTOR']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -1550,7 +1546,7 @@ function AppRoutes() {
       <Route
         path="/admin/documentos-gestion"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR', 'DIRECTOR']}>
             <AdminDocumentosGestion />
           </PrivateRoute>
         }
@@ -1583,7 +1579,7 @@ function AppRoutes() {
       <Route
         path="/admin/reportes/general"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'COORDINADOR', 'DIRECTOR']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -1591,7 +1587,7 @@ function AppRoutes() {
       <Route
         path="/admin/reportes/temas"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'COORDINADOR', 'DIRECTOR']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -1599,7 +1595,7 @@ function AppRoutes() {
       <Route
         path="/admin/reportes/asistencias"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'COORDINADOR', 'DIRECTOR']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -1607,7 +1603,7 @@ function AppRoutes() {
       <Route
         path="/admin/reportes/notas"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'COORDINADOR', 'DIRECTOR']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -1615,7 +1611,7 @@ function AppRoutes() {
       <Route
         path="/admin/reportes/estadisticas"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'COORDINADOR', 'DIRECTOR']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -1623,7 +1619,7 @@ function AppRoutes() {
       <Route
         path="/admin/reportes/deudores"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'COORDINADOR', 'DIRECTOR']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -1659,7 +1655,7 @@ function AppRoutes() {
       <Route
         path="/admin/mensajes"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA', 'COORDINADOR']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR']}>
             <DocenteMensajes />
           </PrivateRoute>
         }

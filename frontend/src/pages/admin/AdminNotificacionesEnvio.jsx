@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Swal from 'sweetalert2';
 import { useAuth } from '../../context/AuthContext';
+import { esPaqueteCoordinador } from '../../utils/coordinadorAcceso';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import '../DocenteGrupos.css';
@@ -69,7 +70,7 @@ function tituloPreview(icono, titulo) {
 
 export default function AdminNotificacionesEnvio() {
   const { user } = useAuth();
-  const soloLectura = user?.tipo === 'COORDINADOR';
+  const soloLectura = esPaqueteCoordinador(user?.tipo);
   const [items, setItems] = useState([]);
   const [paginaActual, setPaginaActual] = useState(1);
   const [loading, setLoading] = useState(true);

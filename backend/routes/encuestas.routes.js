@@ -129,7 +129,7 @@ function usuarioCoincideAudiencia(user, audiencias) {
   if (audiencias.some((a) => a.tipo === 'TODOS')) return true;
   if (audiencias.some((a) => a.tipo === user.tipo)) return true;
   if (user.tipo === 'PSICOLOGA' && audiencias.some((a) => a.tipo === 'DOCENTE')) return true;
-  if (user.tipo === 'COORDINADOR' && audiencias.some((a) => a.tipo === 'DOCENTE' || a.tipo === 'COORDINADOR')) return true;
+  if ((user.tipo === 'COORDINADOR' || user.tipo === 'DIRECTOR') && audiencias.some((a) => a.tipo === 'DOCENTE' || a.tipo === 'COORDINADOR' || a.tipo === 'DIRECTOR')) return true;
   return false;
 }
 
@@ -154,7 +154,7 @@ async function obtenerGruposUsuario(user, colegio_id, anio) {
     );
     return { todos: false, ids: [...new Set((r || []).map((x) => Number(x.grupo_id)))] };
   }
-  if ((tipo === 'DOCENTE' || tipo === 'PSICOLOGA' || tipo === 'COORDINADOR') && user.personal_id) {
+  if ((tipo === 'DOCENTE' || tipo === 'PSICOLOGA' || tipo === 'COORDINADOR' || tipo === 'DIRECTOR') && user.personal_id) {
     const asig = await query(
       `SELECT DISTINCT g.id AS grupo_id FROM asignaturas a
        INNER JOIN grupos g ON g.id = a.grupo_id

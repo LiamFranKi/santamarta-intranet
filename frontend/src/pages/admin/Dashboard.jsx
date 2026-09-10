@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams, useParams, Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { esPaqueteCoordinador } from '../../utils/coordinadorAcceso';
 import DashboardLayout from '../../components/DashboardLayout';
 import BirthdayWidget from '../../components/BirthdayWidget';
 import EleccionesCampanaBanner from '../../components/EleccionesCampanaBanner';
@@ -101,7 +102,7 @@ function Dashboard() {
   const [loadingNiveles, setLoadingNiveles] = useState(true);
 
   useEffect(() => {
-    if (user?.tipo === 'PSICOLOGA' || user?.tipo === 'COORDINADOR') {
+    if (user?.tipo === 'PSICOLOGA' || esPaqueteCoordinador(user?.tipo)) {
       setStats(null);
       setLoadingStats(false);
       return;
@@ -113,7 +114,7 @@ function Dashboard() {
 
   // Cargar KPIs de pagos/pensiones para el cuadro por concepto
   useEffect(() => {
-    if (user?.tipo === 'PSICOLOGA' || user?.tipo === 'COORDINADOR') {
+    if (user?.tipo === 'PSICOLOGA' || esPaqueteCoordinador(user?.tipo)) {
       setKpis(null);
       setErrorKpis(null);
       setLoadingKpis(false);
@@ -384,7 +385,7 @@ function Dashboard() {
   }
 
   if (
-    user?.tipo === 'COORDINADOR'
+    esPaqueteCoordinador(user?.tipo)
     && location.pathname.startsWith('/admin/')
     && !rutaAdminPermitidaCoordinador(location.pathname)
   ) {

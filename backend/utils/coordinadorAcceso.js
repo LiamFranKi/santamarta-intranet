@@ -2,6 +2,12 @@ function esCoordinador(tipo) {
   return String(tipo || '').toUpperCase() === 'COORDINADOR';
 }
 
+/** COORDINADOR y DIRECTOR: mismo menú, dashboard y permisos de paquete. PROMOTORIA no entra. */
+function esPaqueteCoordinador(tipo) {
+  const t = String(tipo || '').toUpperCase();
+  return t === 'COORDINADOR' || t === 'DIRECTOR';
+}
+
 function esMetodoLectura(method) {
   const m = String(method || '').toUpperCase();
   return m === 'GET' || m === 'HEAD' || m === 'OPTIONS';
@@ -63,12 +69,13 @@ function coordinadorPuedeAcademico(_path, _method) {
 function requireAdminOCoordinadorGet(req, res, next) {
   const tipo = req.user?.tipo;
   if (tipo === 'ADMINISTRADOR') return next();
-  if (esCoordinador(tipo) && esMetodoLectura(req.method)) return next();
+  if (esPaqueteCoordinador(tipo) && esMetodoLectura(req.method)) return next();
   return res.status(403).json({ error: 'No tienes permisos para modificar este módulo.' });
 }
 
 module.exports = {
   esCoordinador,
+  esPaqueteCoordinador,
   esMetodoLectura,
   pathMatch,
   coordinadorPuedeAdminCore,

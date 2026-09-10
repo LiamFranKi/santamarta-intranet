@@ -44,7 +44,7 @@ const {
 router.use(authenticateToken);
 router.use((req, res, next) => {
   const t = req.user?.tipo;
-  if (t === 'ADMINISTRADOR' || t === 'PROMOTORIA' || t === 'COORDINADOR') return next();
+  if (t === 'ADMINISTRADOR' || t === 'PROMOTORIA' || t === 'COORDINADOR' || t === 'DIRECTOR') return next();
   return res.status(403).json({ error: 'No autorizado para reportes administrativos.' });
 });
 

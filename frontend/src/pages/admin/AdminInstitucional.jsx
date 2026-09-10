@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { esPaqueteCoordinador } from '../../utils/coordinadorAcceso';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
@@ -38,7 +39,7 @@ function estadoVencimiento(fechaVenc) {
 
 export default function AdminInstitucional() {
   const { user } = useAuth();
-  const soloLectura = user?.tipo === 'COORDINADOR';
+  const soloLectura = esPaqueteCoordinador(user?.tipo);
   const [loading, setLoading] = useState(true);
   const [categorias, setCategorias] = useState([]);
   const [documentos, setDocumentos] = useState([]);

@@ -6,6 +6,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import { normalizeStaticFileUrl } from '../../config/staticFiles';
 import { useAuth } from '../../context/AuthContext';
+import { esPaqueteCoordinador } from '../../utils/coordinadorAcceso';
 import { procesarHTMLMensaje } from '../../utils/mensajesHtml';
 import '../DocenteComunicados.css';
 import '../DocenteGrupos.css';
@@ -31,7 +32,7 @@ function esMostrarEnInicio(valor) {
 function AdminComunicados() {
   const { user } = useAuth();
   const puedeGestionarComunicados =
-    user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA' || user?.tipo === 'COORDINADOR';
+    user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA' || esPaqueteCoordinador(user?.tipo);
   const [loading, setLoading] = useState(true);
   const [comunicados, setComunicados] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');

@@ -21,7 +21,8 @@ router.use(
     'PROMOTORIA',
     'SECRETARIA',
     'PSICOLOGA',
-    'COORDINADOR'
+    'COORDINADOR',
+    'DIRECTOR'
   )
 );
 
@@ -86,7 +87,7 @@ router.get('/detalle/:id', async (req, res) => {
 
     /** Misma lógica de alcance que GET / (grupos visibles). */
     let grupoIds = [];
-    if (tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA' || tipo === 'SECRETARIA' || tipo === 'PSICOLOGA' || tipo === 'COORDINADOR') {
+    if (tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA' || tipo === 'SECRETARIA' || tipo === 'PSICOLOGA' || tipo === 'COORDINADOR' || tipo === 'DIRECTOR') {
       grupoIds = null;
     } else if (tipo === 'DOCENTE' && personal_id) {
       const gruposDocente = await query(
@@ -346,7 +347,7 @@ router.get('/', async (req, res) => {
 
     // Alumnos y Apoderados según el alcance del rol
     let grupoIds = [];
-    if (tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA' || tipo === 'SECRETARIA' || tipo === 'PSICOLOGA' || tipo === 'COORDINADOR') {
+    if (tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA' || tipo === 'SECRETARIA' || tipo === 'PSICOLOGA' || tipo === 'COORDINADOR' || tipo === 'DIRECTOR') {
       grupoIds = null; // Todos los grupos del colegio en el año activo (igual que admin)
     } else if (tipo === 'DOCENTE' && personal_id) {
       // Para docentes, combinar grupos por asignaturas dictadas + grupos donde es tutor.

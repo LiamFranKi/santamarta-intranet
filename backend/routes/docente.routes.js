@@ -139,7 +139,7 @@ function esAdminOPromotoria(tipo) {
 
 /** Administrador, Promotoría o Coordinador: crear/editar comunicados y actividades como el admin. */
 function esAdminPromotoriaOCoordinador(tipo) {
-  return esAdminOPromotoria(tipo) || tipo === 'COORDINADOR';
+  return esAdminOPromotoria(tipo) || tipo === 'COORDINADOR' || tipo === 'DIRECTOR';
 }
 
 function esStaffAccesoGrupo(tipo) {
@@ -147,7 +147,7 @@ function esStaffAccesoGrupo(tipo) {
 }
 
 function tipoAuditoriaStaff(tipo) {
-  if (tipo === 'PROMOTORIA' || tipo === 'COORDINADOR') return tipo;
+  if (tipo === 'PROMOTORIA' || tipo === 'COORDINADOR' || tipo === 'DIRECTOR') return tipo;
   return 'ADMINISTRADOR';
 }
 
@@ -1502,7 +1502,7 @@ router.use((req, res, next) => {
     if (req.user.tipo === 'PSICOLOGA' && psicologaRutaDocentePermitida(req.path || '')) {
       return next();
     }
-    if (req.user.tipo === 'COORDINADOR') {
+    if (req.user.tipo === 'COORDINADOR' || req.user.tipo === 'DIRECTOR') {
       const { coordinadorPuedeDocente } = require('../utils/coordinadorAcceso');
       if (coordinadorPuedeDocente(req.path || '', req.method)) {
         return next();
@@ -2333,7 +2333,7 @@ router.get('/grupos', async (req, res) => {
     const { colegio_id, anio_activo } = req.user;
 
     // Administrador / Promotoría / Psicóloga / Coordinador: todos los grupos del año
-    if (esAdminPromotoriaOpsicologa(req.user.tipo) || req.user.tipo === 'COORDINADOR') {
+    if (esAdminPromotoriaOpsicologa(req.user.tipo) || req.user.tipo === 'COORDINADOR' || req.user.tipo === 'DIRECTOR') {
       const gruposTodos = await query(
         `SELECT DISTINCT g.*,
                 n.nombre as nivel_nombre,
@@ -23287,7 +23287,7 @@ router.get('/aula-virtual/examenes/:examenId/preguntas', async (req, res) => {
     );
 
     let contenido_bloqueado_para_docente = false;
-    if (req.user.tipo !== 'ADMINISTRADOR' && req.user.tipo !== 'COORDINADOR') {
+    if (req.user.tipo !== 'ADMINISTRADOR' && req.user.tipo !== 'COORDINADOR' && req.user.tipo !== 'DIRECTOR') {
       contenido_bloqueado_para_docente = await examenBloqueaEdicionContenidoDocente(query, examenId);
     }
 

@@ -8,6 +8,7 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
+import { esPaqueteCoordinador } from '../utils/coordinadorAcceso';
 import api from '../services/api';
 import Swal from 'sweetalert2';
 import './DocenteAulaVirtual-gamificado.css';
@@ -274,7 +275,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
     10
   );
   const soloLecturaTutor =
-    user?.tipo !== 'COORDINADOR'
+    !esPaqueteCoordinador(user?.tipo)
     && tutorGrupoId != null
     && tutorGrupoId !== undefined
     && String(tutorGrupoId).trim() !== '';
@@ -3851,7 +3852,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
           <button
             className="btn-back"
             onClick={() => {
-              if (user?.tipo === 'COORDINADOR' || location.state?.adminReturnTo) {
+              if (esPaqueteCoordinador(user?.tipo) || location.state?.adminReturnTo) {
                 navigate(location.state?.adminReturnTo || '/admin/academico/asignaturas');
               } else if (soloLecturaTutor) {
                 // Preferir retorno explícito a Cursos Asignados para restaurar estado local

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { esPaqueteCoordinador } from '../../utils/coordinadorAcceso';
 import Swal from 'sweetalert2';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
@@ -2099,7 +2100,7 @@ function ModalAdmision({ open, mode, item, onClose, onSaved }) {
 
 export default function AdminReclamosSugerencias() {
   const { user } = useAuth();
-  const soloLectura = user?.tipo === 'COORDINADOR';
+  const soloLectura = esPaqueteCoordinador(user?.tipo);
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {

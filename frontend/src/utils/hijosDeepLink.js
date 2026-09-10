@@ -66,6 +66,7 @@ export function rutaPostLoginSegunRol(tipo, nextRaw) {
     PROMOTORIA: '/promotoria/dashboard',
     ASISTENCIA: '/asistencia/escaneo',
     COORDINADOR: '/docente/dashboard',
+    DIRECTOR: '/docente/dashboard',
   };
   const dash = dashByTipo[t] || dashboardPorTipoUsuario(tipo);
   if (!next) return dash;
@@ -79,6 +80,7 @@ export function rutaPostLoginSegunRol(tipo, nextRaw) {
     PROMOTORIA: '/promotoria/',
     ASISTENCIA: '/asistencia/',
     COORDINADOR: '/admin/',
+    DIRECTOR: '/admin/',
   };
   const p = prefixes[t];
   if (!p) return dash;
@@ -86,7 +88,7 @@ export function rutaPostLoginSegunRol(tipo, nextRaw) {
   if (next === base || next.startsWith(p) || next.startsWith(`${base}?`) || next.startsWith(`${base}#`)) {
     return next;
   }
-  if (t === 'COORDINADOR') {
+  if (t === 'COORDINADOR' || t === 'DIRECTOR') {
     if (
       next.startsWith('/docente/')
       || next.startsWith('/encuestas')

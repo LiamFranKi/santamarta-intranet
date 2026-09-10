@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
+import { esPaqueteCoordinador } from '../utils/coordinadorAcceso';
 import api from '../services/api';
 import Swal from 'sweetalert2';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
@@ -71,9 +72,9 @@ export default function VocabulariosPage({ variant = 'admin' }) {
   const { user } = useAuth();
   const copyBase = VARIANT_COPY[variant] || VARIANT_COPY.admin;
   const puedeGestionar =
-    (variant === 'admin' || variant === 'docente') && user?.tipo !== 'PSICOLOGA' && user?.tipo !== 'COORDINADOR';
+    (variant === 'admin' || variant === 'docente') && user?.tipo !== 'PSICOLOGA' && !esPaqueteCoordinador(user?.tipo);
   const copy =
-    user?.tipo === 'COORDINADOR'
+    esPaqueteCoordinador(user?.tipo)
       ? {
           ...copyBase,
           subtitle: 'Consulte los vocabularios publicados. No puede subir ni crear material.',

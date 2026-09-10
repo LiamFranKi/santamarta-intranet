@@ -304,9 +304,9 @@ publicRouter.post('/:token/visitante', async (req, res) => {
 /** --- Admin: mismo router con prefijo /api/admin/eventos --- */
 
 router.use(authenticateToken);
-router.use(requireUserType('ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA', 'COORDINADOR'));
+router.use(requireUserType('ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA', 'COORDINADOR', 'DIRECTOR'));
 router.use((req, res, next) => {
-  if (req.user?.tipo === 'COORDINADOR' && !['GET', 'HEAD', 'OPTIONS'].includes(String(req.method || '').toUpperCase())) {
+  if ((req.user?.tipo === 'COORDINADOR' || req.user?.tipo === 'DIRECTOR') && !['GET', 'HEAD', 'OPTIONS'].includes(String(req.method || '').toUpperCase())) {
     return res.status(403).json({ error: 'El coordinador solo puede ver eventos.' });
   }
   next();

@@ -17,6 +17,7 @@ import EncuestaActivacionModal from './EncuestaActivacionModal';
 import HerramientasExamenActivacionModal from './HerramientasExamenActivacionModal';
 import SgoiFlotante from './SgoiFlotante';
 import { usuarioPuedeSgoi } from '../utils/sgoiFormat';
+import { esPaqueteCoordinador } from '../utils/coordinadorAcceso';
 import '../styles/CumpleMarcoFestivo.css';
 import './DashboardLayout.css';
 
@@ -150,8 +151,8 @@ export default function DashboardLayout({ children }) {
           ? { psicologaHerramientas: true }
           : {}
       ),
-      ...(path.startsWith('/admin/usuarios') && user?.tipo === 'COORDINADOR' ? { coordinadorUsuarios: true } : {}),
-      ...(path.startsWith('/admin/academico') && user?.tipo === 'COORDINADOR' ? { coordinadorAcademico: true } : {}),
+      ...(path.startsWith('/admin/usuarios') && esPaqueteCoordinador(user?.tipo) ? { coordinadorUsuarios: true } : {}),
+      ...(path.startsWith('/admin/academico') && esPaqueteCoordinador(user?.tipo) ? { coordinadorAcademico: true } : {}),
       ...(
         (
           path.startsWith('/admin/documentos-gestion')
@@ -160,11 +161,11 @@ export default function DashboardLayout({ children }) {
           || path.startsWith('/herramientas-examenes')
           || path.startsWith('/encuestas')
           || path.startsWith('/elecciones-campana')
-        ) && user?.tipo === 'COORDINADOR'
+        ) && esPaqueteCoordinador(user?.tipo)
           ? { coordinadorHerramientas: true }
           : {}
       ),
-      ...(path.startsWith('/admin/comunicaciones') && !path.startsWith('/admin/comunicaciones/web') && user?.tipo === 'COORDINADOR'
+      ...(path.startsWith('/admin/comunicaciones') && !path.startsWith('/admin/comunicaciones/web') && esPaqueteCoordinador(user?.tipo)
         ? { coordinadorCom: true }
         : {}),
       ...(
@@ -338,6 +339,7 @@ export default function DashboardLayout({ children }) {
       || user?.tipo === 'SECRETARIA'
       || user?.tipo === 'PSICOLOGA'
       || user?.tipo === 'COORDINADOR'
+      || user?.tipo === 'DIRECTOR'
     ) {
       resetNoDocenteAcademico();
       cargarRolesAdicionalesSolo();
@@ -551,9 +553,7 @@ export default function DashboardLayout({ children }) {
                           ? '/admin/dashboard'
                           : role === 'PROMOTORIA'
                             ? '/promotoria/dashboard'
-                            : role === 'DIRECTOR'
-                              ? '/admin/gestion-operativa/tablero'
-                            : role === 'COORDINADOR'
+                            : esPaqueteCoordinador(role)
                               ? '/docente/dashboard'
                             : role === 'SECRETARIA'
                               ? '/admin/dashboard'
@@ -1453,7 +1453,7 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
             </>
-          ) : role === 'COORDINADOR' ? (
+          ) : role === 'COORDINADOR' || role === 'DIRECTOR' ? (
             <>
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/dashboard" end>
@@ -1704,23 +1704,6 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Mensajes</span>
                 </NavLink>
               </div>
-            </>
-          ) : role === 'DIRECTOR' ? (
-            <>
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/gestion-operativa/tablero" end>
-                  <span className="sidebar-icon">📊</span>
-                  <span className="sidebar-label">Dashboard</span>
-                </NavLink>
-              </div>
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/perfil">
-                  <span className="sidebar-icon">👤</span>
-                  <span className="sidebar-label">Mi Perfil</span>
-                </NavLink>
-              </div>
-              <SgoiSidebarItem />
-              <AgendaInternaSidebarItem />
             </>
           ) : (
             <>
@@ -2199,7 +2182,7 @@ export default function DashboardLayout({ children }) {
 
         <div
           className={`dashboard-main-wrapper ${
-            role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA' || role === 'PSICOLOGA' || role === 'DIRECTOR'
+            role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA' || role === 'PSICOLOGA'
               ? 'dashboard-main-wrapper-no-sidebar'
               : ''
           }`}
@@ -2207,11 +2190,11 @@ export default function DashboardLayout({ children }) {
           <main className="dashboard-main">{children}</main>
           
           {/* Columna derecha: solo se monta en web/tablet para evitar requests ocultos en móvil */}
-          {!isMobile && (role === 'DOCENTE' || role === 'COORDINADOR' || role === 'ALUMNO' || role === 'APODERADO') && (
+          {!isMobile && (role === 'DOCENTE' || role === 'COORDINADOR' || role === 'DIRECTOR' || role === 'ALUMNO' || role === 'APODERADO') && (
             <aside className="dashboard-sidebar-right">
               {role === 'ALUMNO' && <AlumnoAvatarWidget />}
               <CalendarioWidget />
-              {(role === 'DOCENTE' || role === 'COORDINADOR') && (
+              {(role === 'DOCENTE' || role === 'COORDINADOR' || role === 'DIRECTOR') && (
                 <div id="dashboard-publicaciones" className="publicaciones-widget-sidebar">
                   <PublicacionesWidget />
                 </div>

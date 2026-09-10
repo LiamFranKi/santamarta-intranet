@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { esPaqueteCoordinador } from '../../utils/coordinadorAcceso';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { fotoUsuarioAdmin } from '../../utils/adminUsuariosFoto';
@@ -64,7 +65,7 @@ function formatFechaNacimiento(val) {
 export default function AdminUsuariosApoderados() {
   const { user } = useAuth();
   const esPsicologa = user?.tipo === 'PSICOLOGA';
-  const esCoordinador = user?.tipo === 'COORDINADOR';
+  const esCoordinador = esPaqueteCoordinador(user?.tipo);
   const ocultarAltasYEdicion = esPsicologa || esCoordinador;
   const [searchParams] = useSearchParams();
   const vistaTabla = searchParams.get('vista') === 'tabla';

@@ -437,7 +437,9 @@ async function elegibilidadVotanteUsuario(req, procesoRow, colegioId, anio) {
   const tipo = String(req.user?.tipo || '').toUpperCase();
   const perfiles = parsePerfilesVoto(procesoRow);
   if (!tipo || !perfiles.includes(tipo)) {
-    if (!(tipo === 'COORDINADOR' && perfiles.includes('DOCENTE'))) {
+    if (!(
+      (tipo === 'COORDINADOR' || tipo === 'DIRECTOR') && perfiles.includes('DOCENTE')
+    )) {
       return {
         ok: false,
         codigo: 'PERFIL',

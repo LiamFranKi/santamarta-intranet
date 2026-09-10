@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
+import { esPaqueteCoordinador } from '../../utils/coordinadorAcceso';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
@@ -40,7 +41,7 @@ function formatFechaEventoLarga(d) {
 
 export default function AdminEventos() {
   const { user } = useAuth();
-  const soloLectura = user?.tipo === 'COORDINADOR';
+  const soloLectura = esPaqueteCoordinador(user?.tipo);
   const [loading, setLoading] = useState(true);
   const [eventos, setEventos] = useState([]);
   const [gruposDisponibles, setGruposDisponibles] = useState([]);

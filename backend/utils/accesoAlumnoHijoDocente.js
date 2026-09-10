@@ -9,7 +9,7 @@ const {
 } = require('./matriculaAnioActivo');
 
 function esStaffAlumnoColegio(tipo) {
-  return tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA' || tipo === 'PSICOLOGA' || tipo === 'COORDINADOR';
+  return tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA' || tipo === 'PSICOLOGA' || tipo === 'COORDINADOR' || tipo === 'DIRECTOR';
 }
 
 /**
