@@ -7,6 +7,7 @@ const { urlDashboardPorTipoUsuario } = require('../utils/notificacionUrls');
 const { enviarPushNotificacionesIndividuales } = require('./pushNotificationService');
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
 const { fetchUsuariosTutoresGrupos } = require('../utils/grupoTutores');
+const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
 const {
   normalizarEnviarA,
   perfilGrupoIncluyeAlumnos,
@@ -123,7 +124,7 @@ async function resolverDestinatariosBroadcast(query, params) {
     } else {
       usuariosGlobales = await query(
         `SELECT id AS usuario_id FROM usuarios
-         WHERE colegio_id = ? AND estado = 'ACTIVO'`,
+         WHERE colegio_id = ? AND estado = 'ACTIVO' AND ${sqlUsuariosSinSuperadmin('usuarios')}`,
         [colegio_id]
       );
     }

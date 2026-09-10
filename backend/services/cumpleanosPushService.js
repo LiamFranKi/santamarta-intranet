@@ -13,6 +13,7 @@ const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
 const moment = require('moment-timezone');
 const { tryInsertPushCronDedup, fechaLimaYmd } = require('../utils/pushCronDedup');
+const { sqlPersonalSinSuperadmin } = require('../utils/superadminOculto');
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -86,6 +87,7 @@ async function getCumpleanosHoyParaUsuario(colegio_id, anio_activo, tipo, person
     `SELECT CONCAT(COALESCE(p.apellidos,''), ', ', COALESCE(p.nombres,'')) as nombre
      FROM personal p
      WHERE p.colegio_id = ? 
+       AND ${sqlPersonalSinSuperadmin('p')}
        AND p.fecha_nacimiento IS NOT NULL 
        AND p.fecha_nacimiento != '0000-00-00'
        AND MONTH(p.fecha_nacimiento) = ? AND DAY(p.fecha_nacimiento) = ?`,
@@ -425,6 +427,7 @@ async function enviarFelicitacionesCorreoYMensajeCumpleanos() {
        FROM personal p
        INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = p.colegio_id AND u.estado = 'ACTIVO'
        WHERE p.colegio_id = ?
+         AND ${sqlPersonalSinSuperadmin('p')}
          AND p.fecha_nacimiento IS NOT NULL AND p.fecha_nacimiento != '0000-00-00'
          AND MONTH(p.fecha_nacimiento) = ? AND DAY(p.fecha_nacimiento) = ?`,
       [colegio_id, mesHoy, diaHoy]
