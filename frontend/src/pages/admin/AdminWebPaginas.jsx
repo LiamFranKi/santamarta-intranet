@@ -151,7 +151,10 @@ export default function AdminWebPaginas() {
           <div className="rs-matricula-card__head">
             <h3 className="rs-matricula-card__title">Inversión por nivel</h3>
             <p className="rs-matricula-card__lead">
-              Un monto para todo el nivel. Las tarjetas de cada grado en la web pública muestran este mismo precio.
+              Un monto para todo el nivel. Las páginas nuevas de la web (
+              <a href="https://www.vanguardschools.com/niveles/inicial" target="_blank" rel="noopener noreferrer">inicial</a>, primaria, secundaria)
+              muestran este precio en un solo esquema de pagos. El diseño anterior sigue en{' '}
+              <code>/niveles/inicial/clasico</code> (igual para primaria y secundaria).
             </p>
           </div>
 
