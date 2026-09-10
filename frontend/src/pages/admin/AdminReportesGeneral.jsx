@@ -10,6 +10,7 @@ import ReporteResumenIngresos from './reportesGeneral/ReporteResumenIngresos';
 import ReporteListaMaestrosPorAula from './reportesGeneral/ReporteListaMaestrosPorAula';
 import ReporteListaPersonal from './reportesGeneral/ReporteListaPersonal';
 import ReporteAsistenciaMensual from './reportesGeneral/ReporteAsistenciaMensual';
+import ReporteAsistenciaConsolidado from './reportesGeneral/ReporteAsistenciaConsolidado';
 import ReporteMontoPagarReal from './reportesGeneral/ReporteMontoPagarReal';
 import ReporteAlumnos from './reportesGeneral/ReporteAlumnos';
 import ReporteDeudaAnual from './reportesGeneral/ReporteDeudaAnual';
@@ -169,6 +170,13 @@ const REPORT_CATALOG = [
         icon: '📆',
         ayuda: 'Asistencia diaria de alumnos del grupo (lunes a viernes del mes).',
         Component: ReporteAsistenciaMensual,
+      },
+      {
+        id: 'asistencia-consolidado',
+        label: 'Consolidado asistencia',
+        icon: '📊',
+        ayuda: 'Todas las aulas: tardanzas, faltas y no justificadas. Clic para ver alumnos y días. Exporta el consolidado a Excel.',
+        Component: ReporteAsistenciaConsolidado,
       },
       {
         id: 'ranking-notas',

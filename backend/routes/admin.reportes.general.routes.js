@@ -20,6 +20,11 @@ const { obtenerListaMaestrosPorAula } = require('../utils/reportesGeneralMaestro
 const { obtenerListaPersonal } = require('../utils/reportesGeneralListaPersonal');
 const { obtenerHorariosPersonal } = require('../utils/reportesGeneralHorariosPersonal');
 const { obtenerAsistenciaMensual } = require('../utils/reportesGeneralAsistenciaMensual');
+const {
+  obtenerConsolidadoAsistencia,
+  obtenerDetalleConsolidadoAsistencia,
+  generarExcelConsolidadoAsistencia,
+} = require('../utils/reportesGeneralAsistenciaConsolidado');
 const { generarExcelMontoPagarReal } = require('../utils/reportesGeneralMontoPagarReal');
 const { generarExcelReporteAlumnos } = require('../utils/reportesGeneralAlumnos');
 const { generarExcelDeudaAnual } = require('../utils/reportesGeneralDeudaAnual');
@@ -364,6 +369,83 @@ router.get('/asistencia-mensual', async (req, res) => {
   } catch (e) {
     console.error('[reportes/general/asistencia-mensual]', e);
     res.status(500).json({ error: e.message || 'Error al generar reporte de asistencia' });
+  }
+});
+
+/** GET /api/admin/reportes/general/asistencia-consolidado */
+router.get('/asistencia-consolidado', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const anio = parseInt(req.query.anio, 10);
+    const mes = parseInt(req.query.mes, 10);
+    const sedeRaw = req.query.sede_id;
+    const turnoRaw = req.query.turno_id;
+    const sedeId = sedeRaw !== undefined && sedeRaw !== '' ? parseInt(sedeRaw, 10) : null;
+    const turnoId = turnoRaw !== undefined && turnoRaw !== '' ? parseInt(turnoRaw, 10) : null;
+    const result = await obtenerConsolidadoAsistencia(cid, {
+      anio,
+      mes,
+      sedeId: Number.isFinite(sedeId) ? sedeId : null,
+      turnoId: Number.isFinite(turnoId) ? turnoId : null,
+    });
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (e) {
+    console.error('[reportes/general/asistencia-consolidado]', e);
+    res.status(500).json({ error: e.message || 'Error al generar el consolidado de asistencia' });
+  }
+});
+
+/** GET /api/admin/reportes/general/asistencia-consolidado/detalle */
+router.get('/asistencia-consolidado/detalle', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const result = await obtenerDetalleConsolidadoAsistencia(cid, {
+      anio: req.query.anio,
+      mes: req.query.mes,
+      grupoId: req.query.grupo_id,
+      tipo: req.query.tipo,
+    });
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (e) {
+    console.error('[reportes/general/asistencia-consolidado/detalle]', e);
+    res.status(500).json({ error: e.message || 'Error al cargar el detalle' });
+  }
+});
+
+/** GET /api/admin/reportes/general/asistencia-consolidado/excel */
+router.get('/asistencia-consolidado/excel', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const anio = parseInt(req.query.anio, 10);
+    const mes = parseInt(req.query.mes, 10);
+    const sedeRaw = req.query.sede_id;
+    const turnoRaw = req.query.turno_id;
+    const sedeId = sedeRaw !== undefined && sedeRaw !== '' ? parseInt(sedeRaw, 10) : null;
+    const turnoId = turnoRaw !== undefined && turnoRaw !== '' ? parseInt(turnoRaw, 10) : null;
+    const result = await generarExcelConsolidadoAsistencia(cid, {
+      anio,
+      mes,
+      sedeId: Number.isFinite(sedeId) ? sedeId : null,
+      turnoId: Number.isFinite(turnoId) ? turnoId : null,
+    });
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(Buffer.from(result.buffer));
+  } catch (e) {
+    console.error('[reportes/general/asistencia-consolidado/excel]', e);
+    res.status(500).json({ error: e.message || 'Error al exportar Excel' });
   }
 });
 

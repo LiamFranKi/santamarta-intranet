@@ -1946,3 +1946,205 @@
     flex-wrap: wrap;
   }
 }
+
+/* Consolidado de asistencia */
+.rg-asist-cons-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.84rem;
+  color: #64748b;
+}
+
+.rg-asist-cons-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+
+.rg-asist-cons-chip {
+  display: inline-flex;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 750;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.rg-asist-cons-chip--t {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.rg-asist-cons-chip--f {
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.rg-asist-cons-chip--nj {
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+
+.rg-asist-cons-table {
+  font-size: 0.84rem;
+}
+
+.rg-asist-cons-table thead th {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.rg-asist-cons-table td {
+  text-align: center;
+}
+
+.rg-asist-cons-aula {
+  text-align: left !important;
+  min-width: 10rem;
+}
+
+.rg-asist-cons-aula-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 750;
+  color: #1d4ed8;
+  cursor: pointer;
+  text-align: left;
+}
+
+.rg-asist-cons-aula-btn:hover {
+  text-decoration: underline;
+}
+
+.rg-asist-cons-aula-btn em {
+  display: block;
+  font-style: normal;
+  font-weight: 550;
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.rg-asist-cons-nivel td {
+  background: #eff6ff;
+  color: #1e40af;
+  font-weight: 800;
+  text-align: left !important;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+
+.rg-asist-cons-subtot td {
+  background: #f8fafc;
+  font-weight: 700;
+  color: #475569;
+  text-align: center;
+}
+
+.rg-asist-cons-subtot td:first-child {
+  text-align: left;
+}
+
+.rg-asist-cons-table tfoot td {
+  background: #1d4ed8;
+  color: #fff;
+  font-weight: 800;
+  text-align: center;
+}
+
+.rg-asist-cons-table tfoot td:first-child {
+  text-align: left;
+}
+
+.rg-asist-cons-zero {
+  color: #cbd5e1;
+  font-weight: 650;
+}
+
+.rg-asist-cons-num {
+  border: none;
+  min-width: 2.1rem;
+  padding: 0.18rem 0.45rem;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.rg-asist-cons-num--t {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.rg-asist-cons-num--f {
+  background: #ffe4e6;
+  color: #be123c;
+}
+
+.rg-asist-cons-num--nj {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.rg-asist-cons-num:hover {
+  filter: brightness(0.95);
+}
+
+.rg-asist-cons-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: none;
+  background: none;
+  color: #1d4ed8;
+  font-weight: 750;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 0.65rem;
+  font-family: inherit;
+}
+
+.rg-asist-cons-det-table td,
+.rg-asist-cons-det-table th {
+  text-align: left;
+}
+
+.rg-asist-cons-fecha {
+  text-transform: capitalize;
+}
+
+.rg-asist-cons-hora {
+  font-variant-numeric: tabular-nums;
+  font-weight: 750;
+}
+
+.rg-asist-cons-badge {
+  display: inline-flex;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.rg-asist-cons-badge--t {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.rg-asist-cons-badge--tj {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.rg-asist-cons-badge--f {
+  background: #ffe4e6;
+  color: #be123c;
+}
+
+.rg-asist-cons-badge--fj {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
