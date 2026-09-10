@@ -1683,7 +1683,9 @@ router.put('/configuracion/estructura-temas', async (req, res) => {
     console.error('Error guardando estructura de temas:', error);
     const msg = error.code === 'ER_NO_SUCH_TABLE'
       ? 'Falta aplicar la migración 083_aula_estructura_temas_mysql.sql'
-      : 'Error al guardar la estructura de temas';
+      : error.code === 'ESTRUCTURA_ACTIVO_NO_MIGRADA'
+        ? error.message
+        : 'Error al guardar la estructura de temas';
     res.status(500).json({ error: msg });
   }
 });

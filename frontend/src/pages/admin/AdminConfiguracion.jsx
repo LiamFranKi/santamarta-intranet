@@ -593,6 +593,7 @@ function AdminConfiguracion() {
     temas_b2: 0,
     temas_b3: 0,
     temas_b4: 0,
+    activo: 1,
   });
   const [guardandoEstructura, setGuardandoEstructura] = useState(false);
   const [aplicandoEstructura, setAplicandoEstructura] = useState(false);
@@ -727,6 +728,7 @@ function AdminConfiguracion() {
           temas_b2: Number(e.temas_b2) || 0,
           temas_b3: Number(e.temas_b3) || 0,
           temas_b4: Number(e.temas_b4) || 0,
+          activo: e.activo === 0 || e.activo === '0' || e.activo === false ? 0 : 1,
         });
       } catch (eEst) {
         console.warn('Estructura de temas no disponible:', eEst.response?.data?.error || eEst.message);
@@ -1102,12 +1104,16 @@ function AdminConfiguracion() {
         temas_b2: Number(e.temas_b2) || 0,
         temas_b3: Number(e.temas_b3) || 0,
         temas_b4: Number(e.temas_b4) || 0,
+        activo: e.activo === 0 || e.activo === '0' || e.activo === false ? 0 : 1,
       });
+      const activa = e.activo === 0 || e.activo === '0' || e.activo === false ? 0 : 1;
       Swal.fire({
         icon: 'success',
         title: 'Estructura guardada',
-        text: 'Las asignaturas nuevas nacerán con estos huecos. Use Aplicar estructura para las que ya existen.',
-        timer: 2800,
+        text: activa
+          ? 'Las asignaturas nuevas nacerán con estos huecos. Use Aplicar estructura para las que ya existen.'
+          : 'Estructura desactivada. El aula queda en blanco: cada docente llena sus temas. No se generan huecos.',
+        timer: 3200,
         showConfirmButton: false,
       });
     } catch (error) {
@@ -1644,8 +1650,29 @@ function AdminConfiguracion() {
             <div className="config-subsection">
               <h3 className="config-subsection-title" style={{ color: '#0f766e' }}>Estructura de temas</h3>
               <p className="config-subsection-desc">
-                Indique cuántos temas hay en cada bimestre. Se crea la misma cantidad de fichas (Tema 1 con Ficha 1, etc.).
-                Cero = no generar huecos en ese bimestre. Máximo 20 por bimestre.
+                Si está activada, se crean automáticamente los huecos (Tema 1 con Ficha 1, etc.).
+                Si está desactivada, el aula queda en blanco y cada docente llena lo suyo.
+              </p>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label htmlFor="estructura-temas-activo">Activar estructura automática</label>
+                  <select
+                    id="estructura-temas-activo"
+                    value={estructuraTemas.activo === 0 ? '0' : '1'}
+                    onChange={(e) => {
+                      setEstructuraTemas((prev) => ({
+                        ...prev,
+                        activo: e.target.value === '0' ? 0 : 1,
+                      }));
+                    }}
+                  >
+                    <option value="1">SI — generar temas y fichas</option>
+                    <option value="0">NO — dejar el aula en blanco</option>
+                  </select>
+                </div>
+              </div>
+              <p className="config-subsection-desc">
+                Indique cuántos temas hay en cada bimestre. Cero = no generar huecos en ese bimestre. Máximo 20.
               </p>
               <div className="form-grid">
                 {[1, 2, 3, 4].map((bim) => (
@@ -1656,6 +1683,7 @@ function AdminConfiguracion() {
                       type="number"
                       min="0"
                       max="20"
+                      disabled={estructuraTemas.activo === 0}
                       value={estructuraTemas[`temas_b${bim}`]}
                       onChange={(e) => {
                         const n = parseInt(e.target.value, 10);
@@ -1681,7 +1709,8 @@ function AdminConfiguracion() {
                   type="button"
                   className="btn-warning btn-warning--inline"
                   onClick={handleAplicarEstructuraTemas}
-                  disabled={guardandoEstructura || aplicandoEstructura}
+                  disabled={guardandoEstructura || aplicandoEstructura || estructuraTemas.activo === 0}
+                  title={estructuraTemas.activo === 0 ? 'Active la estructura para aplicar huecos' : undefined}
                 >
                   {aplicandoEstructura ? 'Aplicando…' : 'Aplicar estructura'}
                 </button>

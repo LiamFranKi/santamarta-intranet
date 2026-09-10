@@ -54,6 +54,7 @@ const {
   componerNombreEstructura,
   archivosTieneEstructuraCols,
   asegurarFichaHermana,
+  obtenerConfigEstructura,
 } = require('../utils/aulaEstructuraTemas');
 const {
   pickSaludFields,
@@ -7811,7 +7812,12 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/archivos', async (req, res) =>
       };
     });
 
-    const archivosVisibles = ocultarHuecosPendientes({ ciclo: cicloFiltro, anio: anio_activo })
+    const cfgEst = await obtenerConfigEstructura(colegio_id, anio_activo);
+    const archivosVisibles = ocultarHuecosPendientes({
+      ciclo: cicloFiltro,
+      anio: anio_activo,
+      estructuraActiva: cfgEst.activo,
+    })
       ? archivosConUrls.filter((a) => !a.pendiente)
       : archivosConUrls;
 
@@ -21250,7 +21256,12 @@ router.get('/aula-virtual/archivos', async (req, res) => {
       };
     });
 
-    const archivosVisibles = ocultarHuecosPendientes({ ciclo: cicloFiltro, anio: anio_activo })
+    const cfgEst = await obtenerConfigEstructura(colegio_id, anio_activo);
+    const archivosVisibles = ocultarHuecosPendientes({
+      ciclo: cicloFiltro,
+      anio: anio_activo,
+      estructuraActiva: cfgEst.activo,
+    })
       ? archivosConUrls.filter((a) => !a.pendiente)
       : archivosConUrls;
 
@@ -21468,7 +21479,7 @@ router.post('/aula-virtual/archivos/:id/llenar-biblioteca', async (req, res) => 
  */
 router.post('/aula-virtual/archivos/desde-biblioteca', async (req, res) => {
   try {
-    const { anio_activo } = req.user;
+    const { anio_activo, colegio_id } = req.user;
     const { asignatura_id, ciclo, item_tipo, item_numero, asignatura_origen_id, tema_id } = req.body || {};
     if (!asignatura_id || !asignatura_origen_id || !tema_id) {
       return res.status(400).json({ error: 'Datos incompletos para copiar desde biblioteca' });
@@ -21532,6 +21543,7 @@ router.post('/aula-virtual/archivos/desde-biblioteca', async (req, res) => {
         ciclo: cicloNum,
         numero: numeroNorm,
         anio: anio_activo,
+        colegioId: colegio_id,
       });
     }
 
@@ -22320,6 +22332,7 @@ router.post('/aula-virtual/archivos', uploadAulaVirtual.single('archivo'), async
           ciclo: parseInt(ciclo, 10) || 1,
           numero: numeroNorm,
           anio: anio_activo,
+          colegioId: colegio_id,
         });
       } catch (eFicha) {
         console.warn('[estructura-temas] No se pudo crear ficha hermana:', eFicha.message);

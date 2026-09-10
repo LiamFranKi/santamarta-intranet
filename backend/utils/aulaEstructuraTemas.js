@@ -6,13 +6,22 @@ const BIMESTRES = [1, 2, 3, 4];
 /** Solo 2026: B1–B3 ya se dictaron; no mostrar ni volver a sembrar huecos vacíos. */
 const ANIO_OCULTAR_HUECOS_BIM_CERRADOS = 2026;
 
-function ocultarHuecosPendientes({ ciclo, anio }) {
+function toActivo01(v, fallback = 1) {
+  if (Buffer.isBuffer(v)) return v.length && v[0] ? 1 : 0;
+  if (v === true || v === 1 || v === '1' || v === 'SI' || v === 'si' || v === 'true') return 1;
+  if (v === false || v === 0 || v === '0' || v === 'NO' || v === 'no' || v === 'false') return 0;
+  return fallback;
+}
+
+function ocultarHuecosPendientes({ ciclo, anio, estructuraActiva }) {
+  if (estructuraActiva === false || estructuraActiva === 0) return true;
   const a = parseInt(anio, 10);
   const c = parseInt(ciclo, 10);
   return a === ANIO_OCULTAR_HUECOS_BIM_CERRADOS && c >= 1 && c <= 3;
 }
 
 let _colsCache = null;
+let _activoColCache = null;
 
 async function archivosTieneEstructuraCols() {
   if (_colsCache != null) return _colsCache;
@@ -42,6 +51,7 @@ function normalizarConfigBody(body = {}) {
     temas_b2: clampCantidad(body.temas_b2),
     temas_b3: clampCantidad(body.temas_b3),
     temas_b4: clampCantidad(body.temas_b4),
+    activo: toActivo01(body.activo, 1),
   };
 }
 
@@ -122,14 +132,43 @@ function ocupacionPorTipo(rows) {
   return { usadosTema, usadosFicha };
 }
 
-async function obtenerConfigEstructura(colegioId, anio) {
-  const vacio = { temas_b1: 0, temas_b2: 0, temas_b3: 0, temas_b4: 0, anio: parseInt(anio, 10) || 0 };
+async function tablaTieneActivo() {
+  if (_activoColCache != null) return _activoColCache;
   try {
     const rows = await query(
-      `SELECT temas_b1, temas_b2, temas_b3, temas_b4, anio
-       FROM aula_estructura_temas
-       WHERE colegio_id = ? AND anio = ?
-       LIMIT 1`,
+      `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'aula_estructura_temas'
+         AND COLUMN_NAME = 'activo'`
+    );
+    _activoColCache = (rows || []).length > 0;
+  } catch {
+    _activoColCache = false;
+  }
+  return _activoColCache;
+}
+
+async function obtenerConfigEstructura(colegioId, anio) {
+  const vacio = {
+    temas_b1: 0,
+    temas_b2: 0,
+    temas_b3: 0,
+    temas_b4: 0,
+    activo: 1,
+    anio: parseInt(anio, 10) || 0,
+  };
+  try {
+    const conActivo = await tablaTieneActivo();
+    const rows = await query(
+      conActivo
+        ? `SELECT temas_b1, temas_b2, temas_b3, temas_b4, activo, anio
+           FROM aula_estructura_temas
+           WHERE colegio_id = ? AND anio = ?
+           LIMIT 1`
+        : `SELECT temas_b1, temas_b2, temas_b3, temas_b4, anio
+           FROM aula_estructura_temas
+           WHERE colegio_id = ? AND anio = ?
+           LIMIT 1`,
       [colegioId, anio]
     );
     if (!rows.length) return vacio;
@@ -138,6 +177,7 @@ async function obtenerConfigEstructura(colegioId, anio) {
       temas_b2: clampCantidad(rows[0].temas_b2),
       temas_b3: clampCantidad(rows[0].temas_b3),
       temas_b4: clampCantidad(rows[0].temas_b4),
+      activo: conActivo ? toActivo01(rows[0].activo, 1) : 1,
       anio: parseInt(rows[0].anio, 10) || vacio.anio,
     };
   } catch (e) {
@@ -148,17 +188,37 @@ async function obtenerConfigEstructura(colegioId, anio) {
 
 async function guardarConfigEstructura(colegioId, anio, body) {
   const cfg = normalizarConfigBody(body);
-  await execute(
-    `INSERT INTO aula_estructura_temas (colegio_id, anio, temas_b1, temas_b2, temas_b3, temas_b4)
-     VALUES (?, ?, ?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE
-       temas_b1 = VALUES(temas_b1),
-       temas_b2 = VALUES(temas_b2),
-       temas_b3 = VALUES(temas_b3),
-       temas_b4 = VALUES(temas_b4)`,
-    [colegioId, anio, cfg.temas_b1, cfg.temas_b2, cfg.temas_b3, cfg.temas_b4]
-  );
-  return { ...cfg, anio };
+  const conActivo = await tablaTieneActivo();
+  if (!conActivo && cfg.activo === 0) {
+    const err = new Error('Falta aplicar la migración 086_aula_estructura_temas_activo_mysql.sql');
+    err.code = 'ESTRUCTURA_ACTIVO_NO_MIGRADA';
+    throw err;
+  }
+  if (conActivo) {
+    await execute(
+      `INSERT INTO aula_estructura_temas (colegio_id, anio, temas_b1, temas_b2, temas_b3, temas_b4, activo)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         temas_b1 = VALUES(temas_b1),
+         temas_b2 = VALUES(temas_b2),
+         temas_b3 = VALUES(temas_b3),
+         temas_b4 = VALUES(temas_b4),
+         activo = VALUES(activo)`,
+      [colegioId, anio, cfg.temas_b1, cfg.temas_b2, cfg.temas_b3, cfg.temas_b4, cfg.activo]
+    );
+  } else {
+    await execute(
+      `INSERT INTO aula_estructura_temas (colegio_id, anio, temas_b1, temas_b2, temas_b3, temas_b4)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         temas_b1 = VALUES(temas_b1),
+         temas_b2 = VALUES(temas_b2),
+         temas_b3 = VALUES(temas_b3),
+         temas_b4 = VALUES(temas_b4)`,
+      [colegioId, anio, cfg.temas_b1, cfg.temas_b2, cfg.temas_b3, cfg.temas_b4]
+    );
+  }
+  return { ...cfg, anio, activo: conActivo ? cfg.activo : 1 };
 }
 
 async function insertarHueco({ asignaturaId, trabajadorId, ciclo, tipo, numero }) {
@@ -229,6 +289,7 @@ async function sembrarEstructuraAsignatura({ asignaturaId, colegioId, trabajador
   }
   if (!anioUsar) return 0;
   const cfg = await obtenerConfigEstructura(colegioId, anioUsar);
+  if (!cfg.activo) return 0;
   let total = 0;
   for (const ciclo of BIMESTRES) {
     total += await completarHuecosCiclo({
@@ -250,6 +311,13 @@ async function aplicarEstructuraColegio({ colegioId, anio }) {
     throw err;
   }
   const cfg = await obtenerConfigEstructura(colegioId, anio);
+  if (!cfg.activo) {
+    return {
+      asignaturas: 0,
+      creados: 0,
+      mensaje: 'La estructura de temas está desactivada. Actívela y guarde para generar huecos.',
+    };
+  }
   const suma = BIMESTRES.reduce((acc, c) => acc + cantidadParaCiclo(cfg, c), 0);
   if (suma <= 0) {
     return { asignaturas: 0, creados: 0, mensaje: 'Guarde primero cuántos temas van en cada bimestre.' };
@@ -279,8 +347,20 @@ async function aplicarEstructuraColegio({ colegioId, anio }) {
   };
 }
 
-async function asegurarFichaHermana({ asignaturaId, trabajadorId, ciclo, numero, anio }) {
+async function asegurarFichaHermana({ asignaturaId, trabajadorId, ciclo, numero, anio, colegioId }) {
   if (ocultarHuecosPendientes({ ciclo, anio })) return;
+  let colegio = parseInt(colegioId, 10);
+  if (!colegio && asignaturaId) {
+    const [asig] = await query(
+      `SELECT colegio_id FROM asignaturas WHERE id = ? LIMIT 1`,
+      [asignaturaId]
+    );
+    colegio = parseInt(asig?.colegio_id, 10) || 0;
+  }
+  if (colegio && anio) {
+    const cfg = await obtenerConfigEstructura(colegio, anio);
+    if (!cfg.activo) return;
+  }
   const tieneCols = await archivosTieneEstructuraCols();
   if (!tieneCols) return;
   const n = parseInt(numero, 10);
@@ -307,6 +387,7 @@ module.exports = {
   BIMESTRES,
   archivosTieneEstructuraCols,
   clampCantidad,
+  toActivo01,
   normalizarConfigBody,
   cantidadParaCiclo,
   prefijoItem,
