@@ -141,6 +141,10 @@ function esAdminPromotoriaOCoordinador(tipo) {
   return esAdminOPromotoria(tipo) || tipo === 'COORDINADOR';
 }
 
+function esStaffAccesoGrupo(tipo) {
+  return esAdminPromotoriaOCoordinador(tipo) || tipo === 'PSICOLOGA' || tipo === 'SECRETARIA';
+}
+
 function tipoAuditoriaStaff(tipo) {
   if (tipo === 'PROMOTORIA' || tipo === 'COORDINADOR') return tipo;
   return 'ADMINISTRADOR';
@@ -353,10 +357,9 @@ async function assertAccesoReporteGrupoGeneral(req, grupoId) {
   if (!grupoId || !colegio_id || !anio_activo) {
     return { ok: false, status: 400, error: 'Parámetros requeridos' };
   }
-  const esStaffColegio =
-    esAdminOPromotoria(tipo) || tipo === 'PSICOLOGA' || tipo === 'SECRETARIA';
+  const esStaff = esStaffAccesoGrupo(tipo);
 
-  if (esStaffColegio) {
+  if (esStaff) {
     const gRow = await query(
       `SELECT g.id, g.anio FROM grupos g WHERE g.id = ? AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
       [grupoId, colegio_id, anio_activo]
@@ -2328,8 +2331,8 @@ router.get('/grupos', async (req, res) => {
   try {
     const { colegio_id, anio_activo } = req.user;
 
-    // Administrador / Promotoría / Psicóloga: todos los grupos del año (sin restricción)
-    if (esAdminPromotoriaOpsicologa(req.user.tipo)) {
+    // Administrador / Promotoría / Psicóloga / Coordinador: todos los grupos del año
+    if (esAdminPromotoriaOpsicologa(req.user.tipo) || req.user.tipo === 'COORDINADOR') {
       const gruposTodos = await query(
         `SELECT DISTINCT g.*,
                 n.nombre as nivel_nombre,
@@ -2433,10 +2436,9 @@ router.get('/grupos/:grupoId/alumnos', async (req, res) => {
       return res.status(400).json({ error: 'Año académico es requerido' });
     }
 
-    const esStaffColegio =
-      esAdminOPromotoria(tipo) || tipo === 'PSICOLOGA' || tipo === 'SECRETARIA';
+    const esStaff = esStaffAccesoGrupo(tipo);
 
-    if (esStaffColegio) {
+    if (esStaff) {
       const gRow = await query(
         `SELECT g.id FROM grupos g WHERE g.id = ? AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
         [grupoId, colegio_id, anio_activo]
@@ -2783,29 +2785,39 @@ router.get('/grupos/:grupoId/mensajes-historial', async (req, res) => {
     if (!grupoId) {
       return res.status(400).json({ error: 'Parámetros requeridos' });
     }
-    if (!personal_id) {
-      const esTg = await esTutoriaGeneralUsuario(req);
-      if (!esTg) return res.status(400).json({ error: 'Parámetros requeridos' });
-    }
 
-    // Verificar que el docente tiene acceso al grupo (asignatura en el grupo O tutor del grupo)
-    const tieneAccesoAsignatura = await query(
-      `SELECT 1 FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.personal_id = ? AND a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ? LIMIT 1`,
-      [personal_id, grupoId, colegio_id, anio_activo]
-    );
-    const esTutorDelGrupo = await query(
-      `SELECT 1 FROM grupos g
-       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
-      [grupoId, personal_id, personal_id, colegio_id, anio_activo]
-    );
-    const esTutoriaGeneral = await esTutoriaGeneralUsuario(req);
+    if (esStaffAccesoGrupo(req.user.tipo)) {
+      const gStaff = await query(
+        `SELECT g.id FROM grupos g WHERE g.id = ? AND g.colegio_id = ? LIMIT 1`,
+        [grupoId, colegio_id]
+      );
+      if (!gStaff.length) {
+        return res.status(403).json({ error: 'No tienes acceso a este grupo' });
+      }
+    } else {
+      if (!personal_id) {
+        const esTg = await esTutoriaGeneralUsuario(req);
+        if (!esTg) return res.status(400).json({ error: 'Parámetros requeridos' });
+      }
 
-    if ((!tieneAccesoAsignatura || tieneAccesoAsignatura.length === 0) &&
-        (!esTutorDelGrupo || esTutorDelGrupo.length === 0) &&
-        !esTutoriaGeneral) {
-      return res.status(403).json({ error: 'No tienes acceso a este grupo' });
+      const tieneAccesoAsignatura = await query(
+        `SELECT 1 FROM asignaturas a
+         INNER JOIN grupos g ON g.id = a.grupo_id
+         WHERE a.personal_id = ? AND a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ? LIMIT 1`,
+        [personal_id, grupoId, colegio_id, anio_activo]
+      );
+      const esTutorDelGrupo = await query(
+        `SELECT 1 FROM grupos g
+         WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
+        [grupoId, personal_id, personal_id, colegio_id, anio_activo]
+      );
+      const esTutoriaGeneral = await esTutoriaGeneralUsuario(req);
+
+      if ((!tieneAccesoAsignatura || tieneAccesoAsignatura.length === 0) &&
+          (!esTutorDelGrupo || esTutorDelGrupo.length === 0) &&
+          !esTutoriaGeneral) {
+        return res.status(403).json({ error: 'No tienes acceso a este grupo' });
+      }
     }
 
     // Obtener info del grupo
@@ -3445,23 +3457,14 @@ router.get('/cursos/:cursoId/alumnos', async (req, res) => {
 router.get('/cursos/:cursoId/nomina', async (req, res) => {
   try {
     const { cursoId } = req.params;
+    const { colegio_id } = req.user;
     const bimestre = parseInt(req.query.bimestre || '1', 10);
-    const { colegio_id, anio_activo } = req.user;
-    const personalId = req.user.personal_id;
-
-    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
     if (!cursoId) return res.status(400).json({ error: 'ID de curso es requerido' });
     if (bimestre < 1 || bimestre > 4) return res.status(400).json({ error: 'Bimestre debe ser 1, 2, 3 o 4' });
 
-    const asignatura = await query(
-      `SELECT a.* FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [cursoId, personalId, colegio_id, anio_activo]
-    );
-    if (!asignatura || asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este curso' });
-    }
+    const asignaturaRow = await verificarAccesoAsignatura(req, res, cursoId, 'a.*');
+    if (!asignaturaRow) return;
+    const personalId = trabajadorIdParaAsignatura(req, asignaturaRow);
 
     const [row] = await query(
       `SELECT notas_json FROM nomina_registros
@@ -3484,23 +3487,14 @@ router.post('/cursos/:cursoId/nomina', async (req, res) => {
   try {
     const { cursoId } = req.params;
     const { bimestre, notas } = req.body;
-    const { colegio_id, anio_activo } = req.user;
-    const personalId = req.user.personal_id;
-
-    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    const { colegio_id } = req.user;
     if (!cursoId) return res.status(400).json({ error: 'ID de curso es requerido' });
     const bimestreInt = parseInt(bimestre || '1', 10);
     if (bimestreInt < 1 || bimestreInt > 4) return res.status(400).json({ error: 'Bimestre debe ser 1, 2, 3 o 4' });
 
-    const asignatura = await query(
-      `SELECT a.* FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [cursoId, personalId, colegio_id, anio_activo]
-    );
-    if (!asignatura || asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este curso' });
-    }
+    const asignaturaRow = await verificarAccesoAsignatura(req, res, cursoId, 'a.*');
+    if (!asignaturaRow) return;
+    const personalId = trabajadorIdParaAsignatura(req, asignaturaRow);
 
     const notasJson = typeof notas === 'object' ? JSON.stringify(notas) : (notas || '{}');
     await execute(
@@ -3524,22 +3518,13 @@ router.delete('/cursos/:cursoId/nomina', async (req, res) => {
   try {
     const { cursoId } = req.params;
     const bimestre = parseInt(req.query.bimestre || '1', 10);
-    const { colegio_id, anio_activo } = req.user;
-    const personalId = req.user.personal_id;
-
-    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    const { colegio_id } = req.user;
     if (!cursoId) return res.status(400).json({ error: 'ID de curso es requerido' });
     if (bimestre < 1 || bimestre > 4) return res.status(400).json({ error: 'Bimestre debe ser 1, 2, 3 o 4' });
 
-    const asignatura = await query(
-      `SELECT a.id FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [cursoId, personalId, colegio_id, anio_activo]
-    );
-    if (!asignatura || asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este curso' });
-    }
+    const asignaturaRow = await verificarAccesoAsignatura(req, res, cursoId, 'a.id');
+    if (!asignaturaRow) return;
+    const personalId = trabajadorIdParaAsignatura(req, asignaturaRow);
 
     await execute(
       `INSERT INTO nomina_registros (asignatura_id, personal_id, bimestre, notas_json, colegio_id)
@@ -3561,23 +3546,10 @@ router.delete('/cursos/:cursoId/nomina', async (req, res) => {
 router.get('/cursos/:cursoId/alumnos/:alumnoId/estrellas', async (req, res) => {
   try {
     const { cursoId, alumnoId } = req.params;
-    const { colegio_id, anio_activo, personal_id } = req.user;
+    const { colegio_id, anio_activo } = req.user;
 
-    if (!personal_id) {
-      return res.status(404).json({ error: 'Docente no encontrado' });
-    }
-
-    // Verificar acceso al curso
-    const asignatura = await query(
-      `SELECT a.* FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [cursoId, personal_id, colegio_id, anio_activo]
-    );
-
-    if (!asignatura || asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este curso' });
-    }
+    const asignaturaOk = await verificarAccesoAsignatura(req, res, cursoId, 'a.id');
+    if (!asignaturaOk) return;
 
     // Obtener matrícula del alumno en el grupo del curso
     // IMPORTANTE: Verificar que la matrícula pertenezca al año activo
@@ -3645,14 +3617,9 @@ router.get('/cursos/:cursoId/alumnos/:alumnoId/estrellas', async (req, res) => {
 router.post('/cursos/:cursoId/alumnos/:alumnoId/estrellas', async (req, res) => {
   try {
     const { cursoId, alumnoId } = req.params;
-    const { colegio_id, anio_activo, personal_id } = req.user;
+    const { colegio_id, anio_activo } = req.user;
     const { points, description } = req.body;
 
-    if (!personal_id) {
-      return res.status(404).json({ error: 'Docente no encontrado' });
-    }
-
-    // Validar datos
     if (!points || points <= 0) {
       return res.status(400).json({ error: 'La cantidad de estrellas debe ser mayor a 0' });
     }
@@ -3661,17 +3628,9 @@ router.post('/cursos/:cursoId/alumnos/:alumnoId/estrellas', async (req, res) => 
       return res.status(400).json({ error: 'La descripción es requerida' });
     }
 
-    // Verificar acceso al curso
-    const asignatura = await query(
-      `SELECT a.* FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [cursoId, personal_id, colegio_id, anio_activo]
-    );
-
-    if (!asignatura || asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este curso' });
-    }
+    const asignaturaOk = await verificarAccesoAsignatura(req, res, cursoId, 'a.*');
+    if (!asignaturaOk) return;
+    const personal_id = trabajadorIdParaAsignatura(req, asignaturaOk);
 
     // Obtener matrícula del alumno
     // IMPORTANTE: Verificar que la matrícula pertenezca al año activo
@@ -3785,22 +3744,34 @@ router.delete('/cursos/:cursoId/alumnos/:alumnoId/estrellas/:incidentId', async 
     const { cursoId, alumnoId, incidentId } = req.params;
     const { colegio_id, anio_activo, personal_id } = req.user;
 
-    if (!personal_id) {
+    const asignaturaOk = await verificarAccesoAsignatura(req, res, cursoId, 'a.id');
+    if (!asignaturaOk) return;
+
+    const esStaff = esStaffColegio(req.user.tipo);
+    if (!esStaff && !personal_id) {
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
 
-    // Verificar que el incidente existe y pertenece al docente actual
-    // IMPORTANTE: Verificar que pertenezca al año activo
-    const incidente = await query(
-      `SELECT ei.* FROM enrollment_incidents ei
-       INNER JOIN matriculas m ON m.id = ei.enrollment_id
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE ei.id = ? 
-         AND ei.worker_id = ? 
-         AND ei.type = 2
-         AND g.anio = ?`,
-      [incidentId, personal_id, anio_activo]
-    );
+    const incidente = esStaff
+      ? await query(
+          `SELECT ei.* FROM enrollment_incidents ei
+           INNER JOIN matriculas m ON m.id = ei.enrollment_id
+           INNER JOIN grupos g ON g.id = m.grupo_id
+           WHERE ei.id = ?
+             AND ei.type = 2
+             AND g.anio = ?`,
+          [incidentId, anio_activo]
+        )
+      : await query(
+          `SELECT ei.* FROM enrollment_incidents ei
+           INNER JOIN matriculas m ON m.id = ei.enrollment_id
+           INNER JOIN grupos g ON g.id = m.grupo_id
+           WHERE ei.id = ?
+             AND ei.worker_id = ?
+             AND ei.type = 2
+             AND g.anio = ?`,
+          [incidentId, personal_id, anio_activo]
+        );
 
     if (!incidente || incidente.length === 0) {
       return res.status(403).json({ 
@@ -3861,20 +3832,11 @@ router.get('/cursos/:cursoId/alumnos/:alumnoId/incidencias', async (req, res) =>
     const { cursoId, alumnoId } = req.params;
     const { colegio_id, anio_activo, personal_id } = req.user;
 
-    if (!personal_id) {
+    const asignaturaOk = await verificarAccesoAsignatura(req, res, cursoId, 'a.id');
+    if (!asignaturaOk) return;
+    const esStaff = esStaffColegio(req.user.tipo);
+    if (!esStaff && !personal_id) {
       return res.status(404).json({ error: 'Docente no encontrado' });
-    }
-
-    // Verificar acceso al curso
-    const asignatura = await query(
-      `SELECT a.* FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [cursoId, personal_id, colegio_id, anio_activo]
-    );
-
-    if (!asignatura || asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este curso' });
     }
 
     // Obtener matrícula del alumno en el grupo del curso
@@ -3906,7 +3868,7 @@ router.get('/cursos/:cursoId/alumnos/:alumnoId/incidencias', async (req, res) =>
       `SELECT ei.id, ei.description, ei.created_at, ei.worker_id, ei.assignment_id,
               CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
               c.nombre as curso_nombre,
-              CASE WHEN ei.worker_id = ? THEN 1 ELSE 0 END as puede_eliminar
+              CASE WHEN ${esStaff ? '1=1' : 'ei.worker_id = ?'} THEN 1 ELSE 0 END as puede_eliminar
        FROM enrollment_incidents ei
        INNER JOIN matriculas m ON m.id = ei.enrollment_id
        INNER JOIN grupos g ON g.id = m.grupo_id
@@ -3917,7 +3879,7 @@ router.get('/cursos/:cursoId/alumnos/:alumnoId/incidencias', async (req, res) =>
          AND ei.type = 1
          AND g.anio = ?
        ORDER BY ei.created_at DESC`,
-      [personal_id, matriculaId, anio_activo]
+      esStaff ? [matriculaId, anio_activo] : [personal_id, matriculaId, anio_activo]
     );
 
     const { bimestres, anio } = await agruparItemsPorBimestre(
@@ -3945,29 +3907,16 @@ router.get('/cursos/:cursoId/alumnos/:alumnoId/incidencias', async (req, res) =>
 router.post('/cursos/:cursoId/alumnos/:alumnoId/incidencias', async (req, res) => {
   try {
     const { cursoId, alumnoId } = req.params;
-    const { colegio_id, anio_activo, personal_id } = req.user;
+    const { colegio_id, anio_activo } = req.user;
     const { description } = req.body;
 
-    if (!personal_id) {
-      return res.status(404).json({ error: 'Docente no encontrado' });
-    }
-
-    // Validar datos
     if (!description || description.trim() === '') {
       return res.status(400).json({ error: 'La descripción es requerida' });
     }
 
-    // Verificar acceso al curso
-    const asignatura = await query(
-      `SELECT a.* FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [cursoId, personal_id, colegio_id, anio_activo]
-    );
-
-    if (!asignatura || asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este curso' });
-    }
+    const asignaturaOk = await verificarAccesoAsignatura(req, res, cursoId, 'a.*');
+    if (!asignaturaOk) return;
+    const personal_id = trabajadorIdParaAsignatura(req, asignaturaOk);
 
     // Obtener matrícula del alumno
     // IMPORTANTE: Verificar que la matrícula pertenezca al año activo
@@ -4098,22 +4047,34 @@ router.delete('/cursos/:cursoId/alumnos/:alumnoId/incidencias/:incidentId', asyn
     const { cursoId, alumnoId, incidentId } = req.params;
     const { colegio_id, anio_activo, personal_id } = req.user;
 
-    if (!personal_id) {
+    const asignaturaOk = await verificarAccesoAsignatura(req, res, cursoId, 'a.id');
+    if (!asignaturaOk) return;
+
+    const esStaff = esStaffColegio(req.user.tipo);
+    if (!esStaff && !personal_id) {
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
 
-    // Verificar que el incidente existe y pertenece al docente actual
-    // IMPORTANTE: Verificar que pertenezca al año activo
-    const incidente = await query(
-      `SELECT ei.* FROM enrollment_incidents ei
-       INNER JOIN matriculas m ON m.id = ei.enrollment_id
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE ei.id = ? 
-         AND ei.worker_id = ? 
-         AND ei.type = 1
-         AND g.anio = ?`,
-      [incidentId, personal_id, anio_activo]
-    );
+    const incidente = esStaff
+      ? await query(
+          `SELECT ei.* FROM enrollment_incidents ei
+           INNER JOIN matriculas m ON m.id = ei.enrollment_id
+           INNER JOIN grupos g ON g.id = m.grupo_id
+           WHERE ei.id = ?
+             AND ei.type = 1
+             AND g.anio = ?`,
+          [incidentId, anio_activo]
+        )
+      : await query(
+          `SELECT ei.* FROM enrollment_incidents ei
+           INNER JOIN matriculas m ON m.id = ei.enrollment_id
+           INNER JOIN grupos g ON g.id = m.grupo_id
+           WHERE ei.id = ?
+             AND ei.worker_id = ?
+             AND ei.type = 1
+             AND g.anio = ?`,
+          [incidentId, personal_id, anio_activo]
+        );
 
     if (!incidente || incidente.length === 0) {
       return res.status(403).json({ 
@@ -4224,27 +4185,18 @@ function deserializarNotasDetalles(dataString) {
  */
 router.get('/cursos/:cursoId/alumnos/:alumnoId/notas-detalladas', async (req, res) => {
   try {
-    const { colegio_id, anio_activo, personal_id } = req.user;
+    const { colegio_id, anio_activo } = req.user;
     const { cursoId, alumnoId } = req.params;
 
-    // Validar que el curso pertenece al docente
-    const asignatura = await query(
-      `SELECT a.*, g.anio, g.nivel_id, n.tipo_calificacion, n.tipo_calificacion_final,
+    const cursoInfo = await verificarAccesoAsignatura(
+      req,
+      res,
+      cursoId,
+      `a.*, g.anio, g.nivel_id, n.tipo_calificacion, n.tipo_calificacion_final,
               n.nota_aprobatoria, n.nota_maxima, n.nota_minima, c.nombre as curso_nombre,
-              c.peso_examen_mensual, c.examen_mensual
-       FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       INNER JOIN cursos c ON c.id = a.curso_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [cursoId, personal_id, colegio_id, anio_activo]
+              c.peso_examen_mensual, c.examen_mensual`
     );
-
-    if (asignatura.length === 0) {
-      return res.status(404).json({ error: 'Curso no encontrado o no asignado' });
-    }
-
-    const cursoInfo = asignatura[0];
+    if (!cursoInfo) return;
 
     // Obtener matrícula del alumno
     const matricula = await query(
@@ -5121,34 +5073,22 @@ router.post('/cursos/:cursoId/notas', async (req, res) => {
 router.get('/cursos/:cursoId/detalle-notas', async (req, res) => {
   try {
     const { cursoId } = req.params;
-    const { colegio_id, anio_activo, personal_id } = req.user;
+    const { colegio_id, anio_activo } = req.user;
     const { ciclo = 1 } = req.query;
-
-    if (!personal_id) {
-      return res.status(404).json({ error: 'Docente no encontrado' });
-    }
 
     const cicloInt = parseInt(ciclo);
     if (cicloInt < 1 || cicloInt > 4) {
       return res.status(400).json({ error: 'Ciclo debe ser 1, 2, 3 o 4' });
     }
 
-    const asignatura = await query(
-      `SELECT a.*, g.id as grupo_id, g.grado, g.seccion, g.anio,
-              n.nombre as nivel_nombre, n.tipo_calificacion, c.nombre as curso_nombre
-       FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       INNER JOIN cursos c ON c.id = a.curso_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [cursoId, personal_id, colegio_id, anio_activo]
+    const cursoInfo = await verificarAccesoAsignatura(
+      req,
+      res,
+      cursoId,
+      `a.*, g.id as grupo_id, g.grado, g.seccion, g.anio,
+              n.nombre as nivel_nombre, n.tipo_calificacion, c.nombre as curso_nombre`
     );
-
-    if (!asignatura || asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este curso' });
-    }
-
-    const cursoInfo = asignatura[0];
+    if (!cursoInfo) return;
     const esInicial = cursoInfo.tipo_calificacion === 0 || (cursoInfo.nivel_nombre || '').toUpperCase().includes('INICIAL');
 
     // === RAMA INICIAL (cualitativa): detalle por indicador ===
@@ -5323,12 +5263,8 @@ router.get('/cursos/:cursoId/detalle-notas', async (req, res) => {
 router.post('/cursos/:cursoId/detalle-notas', async (req, res) => {
   try {
     const { cursoId } = req.params;
-    const { colegio_id, personal_id } = req.user;
+    const { colegio_id } = req.user;
     const { ciclo, datos } = req.body;
-
-    if (!personal_id) {
-      return res.status(404).json({ error: 'Docente no encontrado' });
-    }
 
     if (!ciclo || !Array.isArray(datos)) {
       return res.status(400).json({ error: 'Datos incompletos' });
@@ -5339,19 +5275,15 @@ router.post('/cursos/:cursoId/detalle-notas', async (req, res) => {
       return res.status(400).json({ error: 'Ciclo debe ser 1, 2, 3 o 4' });
     }
 
-    const asignatura = await query(
-      `SELECT a.id, n.tipo_calificacion, n.nombre as nivel_nombre FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ?`,
-      [cursoId, personal_id, colegio_id]
+    const asignatura = await verificarAccesoAsignatura(
+      req,
+      res,
+      cursoId,
+      `a.id, n.tipo_calificacion, n.nombre as nivel_nombre`
     );
+    if (!asignatura) return;
 
-    if (!asignatura || asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este curso' });
-    }
-
-    const esInicial = asignatura[0].tipo_calificacion === 0 || (asignatura[0].nivel_nombre || '').toUpperCase().includes('INICIAL');
+    const esInicial = asignatura.tipo_calificacion === 0 || (asignatura.nivel_nombre || '').toUpperCase().includes('INICIAL');
 
     if (esInicial && datos[0] && Array.isArray(datos[0].indicadores)) {
       // INICIAL: guardar por indicador en notas_detalle_explicaciones_indicadores
@@ -5803,35 +5735,21 @@ router.get('/horario', async (req, res) => {
 router.get('/cursos/:cursoId/horario', async (req, res) => {
   try {
     const { cursoId } = req.params;
-    const { colegio_id, anio_activo } = req.user;
-    const personalId = req.user.personal_id;
-
-    if (!personalId) {
-      return res.status(404).json({ error: 'Docente no encontrado' });
-    }
+    const { anio_activo } = req.user;
 
     if (!cursoId) {
       return res.status(400).json({ error: 'ID de curso es requerido' });
     }
 
-    // Verificar que el docente tiene acceso a este curso (asignatura)
-    const asignatura = await query(
-      `SELECT a.*, c.id as curso_id, c.nombre as curso_nombre,
+    const cursoInfo = await verificarAccesoAsignatura(
+      req,
+      res,
+      cursoId,
+      `a.*, c.id as curso_id, c.nombre as curso_nombre,
               g.id as grupo_id, g.grado, g.seccion, g.anio,
-              n.nombre as nivel_nombre
-       FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       INNER JOIN cursos c ON c.id = a.curso_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [cursoId, personalId, colegio_id, anio_activo]
+              n.nombre as nivel_nombre`
     );
-
-    if (!asignatura || asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este curso' });
-    }
-
-    const cursoInfo = asignatura[0];
+    if (!cursoInfo) return;
     const anioActivoInt = parseInt(anio_activo);
 
     // Obtener horario específico de este curso
@@ -5854,11 +5772,10 @@ router.get('/cursos/:cursoId/horario', async (req, res) => {
        LEFT JOIN cursos c      ON c.id = a.curso_id
        WHERE gh.anio = ?
          AND a.id = ?
-         AND (a.personal_id = ? OR gh.personal_id = ?)
        ORDER BY gh.dia, 
          TIME(STR_TO_DATE(gh.hora_inicio, '%l:%i %p')),
          COALESCE(TIME(STR_TO_DATE(gh.hora_inicio, '%H:%i:%s')), TIME(STR_TO_DATE(gh.hora_inicio, '%H:%i')))`,
-      [anioActivoInt, cursoId, personalId, personalId]
+      [anioActivoInt, cursoId]
     );
 
     // Mapear a un formato estándar para el frontend
@@ -5910,36 +5827,21 @@ router.get('/cursos/:cursoId/horario', async (req, res) => {
 router.get('/cursos/:cursoId/aula-virtual', async (req, res) => {
   try {
     const { cursoId } = req.params;
-    const { colegio_id, anio_activo } = req.user;
-    const personalId = req.user.personal_id;
-
-    if (!personalId) {
-      return res.status(404).json({ error: 'Docente no encontrado' });
-    }
-
     if (!cursoId) {
       return res.status(400).json({ error: 'ID de curso es requerido' });
     }
-
-    // Verificar que el docente tiene acceso a este curso (asignatura)
-    const asignatura = await query(
-      `SELECT a.id, a.aula_virtual, a.habilitar_aula,
+    const asignatura = await verificarAccesoAsignatura(
+      req,
+      res,
+      cursoId,
+      `a.id, a.aula_virtual, a.habilitar_aula,
               c.nombre as curso_nombre,
               g.grado, g.seccion,
-              n.nombre as nivel_nombre
-       FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       INNER JOIN cursos c ON c.id = a.curso_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [cursoId, personalId, colegio_id, anio_activo]
+              n.nombre as nivel_nombre`
     );
+    if (!asignatura) return;
 
-    if (!asignatura || asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este curso' });
-    }
-
-    const cursoInfo = asignatura[0];
+    const cursoInfo = asignatura;
 
     res.json({ 
       aula_virtual: cursoInfo.aula_virtual || '',

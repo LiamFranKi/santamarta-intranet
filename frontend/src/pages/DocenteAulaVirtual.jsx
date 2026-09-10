@@ -3876,11 +3876,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
           </button>
           <h1>
             🎓 Aula Virtual
-            {user?.tipo === 'COORDINADOR' ? (
-              <span style={{ fontSize: '0.55em', color: '#6b7280', fontWeight: 'normal', marginLeft: 10 }}>
-                (solo lectura)
-              </span>
-            ) : soloLecturaTutor ? (
+            {soloLecturaTutor ? (
               <span style={{ fontSize: '0.55em', color: '#6b7280', fontWeight: 'normal', marginLeft: 10 }}>
                 (Tutor · solo lectura)
               </span>

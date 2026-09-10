@@ -104,12 +104,20 @@ function requireAdminOrPsicologaUsuarios(req, res, next) {
     const { esMetodoLectura } = require('../utils/coordinadorAcceso');
     const rel = req.path || '';
     const method = String(req.method || '').toUpperCase();
+    if (rel.startsWith('/alumnos') && (
+      rel.includes('/matriculas')
+      || rel.includes('/inscripcion-matricula')
+      || rel.includes('/pagos')
+    )) {
+      return next();
+    }
     const okPath =
       rel.startsWith('/alumnos')
       || rel.startsWith('/apoderados')
       || rel.startsWith('/personal')
       || rel.startsWith('/equipo')
-      || rel === '/personal-por-dni';
+      || rel === '/personal-por-dni'
+      || rel.startsWith('/inscripcion-matricula');
     if (okPath && esMetodoLectura(method)) {
       return next();
     }

@@ -17,7 +17,8 @@ router.use(
     'ADMINISTRADOR',
     'PROMOTORIA',
     'SECRETARIA',
-    'PSICOLOGA'
+    'PSICOLOGA',
+    'COORDINADOR'
   )
 );
 
