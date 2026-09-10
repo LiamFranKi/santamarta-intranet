@@ -1,6 +1,7 @@
 /**
  * Catálogo académico (alineado a tablas MySQL del sistema anterior: niveles, grupos, cursos, áreas, asignaturas).
- * ADMINISTRADOR: todo. PSICOLOGA: solo meta + grupos/grados (aulas del año activo).
+ * ADMINISTRADOR y COORDINADOR: todo el catálogo y procesos de Grados.
+ * PSICOLOGA: solo meta + grupos/grados (aulas del año activo).
  */
 const express = require('express');
 const fs = require('fs');
@@ -74,6 +75,10 @@ router.use((req, res, next) => {
 
 function colegio(req) {
   return req.user.colegio_id;
+}
+
+function esAdminOCoordinador(tipo) {
+  return tipo === 'ADMINISTRADOR' || tipo === 'COORDINADOR';
 }
 
 /** Acepta `123` o `inc-123`. No acepta tard-/ped- (no son incidencias docentes). */
@@ -609,11 +614,11 @@ router.get('/grupos/:grupoId/horario', async (req, res) => {
   }
 });
 
-/** Solo administrador: registro de asistencia por grupo (misma lógica que tutoría docente). */
-function assertSoloAdminAsistencia(req, res) {
-  if (req.user?.tipo !== 'ADMINISTRADOR') {
+/** Administrador o coordinador: registro de asistencia por grupo (misma lógica que tutoría docente). */
+function assertAdminOCoordinadorAsistencia(req, res) {
+  if (!esAdminOCoordinador(req.user?.tipo)) {
     res.status(403).json({
-      error: 'Solo el administrador puede registrar asistencia desde Grados.',
+      error: 'Solo el administrador o el coordinador pueden registrar asistencia desde Grados.',
     });
     return false;
   }
@@ -625,7 +630,7 @@ function assertSoloAdminAsistencia(req, res) {
  */
 router.get('/grupos/:grupoId/asistencia', async (req, res) => {
   try {
-    if (!assertSoloAdminAsistencia(req, res)) return;
+    if (!assertAdminOCoordinadorAsistencia(req, res)) return;
     const grupoId = parseInt(req.params.grupoId, 10);
     const cid = colegio(req);
     if (!Number.isFinite(grupoId)) {
@@ -692,7 +697,7 @@ router.get('/grupos/:grupoId/asistencia', async (req, res) => {
  */
 router.post('/grupos/:grupoId/asistencia', async (req, res) => {
   try {
-    if (!assertSoloAdminAsistencia(req, res)) return;
+    if (!assertAdminOCoordinadorAsistencia(req, res)) return;
     const grupoId = parseInt(req.params.grupoId, 10);
     const cid = colegio(req);
     const anio_activo = parseInt(req.user.anio_activo, 10);
@@ -819,7 +824,7 @@ router.post('/grupos/:grupoId/asistencia', async (req, res) => {
  */
 router.post('/grupos/:grupoId/asistencia/guardar-todo', async (req, res) => {
   try {
-    if (!assertSoloAdminAsistencia(req, res)) return;
+    if (!assertAdminOCoordinadorAsistencia(req, res)) return;
     const grupoId = parseInt(req.params.grupoId, 10);
     const cid = colegio(req);
     const anio_activo = parseInt(req.user.anio_activo, 10);
@@ -937,8 +942,8 @@ router.post('/grupos/:grupoId/asistencia/guardar-todo', async (req, res) => {
  */
 router.get('/grupos/:grupoId/qr-carnets', async (req, res) => {
   try {
-    if (req.user?.tipo !== 'ADMINISTRADOR') {
-      return res.status(403).json({ error: 'Solo el administrador puede exportar carnets QR por grupo.' });
+    if (!esAdminOCoordinador(req.user?.tipo)) {
+      return res.status(403).json({ error: 'Solo el administrador o el coordinador pueden exportar carnets QR por grupo.' });
     }
     const grupoId = parseInt(req.params.grupoId, 10);
     const cid = colegio(req);
@@ -1024,8 +1029,8 @@ router.get('/grupos/:grupoId/qr-carnets', async (req, res) => {
  */
 router.get('/grupos/:grupoId/notas-todos', async (req, res) => {
   try {
-    if (req.user?.tipo !== 'ADMINISTRADOR') {
-      return res.status(403).json({ error: 'Solo el administrador puede exportar el registro de notas por grupo.' });
+    if (!esAdminOCoordinador(req.user?.tipo)) {
+      return res.status(403).json({ error: 'Solo el administrador o el coordinador pueden exportar el registro de notas por grupo.' });
     }
     const grupoId = parseInt(req.params.grupoId, 10);
     const cid = colegio(req);
@@ -1063,8 +1068,8 @@ router.get('/grupos/:grupoId/notas-todos', async (req, res) => {
  */
 router.get('/grupos/:grupoId/recomendaciones', async (req, res) => {
   try {
-    if (req.user?.tipo !== 'ADMINISTRADOR') {
-      return res.status(403).json({ error: 'Solo el administrador puede ver recomendaciones por grupo.' });
+    if (!esAdminOCoordinador(req.user?.tipo)) {
+      return res.status(403).json({ error: 'Solo el administrador o el coordinador pueden ver recomendaciones por grupo.' });
     }
     const grupoId = parseInt(req.params.grupoId, 10);
     const cid = colegio(req);
@@ -1090,8 +1095,8 @@ router.get('/grupos/:grupoId/recomendaciones', async (req, res) => {
  */
 router.post('/grupos/:grupoId/recomendaciones', async (req, res) => {
   try {
-    if (req.user?.tipo !== 'ADMINISTRADOR') {
-      return res.status(403).json({ error: 'Solo el administrador puede guardar recomendaciones por grupo.' });
+    if (!esAdminOCoordinador(req.user?.tipo)) {
+      return res.status(403).json({ error: 'Solo el administrador o el coordinador pueden guardar recomendaciones por grupo.' });
     }
     const grupoId = parseInt(req.params.grupoId, 10);
     const cid = colegio(req);
@@ -1130,8 +1135,8 @@ router.post('/grupos/:grupoId/recomendaciones', async (req, res) => {
  */
 router.get('/grupos/:grupoId/conducta', async (req, res) => {
   try {
-    if (req.user?.tipo !== 'ADMINISTRADOR') {
-      return res.status(403).json({ error: 'Solo el administrador puede ver conducta por grupo.' });
+    if (!esAdminOCoordinador(req.user?.tipo)) {
+      return res.status(403).json({ error: 'Solo el administrador o el coordinador pueden ver conducta por grupo.' });
     }
     const grupoId = parseInt(req.params.grupoId, 10);
     const cid = colegio(req);
@@ -1174,8 +1179,8 @@ router.get('/grupos/:grupoId/conducta', async (req, res) => {
  */
 router.post('/grupos/:grupoId/conducta', async (req, res) => {
   try {
-    if (req.user?.tipo !== 'ADMINISTRADOR') {
-      return res.status(403).json({ error: 'Solo el administrador puede guardar conducta por grupo.' });
+    if (!esAdminOCoordinador(req.user?.tipo)) {
+      return res.status(403).json({ error: 'Solo el administrador o el coordinador pueden guardar conducta por grupo.' });
     }
     const grupoId = parseInt(req.params.grupoId, 10);
     const cid = colegio(req);
@@ -1252,7 +1257,7 @@ router.get('/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req, res) =>
       anio: anioGrupo,
     });
 
-    const esAdmin = req.user?.tipo === 'ADMINISTRADOR';
+    const esAdmin = esAdminOCoordinador(req.user?.tipo);
     const incidencias = (data.incidencias || []).map((item) => ({
       ...item,
       puede_eliminar: esAdmin && String(item.origen || '') === 'incidencia' ? 1 : 0,
@@ -1274,13 +1279,13 @@ router.get('/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req, res) =>
 
 /**
  * DELETE /api/admin/academico/grupos/:grupoId/alumnos/:alumnoId/incidencias/:incidentId
- * Solo ADMINISTRADOR. Cualquier incidencia docente (type=1) del alumno en el grupo.
+ * ADMINISTRADOR o COORDINADOR. Cualquier incidencia docente (type=1) del alumno en el grupo.
  * No borra vestimenta/QR ni tardanzas. Recalcula conducta del bimestre.
  */
 router.delete('/grupos/:grupoId/alumnos/:alumnoId/incidencias/:incidentId', async (req, res) => {
   try {
-    if (req.user?.tipo !== 'ADMINISTRADOR' && req.user?.tipo !== 'COORDINADOR') {
-      return res.status(403).json({ error: 'Solo el administrador puede eliminar incidencias.' });
+    if (!esAdminOCoordinador(req.user?.tipo)) {
+      return res.status(403).json({ error: 'Solo el administrador o el coordinador pueden eliminar incidencias.' });
     }
 
     const grupoId = parseInt(req.params.grupoId, 10);

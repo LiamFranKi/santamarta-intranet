@@ -9,7 +9,7 @@ const API_BASE = '/admin/academico/grupos';
 
 /**
  * Registro de asistencia por grupo (misma UX que DocenteTutoria → Asistencias).
- * Usa rutas /api/admin/academico/grupos/:id/asistencia (solo ADMINISTRADOR).
+ * Usa rutas /api/admin/academico/grupos/:id/asistencia (administrador o coordinador).
  */
 function AdminGrupoAsistenciaModal({ open, grupo, onClose }) {
   const [asistenciaFecha, setAsistenciaFecha] = useState(() => new Date().toISOString().slice(0, 10));

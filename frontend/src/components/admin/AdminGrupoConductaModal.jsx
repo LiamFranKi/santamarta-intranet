@@ -34,7 +34,7 @@ function formatearFechaHoraPeru(iso) {
 
 /**
  * Conducta automática por bimestre (misma UX que DocenteTutoria).
- * Usa rutas /api/admin/academico/grupos/:id/conducta (solo ADMINISTRADOR).
+ * Usa rutas /api/admin/academico/grupos/:id/conducta (administrador o coordinador).
  */
 function AdminGrupoConductaModal({ open, grupo, onClose }) {
   const [conductaCiclo, setConductaCiclo] = useState(1);

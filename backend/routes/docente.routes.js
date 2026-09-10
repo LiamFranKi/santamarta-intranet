@@ -23274,7 +23274,7 @@ router.get('/aula-virtual/examenes/:examenId/preguntas', async (req, res) => {
     );
 
     let contenido_bloqueado_para_docente = false;
-    if (req.user.tipo !== 'ADMINISTRADOR') {
+    if (req.user.tipo !== 'ADMINISTRADOR' && req.user.tipo !== 'COORDINADOR') {
       contenido_bloqueado_para_docente = await examenBloqueaEdicionContenidoDocente(query, examenId);
     }
 

@@ -30,7 +30,7 @@ async function examenBloqueaEdicionContenidoDocente(query, examenId) {
  * @returns {Promise<boolean>} true si puede continuar el handler
  */
 async function assertDocentePuedeEditarContenidoExamenVirtual(req, res, queryFn, examenId) {
-  if (req.user && req.user.tipo === 'ADMINISTRADOR') {
+  if (req.user && (req.user.tipo === 'ADMINISTRADOR' || req.user.tipo === 'COORDINADOR')) {
     return true;
   }
   const blocked = await examenBloqueaEdicionContenidoDocente(queryFn, examenId);
