@@ -2,8 +2,20 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Swal from 'sweetalert2';
 import api from '../../services/api';
+import './AdminWebFaqs.css';
 
 const API = '/admin/faqs';
+
+const PAGINA_NIVELES = [
+  { id: 'todos', label: 'Todos los niveles' },
+  { id: 'inicial', label: 'Inicial' },
+  { id: 'primaria', label: 'Primaria' },
+  { id: 'secundaria', label: 'Secundaria' },
+];
+
+function etiquetaNivel(id) {
+  return PAGINA_NIVELES.find((n) => n.id === id)?.label || 'Todos los niveles';
+}
 
 const swalOpts = {
   target: document.body,
@@ -50,6 +62,7 @@ export default function AdminWebFaqs({ soloLectura = false }) {
   const [preguntas, setPreguntas] = useState([]);
   const [preview, setPreview] = useState([]);
   const [catFiltro, setCatFiltro] = useState('');
+  const [nivelFiltro, setNivelFiltro] = useState('');
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -65,10 +78,11 @@ export default function AdminWebFaqs({ soloLectura = false }) {
   const cargarPreguntas = useCallback(async () => {
     const params = {};
     if (catFiltro) params.categoria_id = catFiltro;
+    if (nivelFiltro) params.pagina_nivel = nivelFiltro;
     if (q.trim()) params.q = q.trim();
     const { data } = await api.get(`${API}/preguntas`, { params });
     setPreguntas(data.preguntas || []);
-  }, [catFiltro, q]);
+  }, [catFiltro, nivelFiltro, q]);
 
   const cargarPreview = useCallback(async () => {
     const { data } = await api.get(`${API}/preview`);
@@ -184,7 +198,7 @@ export default function AdminWebFaqs({ soloLectura = false }) {
 
       {subTab === 'preguntas' && (
         <>
-          <div className="rs-toolbar" style={{ marginTop: 0 }}>
+          <div className="rs-toolbar wf-toolbar-grid" style={{ marginTop: 0 }}>
             <div className="rs-field">
               <label>Categoría</label>
               <select value={catFiltro} onChange={(e) => setCatFiltro(e.target.value)}>
@@ -192,6 +206,17 @@ export default function AdminWebFaqs({ soloLectura = false }) {
                 {categorias.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.etiqueta}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="rs-field">
+              <label>Página de nivel</label>
+              <select value={nivelFiltro} onChange={(e) => setNivelFiltro(e.target.value)}>
+                <option value="">Todas</option>
+                {PAGINA_NIVELES.map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.label}
                   </option>
                 ))}
               </select>
@@ -215,6 +240,7 @@ export default function AdminWebFaqs({ soloLectura = false }) {
                       categoria_id: catFiltro || categorias[0]?.id,
                       pregunta: '',
                       respuesta: '',
+                      pagina_nivel: nivelFiltro || 'todos',
                       orden: (preguntas[preguntas.length - 1]?.orden || 0) + 1,
                       activo: 1,
                     },
@@ -230,57 +256,43 @@ export default function AdminWebFaqs({ soloLectura = false }) {
             <p className="rs-empty">No hay preguntas con esos filtros.</p>
           ) : (
             agrupadas.map((g) => (
-              <div key={g.id} className="rs-detail-block" style={{ marginBottom: '1rem' }}>
-                <h3 style={{ textAlign: 'center', letterSpacing: '0.04em' }}>{g.etiqueta}</h3>
-                <div className="rs-table-wrap">
-                  <table className="rs-table">
-                    <thead>
-                      <tr>
-                        <th>Orden</th>
-                        <th>Pregunta</th>
-                        <th>Respuesta</th>
-                        <th>Estado</th>
-                        <th>Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {g.items.map((p) => (
-                        <tr key={p.id}>
-                          <td>{p.orden}</td>
-                          <td className="rs-nombre">{p.pregunta}</td>
-                          <td>
-                            <div className="rs-msg-preview" style={{ whiteSpace: 'pre-line' }} title={p.respuesta}>
-                              {p.respuesta}
-                            </div>
-                          </td>
-                          <td>
-                            <span className={`rs-badge ${esActivo(p.activo) ? 'rs-badge--ok' : 'rs-badge--off'}`}>
-                              {esActivo(p.activo) ? 'Activo' : 'Inactivo'}
-                            </span>
-                          </td>
-                          <td>
-                            <div className="rs-actions">
-                              <button
-                                type="button"
-                                className="rs-btn rs-btn-ghost rs-btn-sm"
-                                title={soloLectura ? 'Ver' : 'Editar'}
-                                onClick={() =>
-                                  setModalFaq({ open: true, mode: soloLectura ? 'view' : 'edit', item: p })
-                                }
-                              >
-                                {soloLectura ? '👁️' : '✏️'}
-                              </button>
-                              {!soloLectura && (
-                                <button type="button" className="rs-btn rs-btn-danger rs-btn-sm" onClick={() => eliminarFaq(p)}>
-                                  🗑️
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              <div key={g.id} className="wf-group">
+                <h3>{g.etiqueta}</h3>
+                <div className="wf-cards">
+                  {g.items.map((p) => (
+                    <article key={p.id} className="wf-card">
+                      <div className="wf-card__meta">
+                        <span className={`wf-chip wf-chip--${p.pagina_nivel || 'todos'}`}>
+                          {etiquetaNivel(p.pagina_nivel || 'todos')}
+                        </span>
+                        <span className={`rs-badge ${esActivo(p.activo) ? 'rs-badge--ok' : 'rs-badge--off'}`}>
+                          {esActivo(p.activo) ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </div>
+                      <h4>{p.pregunta}</h4>
+                      <p title={p.respuesta}>{p.respuesta}</p>
+                      <div className="wf-card__foot">
+                        <small className="rs-muted">Orden {p.orden}</small>
+                        <div className="rs-actions">
+                          <button
+                            type="button"
+                            className="rs-btn rs-btn-ghost rs-btn-sm"
+                            title={soloLectura ? 'Ver' : 'Editar'}
+                            onClick={() =>
+                              setModalFaq({ open: true, mode: soloLectura ? 'view' : 'edit', item: p })
+                            }
+                          >
+                            {soloLectura ? '👁️' : '✏️'}
+                          </button>
+                          {!soloLectura && (
+                            <button type="button" className="rs-btn rs-btn-danger rs-btn-sm" onClick={() => eliminarFaq(p)}>
+                              🗑️
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </article>
+                  ))}
                 </div>
               </div>
             ))
@@ -557,6 +569,7 @@ function FaqModal({ mode, item, categorias, saving, onClose, onSave }) {
     categoria_id: item?.categoria_id || categorias[0]?.id || '',
     pregunta: item?.pregunta || '',
     respuesta: item?.respuesta || '',
+    pagina_nivel: item?.pagina_nivel || 'todos',
     orden: item?.orden ?? 0,
     activo: esActivo(item?.activo ?? 1),
   }));
@@ -587,6 +600,7 @@ function FaqModal({ mode, item, categorias, saving, onClose, onSave }) {
                   categoria_id: Number(form.categoria_id),
                   pregunta: form.pregunta,
                   respuesta: form.respuesta,
+                  pagina_nivel: form.pagina_nivel,
                   orden: Number(form.orden) || 0,
                   activo: form.activo ? 1 : 0,
                 })
@@ -609,6 +623,20 @@ function FaqModal({ mode, item, categorias, saving, onClose, onSave }) {
               </option>
             ))}
           </select>
+        </div>
+        <div className="rs-field">
+          <label>Página de nivel *</label>
+          <select value={form.pagina_nivel} onChange={(e) => set('pagina_nivel', e.target.value)}>
+            {PAGINA_NIVELES.map((n) => (
+              <option key={n.id} value={n.id}>
+                {n.label}
+              </option>
+            ))}
+          </select>
+          <p className="rs-muted" style={{ margin: '0.35rem 0 0' }}>
+            Todos los niveles: sale en Inicial, Primaria y Secundaria. Si elige uno, solo en esa página (también
+            aparece en Preguntas frecuentes).
+          </p>
         </div>
         <div className="rs-field rs-field--full">
           <label>Pregunta *</label>

@@ -1,93 +1,328 @@
 .wp-paginas {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.85rem;
 }
 
-.wp-niveles-grid {
+.wp-nivel-switch {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-  margin: 0.25rem 0 1.25rem;
+  gap: 0.65rem;
 }
 
-.wp-nivel-card {
+.wp-nivel-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
   border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 1.1rem 1.15rem 1.15rem;
-  background: #f8fafc;
+  background: #fff;
+  border-radius: 16px;
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
-.wp-nivel-card--inicial {
-  border-top: 4px solid #ec4899;
-}
-
-.wp-nivel-card--primaria {
-  border-top: 4px solid #3b82f6;
-}
-
-.wp-nivel-card--secundaria {
-  border-top: 4px solid #10b981;
-}
-
-.wp-nivel-card__label {
-  margin: 0;
-  font-weight: 750;
+.wp-nivel-chip span {
+  font-weight: 800;
+  font-size: 1.02rem;
   color: #0f172a;
-  font-size: 1rem;
 }
 
-.wp-nivel-card__hint {
-  margin: 0.2rem 0 0.85rem;
+.wp-nivel-chip small {
   color: #64748b;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
 }
 
-.wp-monto {
+.wp-nivel-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.wp-nivel-chip--inicial.is-on {
+  border-color: #f9a8d4;
+  background: linear-gradient(180deg, #fff1f2, #fff);
+  box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.12);
+}
+
+.wp-nivel-chip--primaria.is-on {
+  border-color: #93c5fd;
+  background: linear-gradient(180deg, #eff6ff, #fff);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.wp-nivel-chip--secundaria.is-on {
+  border-color: #6ee7b7;
+  background: linear-gradient(180deg, #ecfdf5, #fff);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+}
+
+.wp-nivel-panel {
+  border: 1px solid #e2e8f0;
+  border-radius: 22px;
+  padding: 1.15rem 1.2rem 1.35rem;
+  background: #fff;
+  overflow: hidden;
+}
+
+.wp-nivel-panel--inicial {
+  border-top: 5px solid #f43f5e;
+}
+
+.wp-nivel-panel--primaria {
+  border-top: 5px solid #2563eb;
+}
+
+.wp-nivel-panel--secundaria {
+  border-top: 5px solid #059669;
+}
+
+.wp-nivel-panel__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1.1rem;
+}
+
+.wp-kicker {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.wp-nivel-panel__head h3 {
+  margin: 0;
+  font-size: 1.45rem;
+  color: #0f172a;
+}
+
+.wp-nivel-panel__head p {
+  margin: 0.25rem 0 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.wp-web-link {
+  flex-shrink: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0369a1;
+  text-decoration: none;
+  border: 1px solid #bae6fd;
+  background: #f0f9ff;
+  border-radius: 999px;
+  padding: 0.4rem 0.8rem;
+}
+
+.wp-web-link:hover {
+  text-decoration: underline;
+}
+
+.wp-precio {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 1.15rem;
+  max-width: 280px;
+}
+
+.wp-precio > span {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.wp-precio div {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  background: #fff;
-  border: 1px solid #d1d5db;
-  border-radius: 10px;
-  padding: 0.35rem 0.7rem;
+  background: #f8fafc;
+  border: 1px solid #dbe3ee;
+  border-radius: 14px;
+  padding: 0.2rem 0.85rem;
 }
 
-.wp-monto span {
+.wp-precio em {
+  font-style: normal;
   font-weight: 800;
   color: #0f766e;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
 }
 
-.wp-monto input {
+.wp-precio input {
   border: none;
   outline: none;
   width: 100%;
-  font-size: 1.35rem;
+  font-size: 1.55rem;
   font-weight: 800;
   color: #0f172a;
   background: transparent;
-  padding: 0.35rem 0;
+  padding: 0.45rem 0;
 }
 
-.wp-nivel-card__link {
-  display: inline-block;
-  margin-top: 0.75rem;
+.wp-fotos-duo {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.85rem;
+  margin-bottom: 1.4rem;
+}
+
+.wp-hero-edit {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr);
+  gap: 1rem;
+  align-items: center;
+  padding: 0.9rem;
+  border-radius: 18px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.wp-hero-edit--home {
+  background: linear-gradient(180deg, #fff7ed, #fff);
+  border-color: #fdba74;
+}
+
+.wp-hero-edit--home .wp-kicker {
+  color: #c2410c;
+}
+
+.wp-hero-edit__copy h4 {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+}
+
+.wp-hero-edit__copy p {
+  margin: 0 0 0.85rem;
+  color: #64748b;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.wp-hero-edit__img,
+.wp-campus-card__img,
+.wp-foto--empty {
+  width: 100%;
+  object-fit: cover;
+  border-radius: 16px;
+  background: #e2e8f0;
+}
+
+.wp-banner-preview {
+  width: 100%;
+  height: 280px;
+  object-fit: cover;
+  border-radius: 18px;
+  background: #e2e8f0;
+}
+
+.wp-foto--empty {
+  display: grid;
+  place-items: center;
+  color: #94a3b8;
   font-size: 0.82rem;
   font-weight: 700;
-  color: #0ea5e9;
-  text-decoration: none;
 }
 
-.wp-nivel-card__link:hover {
-  text-decoration: underline;
+.wp-file {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: #0f172a;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  border-radius: 999px;
+  padding: 0.55rem 1rem;
+}
+
+.wp-file input {
+  display: none;
+}
+
+.wp-file--sm {
+  width: 100%;
+  margin: 0.55rem 0 0.35rem;
+  background: #1e293b;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.78rem;
+}
+
+.wp-file.is-busy,
+.wp-file:has(input:disabled) {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.wp-campus-title {
+  margin: 0 0 0.2rem;
+  font-size: 1.08rem;
+}
+
+.wp-campus-lead {
+  margin: 0 0 0.85rem;
+  color: #64748b;
+  font-size: 0.88rem;
+}
+
+.wp-campus-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.wp-campus-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 0.7rem;
+  background: #fff;
+}
+
+.wp-campus-card__img {
+  height: 120px;
+}
+
+.wp-campus-card .rs-field {
+  margin: 0.4rem 0 0;
+}
+
+.wp-campus-card .rs-field span,
+.wp-campus-card .rs-field label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: 0.2rem;
+}
+
+.wp-campus-card textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 4.2rem;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 0.45rem 0.55rem;
+  font: inherit;
 }
 
 .wp-extras {
   display: grid;
   grid-template-columns: 1fr 1.4fr;
   gap: 0.85rem 1rem;
-  margin-bottom: 1.15rem;
+}
+
+.wp-extras--bar {
+  margin-top: 0.25rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #f8fafc;
 }
 
 .wp-actions {
@@ -95,9 +330,16 @@
   justify-content: flex-end;
 }
 
-@media (max-width: 860px) {
-  .wp-niveles-grid,
+@media (max-width: 900px) {
+  .wp-nivel-switch,
+  .wp-campus-grid,
+  .wp-hero-edit,
+  .wp-fotos-duo,
   .wp-extras {
     grid-template-columns: 1fr;
+  }
+
+  .wp-nivel-panel__head {
+    flex-direction: column;
   }
 }

@@ -36,6 +36,40 @@ function ensureWebPublicDir(subdir) {
   return dir;
 }
 
+function sanitizeImageBasename(name, fallback = 'imagen.jpg') {
+  let base = path.basename(String(name || fallback).trim());
+  base = base.replace(/[^\w.\-() áéíóúÁÉÍÓÚñÑ]+/gi, '_').replace(/\s+/g, '_');
+  const ext = path.extname(base).toLowerCase();
+  const allowed = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
+  if (!allowed.has(ext)) {
+    const stem = path.basename(base, ext) || 'imagen';
+    base = `${stem}.jpg`;
+  }
+  if (!base || base === '.jpg') base = fallback;
+  return base;
+}
+
+/**
+ * Guarda una imagen en web-vanguard/public/<subdir>.
+ * ruta pública: /niveles/foo.jpg
+ */
+function saveWebPublicImage({ subdir, publicPrefix, originalName, destName, tempPath }) {
+  const dir = ensureWebPublicDir(subdir);
+  const archivo = sanitizeImageBasename(destName || originalName);
+  const absPath = path.join(dir, archivo);
+  if (!isUnderRoot(absPath, dir)) throw new Error('Nombre de archivo inválido');
+  if (tempPath && tempPath !== absPath) {
+    fs.copyFileSync(tempPath, absPath);
+    try {
+      fs.unlinkSync(tempPath);
+    } catch {
+      /* ignore */
+    }
+  }
+  const prefix = `/${String(publicPrefix || subdir).replace(/^\/+|\/+$/g, '')}`;
+  return { archivo, ruta: `${prefix}/${archivo}`, absPath };
+}
+
 function sanitizePdfBasename(name, fallback = 'archivo.pdf') {
   let base = path.basename(String(name || fallback).trim());
   base = base.replace(/[^\w.\-() áéíóúÁÉÍÓÚñÑ]+/gi, '_').replace(/\s+/g, '_');
@@ -133,6 +167,8 @@ module.exports = {
   isUnderRoot,
   ensureWebPublicDir,
   sanitizePdfBasename,
+  sanitizeImageBasename,
   saveWebPublicPdf,
+  saveWebPublicImage,
   removeWebPublicFileIfSafe,
 };

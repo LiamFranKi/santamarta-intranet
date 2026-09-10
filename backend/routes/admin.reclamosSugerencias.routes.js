@@ -9,11 +9,20 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+const multer = require('multer');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const { query, execute } = require('../utils/mysql');
 const { fechaMySQLLima } = require('../utils/fechaHoraLima');
-const { resolveWebVanguardRoot, resolveWebDataFile } = require('../utils/webVanguardFiles');
+const {
+  resolveWebVanguardRoot,
+  resolveWebDataFile,
+  saveWebPublicImage,
+  removeWebPublicFileIfSafe,
+  sanitizeImageBasename,
+  isUnderRoot,
+} = require('../utils/webVanguardFiles');
 const {
   parseYmd,
   fechasPorMesYDias,
@@ -21,6 +30,14 @@ const {
 } = require('../utils/visitaGuiadaPublicConfig');
 const { leerAdmisionConfig, guardarAdmisionConfig } = require('../utils/admisionCampanaConfig');
 const { leerPaginasNiveles, guardarPaginasNiveles } = require('../utils/webPaginasNiveles');
+const {
+  isNivel,
+  isSlot,
+  leerMedia,
+  guardarTextosMedia,
+  guardarRutaSlot,
+} = require('../utils/webPaginasNivelMedia');
+const { leerBannerInicio, guardarBannerInicio } = require('../utils/webPaginasInicio');
 
 router.use(authenticateToken);
 router.use(require('../utils/coordinadorAcceso').requireAdminOCoordinadorGet);
@@ -1454,12 +1471,149 @@ router.post('/matricula-online/sync-correos-legacy', async (req, res) => {
   }
 });
 
+const uploadNivelImg = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      const dir = path.join(os.tmpdir(), 'intranet-web-niveles');
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (_req, file, cb) => {
+      cb(null, `${Date.now()}-${sanitizeImageBasename(file.originalname)}`);
+    },
+  }),
+  fileFilter: (_req, file, cb) => {
+    const ok = /^image\/(jpeg|png|webp|gif)$/i.test(file.mimetype || '');
+    cb(ok ? null : new Error('Solo JPG, PNG o WEBP'), ok);
+  },
+  limits: { fileSize: 12 * 1024 * 1024 },
+});
+
 router.get('/paginas-niveles', async (_req, res) => {
   try {
     const payload = await leerPaginasNiveles(query);
-    res.json(payload);
+    const mediaPayload = await leerMedia(query);
+    res.json({ ...payload, ...mediaPayload });
   } catch (e) {
     res.status(500).json({ error: e.message || 'Error al leer inversión de niveles.' });
+  }
+});
+
+router.put('/paginas-niveles/media/:nivel', async (req, res) => {
+  try {
+    const nivel = isNivel(req.params.nivel);
+    if (!nivel) return res.status(400).json({ error: 'Nivel inválido' });
+    const row = await guardarTextosMedia(execute, query, nivel, req.body || {});
+    res.json({ media: row, message: 'Textos del campus guardados' });
+  } catch (e) {
+    if (e && (e.code === 'ER_NO_SUCH_TABLE' || e.errno === 1146)) {
+      return res.status(503).json({
+        error: 'Falta ejecutar la migración 088 (banners de niveles).',
+      });
+    }
+    res.status(e.status || 500).json({ error: e.message || 'Error al guardar textos.' });
+  }
+});
+
+router.post('/paginas-niveles/imagen', (req, res) => {
+  uploadNivelImg.single('imagen')(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message || 'No se pudo subir la imagen' });
+    }
+    try {
+      const nivel = isNivel(req.body?.nivel);
+      const slot = isSlot(req.body?.slot);
+      if (!nivel || !slot) {
+        return res.status(400).json({ error: 'Indique nivel y slot (hero, campus1, campus2, campus3).' });
+      }
+      if (!req.file?.path) {
+        return res.status(400).json({ error: 'Seleccione una imagen' });
+      }
+      const ext = path.extname(req.file.originalname || req.file.filename || '').toLowerCase() || '.jpg';
+      const saved = saveWebPublicImage({
+        subdir: 'niveles',
+        publicPrefix: 'niveles',
+        originalName: req.file.originalname,
+        destName: `${nivel}-${slot}-${Date.now()}${ext === '.jpeg' ? '.jpg' : ext}`,
+        tempPath: req.file.path,
+      });
+      const row = await guardarRutaSlot(execute, query, {
+        nivel,
+        slot,
+        ruta: saved.ruta,
+        removeOld: removeWebPublicFileIfSafe,
+      });
+      res.json({ media: row, ruta: saved.ruta, message: 'Imagen actualizada' });
+    } catch (e) {
+      if (e && (e.code === 'ER_NO_SUCH_TABLE' || e.errno === 1146 || e.status === 503)) {
+        return res.status(503).json({
+          error: 'Falta ejecutar la migración 088 (banners de niveles).',
+          ...(e.payload || {}),
+        });
+      }
+      res.status(e.status || 500).json({ error: e.message || 'Error al guardar la imagen.' });
+    }
+  });
+});
+
+router.get('/paginas-inicio', async (_req, res) => {
+  try {
+    const payload = await leerBannerInicio(query);
+    res.json(payload);
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al leer el banner del inicio.' });
+  }
+});
+
+router.post('/paginas-inicio/imagen', (req, res) => {
+  uploadNivelImg.single('imagen')(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message || 'No se pudo subir la imagen' });
+    }
+    try {
+      if (!req.file?.path) {
+        return res.status(400).json({ error: 'Seleccione una imagen' });
+      }
+      const ext = path.extname(req.file.originalname || req.file.filename || '').toLowerCase() || '.jpg';
+      const saved = saveWebPublicImage({
+        subdir: 'inicio',
+        publicPrefix: 'inicio',
+        originalName: req.file.originalname,
+        destName: `banner-${Date.now()}${ext === '.jpeg' ? '.jpg' : ext}`,
+        tempPath: req.file.path,
+      });
+      const payload = await guardarBannerInicio(execute, query, {
+        ruta: saved.ruta,
+        removeOld: removeWebPublicFileIfSafe,
+      });
+      res.json({ ...payload, ruta: saved.ruta, message: 'Banner del inicio actualizado' });
+    } catch (e) {
+      if (e && (e.code === 'ER_NO_SUCH_TABLE' || e.errno === 1146 || e.status === 503)) {
+        return res.status(503).json({
+          error: 'Falta ejecutar la migración 090 (banner del inicio).',
+          ...(e.payload || {}),
+        });
+      }
+      res.status(e.status || 500).json({ error: e.message || 'Error al guardar el banner.' });
+    }
+  });
+});
+
+router.get('/paginas-niveles/archivo', async (req, res) => {
+  try {
+    const ruta = String(req.query.ruta || '').trim();
+    if (!ruta.startsWith('/') || ruta.includes('..')) {
+      return res.status(400).json({ error: 'Ruta inválida' });
+    }
+    const root = path.resolve(resolveWebVanguardRoot());
+    const publicRoot = path.join(root, 'public');
+    const abs = path.resolve(path.join(publicRoot, ruta.replace(/^[/\\]+/, '')));
+    if (!isUnderRoot(abs, publicRoot) || !fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
+      return res.status(404).json({ error: 'Imagen no encontrada' });
+    }
+    res.sendFile(abs);
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al leer imagen.' });
   }
 });
 

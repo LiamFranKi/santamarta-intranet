@@ -23,6 +23,22 @@ function toBool01(v, fallback = 1) {
   return fallback;
 }
 
+function parsePaginaNivel(raw) {
+  const s = String(raw || 'todos').trim().toLowerCase();
+  if (s === 'inicial' || s === 'primaria' || s === 'secundaria' || s === 'todos') return s;
+  return 'todos';
+}
+
+function faqSinNivel(e) {
+  return e && (e.code === 'ER_BAD_FIELD_ERROR' || String(e.message || '').includes('pagina_nivel'));
+}
+
+function mapFaq(row) {
+  const mapped = mapActivo(row);
+  if (!mapped) return mapped;
+  return { ...mapped, pagina_nivel: parsePaginaNivel(mapped.pagina_nivel) };
+}
+
 function mapActivo(row) {
   if (!row) return row;
   return { ...row, activo: toBool01(row.activo, 0) };
@@ -142,7 +158,7 @@ router.get('/preguntas', async (req, res) => {
   try {
     const params = [];
     let sql = `
-      SELECT f.id, f.categoria_id, f.pregunta, f.respuesta, f.orden, f.activo,
+      SELECT f.id, f.categoria_id, f.pregunta, f.respuesta, f.orden, f.activo, f.pagina_nivel,
              c.codigo AS categoria_codigo, c.etiqueta AS categoria_etiqueta, c.orden AS categoria_orden
       FROM web_faqs f
       INNER JOIN web_faq_categorias c ON c.id = f.categoria_id
@@ -159,6 +175,13 @@ router.get('/preguntas', async (req, res) => {
       sql += ' AND f.activo = ?';
       params.push(Number(req.query.activo));
     }
+    if (req.query.pagina_nivel) {
+      const raw = String(req.query.pagina_nivel).trim().toLowerCase();
+      if (raw === 'inicial' || raw === 'primaria' || raw === 'secundaria' || raw === 'todos') {
+        sql += ' AND f.pagina_nivel = ?';
+        params.push(raw);
+      }
+    }
     if (req.query.q && String(req.query.q).trim()) {
       const like = `%${String(req.query.q).trim()}%`;
       sql += ' AND (f.pregunta LIKE ? OR f.respuesta LIKE ?)';
@@ -166,8 +189,13 @@ router.get('/preguntas', async (req, res) => {
     }
     sql += ' ORDER BY c.orden ASC, f.orden ASC, f.id ASC';
     const rows = await query(sql, params);
-    res.json({ preguntas: (rows || []).map(mapActivo) });
+    res.json({ preguntas: (rows || []).map(mapFaq) });
   } catch (e) {
+    if (faqSinNivel(e)) {
+      return res.status(503).json({
+        error: 'Falta ejecutar la migración 088 (nivel en preguntas frecuentes).',
+      });
+    }
     res.status(500).json({ error: e.message || 'Error al listar preguntas.' });
   }
 });
@@ -184,7 +212,7 @@ router.get('/preguntas/:id', async (req, res) => {
       [id]
     );
     if (!rows?.length) return res.status(404).json({ error: 'Pregunta no encontrada' });
-    res.json({ pregunta: mapActivo(rows[0]) });
+    res.json({ pregunta: mapFaq(rows[0]) });
   } catch (e) {
     res.status(500).json({ error: e.message || 'Error al obtener pregunta.' });
   }
@@ -205,13 +233,19 @@ router.post('/preguntas', async (req, res) => {
 
     const orden = Number.isFinite(Number(b.orden)) ? Number(b.orden) : 0;
     const activo = toBool01(b.activo, 1);
+    const pagina_nivel = parsePaginaNivel(b.pagina_nivel);
     const r = await execute(
-      `INSERT INTO web_faqs (categoria_id, pregunta, respuesta, orden, activo) VALUES (?, ?, ?, ?, ?)`,
-      [categoria_id, pregunta, respuesta, orden, activo]
+      `INSERT INTO web_faqs (categoria_id, pregunta, respuesta, orden, activo, pagina_nivel) VALUES (?, ?, ?, ?, ?, ?)`,
+      [categoria_id, pregunta, respuesta, orden, activo, pagina_nivel]
     );
     const rows = await query(`SELECT * FROM web_faqs WHERE id = ?`, [r.insertId]);
-    res.status(201).json({ pregunta: mapActivo(rows[0]) });
+    res.status(201).json({ pregunta: mapFaq(rows[0]) });
   } catch (e) {
+    if (faqSinNivel(e)) {
+      return res.status(503).json({
+        error: 'Falta ejecutar la migración 088 (nivel en preguntas frecuentes).',
+      });
+    }
     res.status(500).json({ error: e.message || 'Error al crear pregunta.' });
   }
 });
@@ -232,19 +266,25 @@ router.put('/preguntas/:id', async (req, res) => {
     if (!respuesta) return res.status(400).json({ error: 'Respuesta obligatoria' });
 
     await execute(
-      `UPDATE web_faqs SET categoria_id = ?, pregunta = ?, respuesta = ?, orden = ?, activo = ? WHERE id = ?`,
+      `UPDATE web_faqs SET categoria_id = ?, pregunta = ?, respuesta = ?, orden = ?, activo = ?, pagina_nivel = ? WHERE id = ?`,
       [
         categoria_id,
         pregunta,
         respuesta,
         Number.isFinite(Number(b.orden)) ? Number(b.orden) : 0,
         toBool01(b.activo, 1),
+        parsePaginaNivel(b.pagina_nivel),
         id,
       ]
     );
     const updated = await query(`SELECT * FROM web_faqs WHERE id = ?`, [id]);
-    res.json({ pregunta: mapActivo(updated[0]) });
+    res.json({ pregunta: mapFaq(updated[0]) });
   } catch (e) {
+    if (faqSinNivel(e)) {
+      return res.status(503).json({
+        error: 'Falta ejecutar la migración 088 (nivel en preguntas frecuentes).',
+      });
+    }
     res.status(500).json({ error: e.message || 'Error al actualizar pregunta.' });
   }
 });
@@ -268,12 +308,12 @@ router.get('/preview', async (_req, res) => {
       `SELECT id, codigo, etiqueta, orden, activo FROM web_faq_categorias WHERE activo = 1 ORDER BY orden ASC, id ASC`
     );
     const faqs = await query(
-      `SELECT id, categoria_id, pregunta, respuesta, orden, activo
+      `SELECT id, categoria_id, pregunta, respuesta, orden, activo, pagina_nivel
        FROM web_faqs WHERE activo = 1 ORDER BY orden ASC, id ASC`
     );
     const grupos = (cats || []).map((c) => ({
       ...mapActivo(c),
-      preguntas: (faqs || []).filter((f) => Number(f.categoria_id) === Number(c.id)).map(mapActivo),
+      preguntas: (faqs || []).filter((f) => Number(f.categoria_id) === Number(c.id)).map(mapFaq),
     }));
     res.json({ grupos });
   } catch (e) {
