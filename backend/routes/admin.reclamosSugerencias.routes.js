@@ -25,7 +25,7 @@ const { leerPaginasNiveles, guardarPaginasNiveles } = require('../utils/webPagin
 router.use(authenticateToken);
 router.use(require('../utils/coordinadorAcceso').requireAdminOCoordinadorGet);
 router.use((req, res, next) => {
-  if (req.user?.tipo === 'ADMINISTRADOR' || req.user?.tipo === 'COORDINADOR' || req.user?.tipo === 'DIRECTOR') return next();
+  if (req.user?.tipo === 'ADMINISTRADOR' || req.user?.tipo === 'COORDINADOR' || req.user?.tipo === 'DIRECTOR' || req.user?.tipo === 'CONTADOR') return next();
   return res.status(403).json({ error: 'Solo el administrador puede gestionar formularios web.' });
 });
 

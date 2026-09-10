@@ -7,7 +7,7 @@ const { fechaHoraMySQLLima, fechaMySQLLima } = require('./fechaHoraLima');
 const { resolvePersonalId } = require('./tutoriaGeneral');
 const { registrarAccion } = require('./auditoria');
 
-const TIPOS_SGOI = ['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR', 'COORDINADOR'];
+const TIPOS_SGOI = ['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR', 'COORDINADOR', 'CONTADOR'];
 /** Tablero/reporte de toda el área. COORDINADOR y miembros solo ven lo propio. */
 const TIPOS_SGOI_AREA = ['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR'];
 const ESTADOS_CASO_CIERRE = ['RESUELTO', 'PENDIENTE'];

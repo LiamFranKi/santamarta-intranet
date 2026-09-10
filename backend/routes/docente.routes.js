@@ -139,7 +139,8 @@ function esAdminOPromotoria(tipo) {
 
 /** Administrador, Promotoría o Coordinador: crear/editar comunicados y actividades como el admin. */
 function esAdminPromotoriaOCoordinador(tipo) {
-  return esAdminOPromotoria(tipo) || tipo === 'COORDINADOR' || tipo === 'DIRECTOR';
+  const { esPaqueteCoordinador } = require('../utils/coordinadorAcceso');
+  return esAdminOPromotoria(tipo) || esPaqueteCoordinador(tipo);
 }
 
 function esStaffAccesoGrupo(tipo) {
@@ -147,7 +148,7 @@ function esStaffAccesoGrupo(tipo) {
 }
 
 function tipoAuditoriaStaff(tipo) {
-  if (tipo === 'PROMOTORIA' || tipo === 'COORDINADOR' || tipo === 'DIRECTOR') return tipo;
+  if (tipo === 'PROMOTORIA' || tipo === 'COORDINADOR' || tipo === 'DIRECTOR' || tipo === 'CONTADOR') return tipo;
   return 'ADMINISTRADOR';
 }
 
@@ -1502,7 +1503,7 @@ router.use((req, res, next) => {
     if (req.user.tipo === 'PSICOLOGA' && psicologaRutaDocentePermitida(req.path || '')) {
       return next();
     }
-    if (req.user.tipo === 'COORDINADOR' || req.user.tipo === 'DIRECTOR') {
+    if (req.user.tipo === 'COORDINADOR' || req.user.tipo === 'DIRECTOR' || req.user.tipo === 'CONTADOR') {
       const { coordinadorPuedeDocente } = require('../utils/coordinadorAcceso');
       if (coordinadorPuedeDocente(req.path || '', req.method)) {
         return next();
@@ -1541,6 +1542,33 @@ router.get('/dashboard', async (req, res) => {
     );
 
     if (personal.length === 0) {
+      const { esPaqueteCoordinador } = require('../utils/coordinadorAcceso');
+      if (esPaqueteCoordinador(req.user.tipo)) {
+        return res.json({
+          docente: {
+            id: null,
+            nombres: req.user.nombres || req.user.nombre || 'Staff',
+            apellidos: req.user.apellidos || '',
+            foto: null,
+            email: req.user.email || '',
+          },
+          rolesAdicionales: { es_apoderado: false, es_tutor: false },
+          estadisticas: {
+            gruposAsignados: 0,
+            cursosAsignados: 0,
+            estudiantes: 0,
+            mensajesNoLeidos: 0,
+            tardanzasMesActual: 0,
+            descuentoMesActual: 0,
+            mesTardanzasNombre: '',
+          },
+          proximosExamenes: [],
+          proximasTareas: [],
+          actividades: [],
+          comunicadoHome: null,
+          comunicadosHome: [],
+        });
+      }
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
 
@@ -2333,7 +2361,7 @@ router.get('/grupos', async (req, res) => {
     const { colegio_id, anio_activo } = req.user;
 
     // Administrador / Promotoría / Psicóloga / Coordinador: todos los grupos del año
-    if (esAdminPromotoriaOpsicologa(req.user.tipo) || req.user.tipo === 'COORDINADOR' || req.user.tipo === 'DIRECTOR') {
+    if (esAdminPromotoriaOpsicologa(req.user.tipo) || req.user.tipo === 'COORDINADOR' || req.user.tipo === 'DIRECTOR' || req.user.tipo === 'CONTADOR') {
       const gruposTodos = await query(
         `SELECT DISTINCT g.*,
                 n.nombre as nivel_nombre,
@@ -23287,7 +23315,7 @@ router.get('/aula-virtual/examenes/:examenId/preguntas', async (req, res) => {
     );
 
     let contenido_bloqueado_para_docente = false;
-    if (req.user.tipo !== 'ADMINISTRADOR' && req.user.tipo !== 'COORDINADOR' && req.user.tipo !== 'DIRECTOR') {
+    if (req.user.tipo !== 'ADMINISTRADOR' && req.user.tipo !== 'COORDINADOR' && req.user.tipo !== 'DIRECTOR' && req.user.tipo !== 'CONTADOR') {
       contenido_bloqueado_para_docente = await examenBloqueaEdicionContenidoDocente(query, examenId);
     }
 

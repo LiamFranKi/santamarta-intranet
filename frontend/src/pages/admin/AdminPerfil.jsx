@@ -12,7 +12,7 @@ export default function AdminPerfil() {
       ? '/promotoria/dashboard'
       : user?.tipo === 'PSICOLOGA'
         ? '/admin/psicologa-dashboard'
-        : (user?.tipo === 'DIRECTOR' || user?.tipo === 'COORDINADOR')
+        : (user?.tipo === 'DIRECTOR' || user?.tipo === 'COORDINADOR' || user?.tipo === 'CONTADOR')
           ? '/docente/dashboard'
           : '/admin/dashboard';
   return <DocentePerfil apiPrefix="/admin" dashboardPath={dashboardPath} />;

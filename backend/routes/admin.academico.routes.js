@@ -65,8 +65,8 @@ router.use((req, res, next) => {
     }
     return res.status(403).json({ error: 'No autorizado para esta sección del catálogo académico.' });
   }
-  if (req.user?.tipo === 'COORDINADOR' || req.user?.tipo === 'DIRECTOR') {
-    const { coordinadorPuedeAcademico } = require('../utils/coordinadorAcceso');
+  const { coordinadorPuedeAcademico, esPaqueteAcademico } = require('../utils/coordinadorAcceso');
+  if (esPaqueteAcademico(req.user?.tipo)) {
     if (coordinadorPuedeAcademico(req.path || '', req.method)) return next();
     return res.status(403).json({ error: 'El coordinador no puede modificar este elemento del catálogo académico.' });
   }
@@ -78,7 +78,8 @@ function colegio(req) {
 }
 
 function esAdminOCoordinador(tipo) {
-  return tipo === 'ADMINISTRADOR' || tipo === 'COORDINADOR' || tipo === 'DIRECTOR';
+  const { esPaqueteAcademico } = require('../utils/coordinadorAcceso');
+  return tipo === 'ADMINISTRADOR' || esPaqueteAcademico(tipo);
 }
 
 /** Acepta `123` o `inc-123`. No acepta tard-/ped- (no son incidencias docentes). */

@@ -18,7 +18,7 @@ async function assertAccesoGrupoLibretaInicial(req, grupoId) {
     return { ok: false, status: 400, error: 'Parámetros requeridos' };
   }
   const esStaffColegio =
-    esAdminOPromotoria(tipo) || tipo === 'PSICOLOGA' || tipo === 'SECRETARIA' || tipo === 'COORDINADOR' || tipo === 'DIRECTOR';
+    esAdminOPromotoria(tipo) || tipo === 'PSICOLOGA' || tipo === 'SECRETARIA' || tipo === 'COORDINADOR' || tipo === 'DIRECTOR' || tipo === 'CONTADOR';
 
   if (esStaffColegio) {
     const gRow = await query(

@@ -1,4 +1,4 @@
-export const SGOI_TIPOS = ['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR', 'COORDINADOR'];
+export const SGOI_TIPOS = ['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR', 'COORDINADOR', 'CONTADOR'];
 export const SGOI_TIPOS_AREA = ['ADMINISTRADOR', 'PROMOTORIA', 'DIRECTOR'];
 
 export function usuarioPuedeSgoi(tipo) {

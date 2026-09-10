@@ -266,6 +266,8 @@ api.interceptors.response.use(
     const skipLogoutAdminUsuarios403 = status === 403 && reqUrl.includes('/admin/usuarios');
     const skipLogoutAdminDashboardStats403 =
       status === 403 && /\/admin\/(dashboard|estadisticas|reportes)(\/|$|\?)/.test(reqUrl);
+    /** Tardanzas del colegio: solo admin; el widget no debe cerrar sesión a Promotoría/Secretaría. */
+    const skipLogoutAdminTardanzas403 = status === 403 && /\/admin\/tardanzas(\/|$|\?)/.test(reqUrl);
 
     if (
       status &&
@@ -299,6 +301,7 @@ api.interceptors.response.use(
       !skipLogoutReuniones &&
       !skipLogoutAdminUsuarios403 &&
       !skipLogoutAdminDashboardStats403 &&
+      !skipLogoutAdminTardanzas403 &&
       !isPublicEventosRoute
     ) {
       const errorInfo = criticalErrors[status];

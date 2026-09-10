@@ -12,7 +12,7 @@ export function dashboardPorTipoUsuario(tipo) {
   if (tipo === 'ADMINISTRADOR') return '/admin/dashboard';
   if (tipo === 'PROMOTORIA') return '/promotoria/dashboard';
   if (tipo === 'PSICOLOGA') return '/admin/psicologa-dashboard';
-  if (tipo === 'COORDINADOR' || tipo === 'DIRECTOR') return '/docente/dashboard';
+  if (tipo === 'COORDINADOR' || tipo === 'DIRECTOR' || tipo === 'CONTADOR') return '/docente/dashboard';
   return '/';
 }
 
@@ -46,7 +46,7 @@ function reescribirUrlHerramientasExamen(url, tipoUsuario) {
   const t = String(tipoUsuario || '').toUpperCase();
   const base = '/herramientas-examenes';
   const suffix = url.length > base.length ? url.slice(base.length) : '';
-  if (t === 'DOCENTE' || t === 'COORDINADOR' || t === 'DIRECTOR') return `/docente/herramientas/examenes${suffix}`;
+  if (t === 'DOCENTE' || t === 'COORDINADOR' || t === 'DIRECTOR' || t === 'CONTADOR') return `/docente/herramientas/examenes${suffix}`;
   if (t === 'ADMINISTRADOR' || t === 'PROMOTORIA' || t === 'PSICOLOGA') return `/admin/herramientas/examenes${suffix}`;
   return url;
 }

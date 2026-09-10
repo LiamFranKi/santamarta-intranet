@@ -28,7 +28,7 @@ const FORM_VACIO = {
   lugar: '',
   descripcion: '',
   aviso_dias: [7, 3, 1, 0],
-  avisos_roles: ['ADMINISTRADOR', 'COORDINADOR', 'PROMOTORIA', 'DIRECTOR', 'DOCENTE'],
+  avisos_roles: ['ADMINISTRADOR', 'COORDINADOR', 'PROMOTORIA', 'DIRECTOR', 'CONTADOR', 'DOCENTE'],
 };
 
 function ymdLocal(d) {

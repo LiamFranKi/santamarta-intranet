@@ -2,8 +2,14 @@ function esCoordinador(tipo) {
   return String(tipo || '').toUpperCase() === 'COORDINADOR';
 }
 
-/** COORDINADOR y DIRECTOR: mismo menú, dashboard y permisos de paquete. PROMOTORIA no entra. */
+/** COORDINADOR, DIRECTOR y CONTADOR: mismo menú, dashboard y permisos de paquete. PROMOTORIA no entra. */
 function esPaqueteCoordinador(tipo) {
+  const t = String(tipo || '').toUpperCase();
+  return t === 'COORDINADOR' || t === 'DIRECTOR' || t === 'CONTADOR';
+}
+
+/** Catálogo académico: Coordinador y Director. El Contador no entra. */
+function esPaqueteAcademico(tipo) {
   const t = String(tipo || '').toUpperCase();
   return t === 'COORDINADOR' || t === 'DIRECTOR';
 }
@@ -76,6 +82,7 @@ function requireAdminOCoordinadorGet(req, res, next) {
 module.exports = {
   esCoordinador,
   esPaqueteCoordinador,
+  esPaqueteAcademico,
   esMetodoLectura,
   pathMatch,
   coordinadorPuedeAdminCore,

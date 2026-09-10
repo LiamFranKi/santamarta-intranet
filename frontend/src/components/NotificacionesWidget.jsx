@@ -29,6 +29,7 @@ function NotificacionesWidget({ variant = 'widget' }) {
         || user?.tipo === 'PSICOLOGA'
         || user?.tipo === 'COORDINADOR'
         || user?.tipo === 'DIRECTOR'
+        || user?.tipo === 'CONTADOR'
       ) {
         ruta = '/admin/notificaciones';
       } else {
@@ -63,7 +64,7 @@ function NotificacionesWidget({ variant = 'widget' }) {
   const getRutaMarcarLeido = () => {
     if (user?.tipo === 'ALUMNO') return '/alumno/notificaciones';
     if (user?.tipo === 'APODERADO') return '/apoderado/notificaciones';
-    if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA' || user?.tipo === 'PSICOLOGA' || user?.tipo === 'COORDINADOR' || user?.tipo === 'DIRECTOR') {
+    if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA' || user?.tipo === 'PSICOLOGA' || user?.tipo === 'COORDINADOR' || user?.tipo === 'DIRECTOR' || user?.tipo === 'CONTADOR') {
       return '/admin/notificaciones';
     }
     return '/docente/notificaciones';

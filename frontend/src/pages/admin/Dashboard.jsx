@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams, useParams, Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { esPaqueteCoordinador } from '../../utils/coordinadorAcceso';
+import { esPaqueteCoordinador, esPaqueteAcademico } from '../../utils/coordinadorAcceso';
 import DashboardLayout from '../../components/DashboardLayout';
 import BirthdayWidget from '../../components/BirthdayWidget';
 import EleccionesCampanaBanner from '../../components/EleccionesCampanaBanner';
@@ -35,7 +35,7 @@ const PSICOLOGA_RUTAS_ADMIN = [
   '/admin/academico/grados'
 ];
 
-function rutaAdminPermitidaCoordinador(pathname) {
+function rutaAdminPermitidaCoordinador(pathname, tipo) {
   const p = String(pathname || '');
   if (p === '/admin/reportes' || p.startsWith('/admin/reportes/')) return true;
   const ok = [
@@ -51,17 +51,21 @@ function rutaAdminPermitidaCoordinador(pathname) {
     '/admin/usuarios/equipo',
     '/admin/usuarios/alumnos',
     '/admin/usuarios/apoderados',
-    '/admin/academico/niveles',
-    '/admin/academico/grados',
-    '/admin/academico/cursos',
-    '/admin/academico/asignaturas',
-    '/admin/academico/areas',
     '/admin/documentos-gestion',
     '/admin/herramientas/vocabularios',
     '/admin/herramientas/reuniones',
     '/admin/mensajes',
     '/admin/gestion-operativa',
   ];
+  if (esPaqueteAcademico(tipo)) {
+    ok.push(
+      '/admin/academico/niveles',
+      '/admin/academico/grados',
+      '/admin/academico/cursos',
+      '/admin/academico/asignaturas',
+      '/admin/academico/areas',
+    );
+  }
   return ok.some((base) => p === base || p.startsWith(`${base}/`));
 }
 
@@ -387,7 +391,7 @@ function Dashboard() {
   if (
     esPaqueteCoordinador(user?.tipo)
     && location.pathname.startsWith('/admin/')
-    && !rutaAdminPermitidaCoordinador(location.pathname)
+    && !rutaAdminPermitidaCoordinador(location.pathname, user?.tipo)
   ) {
     return <Navigate to="/docente/dashboard" replace />;
   }
@@ -814,7 +818,7 @@ function Dashboard() {
       <BirthdayWidget />
       <EleccionesCampanaBanner />
       <div className="dashboard-container">
-        <TarjetasTardanzaAdminColegio />
+        {user?.tipo === 'ADMINISTRADOR' && <TarjetasTardanzaAdminColegio />}
         <TarjetasTardanzaPersonal />
         <div className="admin-stats-grid">
           {cards.map((card) => (

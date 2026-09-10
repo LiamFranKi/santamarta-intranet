@@ -205,7 +205,7 @@ router.use((req, res, next) => {
       return next();
     }
   }
-  if (req.user.tipo === 'DIRECTOR' || req.user.tipo === 'COORDINADOR') {
+  if (req.user.tipo === 'DIRECTOR' || req.user.tipo === 'COORDINADOR' || req.user.tipo === 'CONTADOR') {
     const { coordinadorPuedeAdminCore } = require('../utils/coordinadorAcceso');
     if (coordinadorPuedeAdminCore(req.path || '', req.method)) {
       return next();
@@ -228,7 +228,7 @@ function requireSoloAdministrador(req, res, next) {
 
 function requireAdminOCoordinadorGetInstitucional(req, res, next) {
   if (req.user?.tipo === 'ADMINISTRADOR') return next();
-  if (req.user?.tipo === 'COORDINADOR' || req.user?.tipo === 'DIRECTOR') return next();
+  if (req.user?.tipo === 'COORDINADOR' || req.user?.tipo === 'DIRECTOR' || req.user?.tipo === 'CONTADOR') return next();
   return res.status(403).json({
     error: 'Solo el perfil Administrador puede acceder a este módulo.'
   });

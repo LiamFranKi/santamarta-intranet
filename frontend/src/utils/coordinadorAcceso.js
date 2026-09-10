@@ -4,8 +4,14 @@ export function esCoordinador(tipo) {
   return String(tipo || '').toUpperCase() === 'COORDINADOR';
 }
 
-/** COORDINADOR y DIRECTOR: mismo menú y dashboard. PROMOTORIA no entra. */
+/** COORDINADOR, DIRECTOR y CONTADOR: mismo menú y dashboard. PROMOTORIA no entra. */
 export function esPaqueteCoordinador(tipo) {
+  const t = String(tipo || '').toUpperCase();
+  return t === 'COORDINADOR' || t === 'DIRECTOR' || t === 'CONTADOR';
+}
+
+/** Menú y APIs de Académico: Coordinador y Director. El Contador no entra. */
+export function esPaqueteAcademico(tipo) {
   const t = String(tipo || '').toUpperCase();
   return t === 'COORDINADOR' || t === 'DIRECTOR';
 }

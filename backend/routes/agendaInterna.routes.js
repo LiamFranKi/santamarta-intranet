@@ -168,7 +168,9 @@ router.get('/meta', requireVer, (req, res) => {
               ? 'Promotoría'
               : codigo === 'DIRECTOR'
                 ? 'Dirección'
-                : 'Docentes',
+                : codigo === 'CONTADOR'
+                  ? 'Contador'
+                  : 'Docentes',
     })),
   });
 });

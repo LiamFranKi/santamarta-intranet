@@ -17,7 +17,7 @@ function sha1Password(plain) {
 
 function requireAdmin(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'Usuario no autenticado' });
-  if (req.user.tipo === 'ADMINISTRADOR' || req.user.tipo === 'COORDINADOR' || req.user.tipo === 'DIRECTOR') return next();
+  if (req.user.tipo === 'ADMINISTRADOR' || req.user.tipo === 'COORDINADOR' || req.user.tipo === 'DIRECTOR' || req.user.tipo === 'CONTADOR') return next();
   return res.status(403).json({ error: 'Solo administradores' });
 }
 

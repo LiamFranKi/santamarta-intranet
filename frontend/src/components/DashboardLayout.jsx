@@ -17,7 +17,7 @@ import EncuestaActivacionModal from './EncuestaActivacionModal';
 import HerramientasExamenActivacionModal from './HerramientasExamenActivacionModal';
 import SgoiFlotante from './SgoiFlotante';
 import { usuarioPuedeSgoi } from '../utils/sgoiFormat';
-import { esPaqueteCoordinador } from '../utils/coordinadorAcceso';
+import { esPaqueteCoordinador, esPaqueteAcademico } from '../utils/coordinadorAcceso';
 import '../styles/CumpleMarcoFestivo.css';
 import './DashboardLayout.css';
 
@@ -152,7 +152,7 @@ export default function DashboardLayout({ children }) {
           : {}
       ),
       ...(path.startsWith('/admin/usuarios') && esPaqueteCoordinador(user?.tipo) ? { coordinadorUsuarios: true } : {}),
-      ...(path.startsWith('/admin/academico') && esPaqueteCoordinador(user?.tipo) ? { coordinadorAcademico: true } : {}),
+      ...(path.startsWith('/admin/academico') && esPaqueteAcademico(user?.tipo) ? { coordinadorAcademico: true } : {}),
       ...(
         (
           path.startsWith('/admin/documentos-gestion')
@@ -223,6 +223,7 @@ export default function DashboardLayout({ children }) {
     'DIRECTOR',
     'ASISTENCIA',
     'COORDINADOR',
+    'CONTADOR',
   ];
 
   useEffect(() => {
@@ -340,6 +341,7 @@ export default function DashboardLayout({ children }) {
       || user?.tipo === 'PSICOLOGA'
       || user?.tipo === 'COORDINADOR'
       || user?.tipo === 'DIRECTOR'
+      || user?.tipo === 'CONTADOR'
     ) {
       resetNoDocenteAcademico();
       cargarRolesAdicionalesSolo();
@@ -1453,7 +1455,7 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
             </>
-          ) : role === 'COORDINADOR' || role === 'DIRECTOR' ? (
+          ) : esPaqueteCoordinador(role) ? (
             <>
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/dashboard" end>
@@ -1524,6 +1526,7 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
+              {esPaqueteAcademico(role) && (
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -1562,6 +1565,7 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
+              )}
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -2150,7 +2154,8 @@ export default function DashboardLayout({ children }) {
               || role === 'SECRETARIA'
               || role === 'PSICOLOGA'
               || role === 'DIRECTOR'
-              || role === 'COORDINADOR') && <NotificacionesWidget />}
+              || role === 'COORDINADOR'
+              || role === 'CONTADOR') && <NotificacionesWidget />}
             <button
               className="header-btn"
               type="button"
@@ -2163,7 +2168,7 @@ export default function DashboardLayout({ children }) {
                       ? '/alumno/perfil'
                       : role === 'APODERADO'
                         ? '/apoderado/perfil'
-                        : role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA' || role === 'PSICOLOGA' || role === 'DIRECTOR' || role === 'COORDINADOR'
+                        : role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA' || role === 'PSICOLOGA' || role === 'DIRECTOR' || role === 'COORDINADOR' || role === 'CONTADOR'
                           ? '/admin/perfil'
                           : '/perfil'
                 )
@@ -2190,11 +2195,11 @@ export default function DashboardLayout({ children }) {
           <main className="dashboard-main">{children}</main>
           
           {/* Columna derecha: solo se monta en web/tablet para evitar requests ocultos en móvil */}
-          {!isMobile && (role === 'DOCENTE' || role === 'COORDINADOR' || role === 'DIRECTOR' || role === 'ALUMNO' || role === 'APODERADO') && (
+          {!isMobile && (role === 'DOCENTE' || esPaqueteCoordinador(role) || role === 'ALUMNO' || role === 'APODERADO') && (
             <aside className="dashboard-sidebar-right">
               {role === 'ALUMNO' && <AlumnoAvatarWidget />}
               <CalendarioWidget />
-              {(role === 'DOCENTE' || role === 'COORDINADOR' || role === 'DIRECTOR') && (
+              {(role === 'DOCENTE' || esPaqueteCoordinador(role)) && (
                 <div id="dashboard-publicaciones" className="publicaciones-widget-sidebar">
                   <PublicacionesWidget />
                 </div>
