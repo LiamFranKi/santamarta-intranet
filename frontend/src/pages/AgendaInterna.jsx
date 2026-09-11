@@ -4,6 +4,7 @@ import Swal from 'sweetalert2';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { exportarAgendaInternaPdf, rangoAgendaPdf } from '../utils/agendaInternaPdf';
 import './AgendaInterna.css';
 
 const MESES = [
@@ -118,6 +119,7 @@ export default function AgendaInterna() {
   const [form, setForm] = useState(FORM_VACIO);
   const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [exportando, setExportando] = useState(false);
 
   const puedeGestionar = meta.puede_gestionar === true;
   const celdas = useMemo(() => celdasMes(cursor.anio, cursor.mes), [cursor]);
@@ -351,6 +353,46 @@ export default function AgendaInterna() {
     }
   };
 
+  const exportarPdf = async (modo) => {
+    const rango = rangoAgendaPdf(modo, {
+      anio: cursor.anio,
+      mes: cursor.mes,
+      hoyYmd: hoy,
+    });
+    const tipoLabel = filtroTipo
+      ? (meta.tipos || []).find((t) => t.codigo === filtroTipo)?.etiqueta || filtroTipo
+      : 'Todos los tipos';
+    const estadoLabel = filtroEstado === 'PENDIENTE'
+      ? 'Pendientes'
+      : filtroEstado === 'HECHO'
+        ? 'Hechos'
+        : 'Todos los estados';
+    setExportando(true);
+    try {
+      const res = await api.get('/agenda-interna/eventos', {
+        params: {
+          desde: rango.desde,
+          hasta: rango.hasta,
+          estado: filtroEstado || undefined,
+          tipo: filtroTipo || undefined,
+        },
+      });
+      await exportarAgendaInternaPdf({
+        eventos: res.data.eventos || [],
+        desde: rango.desde,
+        hasta: rango.hasta,
+        tituloRango: rango.label,
+        filtrosLabel: `${tipoLabel}  ·  ${estadoLabel}`,
+        archivo: rango.archivo,
+        hoyYmd: hoy,
+      });
+    } catch (err) {
+      toastErr(err.response?.data?.error || 'No se pudo generar el PDF.');
+    } finally {
+      setExportando(false);
+    }
+  };
+
   const onClickDia = (celda) => {
     const lista = porDia[celda.ymd] || [];
     if (lista.length === 1) {
@@ -432,6 +474,18 @@ export default function AgendaInterna() {
               <option value="">Todos</option>
             </select>
           </label>
+          <div className="ai-export">
+            <span>{exportando ? 'Generando…' : 'Exportar PDF'}</span>
+            <button type="button" disabled={exportando} onClick={() => exportarPdf('semana')}>
+              Esta semana
+            </button>
+            <button type="button" disabled={exportando} onClick={() => exportarPdf('mes')}>
+              Este mes
+            </button>
+            <button type="button" disabled={exportando} onClick={() => exportarPdf('anio')}>
+              Este año
+            </button>
+          </div>
         </div>
 
         <div className="ai-layout">
