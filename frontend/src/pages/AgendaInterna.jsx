@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import DashboardLayout from '../components/DashboardLayout';
@@ -87,8 +88,18 @@ function eventoCubreDia(ev, ymd) {
   return ev.fecha_inicio <= ymd && ev.fecha_fin >= ymd;
 }
 
-function toastOk(titulo) {
+function swalSobreDrawer(opts) {
   return Swal.fire({
+    ...opts,
+    didOpen: (popup) => {
+      popup?.closest?.('.swal2-container')?.style.setProperty('z-index', '200000', 'important');
+      opts.didOpen?.(popup);
+    },
+  });
+}
+
+function toastOk(titulo) {
+  return swalSobreDrawer({
     icon: 'success',
     title: titulo,
     timer: 1400,
@@ -97,7 +108,7 @@ function toastOk(titulo) {
 }
 
 function toastErr(msg) {
-  return Swal.fire({ icon: 'error', title: 'No se pudo guardar', text: msg || 'Inténtalo de nuevo.' });
+  return swalSobreDrawer({ icon: 'error', title: 'No se pudo guardar', text: msg || 'Inténtalo de nuevo.' });
 }
 
 export default function AgendaInterna() {
@@ -333,7 +344,7 @@ export default function AgendaInterna() {
   };
 
   const eliminar = async (ev) => {
-    const ok = await Swal.fire({
+    const ok = await swalSobreDrawer({
       title: '¿Eliminar este aviso?',
       text: ev.titulo,
       icon: 'warning',
@@ -555,7 +566,7 @@ export default function AgendaInterna() {
         </div>
       </div>
 
-      {panel && (
+      {panel && createPortal(
         <div className="ai-overlay" role="presentation" onClick={cerrarPanel}>
           <div className="ai-drawer" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <button type="button" className="ai-drawer-close" onClick={cerrarPanel} aria-label="Cerrar">×</button>
@@ -722,7 +733,8 @@ export default function AgendaInterna() {
               </form>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </DashboardLayout>
   );

@@ -2188,6 +2188,7 @@ export default function DashboardLayout({ children }) {
         <div
           className={`dashboard-main-wrapper ${
             role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA' || role === 'PSICOLOGA'
+              || role === 'COORDINADOR' || role === 'DIRECTOR'
               ? 'dashboard-main-wrapper-no-sidebar'
               : ''
           }`}
@@ -2195,11 +2196,11 @@ export default function DashboardLayout({ children }) {
           <main className="dashboard-main">{children}</main>
           
           {/* Columna derecha: solo se monta en web/tablet para evitar requests ocultos en móvil */}
-          {!isMobile && (role === 'DOCENTE' || esPaqueteCoordinador(role) || role === 'ALUMNO' || role === 'APODERADO') && (
+          {!isMobile && (role === 'DOCENTE' || role === 'CONTADOR' || role === 'ALUMNO' || role === 'APODERADO') && (
             <aside className="dashboard-sidebar-right">
               {role === 'ALUMNO' && <AlumnoAvatarWidget />}
               <CalendarioWidget />
-              {(role === 'DOCENTE' || esPaqueteCoordinador(role)) && (
+              {(role === 'DOCENTE' || role === 'CONTADOR') && (
                 <div id="dashboard-publicaciones" className="publicaciones-widget-sidebar">
                   <PublicacionesWidget />
                 </div>
