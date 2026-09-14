@@ -598,6 +598,7 @@ export default function AgendaInterna() {
             {panel === 'detalle' && selected?.id && (
               <DetalleAviso
                 ev={selected}
+                rolesMeta={meta.avisos_roles || []}
                 puedeGestionar={puedeGestionar}
                 onEditar={() => abrirEditar(selected)}
                 onHecho={() => marcarHecho(selected)}
@@ -740,8 +741,12 @@ export default function AgendaInterna() {
   );
 }
 
-function DetalleAviso({ ev, puedeGestionar, onEditar, onHecho, onReabrir, onEliminar }) {
+function DetalleAviso({ ev, rolesMeta = [], puedeGestionar, onEditar, onHecho, onReabrir, onEliminar }) {
   const rango = ev.fecha_inicio !== ev.fecha_fin;
+  const invitados = (ev.avisos_roles || []).map((codigo) => {
+    const found = rolesMeta.find((r) => r.codigo === codigo);
+    return found?.etiqueta || codigo;
+  });
   return (
     <div className="ai-detalle">
       <div className="ai-detalle-kicker" style={{ color: ev.tipo_color }}>
@@ -752,12 +757,43 @@ function DetalleAviso({ ev, puedeGestionar, onEditar, onHecho, onReabrir, onElim
         <strong>{textoCuenta(ev)}</strong>
         <span>{rango ? `${fmtCorto(ev.fecha_inicio)} → ${fmtLargo(ev.fecha_fin)}` : fmtLargo(ev.fecha_fin)}</span>
       </div>
-      {ev.lugar ? <p className="ai-lugar">📍 {ev.lugar}</p> : null}
-      {ev.descripcion ? <p className="ai-nota">{ev.descripcion}</p> : null}
-      <p className="ai-meta-line">
-        Creado por {ev.creador_nombre || 'el equipo'}
-        {ev.estado === 'HECHO' && ev.hecho_nombre ? ` · cerrado por ${ev.hecho_nombre}` : ''}
-      </p>
+      <dl className="ai-facts">
+        <div className="ai-fact">
+          <dt>Cuándo</dt>
+          <dd>{rango ? `${fmtLargo(ev.fecha_inicio)} → ${fmtLargo(ev.fecha_fin)}` : fmtLargo(ev.fecha_inicio || ev.fecha_fin)}</dd>
+        </div>
+        <div className="ai-fact">
+          <dt>Dónde</dt>
+          <dd>{ev.lugar ? ev.lugar : 'Sin lugar'}</dd>
+        </div>
+        <div className="ai-fact">
+          <dt>Invitados</dt>
+          <dd>
+            {invitados.length ? (
+              <span className="ai-fact-chips">
+                {invitados.map((nombre) => (
+                  <span key={nombre} className="ai-fact-chip">{nombre}</span>
+                ))}
+              </span>
+            ) : (
+              'Nadie seleccionado'
+            )}
+          </dd>
+        </div>
+        {ev.descripcion ? (
+          <div className="ai-fact">
+            <dt>Notas</dt>
+            <dd>{ev.descripcion}</dd>
+          </div>
+        ) : null}
+        <div className="ai-fact">
+          <dt>Creado por</dt>
+          <dd>
+            {ev.creador_nombre || 'el equipo'}
+            {ev.estado === 'HECHO' && ev.hecho_nombre ? ` · cerrado por ${ev.hecho_nombre}` : ''}
+          </dd>
+        </div>
+      </dl>
       {puedeGestionar && (
         <div className="ai-detalle-actions">
           {ev.estado === 'PENDIENTE' ? (
