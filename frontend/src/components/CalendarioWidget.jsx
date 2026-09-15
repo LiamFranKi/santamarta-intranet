@@ -163,14 +163,6 @@ function CalendarioWidget() {
         // Verificar si el día está dentro del rango del evento
         const estaEnRango = fechaComparar >= inicioEvento && fechaComparar <= finEvento;
         
-        if (estaEnRango) {
-          console.log(`✅ Actividad encontrada para día ${dia}:`, act.descripcion, {
-            fechaComparar: fechaComparar.toISOString().split('T')[0],
-            inicioEvento: inicioEvento.toISOString().split('T')[0],
-            finEvento: finEvento.toISOString().split('T')[0]
-          });
-        }
-        
         return estaEnRango;
       } catch (error) {
         console.error('❌ Error procesando actividad:', act, error);

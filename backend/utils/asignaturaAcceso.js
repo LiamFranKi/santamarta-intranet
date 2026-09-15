@@ -1,6 +1,8 @@
 /**
  * Verificación de acceso a asignaturas y recursos del aula virtual (exámenes, resultados, preguntas):
- * docente titular o staff (admin/promotoría) del mismo colegio y año activo.
+ * docente titular o staff (admin/promotoría) del mismo colegio.
+ * El año no se toma del JWT: un id de 2025 debe poder consultarse en 2026
+ * (listados del dashboard siguen filtrando por año activo).
  */
 function esStaffColegio(tipo) {
   return tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA' || tipo === 'COORDINADOR' || tipo === 'DIRECTOR' || tipo === 'CONTADOR';
@@ -51,22 +53,21 @@ const FROM_SESION_BASE = `
  * @returns {{ where: string, params: any[] } | null}
  */
 function buildAccesoAsignaturaWhere(req, aliasAsignatura = 'a') {
-  const { colegio_id, anio_activo, tipo, personal_id } = req.user;
-  const anio = parseInt(anio_activo, 10);
-  if (!colegio_id || !Number.isFinite(anio)) return null;
+  const { colegio_id, tipo, personal_id } = req.user;
+  if (!colegio_id) return null;
 
   if (esStaffColegio(tipo)) {
     return {
-      where: ` AND ${aliasAsignatura}.colegio_id = ? AND g.anio = ?`,
-      params: [colegio_id, anio],
+      where: ` AND ${aliasAsignatura}.colegio_id = ?`,
+      params: [colegio_id],
     };
   }
 
   if (!personal_id) return null;
 
   return {
-    where: ` AND ${aliasAsignatura}.personal_id = ? AND ${aliasAsignatura}.colegio_id = ? AND g.anio = ?`,
-    params: [personal_id, colegio_id, anio],
+    where: ` AND ${aliasAsignatura}.personal_id = ? AND ${aliasAsignatura}.colegio_id = ?`,
+    params: [personal_id, colegio_id],
   };
 }
 

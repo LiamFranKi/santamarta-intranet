@@ -294,7 +294,11 @@ export default function DashboardLayout({ children }) {
     const cargarDatosDocente = async () => {
       if (user?.tipo !== 'DOCENTE') return;
       try {
-        const responseRoles = await api.get('/docente/roles-adicionales');
+        const [responseRoles, responseAsignaciones, sup] = await Promise.all([
+          api.get('/docente/roles-adicionales'),
+          api.get('/docente/tiene-asignaciones'),
+          api.get('/supervision/yo').catch(() => ({ data: {} })),
+        ]);
         if (cancelled) return;
         setRolesAdicionales({
           es_apoderado: responseRoles.data.es_apoderado || false,
@@ -302,22 +306,11 @@ export default function DashboardLayout({ children }) {
           es_tutoria_general: responseRoles.data.es_tutoria_general || false,
           es_cajero_caja_chica: responseRoles.data.es_cajero_caja_chica || false,
         });
-
-        const responseAsignaciones = await api.get('/docente/tiene-asignaciones');
-        if (cancelled) return;
         setTieneAsignaciones({
           tiene_grupos: responseAsignaciones.data.tiene_grupos || false,
           tiene_cursos: responseAsignaciones.data.tiene_cursos || false
         });
-
-        try {
-          const sup = await api.get('/supervision/yo');
-          if (!cancelled) {
-            setEsSupervisorSupervision(!!(sup.data?.is_supervisor || sup.data?.is_admin || sup.data?.is_supervisado));
-          }
-        } catch {
-          if (!cancelled) setEsSupervisorSupervision(false);
-        }
+        setEsSupervisorSupervision(!!(sup.data?.is_supervisor || sup.data?.is_admin || sup.data?.is_supervisado));
       } catch (error) {
         console.error('Error cargando datos del docente:', error);
         if (!cancelled) {

@@ -1999,8 +1999,7 @@ router.get('/asignaturas/:id/resumen', async (req, res) => {
     const id = parseInt(req.params.id, 10);
     const cid = colegio(req);
     const anioQ = req.query.anio != null ? parseInt(req.query.anio, 10) : null;
-    const [cRow] = await query('SELECT anio_activo FROM colegios WHERE id = ? LIMIT 1', [cid]);
-    const anioF = Number.isFinite(anioQ) ? anioQ : parseInt(cRow?.anio_activo || new Date().getFullYear(), 10);
+    const anioF = Number.isFinite(anioQ) ? anioQ : null;
 
     const rows = await query(
       `SELECT a.id, a.grupo_id, a.curso_id, a.personal_id, a.aula_virtual, a.habilitar_aula,
@@ -2015,8 +2014,8 @@ router.get('/asignaturas/:id/resumen', async (req, res) => {
        INNER JOIN personal p ON p.id = a.personal_id
        LEFT JOIN turnos t ON t.id = g.turno_id
        LEFT JOIN sedes s ON s.id = g.sede_id
-       WHERE a.id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [id, cid, anioF]
+       WHERE a.id = ? AND a.colegio_id = ?${anioF != null ? ' AND g.anio = ?' : ''}`,
+      anioF != null ? [id, cid, anioF] : [id, cid]
     );
     if (!rows.length) return res.status(404).json({ error: 'Asignatura no encontrada' });
     res.json({ asignatura: rows[0] });

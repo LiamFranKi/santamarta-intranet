@@ -1582,166 +1582,148 @@ router.get('/dashboard', async (req, res) => {
     }
 
     const docente = personal[0];
-
-    // Contar grupos asignados (grupos distintos donde el docente tiene asignaturas)
-    const gruposAsignados = await query(
-      `SELECT COUNT(DISTINCT g.id) as total
-       FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [docente.id, colegio_id, anio_activo]
-    );
-
-    // Contar cursos asignados
-    // asignaturas tiene grupo_id directamente, no area_curso_id. El año viene de grupos.anio
-    const cursosAsignados = await query(
-      `SELECT COUNT(DISTINCT a.id) as total
-       FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [docente.id, colegio_id, anio_activo]
-    );
-
-    // Contar estudiantes totales
-    const estudiantes = await query(
-      `SELECT COUNT(DISTINCT m.alumno_id) as total
-       FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN matriculas m ON m.grupo_id = g.id
-       WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0)`,
-      [docente.id, colegio_id, anio_activo]
-    );
-
-    // Próximos exámenes (todos los futuros, sin límite de días)
-    // asignaturas_examenes tiene fecha_desde, fecha_hasta, hora_desde, hora_hasta (NO tiene fecha_inicio)
-    // asignaturas_examenes SÍ tiene asignatura_id y titulo (NO tiene descripcion)
-    // IMPORTANTE: Comparar solo fechas (sin hora) para incluir eventos de hoy
-    // Usar DATE() en ambos lados para comparar solo fechas
-    const proximosExamenes = await query(
-      `SELECT ae.*, 
-              COALESCE(ae.titulo, 'Examen') as titulo,
-              c.nombre as asignatura_nombre, 
-              g.grado, 
-              g.seccion, 
-              n.nombre as nivel_nombre,
-              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
-              DATE(ae.fecha_desde) as fecha_evento
-       FROM asignaturas_examenes ae
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       INNER JOIN cursos c ON c.id = a.curso_id
-       INNER JOIN personal p ON p.id = a.personal_id
-       WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?
-       AND DATE(ae.fecha_desde) >= DATE(NOW())
-       ORDER BY ae.fecha_desde ASC`,
-      [docente.id, colegio_id, anio_activo]
-    );
-
-    // Próximas tareas (todas las futuras, sin límite de días)
-    // asignaturas_tareas tiene titulo, descripcion, fecha_entrega (NO fecha_fin)
-    // IMPORTANTE: Comparar solo fechas (sin hora) para incluir eventos de hoy
-    // Usar DATE() en ambos lados para comparar solo fechas
-    const proximasTareas = await query(
-      `SELECT t.*, 
-              t.titulo,
-              c.nombre as asignatura_nombre, 
-              g.grado, 
-              g.seccion,
-              n.nombre as nivel_nombre,
-              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
-              DATE(t.fecha_entrega) as fecha_evento
-       FROM asignaturas_tareas t
-       INNER JOIN asignaturas a ON a.id = t.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       INNER JOIN cursos c ON c.id = a.curso_id
-       INNER JOIN personal p ON p.id = a.personal_id
-       WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?
-       AND t.fecha_entrega IS NOT NULL
-       AND DATE(t.fecha_entrega) >= DATE(NOW())
-       ORDER BY t.fecha_entrega ASC`,
-      [docente.id, colegio_id, anio_activo]
-    );
-
-    // Actividades próximas (solo futuras del año actual, no año activo)
-    // IMPORTANTE: Filtrar por AÑO ACTUAL del sistema (no año activo) y comparar solo fechas (sin hora) para incluir eventos de hoy
-    // Usar DATE() en ambos lados para comparar solo fechas
     const añoActual = new Date().getFullYear();
-    const actividades = await query(
-      `${ACTIVIDADES_SELECT_CON_EVENTO_SQL}
-       WHERE a.colegio_id = ?
-       AND YEAR(a.fecha_inicio) = ?
-       AND DATE(a.fecha_inicio) >= DATE(NOW())
-       ORDER BY a.fecha_inicio ASC`,
-      [colegio_id, añoActual]
-    );
+    const tardanzaVacia = {
+      minutos_tardanza: 0,
+      descuento: 0,
+      mes_nombre: '',
+    };
 
-    console.log(`📅 Dashboard - Actividades del año actual ${añoActual} (futuras):`, actividades.length);
-    if (actividades.length > 0) {
-      console.log('📅 Dashboard - Primeras actividades:', actividades.slice(0, 3).map(a => ({
-        id: a.id,
-        descripcion: a.descripcion,
-        fecha_inicio: a.fecha_inicio,
-        fecha_evento: a.fecha_evento
-      })));
-    }
+    const [
+      gruposAsignados,
+      cursosAsignados,
+      estudiantes,
+      proximosExamenes,
+      proximasTareas,
+      actividades,
+      mensajesNoLeidos,
+      tardanzaMes,
+      comunicadosHomeData,
+      esApoderado,
+      gruposTutor,
+    ] = await Promise.all([
+      query(
+        `SELECT COUNT(DISTINCT g.id) as total
+         FROM asignaturas a
+         INNER JOIN grupos g ON g.id = a.grupo_id
+         WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+        [docente.id, colegio_id, anio_activo]
+      ),
+      query(
+        `SELECT COUNT(DISTINCT a.id) as total
+         FROM asignaturas a
+         INNER JOIN grupos g ON g.id = a.grupo_id
+         WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+        [docente.id, colegio_id, anio_activo]
+      ),
+      query(
+        `SELECT COUNT(DISTINCT m.alumno_id) as total
+         FROM asignaturas a
+         INNER JOIN grupos g ON g.id = a.grupo_id
+         INNER JOIN matriculas m ON m.grupo_id = g.id
+         WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?
+         AND (m.estado = 0)`,
+        [docente.id, colegio_id, anio_activo]
+      ),
+      query(
+        `SELECT ae.*,
+                COALESCE(ae.titulo, 'Examen') as titulo,
+                c.nombre as asignatura_nombre,
+                g.grado,
+                g.seccion,
+                n.nombre as nivel_nombre,
+                CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
+                DATE(ae.fecha_desde) as fecha_evento
+         FROM asignaturas_examenes ae
+         INNER JOIN asignaturas a ON a.id = ae.asignatura_id
+         INNER JOIN grupos g ON g.id = a.grupo_id
+         INNER JOIN niveles n ON n.id = g.nivel_id
+         INNER JOIN cursos c ON c.id = a.curso_id
+         INNER JOIN personal p ON p.id = a.personal_id
+         WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?
+         AND DATE(ae.fecha_desde) >= DATE(NOW())
+         ORDER BY ae.fecha_desde ASC
+         LIMIT 25`,
+        [docente.id, colegio_id, anio_activo]
+      ),
+      query(
+        `SELECT t.*,
+                t.titulo,
+                c.nombre as asignatura_nombre,
+                g.grado,
+                g.seccion,
+                n.nombre as nivel_nombre,
+                CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
+                DATE(t.fecha_entrega) as fecha_evento
+         FROM asignaturas_tareas t
+         INNER JOIN asignaturas a ON a.id = t.asignatura_id
+         INNER JOIN grupos g ON g.id = a.grupo_id
+         INNER JOIN niveles n ON n.id = g.nivel_id
+         INNER JOIN cursos c ON c.id = a.curso_id
+         INNER JOIN personal p ON p.id = a.personal_id
+         WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?
+         AND t.fecha_entrega IS NOT NULL
+         AND DATE(t.fecha_entrega) >= DATE(NOW())
+         ORDER BY t.fecha_entrega ASC
+         LIMIT 25`,
+        [docente.id, colegio_id, anio_activo]
+      ),
+      query(
+        `${ACTIVIDADES_SELECT_CON_EVENTO_SQL}
+         WHERE a.colegio_id = ?
+         AND YEAR(a.fecha_inicio) = ?
+         AND DATE(a.fecha_inicio) >= DATE(NOW())
+         ORDER BY a.fecha_inicio ASC
+         LIMIT 50`,
+        [colegio_id, añoActual]
+      ),
+      query(
+        `SELECT COUNT(*) as total
+         FROM mensajes m
+         WHERE m.destinatario_id = ?
+           AND m.tipo = 'RECIBIDO'
+           AND m.estado = 'NO_LEIDO'
+           AND m.borrado = 'NO'`,
+        [usuario_id]
+      ),
+      calcularTardanzasMesPersonal(query, {
+        usuario_id,
+        colegio_id,
+        anio_activo,
+        hora_entrada_config: docente.hora_entrada,
+        sueldo: docente.sueldo,
+      }).catch(() => tardanzaVacia),
+      listarComunicadosInicio(query, colegio_id).catch(() => []),
+      query(
+        `SELECT COUNT(DISTINCT f.alumno_id) as total_hijos
+         FROM apoderados ap
+         INNER JOIN familias f ON f.apoderado_id = ap.id
+         INNER JOIN alumnos a ON a.id = f.alumno_id
+         INNER JOIN matriculas m ON m.alumno_id = a.id
+         INNER JOIN grupos g ON g.id = m.grupo_id
+         WHERE ap.colegio_id = ?
+           AND ap.nro_documento = (
+             SELECT p.nro_documento
+             FROM personal p
+             WHERE p.id = ? AND p.colegio_id = ?
+           )
+           AND m.colegio_id = ?
+           AND (m.estado = 0)
+           AND g.anio = ?`,
+        [colegio_id, docente.id, colegio_id, colegio_id, anio_activo]
+      ),
+      query(
+        `SELECT g.*, n.nombre as nivel_nombre, t.nombre as turno_nombre
+         FROM grupos g
+         INNER JOIN niveles n ON n.id = g.nivel_id
+         INNER JOIN turnos t ON t.id = g.turno_id
+         WHERE (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+        [docente.id, docente.id, colegio_id, anio_activo]
+      ),
+    ]);
 
-    // Contar mensajes no leídos del docente
-    const mensajesNoLeidos = await query(
-      `SELECT COUNT(*) as total
-       FROM mensajes m
-       WHERE m.destinatario_id = ?
-         AND m.tipo = 'RECIBIDO'
-         AND m.estado = 'NO_LEIDO'
-         AND m.borrado = 'NO'`,
-      [usuario_id]
-    );
-
-    const tardanzaMes = await calcularTardanzasMesPersonal(query, {
-      usuario_id,
-      colegio_id,
-      anio_activo,
-      hora_entrada_config: docente.hora_entrada,
-      sueldo: docente.sueldo,
-    });
-
-    const comunicadosHomeData = await listarComunicadosInicio(query, colegio_id);
     const comunicadoHomeData = comunicadosHomeData[0] || null;
-
-    // Verificar roles adicionales (apoderado y tutor)
-    // Verificar si es apoderado (tiene hijos estudiando en el colegio)
-    const esApoderado = await query(
-      `SELECT COUNT(DISTINCT f.alumno_id) as total_hijos
-       FROM apoderados ap
-       INNER JOIN familias f ON f.apoderado_id = ap.id
-       INNER JOIN alumnos a ON a.id = f.alumno_id
-       INNER JOIN matriculas m ON m.alumno_id = a.id
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE ap.colegio_id = ? 
-         AND ap.nro_documento = (
-           SELECT p.nro_documento 
-           FROM personal p 
-           WHERE p.id = ? AND p.colegio_id = ?
-         )
-         AND m.colegio_id = ?
-         AND (m.estado = 0)
-         AND g.anio = ?`,
-      [colegio_id, docente.id, colegio_id, colegio_id, anio_activo]
-    );
-
     const tieneHijos = (esApoderado[0]?.total_hijos || 0) > 0;
-
-    // Verificar si es tutor
-    const gruposTutor = await query(
-      `SELECT g.*, n.nombre as nivel_nombre, t.nombre as turno_nombre
-       FROM grupos g
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       INNER JOIN turnos t ON t.id = g.turno_id
-       WHERE (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
-      [docente.id, docente.id, colegio_id, anio_activo]
-    );
 
     const esTutor = gruposTutor.length > 0;
 
@@ -2372,18 +2354,20 @@ router.get('/grupos', async (req, res) => {
     // Administrador / Promotoría / Psicóloga / Coordinador: todos los grupos del año
     if (esAdminPromotoriaOpsicologa(req.user.tipo) || req.user.tipo === 'COORDINADOR' || req.user.tipo === 'DIRECTOR' || req.user.tipo === 'CONTADOR') {
       const gruposTodos = await query(
-        `SELECT DISTINCT g.*,
+        `SELECT g.*,
                 n.nombre as nivel_nombre,
                 t.nombre as turno_nombre,
-                (SELECT COUNT(*)
-                 FROM matriculas m
-                 WHERE m.grupo_id = g.id
-                   AND m.colegio_id = ?
-                   AND (m.estado = 0)) as total_alumnos,
+                COALESCE(mc.total_alumnos, 0) as total_alumnos,
                 'colegio' as tipo_grupo
          FROM grupos g
          INNER JOIN niveles n ON n.id = g.nivel_id
          INNER JOIN turnos t ON t.id = g.turno_id
+         LEFT JOIN (
+           SELECT m.grupo_id, COUNT(*) AS total_alumnos
+           FROM matriculas m
+           WHERE m.colegio_id = ? AND (m.estado = 0)
+           GROUP BY m.grupo_id
+         ) mc ON mc.grupo_id = g.id
          WHERE g.colegio_id = ? AND g.anio = ?`,
         [colegio_id, colegio_id, anio_activo]
       );
@@ -2409,37 +2393,40 @@ router.get('/grupos', async (req, res) => {
 
     // Grupos como docente (asignaturas)
     const gruposAsignados = await query(
-      `SELECT DISTINCT g.*, 
-              n.nombre as nivel_nombre, 
+      `SELECT DISTINCT g.*,
+              n.nombre as nivel_nombre,
               t.nombre as turno_nombre,
-              (SELECT COUNT(*) 
-               FROM matriculas m 
-               WHERE m.grupo_id = g.id 
-               AND m.colegio_id = ? 
-               AND (m.estado = 0)) as total_alumnos,
+              COALESCE(mc.total_alumnos, 0) as total_alumnos,
               'asignado' as tipo_grupo
        FROM grupos g
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN turnos t ON t.id = g.turno_id
        INNER JOIN asignaturas a ON a.grupo_id = g.id
+       LEFT JOIN (
+         SELECT m.grupo_id, COUNT(*) AS total_alumnos
+         FROM matriculas m
+         WHERE m.colegio_id = ? AND (m.estado = 0)
+         GROUP BY m.grupo_id
+       ) mc ON mc.grupo_id = g.id
        WHERE a.personal_id = ? AND g.colegio_id = ? AND g.anio = ?`,
       [colegio_id, personalId, colegio_id, anio_activo]
     );
 
-    // Grupos como tutor (siempre consultar para alcance=todos y deduplicar)
     const gruposTutoria = await query(
-      `SELECT g.*, 
-              n.nombre as nivel_nombre, 
+      `SELECT g.*,
+              n.nombre as nivel_nombre,
               t.nombre as turno_nombre,
-              (SELECT COUNT(*) 
-               FROM matriculas m 
-               WHERE m.grupo_id = g.id 
-               AND m.colegio_id = ? 
-               AND (m.estado = 0)) as total_alumnos,
+              COALESCE(mc.total_alumnos, 0) as total_alumnos,
               'tutoria' as tipo_grupo
        FROM grupos g
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN turnos t ON t.id = g.turno_id
+       LEFT JOIN (
+         SELECT m.grupo_id, COUNT(*) AS total_alumnos
+         FROM matriculas m
+         WHERE m.colegio_id = ? AND (m.estado = 0)
+         GROUP BY m.grupo_id
+       ) mc ON mc.grupo_id = g.id
        WHERE (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [colegio_id, personalId, personalId, colegio_id, anio_activo]
     );
