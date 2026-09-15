@@ -10,6 +10,7 @@ import PreguntaRespuestaCorta from '../components/examen/PreguntaRespuestaCorta'
 import PreguntaOrdenar from '../components/examen/PreguntaOrdenar';
 import PreguntaEmparejar from '../components/examen/PreguntaEmparejar';
 import PreguntaArrastrarSoltar from '../components/examen/PreguntaArrastrarSoltar';
+import PreguntaSpeaking from '../components/examen/PreguntaSpeaking';
 import './AlumnoExamen.css';
 import { findAlternativaMarcadaVF } from '../utils/examenRespuestaIds';
 import {
@@ -1030,12 +1031,15 @@ function AlumnoExamen() {
       limpiarDatosLocalesExamen();
       const yaFinalizado = Boolean(response?.data?.already_finalized);
 
+      const pendienteSpeaking = Boolean(response?.data?.pendiente_speaking);
       Swal.fire({
         icon: yaFinalizado ? 'info' : 'success',
         title: yaFinalizado ? 'Examen ya finalizado' : 'Examen finalizado',
         text: yaFinalizado
           ? 'Tu examen ya había sido cerrado previamente. Tus respuestas guardadas se mantuvieron.'
-          : 'Tu examen ha sido enviado correctamente. Las respuestas fueron enviadas a tu correo interno.',
+          : pendienteSpeaking
+            ? 'La parte automática ya está lista. Tu docente calificará el Speaking y completará la nota.'
+            : 'Tu examen ha sido enviado correctamente. Las respuestas fueron enviadas a tu correo interno.',
         confirmButtonText: 'Entendido'
       }).then(() => {
         navigate(-1);
@@ -1640,6 +1644,8 @@ function AlumnoExamen() {
             <RenderizarPregunta
               pregunta={pregunta}
               respuesta={respuestas[pregunta.id] || null}
+              examenId={examenId}
+              getExamHeaders={getExamHeaders}
               onRespuestaChange={(respuesta) => {
                 const tipoPreg = pregunta.tipo;
                 const respNorm = normalizarRespuestaParaGuardar(respuesta, tipoPreg);
@@ -1710,7 +1716,7 @@ function AlumnoExamen() {
 }
 
 // Componente para renderizar preguntas según su tipo
-function RenderizarPregunta({ pregunta, respuesta, onRespuestaChange }) {
+function RenderizarPregunta({ pregunta, respuesta, onRespuestaChange, examenId, getExamHeaders }) {
   if (!pregunta) {
     return (
       <div className="pregunta-container">
@@ -1722,7 +1728,9 @@ function RenderizarPregunta({ pregunta, respuesta, onRespuestaChange }) {
   const props = {
     pregunta,
     respuesta,
-    onRespuestaChange
+    onRespuestaChange,
+    examenId,
+    getExamHeaders
   };
 
   try {
@@ -1749,6 +1757,8 @@ function RenderizarPregunta({ pregunta, respuesta, onRespuestaChange }) {
         return <PreguntaEmparejar {...props} />;
       case 'ARRASTRAR_Y_SOLTAR':
         return <PreguntaArrastrarSoltar {...props} />;
+      case 'SPEAKING':
+        return <PreguntaSpeaking {...props} />;
       default:
         console.warn('⚠️ Tipo de pregunta no reconocido:', tipoPregunta, 'Original:', pregunta.tipo);
         return (

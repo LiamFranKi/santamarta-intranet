@@ -12,6 +12,8 @@ import {
   idsAlternativaExamenIguales,
   findAlternativaMarcadaVF,
 } from '../utils/examenRespuestaIds';
+import { parseSpeakingRespuesta } from '../utils/examenTipo';
+import { urlStaticArchivos } from '../utils/staticUrl';
 
 function AlumnoExamenResultados() {
   const { examenId } = useParams();
@@ -270,6 +272,11 @@ function AlumnoExamenResultados() {
               </div>
             )}
           </div>
+          {Number(resultado.pendiente_speaking) === 1 && (
+            <p style={{ margin: '1rem 0 0', color: '#6d28d9', fontWeight: 700 }}>
+              Tu docente aún calificará el Speaking. El puntaje puede actualizarse.
+            </p>
+          )}
         </div>
 
         {/* Detalles del examen */}
@@ -861,6 +868,44 @@ function DetallesExamenModal({ resultado, detalles, examen, onClose }) {
                     </div>
                   </div>
                 );
+
+              case 'SPEAKING': {
+                const sp = parseSpeakingRespuesta(respuestaAlumno);
+                const audioSrc = sp.audio ? (sp.audio_url || urlStaticArchivos(sp.audio)) : '';
+                return (
+                  <div style={{
+                    padding: '1rem',
+                    borderRadius: '12px',
+                    background: '#f5f3ff',
+                    border: '1px solid #ddd6fe'
+                  }}>
+                    <div style={{ fontWeight: 800, color: '#5b21b6', marginBottom: '0.5rem' }}>
+                      Speaking
+                    </div>
+                    {audioSrc ? (
+                      <audio controls src={audioSrc} style={{ width: '100%', marginBottom: '0.75rem' }}>
+                        Tu navegador no reproduce audio.
+                      </audio>
+                    ) : (
+                      <p style={{ margin: '0 0 0.75rem', color: '#6b7280' }}>
+                        {String(sp.modo || '').toUpperCase() === 'EN_VIVO'
+                          ? 'Se evaluó en clase, sin audio.'
+                          : 'No hay audio grabado.'}
+                      </p>
+                    )}
+                    {sp.nota_docente != null ? (
+                      <p style={{ margin: 0, color: '#065f46', fontWeight: 700 }}>
+                        Nota del docente: {sp.nota_docente}
+                        {sp.comentario ? ` — ${sp.comentario}` : ''}
+                      </p>
+                    ) : (
+                      <p style={{ margin: 0, color: '#b45309', fontWeight: 600 }}>
+                        Pendiente de calificación del docente
+                      </p>
+                    )}
+                  </div>
+                );
+              }
 
               default:
                 return (

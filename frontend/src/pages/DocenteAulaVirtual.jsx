@@ -19,6 +19,8 @@ import {
   idsAlternativaExamenIguales,
   findAlternativaMarcadaVF,
 } from '../utils/examenRespuestaIds';
+import { esExamenEnLinea, esExamenHibrido, esPreguntaSpeaking, etiquetaTipoExamen, parseSpeakingRespuesta, puntosMaxSpeaking } from '../utils/examenTipo';
+import { urlStaticArchivos } from '../utils/staticUrl';
 
 /** Línea bajo el título "Aula Virtual": curso · nivel antes del grado · año. */
 function subtituloAulaVirtualCurso(curso) {
@@ -454,6 +456,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   const [formExamen, setFormExamen] = useState({
     titulo: '',
     tipo: 'VIRTUAL',
+    speaking_modo: 'AUDIO',
     tipo_puntaje: 'GENERAL',
     puntos_correcta: 1,
     penalizar_incorrecta: 'NO',
@@ -2249,6 +2252,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
           <thead>
             <tr>
               <th>EXAMEN</th>
+              <th>TIPO</th>
               <th>TIEMPO (MIN.)</th>
               <th>PREGUNTAS</th>
               <th>ESTADO</th>
@@ -2259,6 +2263,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
             {examenes.map((examen) => (
               <tr key={examen.id}>
                 <td>{examen.titulo}</td>
+                <td className="text-center">{etiquetaTipoExamen(examen.tipo)}</td>
                 <td className="text-center">{examen.tiempo === 0 || !examen.tiempo ? 'ILIMITADO' : examen.tiempo}</td>
                 <td className="text-center">{examen.total_preguntas || 0}</td>
                 <td className="text-center">
@@ -2511,6 +2516,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
     setFormExamen({
       titulo: examen.titulo || '',
       tipo: examen.tipo || 'VIRTUAL',
+      speaking_modo: examen.speaking_modo || 'AUDIO',
       tipo_puntaje: examen.tipo_puntaje || 'GENERAL',
       puntos_correcta: examen.puntos_correcta || 1,
       penalizar_incorrecta: examen.penalizar_incorrecta || 'NO',
@@ -2681,6 +2687,37 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
       setMostrarDetallesResultado(false);
     } finally {
       setCargandoDetallesResultado(false);
+    }
+  };
+
+  const handleCalificarSpeaking = async ({ resultadoId, preguntaId, puntos, comentario }) => {
+    try {
+      await api.post(`/docente/aula-virtual/resultados/${resultadoId}/speaking`, {
+        pregunta_id: preguntaId,
+        puntos,
+        comentario
+      });
+      await Swal.fire({
+        icon: 'success',
+        title: 'Nota de Speaking guardada',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 2200
+      });
+      const det = await api.get(`/docente/aula-virtual/resultados/${resultadoId}/detalles`);
+      setDetallesResultado(det.data);
+      if (examenParaResultados) {
+        const response = await api.get(`/docente/aula-virtual/examenes/${examenParaResultados.id}/resultados`);
+        setResultadosExamen(response.data.resultados || []);
+      }
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'No se guardó la nota',
+        text: error.response?.data?.error || 'Intenta de nuevo'
+      });
+      throw error;
     }
   };
 
@@ -4030,6 +4067,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                         setFormExamen({
                           titulo: '',
                           tipo: 'VIRTUAL',
+                          speaking_modo: 'AUDIO',
                           tipo_puntaje: 'GENERAL',
                           puntos_correcta: 1,
                           penalizar_incorrecta: 'NO',
@@ -5554,6 +5592,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
             setFormExamen({
               titulo: '',
               tipo: 'VIRTUAL',
+              speaking_modo: 'AUDIO',
               tipo_puntaje: 'GENERAL',
               puntos_correcta: 1,
               penalizar_incorrecta: 'NO',
@@ -5639,6 +5678,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
           resultado={resultadoParaDetalles}
           detalles={detallesResultado}
           cargando={cargandoDetallesResultado}
+          onCalificarSpeaking={handleCalificarSpeaking}
           onClose={() => {
             setMostrarDetallesResultado(false);
             setResultadoParaDetalles(null);
@@ -5715,7 +5755,7 @@ function ExamenForm({ asignaturaId, formExamen, setFormExamen, onClose, onSucces
     }
 
     // Si es VIRTUAL, validar campos requeridos
-    if (formExamen.tipo === 'VIRTUAL') {
+    if (esExamenEnLinea(formExamen.tipo)) {
       if (!formExamen.tipo_puntaje || !formExamen.tiempo) {
         Swal.fire({
           icon: 'error',
@@ -5749,11 +5789,14 @@ function ExamenForm({ asignaturaId, formExamen, setFormExamen, onClose, onSucces
       formData.append('asignatura_id', asignaturaId);
       formData.append('titulo', formExamen.titulo);
       formData.append('tipo', formExamen.tipo);
+      if (esExamenHibrido(formExamen.tipo)) {
+        formData.append('speaking_modo', formExamen.speaking_modo || 'AUDIO');
+      }
       formData.append('ciclo', formExamen.ciclo);
       formData.append('estado', formExamen.estado);
       formData.append('habilitar_fecha_hora', formExamen.habilitar_fecha_hora ? 'SI' : 'NO');
 
-      if (formExamen.tipo === 'VIRTUAL') {
+      if (esExamenEnLinea(formExamen.tipo)) {
         formData.append('tipo_puntaje', formExamen.tipo_puntaje);
         // Solo enviar puntos_correcta si es GENERAL
         if (formExamen.tipo_puntaje === 'GENERAL') {
@@ -5866,13 +5909,63 @@ function ExamenForm({ asignaturaId, formExamen, setFormExamen, onClose, onSucces
                 onChange={(e) => setFormExamen({ ...formExamen, tipo: e.target.value })}
                 required
               >
-                <option value="VIRTUAL">VIRTUAL</option>
+                <option value="VIRTUAL">VIRTUAL — el sistema califica todo</option>
+                <option value="HIBRIDO">HÍBRIDO — sistema + Speaking del docente</option>
                 <option value="PDF">PDF</option>
               </select>
+              {esExamenHibrido(formExamen.tipo) && (
+                <small style={{ display: 'block', marginTop: '0.45rem', color: '#4f46e5', lineHeight: 1.45 }}>
+                  Híbrido: las alternativas las corrige el sistema. El Speaking lo calificas tú (audio o en vivo).
+                </small>
+              )}
             </div>
 
-            {/* Campos solo para VIRTUAL */}
-            {formExamen.tipo === 'VIRTUAL' && (
+            {esExamenHibrido(formExamen.tipo) && (
+              <div className="form-group">
+                <label>Cómo se evalúa el Speaking *</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  {[
+                    {
+                      id: 'AUDIO',
+                      titulo: '🎧 El alumno graba',
+                      texto: 'Graba un audio en el examen. Tú lo escuchas después y pones la nota.'
+                    },
+                    {
+                      id: 'EN_VIVO',
+                      titulo: '👩‍🏫 En vivo en clase',
+                      texto: 'Habla delante de ti. Abres resultados y anotas la nota al momento.'
+                    }
+                  ].map((op) => {
+                    const activo = String(formExamen.speaking_modo || 'AUDIO').toUpperCase() === op.id;
+                    return (
+                      <button
+                        key={op.id}
+                        type="button"
+                        onClick={() => setFormExamen({ ...formExamen, speaking_modo: op.id })}
+                        style={{
+                          textAlign: 'left',
+                          padding: '0.9rem 1rem',
+                          borderRadius: '12px',
+                          border: activo ? '2px solid #7c3aed' : '1px solid #e5e7eb',
+                          background: activo ? '#f5f3ff' : '#fff',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <div style={{ fontWeight: 800, color: activo ? '#5b21b6' : '#111827', marginBottom: '0.35rem' }}>
+                          {op.titulo}
+                        </div>
+                        <div style={{ fontSize: '0.82rem', color: '#4b5563', lineHeight: 1.45 }}>
+                          {op.texto}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Campos para VIRTUAL e HÍBRIDO */}
+            {esExamenEnLinea(formExamen.tipo) && (
               <>
                 <div className="form-group">
                   <label htmlFor="examen-calificacion">Calificación</label>
@@ -6599,7 +6692,8 @@ function SortablePreguntaRow({ pregunta, examen, index, contenidoBloqueado = fal
       'RESPUESTA_CORTA': { bg: '#e0e7ff', color: '#3730a3' },
       'ORDENAR': { bg: '#fce7f3', color: '#831843' },
       'EMPAREJAR': { bg: '#f3e8ff', color: '#6b21a8' },
-      'ARRASTRAR_Y_SOLTAR': { bg: '#fef3c7', color: '#78350f' }
+      'ARRASTRAR_Y_SOLTAR': { bg: '#fef3c7', color: '#78350f' },
+      'SPEAKING': { bg: '#ede9fe', color: '#5b21b6' }
     };
     return colores[tipo] || { bg: '#f3f4f6', color: '#374151' };
   };
@@ -6607,9 +6701,11 @@ function SortablePreguntaRow({ pregunta, examen, index, contenidoBloqueado = fal
   const tipoColor = getTipoColor(pregunta.tipo);
 
   // Calcular puntos según el tipo de calificación del examen
-  const puntosMostrar = examen.tipo_puntaje === 'GENERAL' 
-    ? (examen.puntos_correcta || 0)  // Si es GENERAL, mostrar puntos_correcta del examen
-    : (pregunta.puntos || 0);         // Si es INDIVIDUAL, mostrar puntos de la pregunta
+  const puntosMostrar = esPreguntaSpeaking(pregunta.tipo)
+    ? (pregunta.puntos || examen.puntos_correcta || 0)
+    : examen.tipo_puntaje === 'GENERAL'
+      ? (examen.puntos_correcta || 0)
+      : (pregunta.puntos || 0);
 
   return (
     <tr ref={setNodeRef} style={style} className={isDragging ? 'dragging' : ''}>
@@ -6726,9 +6822,11 @@ function SortablePreguntaRow({ pregunta, examen, index, contenidoBloqueado = fal
 // Componente para vista previa de pregunta
 function VistaPreviaPreguntaModal({ pregunta, examen, onClose }) {
   // Calcular puntos según el tipo de calificación del examen
-  const puntosMostrar = examen.tipo_puntaje === 'GENERAL' 
-    ? (examen.puntos_correcta || 0)  // Si es GENERAL, mostrar puntos_correcta del examen
-    : (pregunta.puntos || 0);         // Si es INDIVIDUAL, mostrar puntos de la pregunta
+  const puntosMostrar = esPreguntaSpeaking(pregunta.tipo)
+    ? (pregunta.puntos || examen.puntos_correcta || 0)
+    : examen.tipo_puntaje === 'GENERAL'
+      ? (examen.puntos_correcta || 0)
+      : (pregunta.puntos || 0);
 
   return (
     <div className="modal-tema-overlay" onClick={onClose}>
@@ -7037,6 +7135,19 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
       return;
     }
 
+    if (esPreguntaSpeaking(formPregunta.tipo) && !(parseFloat(formPregunta.puntos) > 0)) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'La pregunta Speaking debe tener puntos: es el máximo sobre el que calificas.',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000
+      });
+      return;
+    }
+
     // Validar alternativas según el tipo
     if (formPregunta.tipo === 'ALTERNATIVAS' || formPregunta.tipo === 'VERDADERO_FALSO' || formPregunta.tipo === 'ORDENAR' || formPregunta.tipo === 'EMPAREJAR') {
       if (alternativas.length < 2) {
@@ -7098,7 +7209,7 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
         await api.put(`/docente/aula-virtual/preguntas/${pregunta.id}`, {
           descripcion: formPregunta.descripcion,
           tipo: formPregunta.tipo,
-          puntos: examen.tipo_puntaje === 'INDIVIDUAL' ? formPregunta.puntos : 0,
+          puntos: (examen.tipo_puntaje === 'INDIVIDUAL' || esPreguntaSpeaking(formPregunta.tipo)) ? formPregunta.puntos : 0,
           orden: pregunta.orden,
           datos_adicionales: formPregunta.datos_adicionales
         });
@@ -7108,14 +7219,14 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
         const response = await api.post(`/docente/aula-virtual/examenes/${examen.id}/preguntas`, {
           descripcion: formPregunta.descripcion,
           tipo: formPregunta.tipo,
-          puntos: examen.tipo_puntaje === 'INDIVIDUAL' ? formPregunta.puntos : 0,
+          puntos: (examen.tipo_puntaje === 'INDIVIDUAL' || esPreguntaSpeaking(formPregunta.tipo)) ? formPregunta.puntos : 0,
           datos_adicionales: formPregunta.datos_adicionales
         });
         preguntaId = response.data.pregunta_id;
       }
 
       // Guardar/actualizar alternativas
-      if (formPregunta.tipo !== 'RESPUESTA_CORTA' && formPregunta.tipo !== 'COMPLETAR') {
+      if (formPregunta.tipo !== 'RESPUESTA_CORTA' && formPregunta.tipo !== 'COMPLETAR' && formPregunta.tipo !== 'SPEAKING') {
         const alternativasExistentes = pregunta && pregunta.id
           ? (await api.get(`/docente/aula-virtual/preguntas/${pregunta.id}/alternativas`)).data.alternativas || []
           : [];
@@ -7289,7 +7400,7 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
                     setAlternativas([]);
                   } else if (e.target.value === 'EMPAREJAR') {
                     setAlternativas([]);
-                  } else if (e.target.value === 'ARRASTRAR_Y_SOLTAR') {
+                  } else if (e.target.value === 'SPEAKING' || e.target.value === 'RESPUESTA_CORTA' || e.target.value === 'COMPLETAR') {
                     setAlternativas([]);
                   }
                 }}
@@ -7301,7 +7412,19 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
                 <option value="ORDENAR">🔢 ORDENAR (Ordenar elementos)</option>
                 <option value="EMPAREJAR">🔗 EMPAREJAR (Emparejar elementos)</option>
                 <option value="ARRASTRAR_Y_SOLTAR">🎯 ARRASTRAR_Y_SOLTAR (Drag & Drop)</option>
+                {esExamenHibrido(examen.tipo) && (
+                  <option value="SPEAKING">🎤 SPEAKING (el docente califica)</option>
+                )}
               </select>
+              {esExamenHibrido(examen.tipo) ? (
+                <small style={{ display: 'block', marginTop: '0.4rem', color: '#5b21b6' }}>
+                  Speaking: el alumno lee / habla. Tú pones la nota ({String(examen.speaking_modo || 'AUDIO').toUpperCase() === 'EN_VIVO' ? 'en vivo en clase' : 'escuchando el audio'}).
+                </small>
+              ) : (
+                <small style={{ display: 'block', marginTop: '0.4rem', color: '#6b7280' }}>
+                  Para agregar Speaking, el examen debe ser tipo HÍBRIDO.
+                </small>
+              )}
             </div>
 
             <div className="form-group">
@@ -7340,7 +7463,7 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
             )}
             </div>
 
-            {examen.tipo_puntaje === 'INDIVIDUAL' && (
+            {(examen.tipo_puntaje === 'INDIVIDUAL' || esPreguntaSpeaking(formPregunta.tipo)) && (
             <div className="form-group">
                 <label>Puntos *</label>
               <input
@@ -7835,6 +7958,26 @@ function ResultadosExamenModal({ examen, resultados, cargandoResultados, soloLec
             </div>
           )}
 
+          {!esExamenPdf && String(examen.tipo || '').toUpperCase() === 'HIBRIDO' && (
+            <div
+              style={{
+                marginBottom: '1.25rem',
+                padding: '1rem 1.25rem',
+                background: '#f5f3ff',
+                border: '1px solid #ddd6fe',
+                borderRadius: '8px',
+                color: '#5b21b6'
+              }}
+            >
+              <p style={{ margin: '0 0 0.35rem', fontWeight: 700 }}>Examen híbrido</p>
+              <p style={{ margin: 0, fontSize: '0.9375rem', lineHeight: 1.5 }}>
+                {String(examen.speaking_modo || 'AUDIO').toUpperCase() === 'EN_VIVO'
+                  ? 'El Speaking se califica en vivo: abre el detalle del alumno y pon la nota.'
+                  : 'El alumno graba audio. Ábrelo en el detalle y pon la nota de Speaking.'}
+              </p>
+            </div>
+          )}
+
           {!soloLectura && !esExamenPdf && (
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <button 
@@ -7958,6 +8101,21 @@ function ResultadosExamenModal({ examen, resultados, cargandoResultados, soloLec
                               Finalizado normal
                             </span>
                           )}
+                          {Number(resultado.pendiente_speaking) === 1 && (
+                            <span style={{
+                              display: 'inline-block',
+                              marginLeft: '0.35rem',
+                              padding: '0.25rem 0.6rem',
+                              borderRadius: '999px',
+                              fontSize: '0.75rem',
+                              fontWeight: '700',
+                              color: '#5b21b6',
+                              background: '#ede9fe',
+                              border: '1px solid #ddd6fe'
+                            }}>
+                              Falta Speaking
+                            </span>
+                          )}
                         </td>
                         {!esExamenPdf ? (
                         <td style={{ padding: '0.75rem', textAlign: 'center' }}>
@@ -8035,7 +8193,106 @@ function ResultadosExamenModal({ examen, resultados, cargandoResultados, soloLec
 }
 
 // Componente Modal de Detalles del Resultado
-function DetallesResultadoModal({ resultado, detalles, cargando, onClose }) {
+function SpeakingDocenteBloque({
+  pregunta,
+  respuestaAlumno,
+  resultadoId,
+  onCalificarSpeaking,
+  speakingModo,
+  tipoPuntaje,
+  puntosCorrecta
+}) {
+  const sp = parseSpeakingRespuesta(respuestaAlumno);
+  const maxPts = puntosMaxSpeaking(pregunta, {
+    tipo_puntaje: tipoPuntaje,
+    puntos_correcta: puntosCorrecta
+  });
+  const [nota, setNota] = useState(sp.nota_docente != null ? String(sp.nota_docente) : '');
+  const [comentario, setComentario] = useState(sp.comentario || '');
+  const [guardando, setGuardando] = useState(false);
+  const audioSrc = sp.audio ? (sp.audio_url || urlStaticArchivos(sp.audio)) : '';
+  const vivo = String(speakingModo || sp.modo || 'AUDIO').toUpperCase() === 'EN_VIVO';
+
+  const guardar = async () => {
+    if (!onCalificarSpeaking) return;
+    const n = Number(nota);
+    if (!Number.isFinite(n) || n < 0) {
+      Swal.fire({ icon: 'warning', title: 'Nota inválida', text: 'Escribe un número (0 o más).' });
+      return;
+    }
+    if (maxPts > 0 && n > maxPts) {
+      Swal.fire({ icon: 'warning', title: 'Nota muy alta', text: `El máximo es ${maxPts} punto(s).` });
+      return;
+    }
+    setGuardando(true);
+    try {
+      await onCalificarSpeaking({ resultadoId, preguntaId: pregunta.id, puntos: n, comentario });
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div style={{
+      padding: '1rem',
+      borderRadius: '12px',
+      background: '#f5f3ff',
+      border: '1px solid #ddd6fe'
+    }}>
+      <div style={{ fontWeight: 800, color: '#5b21b6', marginBottom: '0.5rem' }}>
+        {vivo ? 'Speaking en vivo' : 'Speaking con audio'}
+      </div>
+      {audioSrc ? (
+        <audio controls src={audioSrc} style={{ width: '100%', marginBottom: '0.75rem' }}>
+          Tu navegador no reproduce audio.
+        </audio>
+      ) : (
+        <p style={{ margin: '0 0 0.75rem', color: '#6b7280' }}>
+          {vivo ? 'El alumno lo presenta en clase. Anota la nota aquí.' : 'Aún no hay audio grabado.'}
+        </p>
+      )}
+      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.85rem', fontWeight: 600, color: '#4c1d95' }}>
+          Nota {maxPts > 0 ? `(máx. ${maxPts})` : ''}
+          <input
+            type="number"
+            min="0"
+            max={maxPts || undefined}
+            step="0.5"
+            value={nota}
+            onChange={(e) => setNota(e.target.value)}
+            className="form-input"
+            style={{ width: '120px' }}
+          />
+        </label>
+        <label style={{ flex: 1, minWidth: '180px', display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.85rem', fontWeight: 600, color: '#4c1d95' }}>
+          Comentario (opcional)
+          <input
+            type="text"
+            value={comentario}
+            onChange={(e) => setComentario(e.target.value)}
+            className="form-input"
+            placeholder="Pronunciación, fluidez…"
+          />
+        </label>
+        <button type="button" className="btn-guardar" onClick={guardar} disabled={guardando || !onCalificarSpeaking}>
+          {guardando ? 'Guardando…' : 'Guardar nota'}
+        </button>
+      </div>
+      {sp.nota_docente != null ? (
+        <p style={{ margin: '0.65rem 0 0', color: '#065f46', fontWeight: 700 }}>
+          Nota actual: {sp.nota_docente}
+        </p>
+      ) : (
+        <p style={{ margin: '0.65rem 0 0', color: '#b45309', fontWeight: 600 }}>
+          Pendiente de calificación
+        </p>
+      )}
+    </div>
+  );
+}
+
+function DetallesResultadoModal({ resultado, detalles, cargando, onClose, onCalificarSpeaking }) {
   if (!detalles || !detalles.resultado || !detalles.preguntas) {
     return null;
   }
@@ -8671,6 +8928,19 @@ function DetallesResultadoModal({ resultado, detalles, cargando, onClose }) {
                               )}
                             </div>
                           </div>
+                        );
+
+                      case 'SPEAKING':
+                        return (
+                          <SpeakingDocenteBloque
+                            pregunta={pregunta}
+                            respuestaAlumno={respuestaAlumno}
+                            resultadoId={resultadoInfo.id}
+                            onCalificarSpeaking={onCalificarSpeaking}
+                            speakingModo={resultadoInfo.examen_speaking_modo}
+                            tipoPuntaje={resultadoInfo.tipo_puntaje}
+                            puntosCorrecta={resultadoInfo.puntos_correcta}
+                          />
                         );
 
                       default:

@@ -75,7 +75,7 @@ const { fetchMatriculaAnioActivoOperativa, sqlExistePagoMatriculaCancelado, pers
 const { maxCuadrosConNotaEnCriterio } = require('../utils/indicadoresPlantillaService');
 const { tryInsertPushCronDedup, fechaLimaYmd } = require('../utils/pushCronDedup');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
-const { staticFsSubdir, joinStaticFs, getPublicStaticBaseUrl, urlStaticFotos } = require('../utils/staticStorage');
+const { staticFsSubdir, joinStaticFs, getPublicStaticBaseUrl, urlStaticFotos, buildStaticArchivoUrl } = require('../utils/staticStorage');
 const { mergeTemasPdfsToFile, sendMergedPdf } = require('../utils/temasMergePdf');
 const { resolverTemaDestinoId } = require('../utils/copiarContenidoAsignatura');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
@@ -116,7 +116,16 @@ const {
   fetchMapasNotasConductaLibreta,
 } = require('../utils/conductaIncidenciasBimestre');
 const { esCompletarCorrecto } = require('../utils/examenCompletar');
-const { finalizarPruebaConCalificacion } = require('../utils/examenFinalizarPrueba');
+const { finalizarPruebaConCalificacion, aplicarEstadoFinalizadoPrueba } = require('../utils/examenFinalizarPrueba');
+const {
+  esExamenEnLinea,
+  esExamenHibrido,
+  esPreguntaSpeaking,
+  normalizarSpeakingModo,
+  adjuntarAudioUrlSpeaking
+} = require('../utils/examenTipo');
+const { aplicarNotaSpeaking } = require('../utils/examenSpeaking');
+const { cargarRespuestasMergedDePrueba } = require('../utils/examenRespuestasLinea');
 const {
   programarCierreIntentosPendientesExamen,
   MOTIVO: MOTIVO_CIERRE_EXAMEN,
@@ -19499,7 +19508,8 @@ router.post('/aula-virtual/examenes', uploadAulaVirtual.single('archivo_pdf'), a
       fecha_desde,
       fecha_hasta,
       hora_desde,
-      hora_hasta
+      hora_hasta,
+      speaking_modo
     } = req.body;
 
     if (!asignatura_id || !titulo || !tipo || !ciclo || !estadoSolicitado) {
@@ -19513,8 +19523,14 @@ router.post('/aula-virtual/examenes', uploadAulaVirtual.single('archivo_pdf'), a
       return res.status(400).json({ error: 'Debe subir un archivo PDF para exámenes tipo PDF' });
     }
 
-    // Si es VIRTUAL, validar campos requeridos
-    if (tipo === 'VIRTUAL') {
+    const tipoNorm = String(tipo || '').toUpperCase();
+    if (!['VIRTUAL', 'PDF', 'HIBRIDO'].includes(tipoNorm)) {
+      return res.status(400).json({ error: 'El tipo debe ser VIRTUAL, HÍBRIDO o PDF' });
+    }
+    const speakingModo = normalizarSpeakingModo(tipoNorm, speaking_modo);
+
+    // Si es VIRTUAL o HÍBRIDO, validar campos requeridos
+    if (esExamenEnLinea(tipo)) {
       if (!tipo_puntaje || !tiempo) {
         return res.status(400).json({ error: 'tipo_puntaje y tiempo son requeridos para exámenes virtuales' });
       }
@@ -19577,18 +19593,18 @@ router.post('/aula-virtual/examenes', uploadAulaVirtual.single('archivo_pdf'), a
     }
 
     // Valores por defecto para campos opcionales
-    const tipoPuntaje = tipo === 'VIRTUAL' ? (tipo_puntaje || 'INDIVIDUAL') : 'INDIVIDUAL';
+    const tipoPuntaje = esExamenEnLinea(tipo) ? (tipo_puntaje || 'INDIVIDUAL') : 'INDIVIDUAL';
     // Si es INDIVIDUAL, usar 0 (el puntaje se asigna en cada pregunta)
     // Si es GENERAL, usar el valor proporcionado o 1.0 por defecto
-    const puntosCorrecta = tipo === 'VIRTUAL' 
+    const puntosCorrecta = esExamenEnLinea(tipo) 
       ? (tipo_puntaje === 'GENERAL' ? (parseFloat(puntos_correcta) || 1.0) : 0.0)
       : 1.0;
-    const penalizarIncorrecta = tipo === 'VIRTUAL' ? (penalizar_incorrecta || 'NO') : 'NO';
-    const penalizacionIncorrecta = tipo === 'VIRTUAL' ? (parseFloat(penalizacion_incorrecta) || 0.0) : 0.0;
-    const tiempoExamen = tipo === 'VIRTUAL' ? (parseInt(tiempo) || 60) : 0;
-    const intentosExamen = tipo === 'VIRTUAL' ? (parseInt(intentos) || 1) : 1;
-    const ordenPreguntas = tipo === 'VIRTUAL' ? (orden_preguntas || 'PREDETERMINADO') : 'PREDETERMINADO';
-    const preguntasMax = tipo === 'VIRTUAL' ? (parseInt(preguntas_max) || 1) : 1;
+    const penalizarIncorrecta = esExamenEnLinea(tipo) ? (penalizar_incorrecta || 'NO') : 'NO';
+    const penalizacionIncorrecta = esExamenEnLinea(tipo) ? (parseFloat(penalizacion_incorrecta) || 0.0) : 0.0;
+    const tiempoExamen = esExamenEnLinea(tipo) ? (parseInt(tiempo) || 60) : 0;
+    const intentosExamen = esExamenEnLinea(tipo) ? (parseInt(intentos) || 1) : 1;
+    const ordenPreguntas = esExamenEnLinea(tipo) ? (orden_preguntas || 'PREDETERMINADO') : 'PREDETERMINADO';
+    const preguntasMax = esExamenEnLinea(tipo) ? (parseInt(preguntas_max) || 1) : 1;
 
     // Preparar datos nuevos para auditoría
     const datosNuevos = {
@@ -19608,7 +19624,8 @@ router.post('/aula-virtual/examenes', uploadAulaVirtual.single('archivo_pdf'), a
       hora_hasta: horaHasta,
       ciclo: parseInt(ciclo),
       preguntas_max: preguntasMax,
-      archivo_pdf: archivoPdf
+      archivo_pdf: archivoPdf,
+      speaking_modo: speakingModo
     };
 
     // Registrar acción en auditoría ANTES de crear el examen
@@ -19650,34 +19667,68 @@ router.post('/aula-virtual/examenes', uploadAulaVirtual.single('archivo_pdf'), a
     );
 
     // Insertar el examen
-    const result = await execute(
-      `INSERT INTO asignaturas_examenes 
-       (trabajador_id, titulo, tipo_puntaje, puntos_correcta, penalizar_incorrecta, penalizacion_incorrecta, 
-        tiempo, intentos, estado, orden_preguntas, fecha_desde, fecha_hasta, hora_desde, hora_hasta, 
-        asignatura_id, ciclo, preguntas_max, tipo, archivo_pdf)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        personal_id,
-        titulo,
-        tipoPuntaje,
-        puntosCorrecta,
-        penalizarIncorrecta,
-        penalizacionIncorrecta,
-        tiempoExamen,
-        intentosExamen,
-        estadoFinal,
-        ordenPreguntas,
-        fechaDesde,
-        fechaHasta,
-        horaDesde,
-        horaHasta,
-        asignatura_id,
-        parseInt(ciclo),
-        preguntasMax,
-        tipo,
-        archivoPdf
-      ]
-    );
+    let result;
+    try {
+      result = await execute(
+        `INSERT INTO asignaturas_examenes 
+         (trabajador_id, titulo, tipo_puntaje, puntos_correcta, penalizar_incorrecta, penalizacion_incorrecta, 
+          tiempo, intentos, estado, orden_preguntas, fecha_desde, fecha_hasta, hora_desde, hora_hasta, 
+          asignatura_id, ciclo, preguntas_max, tipo, archivo_pdf, speaking_modo)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          personal_id,
+          titulo,
+          tipoPuntaje,
+          puntosCorrecta,
+          penalizarIncorrecta,
+          penalizacionIncorrecta,
+          tiempoExamen,
+          intentosExamen,
+          estadoFinal,
+          ordenPreguntas,
+          fechaDesde,
+          fechaHasta,
+          horaDesde,
+          horaHasta,
+          asignatura_id,
+          parseInt(ciclo),
+          preguntasMax,
+          tipoNorm,
+          archivoPdf,
+          speakingModo
+        ]
+      );
+    } catch (insertErr) {
+      if (!insertErr || insertErr.code !== 'ER_BAD_FIELD_ERROR') throw insertErr;
+      result = await execute(
+        `INSERT INTO asignaturas_examenes 
+         (trabajador_id, titulo, tipo_puntaje, puntos_correcta, penalizar_incorrecta, penalizacion_incorrecta, 
+          tiempo, intentos, estado, orden_preguntas, fecha_desde, fecha_hasta, hora_desde, hora_hasta, 
+          asignatura_id, ciclo, preguntas_max, tipo, archivo_pdf)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          personal_id,
+          titulo,
+          tipoPuntaje,
+          puntosCorrecta,
+          penalizarIncorrecta,
+          penalizacionIncorrecta,
+          tiempoExamen,
+          intentosExamen,
+          estadoFinal,
+          ordenPreguntas,
+          fechaDesde,
+          fechaHasta,
+          horaDesde,
+          horaHasta,
+          asignatura_id,
+          parseInt(ciclo),
+          preguntasMax,
+          tipoNorm,
+          archivoPdf
+        ]
+      );
+    }
 
     // Actualizar el registro de auditoría con el ID del examen creado
     await execute(
@@ -19737,7 +19788,8 @@ router.put('/aula-virtual/examenes/:examenId', uploadAulaVirtual.single('archivo
       fecha_desde,
       fecha_hasta,
       hora_desde,
-      hora_hasta
+      hora_hasta,
+      speaking_modo
     } = req.body;
 
     if (!titulo || !tipo || !ciclo || !estadoSolicitado) {
@@ -19762,8 +19814,26 @@ router.put('/aula-virtual/examenes/:examenId', uploadAulaVirtual.single('archivo
       return res.status(400).json({ error: 'Debe subir un archivo PDF para exámenes tipo PDF' });
     }
 
-    // Si es VIRTUAL, validar campos requeridos
-    if (tipo === 'VIRTUAL') {
+    const tipoNorm = String(tipo || '').toUpperCase();
+    if (!['VIRTUAL', 'PDF', 'HIBRIDO'].includes(tipoNorm)) {
+      return res.status(400).json({ error: 'El tipo debe ser VIRTUAL, HÍBRIDO o PDF' });
+    }
+    if (!esExamenHibrido(tipoNorm)) {
+      const haySpeaking = await query(
+        `SELECT id FROM asignaturas_examenes_preguntas WHERE examen_id = ? AND UPPER(tipo) = 'SPEAKING' LIMIT 1`,
+        [examenId]
+      );
+      if (haySpeaking.length > 0) {
+        return res.status(400).json({
+          error:
+            'Este examen ya tiene preguntas Speaking. Cámbialo a HÍBRIDO o elimina esas preguntas antes de dejarlo solo VIRTUAL o PDF.'
+        });
+      }
+    }
+    const speakingModo = normalizarSpeakingModo(tipoNorm, speaking_modo);
+
+    // Si es VIRTUAL o HÍBRIDO, validar campos requeridos
+    if (esExamenEnLinea(tipo)) {
       if (!tipo_puntaje || !tiempo) {
         return res.status(400).json({ error: 'tipo_puntaje y tiempo son requeridos para exámenes virtuales' });
       }
@@ -19815,16 +19885,16 @@ router.put('/aula-virtual/examenes/:examenId', uploadAulaVirtual.single('archivo
     }
 
     // Valores por defecto para campos opcionales
-    const tipoPuntaje = tipo === 'VIRTUAL' ? (tipo_puntaje || 'INDIVIDUAL') : 'INDIVIDUAL';
-    const puntosCorrecta = tipo === 'VIRTUAL' 
+    const tipoPuntaje = esExamenEnLinea(tipo) ? (tipo_puntaje || 'INDIVIDUAL') : 'INDIVIDUAL';
+    const puntosCorrecta = esExamenEnLinea(tipo) 
       ? (tipo_puntaje === 'GENERAL' ? (parseFloat(puntos_correcta) || 1.0) : 0.0)
       : 1.0;
-    const penalizarIncorrecta = tipo === 'VIRTUAL' ? (penalizar_incorrecta || 'NO') : 'NO';
-    const penalizacionIncorrecta = tipo === 'VIRTUAL' ? (parseFloat(penalizacion_incorrecta) || 0.0) : 0.0;
-    const tiempoExamen = tipo === 'VIRTUAL' ? (parseInt(tiempo) || 60) : 0;
-    const intentosExamen = tipo === 'VIRTUAL' ? (parseInt(intentos) || 1) : 1;
-    const ordenPreguntas = tipo === 'VIRTUAL' ? (orden_preguntas || 'PREDETERMINADO') : 'PREDETERMINADO';
-    const preguntasMax = tipo === 'VIRTUAL' ? (parseInt(preguntas_max) || 1) : 1;
+    const penalizarIncorrecta = esExamenEnLinea(tipo) ? (penalizar_incorrecta || 'NO') : 'NO';
+    const penalizacionIncorrecta = esExamenEnLinea(tipo) ? (parseFloat(penalizacion_incorrecta) || 0.0) : 0.0;
+    const tiempoExamen = esExamenEnLinea(tipo) ? (parseInt(tiempo) || 60) : 0;
+    const intentosExamen = esExamenEnLinea(tipo) ? (parseInt(intentos) || 1) : 1;
+    const ordenPreguntas = esExamenEnLinea(tipo) ? (orden_preguntas || 'PREDETERMINADO') : 'PREDETERMINADO';
+    const preguntasMax = esExamenEnLinea(tipo) ? (parseInt(preguntas_max) || 1) : 1;
 
     // Preparar datos nuevos para auditoría
     const datosNuevos = {
@@ -19844,7 +19914,8 @@ router.put('/aula-virtual/examenes/:examenId', uploadAulaVirtual.single('archivo
       hora_hasta: horaHasta,
       ciclo: parseInt(ciclo),
       preguntas_max: preguntasMax,
-      archivo_pdf: archivoPdf
+      archivo_pdf: archivoPdf,
+      speaking_modo: speakingModo
     };
 
     // Registrar acción en auditoría ANTES de actualizar
@@ -19867,34 +19938,67 @@ router.put('/aula-virtual/examenes/:examenId', uploadAulaVirtual.single('archivo
     });
 
     // Actualizar el examen
-    await execute(
-      `UPDATE asignaturas_examenes 
-       SET titulo = ?, tipo_puntaje = ?, puntos_correcta = ?, penalizar_incorrecta = ?, 
-           penalizacion_incorrecta = ?, tiempo = ?, intentos = ?, estado = ?, 
-           orden_preguntas = ?, fecha_desde = ?, fecha_hasta = ?, hora_desde = ?, 
-           hora_hasta = ?, ciclo = ?, preguntas_max = ?, tipo = ?, archivo_pdf = ?
-       WHERE id = ?`,
-      [
-        titulo,
-        tipoPuntaje,
-        puntosCorrecta,
-        penalizarIncorrecta,
-        penalizacionIncorrecta,
-        tiempoExamen,
-        intentosExamen,
-        estadoFinal,
-        ordenPreguntas,
-        fechaDesde,
-        fechaHasta,
-        horaDesde,
-        horaHasta,
-        parseInt(ciclo),
-        preguntasMax,
-        tipo,
-        archivoPdf,
-        examenId
-      ]
-    );
+    try {
+      await execute(
+        `UPDATE asignaturas_examenes 
+         SET titulo = ?, tipo_puntaje = ?, puntos_correcta = ?, penalizar_incorrecta = ?, 
+             penalizacion_incorrecta = ?, tiempo = ?, intentos = ?, estado = ?, 
+             orden_preguntas = ?, fecha_desde = ?, fecha_hasta = ?, hora_desde = ?, 
+             hora_hasta = ?, ciclo = ?, preguntas_max = ?, tipo = ?, archivo_pdf = ?, speaking_modo = ?
+         WHERE id = ?`,
+        [
+          titulo,
+          tipoPuntaje,
+          puntosCorrecta,
+          penalizarIncorrecta,
+          penalizacionIncorrecta,
+          tiempoExamen,
+          intentosExamen,
+          estadoFinal,
+          ordenPreguntas,
+          fechaDesde,
+          fechaHasta,
+          horaDesde,
+          horaHasta,
+          parseInt(ciclo),
+          preguntasMax,
+          tipoNorm,
+          archivoPdf,
+          speakingModo,
+          examenId
+        ]
+      );
+    } catch (updateErr) {
+      if (!updateErr || updateErr.code !== 'ER_BAD_FIELD_ERROR') throw updateErr;
+      await execute(
+        `UPDATE asignaturas_examenes 
+         SET titulo = ?, tipo_puntaje = ?, puntos_correcta = ?, penalizar_incorrecta = ?, 
+             penalizacion_incorrecta = ?, tiempo = ?, intentos = ?, estado = ?, 
+             orden_preguntas = ?, fecha_desde = ?, fecha_hasta = ?, hora_desde = ?, 
+             hora_hasta = ?, ciclo = ?, preguntas_max = ?, tipo = ?, archivo_pdf = ?
+         WHERE id = ?`,
+        [
+          titulo,
+          tipoPuntaje,
+          puntosCorrecta,
+          penalizarIncorrecta,
+          penalizacionIncorrecta,
+          tiempoExamen,
+          intentosExamen,
+          estadoFinal,
+          ordenPreguntas,
+          fechaDesde,
+          fechaHasta,
+          horaDesde,
+          horaHasta,
+          parseInt(ciclo),
+          preguntasMax,
+          tipoNorm,
+          archivoPdf,
+          examenId
+        ]
+      );
+    }
 
     // Marcar para que el middleware no registre automáticamente
     req.skipAudit = true;
@@ -20343,10 +20447,7 @@ router.get('/aula-virtual/examenes/:examenId/resultados', async (req, res) => {
       return res.status(404).json({ error: 'Asignatura no encontrada' });
     }
 
-    // Obtener TODOS los alumnos del grupo con LEFT JOIN a resultados
-    // Si no tienen resultado, devolver NULL para mostrar "-" en el frontend
-    const resultados = await query(
-      `SELECT 
+    const sqlResultadosBase = `SELECT 
         COALESCE(aep.id, NULL) as resultado_id,
         m.id as matricula_id,
         COALESCE(aep.fecha_hora, NULL) as fecha_hora,
@@ -20355,20 +20456,42 @@ router.get('/aula-virtual/examenes/:examenId/resultados', async (req, res) => {
         aep.incorrectas as incorrectas,
         COALESCE(aep.estado, NULL) as estado,
         COALESCE(aep.finalizado_por_salida, 'NO') as finalizado_por_salida,
-        COALESCE(aep.motivo_cierre, NULL) as motivo_cierre,
-        CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo,
-        a.nombres,
-        a.apellido_paterno,
-        a.apellido_materno
+        COALESCE(aep.motivo_cierre, NULL) as motivo_cierre`;
+    const sqlResultadosFrom = `
        FROM alumnos a
        INNER JOIN matriculas m ON m.alumno_id = a.id
        LEFT JOIN asignaturas_examenes_pruebas aep ON aep.matricula_id = m.id AND aep.examen_id = ?
        WHERE m.grupo_id = ? 
          AND m.colegio_id = ?
          AND (m.estado = 0)
-       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres ASC`,
-      [examenId, grupoId, colegio_id]
-    );
+       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres ASC`;
+    const paramsResultados = [examenId, grupoId, colegio_id];
+
+    let resultados;
+    try {
+      resultados = await query(
+        `${sqlResultadosBase},
+        COALESCE(aep.pendiente_speaking, 0) as pendiente_speaking,
+        CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo,
+        a.nombres,
+        a.apellido_paterno,
+        a.apellido_materno
+        ${sqlResultadosFrom}`,
+        paramsResultados
+      );
+    } catch (resErr) {
+      if (!resErr || resErr.code !== 'ER_BAD_FIELD_ERROR') throw resErr;
+      resultados = await query(
+        `${sqlResultadosBase},
+        0 as pendiente_speaking,
+        CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo,
+        a.nombres,
+        a.apellido_paterno,
+        a.apellido_materno
+        ${sqlResultadosFrom}`,
+        paramsResultados
+      );
+    }
 
     res.json({ 
       examen: examenInfo,
@@ -20389,20 +20512,46 @@ router.get('/aula-virtual/resultados/:resultadoId/detalles', async (req, res) =>
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { resultadoId } = req.params;
 
-    const resultadoInfo = await verificarAccesoResultadoPrueba(
-      req,
-      res,
-      resultadoId,
-      `aep.*,
+    const selectDetalles = `aep.*,
         ae.titulo as examen_titulo,
+        ae.tipo as examen_tipo,
+        ae.speaking_modo as examen_speaking_modo,
         ae.tipo_puntaje,
         ae.puntos_correcta,
-        CONCAT(alum.apellido_paterno, ' ', alum.apellido_materno, ', ', alum.nombres) as nombre_completo`,
-      'No tienes acceso a este resultado',
-      403,
-      ` INNER JOIN matriculas m ON m.id = aep.matricula_id
-        INNER JOIN alumnos alum ON alum.id = m.alumno_id`
-    );
+        CONCAT(alum.apellido_paterno, ' ', alum.apellido_materno, ', ', alum.nombres) as nombre_completo`;
+    const selectDetallesLegacy = `aep.*,
+        ae.titulo as examen_titulo,
+        ae.tipo as examen_tipo,
+        NULL as examen_speaking_modo,
+        ae.tipo_puntaje,
+        ae.puntos_correcta,
+        CONCAT(alum.apellido_paterno, ' ', alum.apellido_materno, ', ', alum.nombres) as nombre_completo`;
+    const joinAlumno = ` INNER JOIN matriculas m ON m.id = aep.matricula_id
+        INNER JOIN alumnos alum ON alum.id = m.alumno_id`;
+
+    let resultadoInfo;
+    try {
+      resultadoInfo = await verificarAccesoResultadoPrueba(
+        req,
+        res,
+        resultadoId,
+        selectDetalles,
+        'No tienes acceso a este resultado',
+        403,
+        joinAlumno
+      );
+    } catch (detErr) {
+      if (!detErr || detErr.code !== 'ER_BAD_FIELD_ERROR') throw detErr;
+      resultadoInfo = await verificarAccesoResultadoPrueba(
+        req,
+        res,
+        resultadoId,
+        selectDetallesLegacy,
+        'No tienes acceso a este resultado',
+        403,
+        joinAlumno
+      );
+    }
     if (!resultadoInfo) return;
     const examenId = resultadoInfo.examen_id;
 
@@ -20484,9 +20633,16 @@ router.get('/aula-virtual/resultados/:resultadoId/detalles', async (req, res) =>
     } catch (parseError) {
       console.error('Error parseando respuestas del alumno:', parseError);
       console.error('Respuestas raw:', resultadoInfo.respuestas);
-      // Si falla, respuestasAlumno queda como objeto vacío
       respuestasAlumno = {};
     }
+
+    try {
+      respuestasAlumno = await cargarRespuestasMergedDePrueba(query, resultadoInfo);
+    } catch (mergeErr) {
+      console.warn('[detalles resultado] merge líneas:', mergeErr?.message || mergeErr);
+    }
+
+    adjuntarAudioUrlSpeaking(respuestasAlumno, buildStaticArchivoUrl);
 
     res.json({
       resultado: resultadoInfo,
@@ -20498,6 +20654,82 @@ router.get('/aula-virtual/resultados/:resultadoId/detalles', async (req, res) =>
       res.status(500).json({ error: 'Error al obtener detalles del resultado' });
     }
   });
+
+/**
+ * POST /api/docente/aula-virtual/resultados/:resultadoId/speaking
+ * El docente pone nota a una pregunta Speaking (audio o en vivo).
+ */
+router.post('/aula-virtual/resultados/:resultadoId/speaking', async (req, res) => {
+  try {
+    const { personal_id } = req.user;
+    const { resultadoId } = req.params;
+    const { pregunta_id, puntos, comentario } = req.body || {};
+
+    let resultadoInfo;
+    try {
+      resultadoInfo = await verificarAccesoResultadoPrueba(
+        req,
+        res,
+        resultadoId,
+        `aep.*, ae.titulo as examen_titulo, ae.tipo, ae.speaking_modo, ae.tipo_puntaje, ae.puntos_correcta`,
+        'No tienes acceso a este resultado',
+        403
+      );
+    } catch (spErr) {
+      if (!spErr || spErr.code !== 'ER_BAD_FIELD_ERROR') throw spErr;
+      resultadoInfo = await verificarAccesoResultadoPrueba(
+        req,
+        res,
+        resultadoId,
+        `aep.*, ae.titulo as examen_titulo, ae.tipo, ae.tipo_puntaje, ae.puntos_correcta`,
+        'No tienes acceso a este resultado',
+        403
+      );
+    }
+    if (!resultadoInfo) return;
+
+    const preguntaId = parseInt(pregunta_id, 10);
+    if (!preguntaId) {
+      return res.status(400).json({ error: 'pregunta_id es requerido' });
+    }
+
+    const preguntas = await fetchPreguntasConAlternativas(query, resultadoInfo.examen_id, [preguntaId], 'SI_NO');
+    const preguntaRow = preguntas.find((p) => parseInt(p.id, 10) === preguntaId);
+    if (!preguntaRow) {
+      return res.status(404).json({ error: 'Pregunta no encontrada en este examen' });
+    }
+
+    const calificacion = await aplicarNotaSpeaking({
+      query,
+      execute,
+      pruebaRow: resultadoInfo,
+      preguntaRow,
+      examenRow: {
+        id: resultadoInfo.examen_id,
+        tipo: resultadoInfo.tipo,
+        speaking_modo: resultadoInfo.speaking_modo,
+        tipo_puntaje: resultadoInfo.tipo_puntaje,
+        puntos_correcta: resultadoInfo.puntos_correcta
+      },
+      puntos,
+      comentario,
+      personalId: personal_id
+    });
+
+    res.json({
+      success: true,
+      message: 'Nota de Speaking guardada',
+      puntaje: calificacion.puntajeFinal,
+      pendiente_speaking: !!calificacion.pendienteSpeaking,
+      correctas: calificacion.correctas,
+      incorrectas: calificacion.incorrectas
+    });
+  } catch (error) {
+    console.error('Error calificando Speaking:', error);
+    const status = error.status || 500;
+    res.status(status).json({ error: error.message || 'Error al calificar Speaking' });
+  }
+});
 
 /**
  * DELETE /api/docente/aula-virtual/resultados/:resultadoId
@@ -20697,17 +20929,7 @@ router.post('/aula-virtual/examenes/:examenId/calificar', async (req, res) => {
           examenId
         });
 
-        await execute(
-          `UPDATE asignaturas_examenes_pruebas 
-           SET puntaje = ?, correctas = ?, incorrectas = ?, estado = 'FINALIZADA'
-           WHERE id = ?`,
-          [
-            calificacion.puntajeFinal,
-            calificacion.correctas,
-            calificacion.incorrectas,
-            prueba.id
-          ]
-        );
+        await aplicarEstadoFinalizadoPrueba(execute, prueba.id, calificacion);
 
         recalificados++;
       } catch (error) {
@@ -21914,11 +22136,21 @@ router.post('/aula-virtual/copiar-biblioteca', async (req, res) => {
         const examen = await query(`SELECT * FROM asignaturas_examenes WHERE id = ? AND asignatura_id = ?`, [item_id, asignatura_origen_id]);
         if (examen.length === 0) continue;
         const ex = examen[0];
-        const resultado = await execute(
-          `INSERT INTO asignaturas_examenes (trabajador_id, titulo, tipo, archivo_pdf, fecha_desde, fecha_hasta, hora_desde, hora_hasta, asignatura_id, ciclo, preguntas_max, tipo_puntaje, puntos_correcta, penalizar_incorrecta, penalizacion_incorrecta, tiempo, intentos, estado, orden_preguntas)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [trabajadorId, ex.titulo, ex.tipo || 'VIRTUAL', ex.archivo_pdf || '', ex.fecha_desde || new Date(), ex.fecha_hasta || new Date(), ex.hora_desde || '08:00', ex.hora_hasta || '20:00', asignatura_id, ex.ciclo, ex.preguntas_max || 1, ex.tipo_puntaje || 'GENERAL', ex.puntos_correcta || 1, ex.penalizar_incorrecta || 'NO', ex.penalizacion_incorrecta || 0, ex.tiempo || 60, ex.intentos || 1, ex.estado || 'INACTIVO', ex.orden_preguntas || 'PREDETERMINADO']
-        );
+        let resultado;
+        try {
+          resultado = await execute(
+            `INSERT INTO asignaturas_examenes (trabajador_id, titulo, tipo, archivo_pdf, fecha_desde, fecha_hasta, hora_desde, hora_hasta, asignatura_id, ciclo, preguntas_max, tipo_puntaje, puntos_correcta, penalizar_incorrecta, penalizacion_incorrecta, tiempo, intentos, estado, orden_preguntas, speaking_modo)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [trabajadorId, ex.titulo, ex.tipo || 'VIRTUAL', ex.archivo_pdf || '', ex.fecha_desde || new Date(), ex.fecha_hasta || new Date(), ex.hora_desde || '08:00', ex.hora_hasta || '20:00', asignatura_id, ex.ciclo, ex.preguntas_max || 1, ex.tipo_puntaje || 'GENERAL', ex.puntos_correcta || 1, ex.penalizar_incorrecta || 'NO', ex.penalizacion_incorrecta || 0, ex.tiempo || 60, ex.intentos || 1, ex.estado || 'INACTIVO', ex.orden_preguntas || 'PREDETERMINADO', ex.speaking_modo || null]
+          );
+        } catch (copyErr) {
+          if (!copyErr || copyErr.code !== 'ER_BAD_FIELD_ERROR') throw copyErr;
+          resultado = await execute(
+            `INSERT INTO asignaturas_examenes (trabajador_id, titulo, tipo, archivo_pdf, fecha_desde, fecha_hasta, hora_desde, hora_hasta, asignatura_id, ciclo, preguntas_max, tipo_puntaje, puntos_correcta, penalizar_incorrecta, penalizacion_incorrecta, tiempo, intentos, estado, orden_preguntas)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [trabajadorId, ex.titulo, ex.tipo || 'VIRTUAL', ex.archivo_pdf || '', ex.fecha_desde || new Date(), ex.fecha_hasta || new Date(), ex.hora_desde || '08:00', ex.hora_hasta || '20:00', asignatura_id, ex.ciclo, ex.preguntas_max || 1, ex.tipo_puntaje || 'GENERAL', ex.puntos_correcta || 1, ex.penalizar_incorrecta || 'NO', ex.penalizacion_incorrecta || 0, ex.tiempo || 60, ex.intentos || 1, ex.estado || 'INACTIVO', ex.orden_preguntas || 'PREDETERMINADO']
+          );
+        }
         const nuevoExamenId = resultado.insertId;
         try {
           const bloqueSrc = await query(
@@ -23458,6 +23690,13 @@ router.post('/aula-virtual/examenes/:examenId/preguntas', async (req, res) => {
       return;
     }
 
+    if (esPreguntaSpeaking(tipo) && !esExamenHibrido(examen.tipo)) {
+      return res.status(400).json({
+        error:
+          'Las preguntas Speaking solo se usan en exámenes tipo HÍBRIDO. Edita el examen y elige Híbrido (sistema + docente).'
+      });
+    }
+
     // Obtener el siguiente orden
     const ultimaPregunta = await query(
       `SELECT MAX(orden) as max_orden FROM asignaturas_examenes_preguntas WHERE examen_id = ?`,
@@ -23465,10 +23704,16 @@ router.post('/aula-virtual/examenes/:examenId/preguntas', async (req, res) => {
     );
     const siguienteOrden = (ultimaPregunta[0]?.max_orden || 0) + 1;
 
-    // Si el tipo de puntaje es INDIVIDUAL, puntos es requerido
-    const puntosFinal = examen.tipo_puntaje === 'INDIVIDUAL' 
-      ? (parseFloat(puntos) || 0) 
-      : 0;
+    const esSpeaking = esPreguntaSpeaking(tipo);
+    if (esSpeaking && !(parseFloat(puntos) > 0)) {
+      return res.status(400).json({
+        error: 'La pregunta Speaking debe tener puntos: es el máximo sobre el que calificas.'
+      });
+    }
+    const puntosFinal =
+      examen.tipo_puntaje === 'INDIVIDUAL' || esSpeaking
+        ? parseFloat(puntos) || 0
+        : 0;
 
     // Preparar datos adicionales como JSON
     const datosAdicionalesJson = datos_adicionales ? JSON.stringify(datos_adicionales) : null;
@@ -23542,15 +23787,28 @@ router.put('/aula-virtual/preguntas/:preguntaId', async (req, res) => {
       return;
     }
 
-    // Obtener examen para verificar tipo_puntaje
     const examen = await query(
-      `SELECT tipo_puntaje FROM asignaturas_examenes WHERE id = ?`,
+      `SELECT tipo_puntaje, tipo FROM asignaturas_examenes WHERE id = ?`,
       [pregunta.examen_id]
     );
 
-    const puntosFinal = examen[0]?.tipo_puntaje === 'INDIVIDUAL' 
-      ? (parseFloat(puntos) || pregunta.puntos) 
-      : pregunta.puntos;
+    if (esPreguntaSpeaking(tipo || pregunta.tipo) && !esExamenHibrido(examen[0]?.tipo)) {
+      return res.status(400).json({
+        error:
+          'Las preguntas Speaking solo se usan en exámenes tipo HÍBRIDO. Edita el examen y elige Híbrido.'
+      });
+    }
+
+    const esSpeaking = esPreguntaSpeaking(tipo || pregunta.tipo);
+    if (esSpeaking && puntos !== undefined && !(parseFloat(puntos) > 0) && !(parseFloat(pregunta.puntos) > 0)) {
+      return res.status(400).json({
+        error: 'La pregunta Speaking debe tener puntos: es el máximo sobre el que calificas.'
+      });
+    }
+    const puntosFinal =
+      examen[0]?.tipo_puntaje === 'INDIVIDUAL' || esSpeaking
+        ? parseFloat(puntos) || pregunta.puntos
+        : pregunta.puntos;
 
     // Preparar datos adicionales como JSON
     const datosAdicionalesJson = datos_adicionales ? JSON.stringify(datos_adicionales) : null;

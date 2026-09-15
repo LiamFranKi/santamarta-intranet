@@ -19,9 +19,10 @@ const { mezclarReunionesEnActividades } = require('../utils/reunionesHelper');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 const { fetchMatriculaAnioActivoOperativa } = require('../utils/matriculaAnioActivo');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
-const { urlStaticFotos } = require('../utils/staticStorage');
+const { urlStaticFotos, staticFsSubdir, buildStaticArchivoUrl } = require('../utils/staticStorage');
 const { listarComunicadosInicio } = require('../utils/comunicadosHome');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
+const { esExamenHibrido, esPreguntaSpeaking, filtrarPreguntasSegunTipoExamen, parseSpeakingRespuesta, adjuntarAudioUrlSpeaking } = require('../utils/examenTipo');
 const { esCompletarCorrecto } = require('../utils/examenCompletar');
 const { programarNotificacionApoderadosExamen } = require('../utils/examenNotificarApoderados');
 const {
@@ -2184,6 +2185,32 @@ const uploadAlumno = multer({
   fileFilter: fileFilter
 });
 
+const speakingAudioStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, staticFsSubdir('Archivos'));
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase() || '.webm';
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, `speaking-${uniqueSuffix}${ext}`);
+  }
+});
+
+const fileFilterSpeaking = (req, file, cb) => {
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const okExt = ['.webm', '.ogg', '.mp3', '.m4a', '.wav', '.mp4'].includes(ext);
+  const mime = String(file.mimetype || '');
+  const okMime = mime.startsWith('audio/') || mime === 'video/webm' || mime === 'video/mp4';
+  if (okExt || okMime) return cb(null, true);
+  cb(new Error('Solo se permite audio (webm, ogg, mp3, m4a, wav)'));
+};
+
+const uploadSpeakingAudio = multer({
+  storage: speakingAudioStorage,
+  limits: { fileSize: 12 * 1024 * 1024 },
+  fileFilter: fileFilterSpeaking
+});
+
 router.put('/perfil', uploadAlumno.single('foto'), async (req, res) => {
   try {
     const { usuario_id, colegio_id } = req.user;
@@ -3905,6 +3932,11 @@ router.get('/examenes/:examenId/preguntas', async (req, res) => {
       };
     }));
 
+    const preguntasVisibles = filtrarPreguntasSegunTipoExamen(examen[0].tipo, preguntasConAlternativas).map((p) => ({
+      ...p,
+      speaking_modo: esPreguntaSpeaking(p.tipo) ? (examen[0].speaking_modo || 'AUDIO') : null
+    }));
+
     let bloque = null;
     try {
       const phpBase =
@@ -3929,7 +3961,7 @@ router.get('/examenes/:examenId/preguntas', async (req, res) => {
       }
     }
 
-    res.json({ preguntas: preguntasConAlternativas, bloque });
+    res.json({ preguntas: preguntasVisibles, bloque, speaking_modo: examen[0].speaking_modo || null, tipo_examen: examen[0].tipo });
   } catch (error) {
     console.error('Error obteniendo preguntas:', error);
     res.status(500).json({ error: 'Error al obtener preguntas' });
@@ -4088,6 +4120,14 @@ router.post('/examenes/:examenId/respuestas', async (req, res) => {
     }
     const incoming =
       respuestas && typeof respuestas === 'object' && !Array.isArray(respuestas) ? respuestas : {};
+    if (!esExamenHibrido(examenRows[0]?.tipo)) {
+      for (const [pid, pregunta] of Object.entries(preguntasPorId)) {
+        if (esPreguntaSpeaking(pregunta.tipo)) {
+          delete incoming[pid];
+          delete incoming[String(pregunta.id)];
+        }
+      }
+    }
     await persistirRespuestasBulk({
       query,
       execute,
@@ -4185,6 +4225,10 @@ router.post('/examenes/:examenId/respuesta-linea', async (req, res) => {
       return res.status(404).json({ error: 'Pregunta no encontrada en este examen' });
     }
 
+    if (esPreguntaSpeaking(preguntaRow.tipo) && !esExamenHibrido(examenRows[0]?.tipo)) {
+      return res.status(400).json({ error: 'Este examen no admite preguntas Speaking.' });
+    }
+
     const respuestaNorm = normalizarRespuestaParaPersistir(respuesta, preguntaRow.tipo);
 
     const { evaluacion } = await persistirRespuestaPregunta({
@@ -4210,6 +4254,94 @@ router.post('/examenes/:examenId/respuesta-linea', async (req, res) => {
     res.status(500).json({ error: 'Error al guardar respuesta' });
   }
 });
+
+/**
+ * POST /api/alumno/examenes/:examenId/speaking-audio
+ * Sube el audio de una pregunta Speaking (solo examen HÍBRIDO en modo AUDIO).
+ */
+router.post(
+  '/examenes/:examenId/speaking-audio',
+  uploadSpeakingAudio.single('audio'),
+  async (req, res) => {
+    try {
+      const { colegio_id, anio_activo, alumno_id } = req.user;
+      const { examenId } = req.params;
+      const preguntaId = parseInt(req.body.pregunta_id, 10);
+      const tokenSesionHeader = String(req.headers['x-exam-session-token'] || '').trim();
+      const deviceIdHeader = normalizarExamDeviceId(req.headers['x-exam-device-id']);
+
+      if (!req.file) {
+        return res.status(400).json({ error: 'Debes grabar o subir un audio' });
+      }
+      if (!preguntaId) {
+        return res.status(400).json({ error: 'pregunta_id es requerido' });
+      }
+
+      const matricula = await query(
+        `SELECT m.id as matricula_id
+         FROM matriculas m
+         INNER JOIN grupos g ON g.id = m.grupo_id
+         WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
+         AND (m.estado = 0)
+         LIMIT 1`,
+        [alumno_id, colegio_id, anio_activo]
+      );
+      if (matricula.length === 0) {
+        return res.status(404).json({ error: 'No se encontró la matrícula del alumno' });
+      }
+
+      const prueba = await query(
+        `SELECT * FROM asignaturas_examenes_pruebas
+         WHERE examen_id = ? AND matricula_id = ? AND estado = 'ACTIVO'
+         ORDER BY fecha_hora DESC LIMIT 1`,
+        [examenId, matricula[0].matricula_id]
+      );
+      if (prueba.length === 0) {
+        return res.status(404).json({ error: 'No hay una prueba en progreso' });
+      }
+
+      if (tieneCamposSesionExamen(prueba[0])) {
+        const tokenGuardado = String(prueba[0].exam_session_token || '').trim();
+        if (tokenGuardado && tokenSesionHeader && tokenGuardado !== tokenSesionHeader) {
+          return res.status(409).json(construirErrorSesionExamen());
+        }
+      }
+
+      const examenRows = await query(`SELECT * FROM asignaturas_examenes WHERE id = ?`, [examenId]);
+      const examenRow = examenRows[0];
+      if (!esExamenHibrido(examenRow?.tipo) || String(examenRow?.speaking_modo || 'AUDIO').toUpperCase() !== 'AUDIO') {
+        return res.status(400).json({ error: 'Este examen no pide audio de Speaking.' });
+      }
+
+      const preguntasAll = await fetchPreguntasConAlternativas(query, examenId, [preguntaId], 'SI_NO');
+      const preguntaRow = preguntasAll.find((p) => parseInt(p.id, 10) === preguntaId);
+      if (!preguntaRow || !esPreguntaSpeaking(preguntaRow.tipo)) {
+        return res.status(400).json({ error: 'Esa pregunta no es de Speaking.' });
+      }
+
+      const merged = await persistirRespuestaPregunta({
+        query,
+        execute,
+        pruebaId: prueba[0].id,
+        preguntaId,
+        respuesta: { modo: 'AUDIO', audio: req.file.filename, visto: true },
+        examenRow,
+        preguntaRow
+      });
+
+      const sp = parseSpeakingRespuesta(merged.respuestasMap[String(preguntaId)]);
+      res.json({
+        success: true,
+        audio: req.file.filename,
+        audio_url: buildStaticArchivoUrl(req.file.filename),
+        nota_docente: sp.nota_docente
+      });
+    } catch (error) {
+      console.error('Error subiendo audio Speaking:', error);
+      res.status(500).json({ error: error.message || 'Error al subir el audio' });
+    }
+  }
+);
 
 /**
  * POST /api/alumno/examenes/:examenId/finalizar
@@ -4249,8 +4381,7 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
     if (prueba.length === 0) {
       // Idempotencia: si ya se finalizó el intento, devolver éxito para que el front no muestre error.
       const ultimaPrueba = await query(
-        `SELECT id, estado, puntaje, correctas, incorrectas
-         FROM asignaturas_examenes_pruebas
+        `SELECT * FROM asignaturas_examenes_pruebas
          WHERE examen_id = ? AND matricula_id = ?
          ORDER BY fecha_hora DESC
          LIMIT 1`,
@@ -4273,7 +4404,8 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
           already_finalized: true,
           puntaje: Number(ultimaPrueba[0].puntaje || 0),
           correctas: Number(ultimaPrueba[0].correctas || 0),
-          incorrectas: Number(ultimaPrueba[0].incorrectas || 0)
+          incorrectas: Number(ultimaPrueba[0].incorrectas || 0),
+          pendiente_speaking: Number(ultimaPrueba[0].pendiente_speaking || 0) === 1
         });
       }
       return res.status(404).json({ error: 'No hay una prueba en progreso' });
@@ -4325,7 +4457,8 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
       puntos_obtenidos: puntosObtenidos,
       puntos_total: puntosTotal,
       correctas: calificacion.correctas,
-      incorrectas: calificacion.incorrectas
+      incorrectas: calificacion.incorrectas,
+      pendiente_speaking: !!calificacion.pendienteSpeaking
     });
   } catch (error) {
     console.error('Error finalizando examen:', error);
@@ -4933,6 +5066,7 @@ router.get('/examenes/:examenId/resultado/detalles', async (req, res) => {
       `SELECT 
         aep.*,
         ae.titulo as examen_titulo,
+        ae.tipo as examen_tipo,
         ae.tipo_puntaje,
         ae.puntos_correcta
        FROM asignaturas_examenes_pruebas aep
@@ -4977,6 +5111,11 @@ router.get('/examenes/:examenId/resultado/detalles', async (req, res) => {
       'boolean'
     );
 
+    const preguntasVisibles = filtrarPreguntasSegunTipoExamen(
+      resultadoInfo.examen_tipo || resultadoInfo.tipo,
+      preguntasConAlternativas
+    );
+
     // Respuestas: líneas por pregunta + JSON legacy (retrocompatible)
     let respuestasAlumno = {};
     try {
@@ -5004,9 +5143,11 @@ router.get('/examenes/:examenId/resultado/detalles', async (req, res) => {
       }
     }
 
+    adjuntarAudioUrlSpeaking(respuestasAlumno, buildStaticArchivoUrl);
+
     res.json({
       resultado: resultadoInfo,
-      preguntas: preguntasConAlternativas,
+      preguntas: preguntasVisibles,
       respuestas: respuestasAlumno
     });
   } catch (error) {

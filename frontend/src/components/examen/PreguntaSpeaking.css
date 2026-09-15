@@ -1,0 +1,92 @@
+.pregunta-speaking {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.pspk-card {
+  border-radius: 16px;
+  padding: 1.15rem 1.25rem;
+  border: 1px solid #c7d2fe;
+  background: linear-gradient(180deg, #eef2ff 0%, #fff 70%);
+}
+
+.pspk-card--vivo {
+  border-color: #99f6e4;
+  background: linear-gradient(180deg, #ecfdf5 0%, #fff 72%);
+}
+
+.pspk-kicker {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #4f46e5;
+  margin-bottom: 0.4rem;
+}
+
+.pspk-card--vivo .pspk-kicker {
+  color: #0f766e;
+}
+
+.pspk-text {
+  margin: 0 0 0.9rem;
+  color: #334155;
+  line-height: 1.5;
+  font-size: 0.95rem;
+}
+
+.pspk-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.pspk-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 0.65rem 1.2rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pspk-btn-main {
+  background: linear-gradient(135deg, #6366f1, #7c3aed);
+  color: #fff;
+}
+
+.pspk-btn-stop {
+  background: #dc2626;
+  color: #fff;
+}
+
+.pspk-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.pspk-rec {
+  margin: 0.75rem 0 0;
+  font-weight: 600;
+  color: #b91c1c;
+}
+
+.pspk-player {
+  margin-top: 0.9rem;
+  width: 100%;
+}
+
+.pspk-ok {
+  display: inline-block;
+  background: #d1fae5;
+  color: #065f46;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+}
+
+.pspk-error {
+  margin: 0.75rem 0 0;
+  color: #b91c1c;
+  font-size: 0.9rem;
+}

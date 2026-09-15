@@ -8,6 +8,7 @@ const {
   normalizarRespuestaParaPersistir,
   parseRespuestaDesdeLinea
 } = require('./examenRespuestaNormalizar');
+const { fusionarCamposSpeaking, esPreguntaSpeaking } = require('./examenTipo');
 
 const TABLA = 'asignaturas_examenes_respuestas_linea';
 
@@ -83,10 +84,15 @@ async function upsertLineaRespuesta(execute, pruebaId, preguntaId, respuestaJson
   try {
     const normalizada = normalizarRespuestaParaPersistir(respuestaJson, tipoPregunta);
     const jsonStr = JSON.stringify(normalizada);
-    const esCorrecta =
-      evaluacion && evaluacion.tieneRespuesta ? (evaluacion.esCorrecta ? 1 : 0) : null;
+    const esCorrecta = evaluacion && evaluacion.pendienteDocente
+      ? null
+      : evaluacion && evaluacion.tieneRespuesta
+        ? (evaluacion.esCorrecta ? 1 : 0)
+        : null;
     const puntos =
-      evaluacion && evaluacion.tieneRespuesta ? Number(evaluacion.puntosPregunta) || 0 : null;
+      evaluacion && (evaluacion.tieneRespuesta || evaluacion.pendienteDocente)
+        ? Number(evaluacion.puntosPregunta) || 0
+        : null;
 
     await execute(
       `INSERT INTO ${TABLA}
@@ -133,13 +139,17 @@ async function persistirRespuestaPregunta({
   if (!prueba) throw new Error('Prueba no encontrada');
 
   const tipoPregunta = preguntaRow?.tipo;
-  const respuestaNorm = normalizarRespuestaParaPersistir(respuesta, tipoPregunta);
+  let respuestaNorm = normalizarRespuestaParaPersistir(respuesta, tipoPregunta);
 
   const lineas = await fetchLineasPorPrueba(query, pruebaId);
   const jsonMap = mergeRespuestasMaps(
     parseRespuestasJsonDesdePrueba(prueba.respuestas),
     lineasAMap(lineas)
   );
+  const previa = jsonMap[String(preguntaId)];
+  if (esPreguntaSpeaking(tipoPregunta)) {
+    respuestaNorm = fusionarCamposSpeaking(respuestaNorm, previa);
+  }
   jsonMap[String(preguntaId)] = respuestaNorm;
 
   let evaluacion = null;
@@ -172,9 +182,13 @@ async function persistirRespuestasBulk({
   if (!prueba) throw new Error('Prueba no encontrada');
 
   const lineas = await fetchLineasPorPrueba(query, pruebaId);
-  const merged = mergeRespuestasMaps(
+  const previaMap = mergeRespuestasMaps(
     parseRespuestasJsonDesdePrueba(prueba.respuestas),
-    mergeRespuestasMaps(lineasAMap(lineas), normalizarClavesRespuestas(respuestasIncoming))
+    lineasAMap(lineas)
+  );
+  const merged = mergeRespuestasMaps(
+    previaMap,
+    normalizarClavesRespuestas(respuestasIncoming)
   );
 
   for (const [preguntaIdStr, respuesta] of Object.entries(respuestasIncoming || {})) {
@@ -182,7 +196,10 @@ async function persistirRespuestasBulk({
     if (Number.isNaN(preguntaId)) continue;
     const preguntaRow = preguntasPorId?.[preguntaId];
     const tipoPregunta = preguntaRow?.tipo;
-    const respuestaNorm = normalizarRespuestaParaPersistir(respuesta, tipoPregunta);
+    let respuestaNorm = normalizarRespuestaParaPersistir(respuesta, tipoPregunta);
+    if (esPreguntaSpeaking(tipoPregunta)) {
+      respuestaNorm = fusionarCamposSpeaking(respuestaNorm, previaMap[String(preguntaId)]);
+    }
     merged[String(preguntaId)] = respuestaNorm;
     let evaluacion = null;
     if (examenRow && preguntaRow) {

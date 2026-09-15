@@ -3,6 +3,12 @@
  */
 const { esCompletarCorrecto } = require('./examenCompletar');
 const { findAlternativaMarcadaVF } = require('./examenRespuestaIds');
+const {
+  esExamenHibrido,
+  esPreguntaSpeaking,
+  parseSpeakingRespuesta,
+  puntosMaxSpeaking
+} = require('./examenTipo');
 
 function respuestaTieneValor(respuestaAlumno) {
   if (respuestaAlumno === null || respuestaAlumno === undefined || respuestaAlumno === '') {
@@ -200,6 +206,38 @@ function evaluarPreguntaIndividual(pregunta, respuestaAlumno, examenRow) {
       }
       break;
 
+    case 'SPEAKING': {
+      if (!esExamenHibrido(examenRow.tipo)) {
+        return {
+          esCorrecta: false,
+          puntosPregunta: 0,
+          tieneRespuesta: false,
+          pendienteDocente: false,
+          omitida: true
+        };
+      }
+      const sp = parseSpeakingRespuesta(respuestaAlumno);
+      if (sp.nota_docente != null) {
+        const maxSp = puntosMaxSpeaking(pregunta, examenRow);
+        const nota = Math.max(0, Math.min(maxSp || sp.nota_docente, sp.nota_docente));
+        return {
+          esCorrecta: nota > 0,
+          puntosPregunta: nota,
+          tieneRespuesta: true,
+          pendienteDocente: false,
+          omitida: false
+        };
+      }
+      const tieneAudioOVisto = !!(sp.audio || sp.visto || sp.modo === 'EN_VIVO' || sp.modo === 'AUDIO');
+      return {
+        esCorrecta: false,
+        puntosPregunta: 0,
+        tieneRespuesta: tieneAudioOVisto,
+        pendienteDocente: true,
+        omitida: false
+      };
+    }
+
     default:
       break;
   }
@@ -207,7 +245,9 @@ function evaluarPreguntaIndividual(pregunta, respuestaAlumno, examenRow) {
   return {
     esCorrecta,
     puntosPregunta,
-    tieneRespuesta: respuestaTieneValor(respuestaAlumno)
+    tieneRespuesta: respuestaTieneValor(respuestaAlumno),
+    pendienteDocente: false,
+    omitida: false
   };
 }
 
@@ -220,19 +260,23 @@ function calificarExamenPrueba(examenRow, preguntas, respuestasMap) {
   let puntosObtenidos = 0;
   let correctas = 0;
   let incorrectas = 0;
+  let pendienteSpeaking = false;
   const detalles = [];
 
   for (const pregunta of preguntas) {
     const respuestaAlumno =
       respuestasMap[pregunta.id.toString()] ?? respuestasMap[pregunta.id] ?? null;
-    const { esCorrecta, puntosPregunta, tieneRespuesta } = evaluarPreguntaIndividual(
-      pregunta,
-      respuestaAlumno,
-      examenRow
-    );
+    const { esCorrecta, puntosPregunta, tieneRespuesta, pendienteDocente, omitida } =
+      evaluarPreguntaIndividual(pregunta, respuestaAlumno, examenRow);
+
+    if (omitida) {
+      continue;
+    }
 
     puntosObtenidos += puntosPregunta;
-    if (esCorrecta) {
+    if (pendienteDocente && esPreguntaSpeaking(pregunta.tipo)) {
+      pendienteSpeaking = true;
+    } else if (esCorrecta) {
       correctas++;
     } else if (tieneRespuesta) {
       incorrectas++;
@@ -241,7 +285,8 @@ function calificarExamenPrueba(examenRow, preguntas, respuestasMap) {
     detalles.push({
       pregunta_id: pregunta.id,
       es_correcta: esCorrecta,
-      puntos: puntosPregunta
+      puntos: puntosPregunta,
+      pendiente_docente: !!pendienteDocente
     });
   }
 
@@ -253,11 +298,12 @@ function calificarExamenPrueba(examenRow, preguntas, respuestasMap) {
     incorrectas,
     detalles,
     puntosObtenidos,
-    puntosTotal: preguntas.reduce(
-      (acc, p) =>
-        acc + (tipoPuntaje === 'GENERAL' ? puntosCorrecta : parseFloat(p.puntos) || 0),
-      0
-    )
+    pendienteSpeaking,
+    puntosTotal: preguntas.reduce((acc, p) => {
+      if (esPreguntaSpeaking(p.tipo) && !esExamenHibrido(examenRow.tipo)) return acc;
+      if (esPreguntaSpeaking(p.tipo)) return acc + puntosMaxSpeaking(p, examenRow);
+      return acc + (tipoPuntaje === 'GENERAL' ? puntosCorrecta : parseFloat(p.puntos) || 0);
+    }, 0)
   };
 }
 

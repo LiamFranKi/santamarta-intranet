@@ -39,7 +39,7 @@ async function finalizarPruebaConCalificacion({ query, execute, pruebaRow, exame
   const preguntaIdsVisibles = parsePreguntaIdsVisibles(pruebaRow);
   const preguntas = filtrarPreguntasVisibles(preguntasConAlternativas, preguntaIdsVisibles);
 
-  const { puntajeFinal, correctas, incorrectas, detalles, puntosObtenidos, puntosTotal } =
+  const { puntajeFinal, correctas, incorrectas, detalles, puntosObtenidos, puntosTotal, pendienteSpeaking } =
     calificarExamenPrueba(examenRow, preguntas, respuestas);
 
   return {
@@ -51,7 +51,8 @@ async function finalizarPruebaConCalificacion({ query, execute, pruebaRow, exame
     incorrectas,
     detalles,
     puntosObtenidos,
-    puntosTotal
+    puntosTotal,
+    pendienteSpeaking: !!pendienteSpeaking
   };
 }
 
@@ -66,12 +67,14 @@ async function aplicarEstadoFinalizadoPrueba(execute, pruebaId, calificacion, op
     `estado = 'FINALIZADA'`,
     `puntaje = ?`,
     `correctas = ?`,
-    `incorrectas = ?`
+    `incorrectas = ?`,
+    `pendiente_speaking = ?`
   ];
   const params = [
     calificacion.puntajeFinal,
     calificacion.correctas,
-    calificacion.incorrectas
+    calificacion.incorrectas,
+    calificacion.pendienteSpeaking ? 1 : 0
   ];
 
   if (finalizado_por_salida === 'SI') {
@@ -86,10 +89,23 @@ async function aplicarEstadoFinalizadoPrueba(execute, pruebaId, calificacion, op
   }
 
   params.push(pruebaId);
-  await execute(
-    `UPDATE asignaturas_examenes_pruebas SET ${sets.join(', ')} WHERE id = ?`,
-    params
-  );
+  try {
+    await execute(
+      `UPDATE asignaturas_examenes_pruebas SET ${sets.join(', ')} WHERE id = ?`,
+      params
+    );
+  } catch (err) {
+    if (err && err.code === 'ER_BAD_FIELD_ERROR') {
+      const setsLegacy = sets.filter((s) => !s.includes('pendiente_speaking'));
+      const paramsLegacy = params.filter((_, i) => i !== 3);
+      await execute(
+        `UPDATE asignaturas_examenes_pruebas SET ${setsLegacy.join(', ')} WHERE id = ?`,
+        paramsLegacy
+      );
+      return;
+    }
+    throw err;
+  }
 }
 
 module.exports = {

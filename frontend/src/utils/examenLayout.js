@@ -1,6 +1,7 @@
 /**
  * Layout fijo de intento: orden de preguntas y alternativas.
  */
+import { esExamenHibrido, esPreguntaSpeaking } from './examenTipo';
 
 export function shuffleArray(source) {
   const a = [...source];
@@ -69,6 +70,30 @@ export function aplicarLayoutAPreguntas(listaBase, layout) {
   });
 }
 
+/**
+ * En HÍBRIDO el Speaking no puede quedar fuera por preguntas_max / aleatorio.
+ * En VIRTUAL se excluye Speaking (el sistema no lo califica).
+ */
+export function seleccionarPreguntasParaIntento(listaBase, examenMeta) {
+  const lista = Array.isArray(listaBase) ? listaBase : [];
+  const visibles = esExamenHibrido(examenMeta?.tipo)
+    ? lista
+    : lista.filter((p) => !esPreguntaSpeaking(p && p.tipo));
+  const esAleatorio = ordenPreguntasEsAleatorio(examenMeta?.orden_preguntas);
+  const maxPreguntas = parseInt(examenMeta?.preguntas_max, 10);
+  const speaking = visibles.filter((p) => esPreguntaSpeaking(p && p.tipo));
+  const auto = visibles.filter((p) => !esPreguntaSpeaking(p && p.tipo));
+  let poolAuto = esAleatorio ? shuffleArray(auto) : [...auto];
+  if (Number.isFinite(maxPreguntas) && maxPreguntas > 0) {
+    poolAuto = poolAuto.slice(0, Math.max(0, maxPreguntas - speaking.length));
+  }
+  if (esAleatorio) {
+    return shuffleArray([...speaking, ...poolAuto]);
+  }
+  const ids = new Set([...speaking, ...poolAuto].map((p) => Number(p.id)));
+  return visibles.filter((p) => ids.has(Number(p.id)));
+}
+
 /** Construye layout desde preguntas ya ordenadas (tras barajar o no). */
 export function construirLayoutDesdePreguntas(preguntasOrdenadas) {
   const pregunta_ids = (preguntasOrdenadas || []).map((p) => Number(p.id));
@@ -91,7 +116,6 @@ export function resolverPreguntasParaIntento({
   preguntaIdsLegacy
 }) {
   const esAleatorio = ordenPreguntasEsAleatorio(examenMeta?.orden_preguntas);
-  const maxPreguntas = parseInt(examenMeta?.preguntas_max, 10);
 
   const layout =
     layoutServidor && layoutServidor.pregunta_ids?.length
@@ -100,19 +124,18 @@ export function resolverPreguntasParaIntento({
         ? { v: 1, pregunta_ids: preguntaIdsLegacy, alternativas_ids: {} }
         : null;
 
+  const barajarAlts = (preguntas) =>
+    esAleatorio
+      ? preguntas.map((p) => ({
+          ...p,
+          alternativas: p.alternativas ? shuffleArray(p.alternativas) : []
+        }))
+      : preguntas;
+
   if (layout) {
     let preguntas = aplicarLayoutAPreguntas(listaBase, layout);
     if (!preguntas || preguntas.length === 0) {
-      preguntas = esAleatorio ? shuffleArray(listaBase) : [...listaBase];
-      if (maxPreguntas > 0 && preguntas.length > maxPreguntas) {
-        preguntas = preguntas.slice(0, maxPreguntas);
-      }
-      if (esAleatorio) {
-        preguntas = preguntas.map((p) => ({
-          ...p,
-          alternativas: p.alternativas ? shuffleArray(p.alternativas) : []
-        }));
-      }
+      preguntas = barajarAlts(seleccionarPreguntasParaIntento(listaBase, examenMeta));
       return {
         preguntas,
         layout: construirLayoutDesdePreguntas(preguntas),
@@ -122,16 +145,7 @@ export function resolverPreguntasParaIntento({
     return { preguntas, layout, esReanudacion: true };
   }
 
-  let preguntas = esAleatorio ? shuffleArray(listaBase) : [...listaBase];
-  if (maxPreguntas > 0 && preguntas.length > maxPreguntas) {
-    preguntas = preguntas.slice(0, maxPreguntas);
-  }
-  if (esAleatorio) {
-    preguntas = preguntas.map((p) => ({
-      ...p,
-      alternativas: p.alternativas ? shuffleArray(p.alternativas) : []
-    }));
-  }
+  const preguntas = barajarAlts(seleccionarPreguntasParaIntento(listaBase, examenMeta));
   return {
     preguntas,
     layout: construirLayoutDesdePreguntas(preguntas),

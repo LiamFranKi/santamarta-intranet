@@ -59,6 +59,19 @@ function normalizarRespuestaParaPersistir(respuesta, tipoPregunta) {
     return String(respuesta ?? '');
   }
 
+  if (tipo === 'SPEAKING' && typeof respuesta === 'object' && !Array.isArray(respuesta)) {
+    const notaRaw = respuesta.nota_docente;
+    const nota =
+      notaRaw === null || notaRaw === undefined || notaRaw === '' ? null : Number(notaRaw);
+    return {
+      modo: respuesta.modo ? String(respuesta.modo).toUpperCase() : null,
+      audio: respuesta.audio || respuesta.audio_archivo || null,
+      visto: !!(respuesta.visto === true || respuesta.visto === 1 || respuesta.visto === 'SI'),
+      nota_docente: Number.isFinite(nota) ? nota : null,
+      comentario: respuesta.comentario ? String(respuesta.comentario) : null
+    };
+  }
+
   return respuesta;
 }
 
