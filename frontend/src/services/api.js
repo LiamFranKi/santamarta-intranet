@@ -8,20 +8,16 @@ const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
 const isDevelopment = isLocalhost; // Solo localhost es desarrollo
 
 // Determinar URL de API
-// Prioridad: 1) Variable de entorno REACT_APP_API_URL, 2) Detección automática
+// En producción (sistema.vanguardschools.edu.pe) SIEMPRE el mismo origen + /api.
+// REACT_APP_API_URL solo aplica en localhost (npm start). Si se incrusta en el
+// build, el login llama a otro dominio y Chrome lo bloquea por CORS.
 let apiUrl;
 const currentProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
 
-// Si existe REACT_APP_API_URL, usarla (útil para producción con dominio específico)
-if (process.env.REACT_APP_API_URL) {
-  apiUrl = process.env.REACT_APP_API_URL;
-  console.log('⚙️ Usando URL de API desde variable de entorno:', apiUrl);
-} else if (isDevelopment) {
-  // Desarrollo: solo si es localhost
-  apiUrl = 'http://localhost:5000/api';
-  console.log('🔧 Modo desarrollo: usando API local en', apiUrl);
+if (isDevelopment) {
+  apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+  console.log('🔧 Modo desarrollo: usando API en', apiUrl);
 } else {
-  // Producción: usar el mismo dominio con /api (NO es localhost)
   apiUrl = `${currentProtocol}//${hostname}/api`;
   console.log('🌐 Modo producción: usando API en', apiUrl);
 }
