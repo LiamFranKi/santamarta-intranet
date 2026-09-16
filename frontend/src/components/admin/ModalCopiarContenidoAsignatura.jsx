@@ -34,7 +34,9 @@ export default function ModalCopiarContenidoAsignatura({
   const cargarDatosCopiarContenido = useCallback(async (cursoId) => {
     try {
       setLoading(true);
-      const response = await api.get(`/docente/cursos/${cursoId}/copiar-contenido`);
+      const response = await api.get(`/docente/cursos/${cursoId}/copiar-contenido`, {
+        timeout: 120000
+      });
       const d = response.data || {};
       setDatosCopiarContenido({
         otrasAsignaturas: d.otrasAsignaturas || [],
@@ -106,7 +108,8 @@ export default function ModalCopiarContenidoAsignatura({
       setGuardando(true);
       const response = await api.post(
         `/docente/cursos/${asignaturaId}/copiar-contenido`,
-        formCopiarContenido
+        formCopiarContenido,
+        { timeout: 120000 }
       );
 
       const { copiados, omitidos = {} } = response.data;

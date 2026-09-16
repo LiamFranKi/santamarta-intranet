@@ -206,8 +206,6 @@ router.get('/documentos-gestion', async (req, res) => {
 router.get('/dashboard', async (req, res) => {
   try {
     const { usuario_id, colegio_id, anio_activo } = req.user;
-    
-    console.log('📊 [ALUMNO DASHBOARD] Iniciando carga para usuario:', usuario_id, 'colegio:', colegio_id, 'año:', anio_activo);
 
     // Obtener datos del alumno
     let alumno = [];
@@ -230,7 +228,6 @@ router.get('/dashboard', async (req, res) => {
     }
 
     const alumnoData = alumno[0];
-    console.log('✅ [ALUMNO DASHBOARD] Alumno encontrado:', alumnoData.id);
 
     // Obtener matrícula actual del alumno
     let matricula = [];
@@ -258,199 +255,175 @@ router.get('/dashboard', async (req, res) => {
 
     const matriculaData = matricula.length > 0 ? matricula[0] : null;
     const grupoId = matriculaData ? matriculaData.grupo_id : null;
-    console.log('✅ [ALUMNO DASHBOARD] Matrícula:', matriculaData ? `Grupo ${grupoId}` : 'Sin matrícula');
 
-    // Tutor del grupo (mensajería: usuario_id del docente asignado como tutor)
-    let tutorDashboard = null;
-    if (grupoId) {
-      try {
-        const tutorRows = await query(
-          `SELECT p.nombres,
-                  p.apellidos,
-                  p.foto,
-                  u.id AS usuario_id
-           FROM grupos g
-           INNER JOIN personal p ON p.id = g.tutor_id AND p.colegio_id = g.colegio_id
-           INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = p.colegio_id AND u.estado = 'ACTIVO'
-           WHERE g.id = ? AND g.colegio_id = ? AND g.tutor_id IS NOT NULL
-           LIMIT 1`,
-          [grupoId, colegio_id]
-        );
-        if (tutorRows.length > 0) {
-          const tr = tutorRows[0];
-          const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
-          const isProduction = process.env.NODE_ENV === 'production';
-          let fotoTutor = null;
-          if (tr.foto && String(tr.foto).trim() !== '') {
-            fotoTutor = isProduction
-              ? `${phpSystemUrl}/Static/Image/Fotos/${tr.foto}`
-              : `http://localhost:5000/Static/Image/Fotos/${tr.foto}`;
-          }
-          const nom = (tr.nombres || '').trim();
-          const ape = (tr.apellidos || '').trim();
-          tutorDashboard = {
-            usuario_id: tr.usuario_id,
-            nombres: nom,
-            apellidos: ape,
-            nombre_completo: [nom, ape].filter(Boolean).join(' ') || 'Tutor',
-            foto: fotoTutor
-          };
-        }
-      } catch (tutorErr) {
-        console.warn('⚠️ [ALUMNO DASHBOARD] Tutor:', tutorErr.message);
-      }
-    }
-
-    // Contar cursos asignados (asignaturas del grupo del alumno en el año activo)
-    const cursosAsignados = grupoId ? await query(
-      `SELECT COUNT(DISTINCT a.id) as total
-       FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [grupoId, colegio_id, anio_activo]
-    ) : [{ total: 0 }];
-
-    // Contar docentes únicos que le enseñan (sin repetir docente)
-    const totalDocentes = grupoId ? await query(
-      `SELECT COUNT(DISTINCT a.personal_id) as total
-       FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [grupoId, colegio_id, anio_activo]
-    ) : [{ total: 0 }];
-
-    // Contar total de matrículas registradas (una por año)
-    const totalMatriculas = await query(
-      `SELECT COUNT(DISTINCT g.anio) as total
-       FROM matriculas m
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE m.alumno_id = ? AND m.colegio_id = ?`,
-      [alumnoData.id, colegio_id]
-    );
-
-    // Total Tardanzas (por ahora 0)
-    const totalTardanzas = [{ total: 0 }];
-
-    // Total Faltas (por ahora 0)
-    const totalFaltas = [{ total: 0 }];
-
-    // Contar mensajes no leídos (solo tipo RECIBIDO, igual que la lista de mensajes)
-    const mensajesNoLeidos = await query(
-      `SELECT COUNT(*) as total
-       FROM mensajes m
-       WHERE m.destinatario_id = ? 
-         AND m.estado = 'NO_LEIDO' 
-         AND m.tipo = 'RECIBIDO'
-         AND m.borrado = 'NO'`,
-      [usuario_id]
-    );
-
-    // Obtener asignaturas (cursos) del alumno
-    // NOTA: No usar LEFT JOIN areas_curso porque esa tabla no existe en la BD
-    const asignaturas = grupoId ? await query(
-      `SELECT a.id,
-              c.nombre as curso_nombre,
-              c.imagen as curso_imagen,
-              NULL as area_nombre,
-              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombres,
-              p.apellidos as docente_apellidos
-       FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN cursos c ON c.id = a.curso_id
-       INNER JOIN personal p ON p.id = a.personal_id
-       WHERE a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ?
-       ORDER BY c.nombre ASC`,
-      [grupoId, colegio_id, anio_activo]
-    ) : [];
-
-    // Próximos exámenes (del grupo del alumno)
-    // IMPORTANTE: Incluir exámenes ACTIVOS e INACTIVOS con fecha >= hoy
-    // Los exámenes INACTIVOS con fecha/hora se activarán automáticamente cuando llegue la hora
-    // Similar a cómo funciona en el dashboard del docente (no filtra solo por ACTIVO)
-    // IMPORTANTE: Devolver los mismos campos que el dashboard del docente para que el modal funcione igual
-    const proximosExamenes = grupoId ? await query(
-      `SELECT ae.*,
-              COALESCE(ae.titulo, 'Examen') as titulo,
-              c.nombre as asignatura_nombre,
-              a.id as asignatura_id,
-              g.grado,
-              g.seccion,
-              n.nombre as nivel_nombre,
-              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
-              DATE(ae.fecha_desde) as fecha_evento
-       FROM asignaturas_examenes ae
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       INNER JOIN cursos c ON c.id = a.curso_id
-       INNER JOIN personal p ON p.id = a.personal_id
-       WHERE a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ?
-       AND DATE(ae.fecha_desde) >= CURDATE()
-       ORDER BY COALESCE(ae.fecha_desde, '9999-12-31') ASC
-       LIMIT 10`,
-      [grupoId, colegio_id, anio_activo]
-    ) : [];
-
-    // Próximas tareas (del grupo del alumno)
-    // IMPORTANTE: Devolver los mismos campos que el dashboard del docente para que el modal funcione igual
-    const proximasTareas = grupoId ? await query(
-      `SELECT t.*,
-              t.titulo,
-              c.nombre as asignatura_nombre,
-              a.id as asignatura_id,
-              g.grado,
-              g.seccion,
-              n.nombre as nivel_nombre,
-              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
-              DATE(t.fecha_entrega) as fecha_evento
-       FROM asignaturas_tareas t
-       INNER JOIN asignaturas a ON a.id = t.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       INNER JOIN cursos c ON c.id = a.curso_id
-       INNER JOIN personal p ON p.id = a.personal_id
-       WHERE a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ?
-       AND t.fecha_entrega IS NOT NULL
-       AND DATE(t.fecha_entrega) >= DATE(NOW())
-       ORDER BY t.fecha_entrega ASC
-       LIMIT 10`,
-      [grupoId, colegio_id, anio_activo]
-    ) : [];
-
-    // Actividades próximas (solo futuras del año actual)
     const añoActual = new Date().getFullYear();
-    const actividades = await query(
-      `${ACTIVIDADES_SELECT_CON_EVENTO_SQL}
-       WHERE a.colegio_id = ?
-       AND YEAR(a.fecha_inicio) = ?
-       AND DATE(a.fecha_inicio) >= DATE(NOW())
-       ORDER BY a.fecha_inicio ASC
-       LIMIT 10`,
-      [colegio_id, añoActual]
-    );
+    const emptyCount = [{ total: 0 }];
 
-    const comunicadosHomeData = await listarComunicadosInicio(query, colegio_id);
-    const comunicadoHomeData = comunicadosHomeData[0] || null;
+    const [
+      tutorRows,
+      cursosDocentes,
+      totalMatriculas,
+      mensajesNoLeidos,
+      asignaturas,
+      proximosExamenes,
+      proximasTareas,
+      actividades,
+      comunicadosHomeData,
+      estrellasRows
+    ] = await Promise.all([
+      grupoId
+        ? query(
+            `SELECT p.nombres, p.apellidos, p.foto, u.id AS usuario_id
+             FROM grupos g
+             INNER JOIN personal p ON p.id = g.tutor_id AND p.colegio_id = g.colegio_id
+             INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = p.colegio_id AND u.estado = 'ACTIVO'
+             WHERE g.id = ? AND g.colegio_id = ? AND g.tutor_id IS NOT NULL
+             LIMIT 1`,
+            [grupoId, colegio_id]
+          ).catch((tutorErr) => {
+            console.warn('⚠️ [ALUMNO DASHBOARD] Tutor:', tutorErr.message);
+            return [];
+          })
+        : Promise.resolve([]),
+      grupoId
+        ? query(
+            `SELECT COUNT(DISTINCT a.id) as cursos, COUNT(DISTINCT a.personal_id) as docentes
+             FROM asignaturas a
+             INNER JOIN grupos g ON g.id = a.grupo_id
+             WHERE a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+            [grupoId, colegio_id, anio_activo]
+          )
+        : Promise.resolve([{ cursos: 0, docentes: 0 }]),
+      query(
+        `SELECT COUNT(DISTINCT g.anio) as total
+         FROM matriculas m
+         INNER JOIN grupos g ON g.id = m.grupo_id
+         WHERE m.alumno_id = ? AND m.colegio_id = ?`,
+        [alumnoData.id, colegio_id]
+      ),
+      query(
+        `SELECT COUNT(*) as total
+         FROM mensajes m
+         WHERE m.destinatario_id = ?
+           AND m.estado = 'NO_LEIDO'
+           AND m.tipo = 'RECIBIDO'
+           AND m.borrado = 'NO'`,
+        [usuario_id]
+      ),
+      grupoId
+        ? query(
+            `SELECT a.id,
+                    c.nombre as curso_nombre,
+                    c.imagen as curso_imagen,
+                    NULL as area_nombre,
+                    CONCAT(p.nombres, ' ', p.apellidos) as docente_nombres,
+                    p.apellidos as docente_apellidos
+             FROM asignaturas a
+             INNER JOIN grupos g ON g.id = a.grupo_id
+             INNER JOIN cursos c ON c.id = a.curso_id
+             INNER JOIN personal p ON p.id = a.personal_id
+             WHERE a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ?
+             ORDER BY c.nombre ASC`,
+            [grupoId, colegio_id, anio_activo]
+          )
+        : Promise.resolve([]),
+      grupoId
+        ? query(
+            `SELECT ae.*,
+                    COALESCE(ae.titulo, 'Examen') as titulo,
+                    c.nombre as asignatura_nombre,
+                    a.id as asignatura_id,
+                    g.grado,
+                    g.seccion,
+                    n.nombre as nivel_nombre,
+                    CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
+                    DATE(ae.fecha_desde) as fecha_evento
+             FROM asignaturas_examenes ae
+             INNER JOIN asignaturas a ON a.id = ae.asignatura_id
+             INNER JOIN grupos g ON g.id = a.grupo_id
+             INNER JOIN niveles n ON n.id = g.nivel_id
+             INNER JOIN cursos c ON c.id = a.curso_id
+             INNER JOIN personal p ON p.id = a.personal_id
+             WHERE a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ?
+             AND DATE(ae.fecha_desde) >= CURDATE()
+             ORDER BY COALESCE(ae.fecha_desde, '9999-12-31') ASC
+             LIMIT 10`,
+            [grupoId, colegio_id, anio_activo]
+          )
+        : Promise.resolve([]),
+      grupoId
+        ? query(
+            `SELECT t.*,
+                    t.titulo,
+                    c.nombre as asignatura_nombre,
+                    a.id as asignatura_id,
+                    g.grado,
+                    g.seccion,
+                    n.nombre as nivel_nombre,
+                    CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
+                    DATE(t.fecha_entrega) as fecha_evento
+             FROM asignaturas_tareas t
+             INNER JOIN asignaturas a ON a.id = t.asignatura_id
+             INNER JOIN grupos g ON g.id = a.grupo_id
+             INNER JOIN niveles n ON n.id = g.nivel_id
+             INNER JOIN cursos c ON c.id = a.curso_id
+             INNER JOIN personal p ON p.id = a.personal_id
+             WHERE a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ?
+             AND t.fecha_entrega IS NOT NULL
+             AND DATE(t.fecha_entrega) >= DATE(NOW())
+             ORDER BY t.fecha_entrega ASC
+             LIMIT 10`,
+            [grupoId, colegio_id, anio_activo]
+          )
+        : Promise.resolve([]),
+      query(
+        `${ACTIVIDADES_SELECT_CON_EVENTO_SQL}
+         WHERE a.colegio_id = ?
+         AND YEAR(a.fecha_inicio) = ?
+         AND DATE(a.fecha_inicio) >= DATE(NOW())
+         ORDER BY a.fecha_inicio ASC
+         LIMIT 10`,
+        [colegio_id, añoActual]
+      ),
+      listarComunicadosInicio(query, colegio_id),
+      matriculaData?.id
+        ? query(
+            `SELECT COALESCE(SUM(ei.points), 0) as total
+             FROM enrollment_incidents ei
+             WHERE ei.enrollment_id = ? AND ei.type = 2`,
+            [matriculaData.id]
+          )
+        : Promise.resolve([{ total: 0 }])
+    ]);
 
-    // Total estrellas (enrollment_incidents type=2) - acumulativas del año activo
-    const matriculasAlumno = await query(
-      `SELECT m.id FROM matriculas m
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
-      [alumnoData.id, colegio_id, anio_activo]
-    );
-    const matriculaIds = matriculasAlumno.map(m => m.id);
-    let totalEstrellas = 0;
-    if (matriculaIds.length > 0) {
-      const placeholders = matriculaIds.map(() => '?').join(',');
-      const estrellasRows = await query(
-        `SELECT COALESCE(SUM(ei.points), 0) as total
-         FROM enrollment_incidents ei
-         WHERE ei.enrollment_id IN (${placeholders}) AND ei.type = 2`,
-        matriculaIds
-      );
-      totalEstrellas = parseInt(estrellasRows[0]?.total || 0, 10);
+    let tutorDashboard = null;
+    if (tutorRows.length > 0) {
+      const tr = tutorRows[0];
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
+      const isProduction = process.env.NODE_ENV === 'production';
+      let fotoTutor = null;
+      if (tr.foto && String(tr.foto).trim() !== '') {
+        fotoTutor = isProduction
+          ? `${phpSystemUrl}/Static/Image/Fotos/${tr.foto}`
+          : `http://localhost:5000/Static/Image/Fotos/${tr.foto}`;
+      }
+      const nom = (tr.nombres || '').trim();
+      const ape = (tr.apellidos || '').trim();
+      tutorDashboard = {
+        usuario_id: tr.usuario_id,
+        nombres: nom,
+        apellidos: ape,
+        nombre_completo: [nom, ape].filter(Boolean).join(' ') || 'Tutor',
+        foto: fotoTutor
+      };
     }
+
+    const cursosAsignados = [{ total: parseInt(cursosDocentes[0]?.cursos || 0, 10) }];
+    const totalDocentes = [{ total: parseInt(cursosDocentes[0]?.docentes || 0, 10) }];
+    const totalTardanzas = emptyCount;
+    const totalFaltas = emptyCount;
+    const comunicadoHomeData = comunicadosHomeData[0] || null;
+    const totalEstrellas = parseInt(estrellasRows[0]?.total || 0, 10);
 
     // Avatar actual (el de mayor nivel que tenga comprado)
     const sexoAlumno = alumnoData.sexo;
@@ -581,14 +554,6 @@ router.get('/dashboard', async (req, res) => {
       comunicadoHome: comunicadoHomeData,
       comunicadosHome: comunicadosHomeData
     };
-    
-    console.log('✅ [ALUMNO DASHBOARD] Datos cargados exitosamente:', {
-      estadisticas: responseData.estadisticas,
-      asignaturas: responseData.asignaturas.length,
-      examenes: responseData.proximosExamenes.length,
-      tareas: responseData.proximasTareas.length,
-      actividades: responseData.proximasActividades.length
-    });
     
     res.json(responseData);
   } catch (error) {
@@ -3513,11 +3478,22 @@ router.get('/aula-virtual/tareas', async (req, res) => {
     // Obtener archivos de cada tarea y construir URLs
     const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
     const isDevelopment = process.env.NODE_ENV !== 'production';
-    const tareasConArchivos = await Promise.all(tareas.map(async (tarea) => {
+    const archivosPorTarea = {};
+    if (tareas.length > 0) {
+      const tids = tareas.map((t) => t.id);
+      const inPh = tids.map(() => '?').join(',');
       const archivos = await query(
-        `SELECT * FROM asignaturas_tareas_archivos WHERE tarea_id = ?`,
-        [tarea.id]
+        `SELECT * FROM asignaturas_tareas_archivos WHERE tarea_id IN (${inPh})`,
+        tids
       );
+      for (const archivo of archivos || []) {
+        if (!archivosPorTarea[archivo.tarea_id]) archivosPorTarea[archivo.tarea_id] = [];
+        archivosPorTarea[archivo.tarea_id].push(archivo);
+      }
+    }
+
+    const tareasConArchivos = tareas.map((tarea) => {
+      const archivos = archivosPorTarea[tarea.id] || [];
 
       const archivosConUrls = archivos.map(archivo => {
         let archivoUrl = null;
@@ -3551,7 +3527,7 @@ router.get('/aula-virtual/tareas', async (req, res) => {
         archivos: archivosConUrls,
         enlace_url: enlaceUrl
       };
-    }));
+    });
 
     res.json({ tareas: tareasConArchivos || [] });
   } catch (error) {
@@ -3577,7 +3553,7 @@ router.get('/aula-virtual/examenes', async (req, res) => {
 
     // Verificar que el alumno tiene acceso a esta asignatura
     const asignatura = await query(
-      `SELECT a.*, g.id as grupo_id
+      `SELECT a.*, g.id as grupo_id, m.id as matricula_id
        FROM asignaturas a
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN matriculas m ON m.grupo_id = g.id
@@ -3591,8 +3567,6 @@ router.get('/aula-virtual/examenes', async (req, res) => {
       return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
     }
 
-    // Obtener exámenes de la asignatura filtrados por ciclo
-    // IMPORTANTE: Mostrar TODOS los exámenes, independientemente de si tienen preguntas o no
     const examenes = await query(
       `SELECT ae.*,
               (SELECT COUNT(*) FROM asignaturas_examenes_preguntas WHERE examen_id = ae.id) as total_preguntas
@@ -3601,59 +3575,32 @@ router.get('/aula-virtual/examenes', async (req, res) => {
        ORDER BY ae.id ASC`,
       [asignatura_id, cicloFiltro]
     );
-    
-    console.log(`📝 Exámenes encontrados para asignatura ${asignatura_id}, ciclo ${cicloFiltro}:`, examenes.length);
 
-    // Obtener matrícula del alumno
-    const matricula = await query(
-      `SELECT m.id as matricula_id
-       FROM matriculas m
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0)
-       LIMIT 1`,
-      [alumno_id, colegio_id, anio_activo]
-    );
-
-    // Para cada examen, verificar si el alumno ya tiene nota
-    const examenesConInfo = await Promise.all(examenes.map(async (examen) => {
-      let tiene_nota = false;
-      let intentos_usados = 0;
-      
-      if (matricula.length > 0) {
-        // Verificar si tiene nota en la tabla de pruebas (la tabla asignaturas_examenes_notas no existe)
-        // La tabla asignaturas_examenes_pruebas usa matricula_id y puntaje
-        try {
-          const pruebaConNota = await query(
-            `SELECT puntaje FROM asignaturas_examenes_pruebas
-             WHERE examen_id = ? AND matricula_id = ? AND estado = 'FINALIZADA' AND puntaje IS NOT NULL
-             ORDER BY fecha_hora DESC
-             LIMIT 1`,
-            [examen.id, matricula[0].matricula_id]
-          );
-          
-          tiene_nota = pruebaConNota.length > 0 && pruebaConNota[0].puntaje !== null;
-        } catch (err) {
-          console.error('Error verificando nota en pruebas:', err);
-          tiene_nota = false;
-        }
-        
-        // Contar intentos usados
-        // La tabla usa matricula_id (no alumno_id)
-        try {
-          const intentosData = await query(
-            `SELECT COUNT(*) as total FROM asignaturas_examenes_pruebas
-             WHERE examen_id = ? AND matricula_id = ? AND estado = 'FINALIZADA'`,
-            [examen.id, matricula[0].matricula_id]
-          );
-          
-          intentos_usados = intentosData[0]?.total || 0;
-        } catch (error) {
-          console.error('Error contando intentos:', error);
-          intentos_usados = 0;
-        }
+    const matriculaId = asignatura[0].matricula_id;
+    const pruebasPorExamen = new Map();
+    if (matriculaId && examenes.length > 0) {
+      const ids = examenes.map((e) => e.id);
+      const placeholders = ids.map(() => '?').join(',');
+      const pruebas = await query(
+        `SELECT examen_id,
+                COUNT(*) as intentos_usados,
+                MAX(CASE WHEN puntaje IS NOT NULL THEN 1 ELSE 0 END) as tiene_nota
+         FROM asignaturas_examenes_pruebas
+         WHERE matricula_id = ?
+           AND estado = 'FINALIZADA'
+           AND examen_id IN (${placeholders})
+         GROUP BY examen_id`,
+        [matriculaId, ...ids]
+      );
+      for (const p of pruebas || []) {
+        pruebasPorExamen.set(Number(p.examen_id), p);
       }
-      
+    }
+
+    const examenesConInfo = examenes.map((examen) => {
+      const info = pruebasPorExamen.get(Number(examen.id)) || {};
+      const tiene_nota = Number(info.tiene_nota) === 1;
+      const intentos_usados = parseInt(info.intentos_usados || 0, 10);
       const archivo_pdf_url = buildArchivoPdfUrl(examen.archivo_pdf);
       const esPdf = esExamenTipoPdf(examen.tipo);
       return {
@@ -3668,7 +3615,7 @@ router.get('/aula-virtual/examenes', async (req, res) => {
           (examen.intentos === 0 || intentos_usados < examen.intentos),
         puede_ver_pdf: esPdf && examen.estado === 'ACTIVO' && !!archivo_pdf_url
       };
-    }));
+    });
 
     res.json({ examenes: examenesConInfo || [] });
   } catch (error) {
@@ -3917,19 +3864,25 @@ router.get('/examenes/:examenId/preguntas', async (req, res) => {
       [examenId]
     );
 
-    // Obtener alternativas para cada pregunta
-    const preguntasConAlternativas = await Promise.all(preguntas.map(async (pregunta) => {
-      const alternativas = await query(
+    const alternativasPorPregunta = {};
+    if (preguntas.length > 0) {
+      const pids = preguntas.map((p) => p.id);
+      const inPh = pids.map(() => '?').join(',');
+      const allAlts = await query(
         `SELECT * FROM asignaturas_examenes_preguntas_alternativas
-         WHERE pregunta_id = ?
-         ORDER BY id ASC`,
-        [pregunta.id]
+         WHERE pregunta_id IN (${inPh})
+         ORDER BY pregunta_id ASC, id ASC`,
+        pids
       );
+      for (const a of allAlts || []) {
+        if (!alternativasPorPregunta[a.pregunta_id]) alternativasPorPregunta[a.pregunta_id] = [];
+        alternativasPorPregunta[a.pregunta_id].push(a);
+      }
+    }
 
-      return {
-        ...pregunta,
-        alternativas: alternativas || []
-      };
+    const preguntasConAlternativas = preguntas.map((pregunta) => ({
+      ...pregunta,
+      alternativas: alternativasPorPregunta[pregunta.id] || []
     }));
 
     const preguntasVisibles = filtrarPreguntasSegunTipoExamen(examen[0].tipo, preguntasConAlternativas).map((p) => ({

@@ -13,6 +13,33 @@ const { verificarMatriculaPortalLogin, MENSAJE_SIN_MATRICULA, sqlExistePagoMatri
 const { deudasLog, deudasWarn, deudasError, deudasInfo } = require('../utils/deudasLogger');
 const { tipoSesionPublico } = require('../utils/superadminOculto');
 
+/** Un solo SELECT de pagos de pensión (evita 1 query por mes en cada login). */
+async function setPagosPensionCancelados(matriculaIds, nrosPago) {
+  const pagados = new Set();
+  const ids = [...new Set((matriculaIds || []).map((id) => Number(id)).filter((n) => Number.isFinite(n) && n > 0))];
+  const nros = [...new Set((nrosPago || []).map((n) => Number(n)).filter((n) => Number.isFinite(n) && n > 0))];
+  if (!ids.length || !nros.length) return pagados;
+  const rows = await query(
+    `SELECT p.matricula_id, p.nro_pago
+     FROM pagos p
+     WHERE p.matricula_id IN (${ids.map(() => '?').join(',')})
+       AND p.tipo = 1
+       AND p.nro_pago IN (${nros.map(() => '?').join(',')})
+       AND p.estado_pago = 'CANCELADO'
+       AND p.estado = 'ACTIVO'
+     GROUP BY p.matricula_id, p.nro_pago`,
+    [...ids, ...nros]
+  );
+  for (const r of rows || []) {
+    pagados.add(`${r.matricula_id}:${parseInt(r.nro_pago, 10)}`);
+  }
+  return pagados;
+}
+
+function tienePagoPension(pagados, matriculaId, nro) {
+  return pagados.has(`${matriculaId}:${parseInt(nro, 10)}`);
+}
+
 /**
  * POST /api/auth/login
  * Login con DNI y password
@@ -36,6 +63,7 @@ router.post('/login', async (req, res) => {
               a.nombres as alumno_nombres, 
               a.apellido_paterno as alumno_apellido_paterno,
               a.apellido_materno as alumno_apellido_materno,
+              a.foto as alumno_foto,
               p.nombres as personal_nombres,
               p.apellidos as personal_apellidos,
               p.foto as personal_foto,
@@ -146,17 +174,9 @@ router.post('/login', async (req, res) => {
     let fotoNombre = null;
     
     // Obtener foto según el tipo de usuario
-    if (usuarioDB.alumno_id) {
-      // Es alumno: obtener foto de la tabla alumnos
-      const alumnos = await query(
-        `SELECT foto FROM alumnos WHERE id = ?`,
-        [usuarioDB.alumno_id]
-      );
-      if (alumnos.length > 0 && alumnos[0].foto) {
-        fotoNombre = alumnos[0].foto;
-      }
+    if (usuarioDB.alumno_id && usuarioDB.alumno_foto) {
+      fotoNombre = usuarioDB.alumno_foto;
     } else if (usuarioDB.personal_id && usuarioDB.personal_foto) {
-      // Es personal/docente
       fotoNombre = usuarioDB.personal_foto;
     }
     // Los apoderados no tienen columna 'foto' en la tabla apoderados
@@ -234,6 +254,7 @@ router.get('/me', authenticateToken, async (req, res) => {
               a.nombres as alumno_nombres, 
               a.apellido_paterno as alumno_apellido_paterno,
               a.apellido_materno as alumno_apellido_materno,
+              a.foto as alumno_foto,
               p.nombres as personal_nombres,
               p.apellidos as personal_apellidos,
               p.foto as personal_foto,
@@ -295,17 +316,9 @@ router.get('/me', authenticateToken, async (req, res) => {
     let fotoNombre = null;
     
     // Obtener foto según el tipo de usuario
-    if (usuarioDB.alumno_id) {
-      // Es alumno: obtener foto de la tabla alumnos
-      const alumnos = await query(
-        `SELECT foto FROM alumnos WHERE id = ?`,
-        [usuarioDB.alumno_id]
-      );
-      if (alumnos.length > 0 && alumnos[0].foto) {
-        fotoNombre = alumnos[0].foto;
-      }
+    if (usuarioDB.alumno_id && usuarioDB.alumno_foto) {
+      fotoNombre = usuarioDB.alumno_foto;
     } else if (usuarioDB.personal_id && usuarioDB.personal_foto) {
-      // Es personal/docente
       fotoNombre = usuarioDB.personal_foto;
     }
     
@@ -554,6 +567,8 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
         return false;
       }
 
+      const pagados = await setPagosPensionCancelados([matricula.id], pensionesAVerificar);
+
       // Verificar cada pensión
       for (const i of pensionesAVerificar) {
         const fechaVencimientoStr = calcularFechaVencimiento(i, anioActivo, inicioPensiones);
@@ -574,36 +589,11 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
         fechaActual.setHours(0, 0, 0, 0);
         fechaLimite.setHours(23, 59, 59, 999);
 
-        // Debug logging
-        deudasLog(` Pensión ${i}:`);
-        deudasLog(`  Fecha vencimiento configurada: ${fechaVencimientoStr}`);
-        deudasLog(`  Fecha vencimiento Date: ${fechaVencimiento.toISOString()}`);
-        deudasLog(`  Días tolerancia: ${diasTolerancia}`);
-        deudasLog(`  Fecha límite (vencimiento + tolerancia): ${fechaLimite.toISOString()}`);
-        deudasLog(`  Fecha actual: ${fechaActual.toISOString()}`);
-        deudasLog(`  ¿Fecha actual > fecha límite?: ${fechaActual > fechaLimite}`);
+        deudasLog(` Pensión ${i}: fechaActual > fechaLimite?: ${fechaActual > fechaLimite}`);
 
-        // Verificar si la fecha actual supera el límite (vencimiento + tolerancia)
-        if (fechaActual > fechaLimite) {
-          // Verificar si NO tiene pago cancelado para esta pensión
-          const pagosCancelados = await query(
-            `SELECT COUNT(*) as total
-             FROM pagos p
-             WHERE p.matricula_id = ?
-               AND p.tipo = 1
-               AND p.nro_pago = ?
-               AND p.estado_pago = 'CANCELADO'
-               AND p.estado = 'ACTIVO'`,
-            [matricula.id, i]
-          );
-
-          deudasLog(`  Pagos cancelados para pensión ${i}: ${pagosCancelados[0].total}`);
-
-          if (pagosCancelados[0].total === 0) {
-            // Tiene deuda: la pensión está vencida (considerando tolerancia) y no está cancelada
-            deudasInfo(`DEUDA: pensión ${i} vencida sin pago cancelado (alumno ${usuario.alumno_id}, matrícula ${matricula.id})`);
-            return true;
-          }
+        if (fechaActual > fechaLimite && !tienePagoPension(pagados, matricula.id, i)) {
+          deudasInfo(`DEUDA: pensión ${i} vencida sin pago cancelado (alumno ${usuario.alumno_id}, matrícula ${matricula.id})`);
+          return true;
         }
       }
 
@@ -650,49 +640,35 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
         return false;
       }
 
-      // Verificar deudas de cada hijo
+      const pagados = await setPagosPensionCancelados(
+        matriculasHijos.map((m) => m.id),
+        pensionesAVerificar
+      );
+
       for (const matricula of matriculasHijos) {
         for (const i of pensionesAVerificar) {
-          // Validar que i sea un número válido
           if (!i || isNaN(i) || i <= 0) {
             deudasWarn(` Saltando pensión inválida: ${i}`);
             continue;
           }
           const fechaVencimientoStr = calcularFechaVencimiento(i, anioActivo, inicioPensiones);
-          
-          // Convertir dd-mm-yyyy a Date correctamente
           const partesFecha = fechaVencimientoStr.split('-');
           const fechaVencimiento = new Date(
-            parseInt(partesFecha[2]), // año
-            parseInt(partesFecha[1]) - 1, // mes (0-indexed)
-            parseInt(partesFecha[0]) // día
+            parseInt(partesFecha[2]),
+            parseInt(partesFecha[1]) - 1,
+            parseInt(partesFecha[0])
           );
-          
           const fechaLimite = new Date(fechaVencimiento);
           fechaLimite.setDate(fechaLimite.getDate() + diasTolerancia);
-          
           const fechaActual = new Date();
           fechaActual.setHours(0, 0, 0, 0);
           fechaLimite.setHours(23, 59, 59, 999);
 
-          if (fechaActual > fechaLimite) {
-            const pagosCancelados = await query(
-              `SELECT COUNT(*) as total
-               FROM pagos p
-               WHERE p.matricula_id = ?
-                 AND p.tipo = 1
-                 AND p.nro_pago = ?
-                 AND p.estado_pago = 'CANCELADO'
-                 AND p.estado = 'ACTIVO'`,
-              [matricula.id, i]
+          if (fechaActual > fechaLimite && !tienePagoPension(pagados, matricula.id, i)) {
+            deudasInfo(
+              `DEUDA: pensión ${i} vencida sin pago (apoderado ${usuario.apoderado_id}, matrícula ${matricula.id})`
             );
-
-            if (pagosCancelados[0].total === 0) {
-              deudasInfo(
-                `DEUDA: pensión ${i} vencida sin pago (apoderado ${usuario.apoderado_id}, matrícula ${matricula.id})`
-              );
-              return true; // Al menos un hijo tiene deuda
-            }
+            return true;
           }
         }
       }
@@ -808,54 +784,34 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
         return false;
       }
 
-      // Verificar deudas de cada hijo
+      const pagados = await setPagosPensionCancelados(
+        matriculasHijos.map((m) => m.id),
+        pensionesAVerificar
+      );
+
       for (const matricula of matriculasHijos) {
-        deudasLog(` Verificando matrícula ID: ${matricula.id} del hijo (DOCENTE/APODERADO)`);
         for (const i of pensionesAVerificar) {
-          // Validar que i sea un número válido
           if (!i || isNaN(i) || i <= 0) {
-            deudasWarn(` Saltando pensión inválida: ${i}`);
             continue;
           }
           const fechaVencimientoStr = calcularFechaVencimiento(i, anioActivo, inicioPensiones);
-          
-          // Convertir dd-mm-yyyy a Date correctamente
           const partesFecha = fechaVencimientoStr.split('-');
           const fechaVencimiento = new Date(
-            parseInt(partesFecha[2]), // año
-            parseInt(partesFecha[1]) - 1, // mes (0-indexed)
-            parseInt(partesFecha[0]) // día
+            parseInt(partesFecha[2]),
+            parseInt(partesFecha[1]) - 1,
+            parseInt(partesFecha[0])
           );
-          
           const fechaLimite = new Date(fechaVencimiento);
           fechaLimite.setDate(fechaLimite.getDate() + diasTolerancia);
-          
           const fechaActual = new Date();
           fechaActual.setHours(0, 0, 0, 0);
           fechaLimite.setHours(23, 59, 59, 999);
 
-          deudasLog(` Pensión ${i} (DOCENTE/APODERADO): fechaVencimiento=${fechaVencimientoStr}, fechaLimite=${fechaLimite.toISOString()}, fechaActual=${fechaActual.toISOString()}, ¿vencida?=${fechaActual > fechaLimite}`);
-
-          if (fechaActual > fechaLimite) {
-            const pagosCancelados = await query(
-              `SELECT COUNT(*) as total
-               FROM pagos p
-               WHERE p.matricula_id = ?
-                 AND p.tipo = 1
-                 AND p.nro_pago = ?
-                 AND p.estado_pago = 'CANCELADO'
-                 AND p.estado = 'ACTIVO'`,
-              [matricula.id, i]
+          if (fechaActual > fechaLimite && !tienePagoPension(pagados, matricula.id, i)) {
+            deudasInfo(
+              `DEUDA: pensión ${i} vencida sin pago (docente-apoderado, matrícula ${matricula.id})`
             );
-
-            deudasLog(` Pensión ${i} (DOCENTE/APODERADO): pagos cancelados = ${pagosCancelados[0].total}`);
-
-            if (pagosCancelados[0].total === 0) {
-              deudasInfo(
-                `DEUDA: pensión ${i} vencida sin pago (docente-apoderado, matrícula ${matricula.id})`
-              );
-              return true; // Al menos un hijo tiene deuda
-            }
+            return true;
           }
         }
       }

@@ -803,14 +803,6 @@ function Dashboard() {
       value: loadingStats ? '—' : fmtMonto(stats?.total_deuda),
       color: coloresPasteles[6],
     },
-    {
-      key: 'deudas_ant',
-      title: 'Deudas Anteriores',
-      subtitle: 'Años previos (tarifa vs monto)',
-      icon: '📜',
-      value: loadingStats ? '—' : fmtMonto(stats?.deudas_anteriores),
-      color: coloresPasteles[7],
-    },
   ];
 
   return (

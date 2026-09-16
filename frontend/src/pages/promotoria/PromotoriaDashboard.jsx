@@ -111,13 +111,6 @@ function PromotoriaDashboard() {
             )}
           </div>
         </section>
-
-        <section className="promotoria-deudas">
-          <div className="promotoria-deuda-card">
-            <span className="promotoria-deuda-label">Deudas anteriores</span>
-            <span className="promotoria-deuda-value">{loading ? '—' : fmtMonto(stats?.deudas_anteriores)}</span>
-          </div>
-        </section>
       </div>
     </DashboardLayout>
   );

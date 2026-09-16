@@ -111,30 +111,6 @@ router.get('/dashboard', async (req, res) => {
 
     const totalDeuda = Math.max(0, presupuestoAnual - totalIngresos);
 
-    // Deudas anteriores
-    const matriculasAnteriores = await query(
-      `SELECT m.id, c.pension, c.matricula, g.anio
-       FROM matriculas m
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       INNER JOIN costos c ON c.id = m.costo_id
-       WHERE m.colegio_id = ? AND g.anio >= 2025 AND g.anio < ? AND (m.estado = 0)`,
-      [colegio_id, anioActivo]
-    );
-    let deudasAnteriores = 0;
-    for (const mat of matriculasAnteriores || []) {
-      const [rPagos] = await query(
-        `SELECT COALESCE(SUM(p.monto), 0) as pagado
-         FROM pagos p
-         WHERE p.matricula_id = ? AND p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'`,
-        [mat.id, colegio_id]
-      );
-      const pension = parseFloat(mat.pension || 0);
-      const matriculaCosto = parseFloat(mat.matricula || 0);
-      const totalPagar = matriculaCosto + pension * totalPensiones;
-      const pagado = parseFloat((rPagos && rPagos[0]?.pagado) || 0);
-      deudasAnteriores += Math.max(0, totalPagar - pagado);
-    }
-
     // Datos para gráficos: ingresos por mes (últimos 6 meses)
     const ingresosPorMes = await query(
       `SELECT DATE_FORMAT(p.fecha_hora, '%Y-%m') as mes, COALESCE(SUM(p.monto), 0) as total
@@ -169,7 +145,6 @@ router.get('/dashboard', async (req, res) => {
       total_ingresos: totalIngresos,
       total_mora_recaudada: totalMoraRecaudada,
       total_deuda: totalDeuda,
-      deudas_anteriores: deudasAnteriores,
       moneda,
       anio_activo: anioActivo,
       ingresos_por_mes: ingresosPorMes || [],
