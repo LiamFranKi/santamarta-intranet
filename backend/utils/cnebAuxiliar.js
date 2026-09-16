@@ -6,11 +6,13 @@ async function listarAlumnosGrupo(cid, grupoId) {
   return query(
     `SELECT m.id AS matricula_id, a.id AS alumno_id,
             COALESCE(a.nro_documento, '') AS dni,
-            TRIM(CONCAT(COALESCE(a.apellidos,''), ', ', COALESCE(a.nombres,''))) AS nombre
+            TRIM(CONCAT(
+              COALESCE(a.apellido_paterno,''), ' ', COALESCE(a.apellido_materno,''), ', ', COALESCE(a.nombres,'')
+            )) AS nombre
      FROM matriculas m
      INNER JOIN alumnos a ON a.id = m.alumno_id
      WHERE m.grupo_id = ? AND m.colegio_id = ? AND ${sqlMatriculaEstadoSoloRegular('m')}
-     ORDER BY a.apellidos ASC, a.nombres ASC`,
+     ORDER BY a.apellido_paterno ASC, a.apellido_materno ASC, a.nombres ASC`,
     [grupoId, cid]
   );
 }
