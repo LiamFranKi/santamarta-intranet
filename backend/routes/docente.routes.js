@@ -77,6 +77,8 @@ const { fetchMatriculaAnioActivoOperativa, sqlExistePagoMatriculaCancelado, pers
 const { maxCuadrosConNotaEnCriterio } = require('../utils/indicadoresPlantillaService');
 const { tryInsertPushCronDedup, fechaLimaYmd } = require('../utils/pushCronDedup');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
+const { adjuntarArchivosListaMensajes } = require('../utils/mensajesArchivosLista');
+const { enriquecerTareasConArchivos } = require('../utils/tareasArchivosEnriquecer');
 const { staticFsSubdir, joinStaticFs, getPublicStaticBaseUrl, urlStaticFotos, buildStaticArchivoUrl } = require('../utils/staticStorage');
 const { mergeTemasPdfsToFile, sendMergedPdf } = require('../utils/temasMergePdf');
 const { resolverTemaDestinoId } = require('../utils/copiarContenidoAsignatura');
@@ -2881,15 +2883,33 @@ router.get('/grupos/:grupoId/mensajes-historial', async (req, res) => {
       // Archivos: preferir mensaje_referencia_id (mismo envío que apoderados); fallback legado por asunto+fecha
       const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
       const isProduction = process.env.NODE_ENV === 'production';
+      const mapArchivoUrl = (arch) => {
+        const archivoUrl = isProduction
+          ? `${phpSystemUrl}/Static/Archivos/${arch.archivo}`
+          : `http://localhost:5000/Static/Archivos/${arch.archivo}`;
+        return { ...arch, archivo_url: archivoUrl };
+      };
+      const refIds = (mensajes || [])
+        .map((mg) => mg.mensaje_referencia_id)
+        .filter((id) => Number.isFinite(Number(id)) && Number(id) > 0);
+      const archivosPorRef = {};
+      if (refIds.length) {
+        const ph = refIds.map(() => '?').join(',');
+        const allArch = await query(
+          `SELECT mensaje_id, nombre_archivo, archivo
+           FROM mensajes_archivos
+           WHERE mensaje_id IN (${ph})`,
+          refIds
+        );
+        for (const arch of allArch || []) {
+          if (!archivosPorRef[arch.mensaje_id]) archivosPorRef[arch.mensaje_id] = [];
+          archivosPorRef[arch.mensaje_id].push(arch);
+        }
+      }
       for (const mg of mensajes) {
         let archivosRows;
         if (mg.mensaje_referencia_id) {
-          archivosRows = await query(
-            `SELECT nombre_archivo, archivo
-             FROM mensajes_archivos
-             WHERE mensaje_id = ?`,
-            [mg.mensaje_referencia_id]
-          );
+          archivosRows = archivosPorRef[mg.mensaje_referencia_id] || [];
         } else {
           archivosRows = await query(
             `SELECT DISTINCT ma.nombre_archivo, ma.archivo
@@ -2901,12 +2921,7 @@ router.get('/grupos/:grupoId/mensajes-historial', async (req, res) => {
             [usuario_id, mg.asunto, mg.fecha_hora]
           );
         }
-        mg.archivos = (archivosRows || []).map(arch => {
-          const archivoUrl = isProduction
-            ? `${phpSystemUrl}/Static/Archivos/${arch.archivo}`
-            : `http://localhost:5000/Static/Archivos/${arch.archivo}`;
-          return { ...arch, archivo_url: archivoUrl };
-        });
+        mg.archivos = (archivosRows || []).map(mapArchivoUrl);
       }
     } catch (mgErr) {
       if (!mgErr.message || !mgErr.message.includes("doesn't exist")) {
@@ -7060,48 +7075,7 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/tareas', async (req, res) => {
       [asignatura_id, cicloFiltro]
     );
 
-    // Construir URLs de archivos (igual que en el endpoint de hijos)
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    const tareasConArchivos = await Promise.all(tareas.map(async (tarea) => {
-      const archivos = await query(
-        `SELECT * FROM asignaturas_tareas_archivos WHERE tarea_id = ?`,
-        [tarea.id]
-      );
-
-      const archivosConUrls = archivos.map(archivo => {
-        let archivoUrl = null;
-        if (archivo.archivo && archivo.archivo !== '') {
-          if (archivo.archivo.startsWith('http')) {
-            archivoUrl = archivo.archivo.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl).replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, phpSystemUrl);
-          } else if (archivo.archivo.startsWith('/Static/')) {
-            const nombreArchivo = archivo.archivo.replace(/^\/Static\/Archivos\//, '');
-            archivoUrl = isDevelopment
-              ? `http://localhost:5000/Static/Archivos/${nombreArchivo}`
-              : `${phpSystemUrl}/Static/Archivos/${nombreArchivo}`;
-          } else {
-            archivoUrl = isDevelopment
-              ? `http://localhost:5000/Static/Archivos/${archivo.archivo}`
-              : `${phpSystemUrl}/Static/Archivos/${archivo.archivo}`;
-          }
-        }
-        return {
-          ...archivo,
-          archivo_url: archivoUrl
-        };
-      });
-
-      let enlaceUrl = null;
-      if (tarea.enlace && tarea.enlace !== '') {
-        enlaceUrl = tarea.enlace.trim();
-      }
-
-      return {
-        ...tarea,
-        archivos: archivosConUrls,
-        enlace_url: enlaceUrl
-      };
-    }));
+    const tareasConArchivos = await enriquecerTareasConArchivos(query, tareas);
 
     res.json({ tareas: tareasConArchivos || [] });
   } catch (error) {
@@ -7687,18 +7661,25 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes', async (req, res) =>
       [asignatura_id, cicloFiltro]
     );
 
-    const examenesConInfo = await Promise.all((examenes || []).map(async (ex) => {
-      const r = await query(
-        `SELECT COUNT(*) AS total
+    const idsEx = (examenes || []).map((e) => e.id).filter((id) => Number.isFinite(Number(id)));
+    const tieneResultadosPorExamen = {};
+    if (idsEx.length) {
+      const ph = idsEx.map(() => '?').join(',');
+      const counts = await query(
+        `SELECT aep.examen_id, COUNT(*) AS total
          FROM asignaturas_examenes_pruebas aep
          INNER JOIN matriculas m ON m.id = aep.matricula_id
-         WHERE aep.examen_id = ? AND m.grupo_id = ?`,
-        [ex.id, grupoId]
+         WHERE aep.examen_id IN (${ph}) AND m.grupo_id = ?
+         GROUP BY aep.examen_id`,
+        [...idsEx, grupoId]
       );
-      return {
-        ...ex,
-        tiene_resultados: (r && r[0] && r[0].total > 0) || false
-      };
+      for (const r of counts || []) {
+        tieneResultadosPorExamen[Number(r.examen_id)] = Number(r.total) > 0;
+      }
+    }
+    const examenesConInfo = (examenes || []).map((ex) => ({
+      ...ex,
+      tiene_resultados: !!tieneResultadosPorExamen[Number(ex.id)]
     }));
 
     res.json({ examenes: examenesConInfo || [] });
@@ -12141,48 +12122,7 @@ router.get('/hijos/:hijoId/aula-virtual/tareas', soloLecturaProxy, async (req, r
       [asignatura_id, cicloFiltro]
     );
 
-    // Construir URLs de archivos
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    const tareasConArchivos = await Promise.all(tareas.map(async (tarea) => {
-      const archivos = await query(
-        `SELECT * FROM asignaturas_tareas_archivos WHERE tarea_id = ?`,
-        [tarea.id]
-      );
-
-      const archivosConUrls = archivos.map(archivo => {
-        let archivoUrl = null;
-        if (archivo.archivo && archivo.archivo !== '') {
-          if (archivo.archivo.startsWith('http')) {
-            archivoUrl = archivo.archivo.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl).replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, phpSystemUrl);
-          } else if (archivo.archivo.startsWith('/Static/')) {
-            const nombreArchivo = archivo.archivo.replace(/^\/Static\/Archivos\//, '');
-            archivoUrl = isDevelopment
-              ? `http://localhost:5000/Static/Archivos/${nombreArchivo}`
-              : `${phpSystemUrl}/Static/Archivos/${nombreArchivo}`;
-          } else {
-            archivoUrl = isDevelopment
-              ? `http://localhost:5000/Static/Archivos/${archivo.archivo}`
-              : `${phpSystemUrl}/Static/Archivos/${archivo.archivo}`;
-          }
-        }
-        return {
-          ...archivo,
-          archivo_url: archivoUrl
-        };
-      });
-
-      let enlaceUrl = null;
-      if (tarea.enlace && tarea.enlace !== '') {
-        enlaceUrl = tarea.enlace.trim();
-      }
-
-      return {
-        ...tarea,
-        archivos: archivosConUrls,
-        enlace_url: enlaceUrl
-      };
-    }));
+    const tareasConArchivos = await enriquecerTareasConArchivos(query, tareas);
 
     res.json({ tareas: tareasConArchivos || [] });
   } catch (error) {
@@ -12390,42 +12330,31 @@ router.get('/hijos/:hijoId/aula-virtual/examenes', soloLecturaProxy, async (req,
     );
 
     // Agregar información adicional para cada examen (tiene_nota, puede_iniciar, etc.)
-    const examenesConInfo = await Promise.all(examenes.map(async (examen) => {
-      let tiene_nota = false;
-      let intentos_usados = 0;
-      
-      if (matricula.length > 0) {
-        // Verificar si tiene nota en la tabla de pruebas
-        try {
-          const pruebaConNota = await query(
-            `SELECT puntaje FROM asignaturas_examenes_pruebas
-             WHERE examen_id = ? AND matricula_id = ? AND estado = 'FINALIZADA' AND puntaje IS NOT NULL
-             ORDER BY fecha_hora DESC
-             LIMIT 1`,
-            [examen.id, matricula[0].matricula_id]
-          );
-          
-          tiene_nota = pruebaConNota.length > 0 && pruebaConNota[0].puntaje !== null;
-        } catch (err) {
-          console.error('Error verificando nota en pruebas:', err);
-          tiene_nota = false;
-        }
-        
-        // Contar intentos usados
-        try {
-          const intentosData = await query(
-            `SELECT COUNT(*) as total FROM asignaturas_examenes_pruebas
-             WHERE examen_id = ? AND matricula_id = ? AND estado = 'FINALIZADA'`,
-            [examen.id, matricula[0].matricula_id]
-          );
-          
-          intentos_usados = intentosData[0]?.total || 0;
-        } catch (error) {
-          console.error('Error contando intentos:', error);
-          intentos_usados = 0;
-        }
+    const matriculaIdHijo = matricula.length > 0 ? matricula[0].matricula_id : null;
+    const pruebasPorExamenHijo = new Map();
+    if (matriculaIdHijo && examenes.length > 0) {
+      const ids = examenes.map((e) => e.id);
+      const placeholders = ids.map(() => '?').join(',');
+      const pruebas = await query(
+        `SELECT examen_id,
+                COUNT(*) as intentos_usados,
+                MAX(CASE WHEN puntaje IS NOT NULL THEN 1 ELSE 0 END) as tiene_nota
+         FROM asignaturas_examenes_pruebas
+         WHERE matricula_id = ?
+           AND estado = 'FINALIZADA'
+           AND examen_id IN (${placeholders})
+         GROUP BY examen_id`,
+        [matriculaIdHijo, ...ids]
+      );
+      for (const p of pruebas || []) {
+        pruebasPorExamenHijo.set(Number(p.examen_id), p);
       }
-      
+    }
+
+    const examenesConInfo = examenes.map((examen) => {
+      const info = pruebasPorExamenHijo.get(Number(examen.id)) || {};
+      const tiene_nota = Number(info.tiene_nota) === 1;
+      const intentos_usados = parseInt(info.intentos_usados || 0, 10);
       const archivo_pdf_url = buildArchivoPdfUrl(examen.archivo_pdf);
       const esPdf = esExamenTipoPdf(examen.tipo);
       return {
@@ -12440,7 +12369,7 @@ router.get('/hijos/:hijoId/aula-virtual/examenes', soloLecturaProxy, async (req,
           (examen.intentos === 0 || intentos_usados < examen.intentos),
         puede_ver_pdf: esPdf && examen.estado === 'ACTIVO' && !!archivo_pdf_url
       };
-    }));
+    });
 
     res.json({ examenes: examenesConInfo || [] });
   } catch (error) {
@@ -15106,20 +15035,10 @@ router.get('/mensajes/recibidos', async (req, res) => {
     
     const mensajes = await query(querySQL, queryParams);
 
-    // Obtener archivos adjuntos para cada mensaje
     for (const mensaje of mensajes) {
       mensaje.remitente_foto_url = urlStaticFotos(mensaje.remitente_foto);
-      const archivos = await query(
-        `SELECT id, nombre_archivo, archivo
-         FROM mensajes_archivos
-         WHERE mensaje_id = ?`,
-        [mensaje.id]
-      );
-      mensaje.archivos = (archivos || []).map((archivo) => ({
-        ...archivo,
-        archivo_url: urlArchivoMensajeStatic(archivo.archivo),
-      }));
     }
+    await adjuntarArchivosListaMensajes(query, mensajes);
 
     // Contar total con mismo filtro de año
     let countSQL = `SELECT COUNT(*) as count
@@ -15213,26 +15132,10 @@ router.get('/mensajes/enviados', async (req, res) => {
     
     const mensajes = await query(querySQL, queryParams);
 
-    // Obtener archivos adjuntos para cada mensaje
     for (const mensaje of mensajes) {
       mensaje.destinatario_foto_url = urlStaticFotos(mensaje.destinatario_foto);
-      const archivos = await query(
-        `SELECT id, nombre_archivo, archivo
-         FROM mensajes_archivos
-         WHERE mensaje_id = ?`,
-        [mensaje.id]
-      );
-      mensaje.archivos = (archivos || []).map((archivo) => ({
-        ...archivo,
-        archivo_url: urlArchivoMensajeStatic(archivo.archivo),
-      }));
-      // Debug: verificar archivos para mensajes enviados
-      if (archivos && archivos.length > 0) {
-        console.log(`📎 [MENSAJES ENVIADOS] Mensaje ID ${mensaje.id} (asunto: "${mensaje.asunto}") tiene ${archivos.length} archivo(s):`, archivos.map(a => a.nombre_archivo || a.archivo));
-      } else {
-        console.log(`⚠️ [MENSAJES ENVIADOS] Mensaje ID ${mensaje.id} (asunto: "${mensaje.asunto}") NO tiene archivos`);
-      }
     }
+    await adjuntarArchivosListaMensajes(query, mensajes);
 
     // Contar total con mismo filtro de año
     let countSQL = `SELECT COUNT(*) as count
@@ -17791,68 +17694,7 @@ router.get('/aula-virtual/tareas', async (req, res) => {
       [asignatura_id, cicloFiltro]
     );
 
-    // Obtener archivos de cada tarea y construir URLs
-    const isProduction = process.env.NODE_ENV === 'production';
-    const tareasConArchivos = await Promise.all(tareas.map(async (tarea) => {
-      // Obtener archivos de la tarea desde asignaturas_tareas_archivos
-      const archivos = await query(
-        `SELECT * FROM asignaturas_tareas_archivos WHERE tarea_id = ?`,
-        [tarea.id]
-      );
-
-      // Construir URLs para los archivos (usando PHP_SYSTEM_URL para compatibilidad con sistema anterior)
-      // IMPORTANTE: El sistema PHP guarda solo el nombre del archivo en la BD
-      // Debemos construir la URL completa agregando /Static/Archivos/ al inicio
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
-      const isDevelopment = process.env.NODE_ENV !== 'production';
-      const archivosConUrls = archivos.map(archivo => {
-        let archivoUrl = null;
-        if (archivo.archivo && archivo.archivo !== '') {
-          if (archivo.archivo.startsWith('http')) {
-            // Ya es una URL completa, validar y corregir dominio si es necesario
-            archivoUrl = archivo.archivo
-              .replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl).replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, phpSystemUrl)
-              .replace(/vanguardschools\.comstatic/gi, `${phpSystemUrl}/Static`)
-              .replace(/vanguardschools\.com\/static/gi, `${phpSystemUrl}/Static`)
-              .replace(/vanguardschools\.com\/Static/gi, `${phpSystemUrl}/Static`);
-          } else if (archivo.archivo.startsWith('/Static/')) {
-            // Ruta completa con /Static/ (formato antiguo de nuestro sistema, corregir)
-            // Extraer solo el nombre del archivo y construir URL correcta
-            const nombreArchivo = archivo.archivo.replace(/^\/Static\/Archivos\//, '');
-            archivoUrl = isDevelopment
-              ? `http://localhost:5000/Static/Archivos/${nombreArchivo}`
-              : `${phpSystemUrl}/Static/Archivos/${nombreArchivo}`;
-            console.log('📄 [AULA VIRTUAL TAREA] Corrigiendo ruta duplicada:', {
-              id: archivo.id,
-              ruta_original: archivo.archivo,
-              nombre_extraido: nombreArchivo,
-              url_final: archivoUrl
-            });
-          } else if (archivo.archivo.startsWith('/uploads/')) {
-            // Ruta relativa desde /uploads/ (formato antiguo, migrar a /Static/Archivos/)
-            archivoUrl = isDevelopment
-              ? `http://localhost:5000${archivo.archivo}`
-              : `${phpSystemUrl}${archivo.archivo}`;
-          } else {
-            // Solo el nombre del archivo (formato correcto del sistema PHP)
-            // Construir URL completa agregando /Static/Archivos/
-            archivoUrl = isDevelopment
-              ? `http://localhost:5000/Static/Archivos/${archivo.archivo}`
-              : `${phpSystemUrl}/Static/Archivos/${archivo.archivo}`;
-          }
-        }
-        return {
-          ...archivo,
-          archivo_url: archivoUrl
-        };
-      });
-
-      return {
-        ...tarea,
-        archivos: archivosConUrls,
-        enlace_url: tarea.enlace || null
-      };
-    }));
+    const tareasConArchivos = await enriquecerTareasConArchivos(query, tareas);
 
     res.json({ tareas: tareasConArchivos || [] });
   } catch (error) {

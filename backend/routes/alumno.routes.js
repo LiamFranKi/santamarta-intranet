@@ -20,6 +20,8 @@ const { mezclarReunionesEnActividades } = require('../utils/reunionesHelper');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 const { fetchMatriculaAnioActivoOperativa } = require('../utils/matriculaAnioActivo');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
+const { adjuntarArchivosListaMensajes } = require('../utils/mensajesArchivosLista');
+const { enriquecerTareasConArchivos } = require('../utils/tareasArchivosEnriquecer');
 const { urlStaticFotos, staticFsSubdir, buildStaticArchivoUrl } = require('../utils/staticStorage');
 const { listarComunicadosInicio } = require('../utils/comunicadosHome');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
@@ -2660,21 +2662,10 @@ router.get('/mensajes/recibidos', async (req, res) => {
     
     const mensajes = await query(querySQL, queryParams);
 
-    // Obtener archivos adjuntos para cada mensaje
     for (const mensaje of mensajes) {
       mensaje.remitente_foto_url = urlStaticFotos(mensaje.remitente_foto);
-      const archivos = await query(
-        `SELECT id, nombre_archivo, archivo
-         FROM mensajes_archivos
-         WHERE mensaje_id = ?`,
-        [mensaje.id]
-      );
-
-      mensaje.archivos = (archivos || []).map((archivo) => ({
-        ...archivo,
-        archivo_url: urlArchivoMensajeStatic(archivo.archivo),
-      }));
     }
+    await adjuntarArchivosListaMensajes(query, mensajes);
 
     // Contar total
     let countSQL = `SELECT COUNT(*) as count
@@ -2766,21 +2757,10 @@ router.get('/mensajes/enviados', async (req, res) => {
     
     const mensajes = await query(querySQL, queryParams);
 
-    // Obtener archivos adjuntos para cada mensaje
     for (const mensaje of mensajes) {
       mensaje.destinatario_foto_url = urlStaticFotos(mensaje.destinatario_foto);
-      const archivos = await query(
-        `SELECT id, nombre_archivo, archivo
-         FROM mensajes_archivos
-         WHERE mensaje_id = ?`,
-        [mensaje.id]
-      );
-
-      mensaje.archivos = (archivos || []).map((archivo) => ({
-        ...archivo,
-        archivo_url: urlArchivoMensajeStatic(archivo.archivo),
-      }));
     }
+    await adjuntarArchivosListaMensajes(query, mensajes);
 
     // Contar total
     let countSQL = `SELECT COUNT(*) as count
@@ -3458,59 +3438,7 @@ router.get('/aula-virtual/tareas', async (req, res) => {
       [asignatura_id, cicloFiltro]
     );
 
-    // Obtener archivos de cada tarea y construir URLs
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    const archivosPorTarea = {};
-    if (tareas.length > 0) {
-      const tids = tareas.map((t) => t.id);
-      const inPh = tids.map(() => '?').join(',');
-      const archivos = await query(
-        `SELECT * FROM asignaturas_tareas_archivos WHERE tarea_id IN (${inPh})`,
-        tids
-      );
-      for (const archivo of archivos || []) {
-        if (!archivosPorTarea[archivo.tarea_id]) archivosPorTarea[archivo.tarea_id] = [];
-        archivosPorTarea[archivo.tarea_id].push(archivo);
-      }
-    }
-
-    const tareasConArchivos = tareas.map((tarea) => {
-      const archivos = archivosPorTarea[tarea.id] || [];
-
-      const archivosConUrls = archivos.map(archivo => {
-        let archivoUrl = null;
-        if (archivo.archivo && archivo.archivo !== '') {
-          if (archivo.archivo.startsWith('http')) {
-            archivoUrl = archivo.archivo.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl).replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, phpSystemUrl);
-          } else if (archivo.archivo.startsWith('/Static/')) {
-            const nombreArchivo = archivo.archivo.replace(/^\/Static\/Archivos\//, '');
-            archivoUrl = isDevelopment
-              ? `http://localhost:5000/Static/Archivos/${nombreArchivo}`
-              : `${phpSystemUrl}/Static/Archivos/${nombreArchivo}`;
-          } else {
-            archivoUrl = isDevelopment
-              ? `http://localhost:5000/Static/Archivos/${archivo.archivo}`
-              : `${phpSystemUrl}/Static/Archivos/${archivo.archivo}`;
-          }
-        }
-        return {
-          ...archivo,
-          archivo_url: archivoUrl
-        };
-      });
-
-      let enlaceUrl = null;
-      if (tarea.enlace && tarea.enlace !== '') {
-        enlaceUrl = tarea.enlace.trim();
-      }
-
-      return {
-        ...tarea,
-        archivos: archivosConUrls,
-        enlace_url: enlaceUrl
-      };
-    });
+    const tareasConArchivos = await enriquecerTareasConArchivos(query, tareas);
 
     res.json({ tareas: tareasConArchivos || [] });
   } catch (error) {
