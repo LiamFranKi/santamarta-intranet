@@ -2284,6 +2284,9 @@ function DocenteCursos() {
     setOpenDropdown(null); // Cerrar dropdown al seleccionar una opción
     setDropdownPosition(null);
     switch (action) {
+      case 'cneb':
+        navigate('/docente/cneb');
+        break;
       case 'aula':
         navigate(`/docente/cursos/${curso.id}/aula`);
         break;
@@ -3815,6 +3818,11 @@ function DocenteCursos() {
                           <button onClick={() => handleCursoAction(curso, 'alumnos')}>
                             👥 Lista de Alumnos
                           </button>
+                          {ocultarMenuNotasInicial && (
+                            <button onClick={() => handleCursoAction(curso, 'cneb')}>
+                              📗 Evaluación CNEB (AD/A/B/C)
+                            </button>
+                          )}
                           {!ocultarMenuNotasInicial && (
                             <button onClick={() => handleCursoAction(curso, 'notas')}>
                               📝 Registrar Notas

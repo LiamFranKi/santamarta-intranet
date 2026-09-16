@@ -29,6 +29,7 @@ const {
   excelConsolidadoBuffer,
 } = require('../utils/cnebAuxiliar');
 const { informePdfBuffer, sesionPdfBuffer } = require('../utils/cnebPdfs');
+const { contextoAulaCneb, listarSesionesAula } = require('../utils/cnebAulaAsignatura');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -146,6 +147,27 @@ router.get('/sesiones/meta', async (req, res) => {
   } catch (e) {
     console.error('[docente/cneb/sesiones/meta]', e);
     res.status(500).json({ error: e.message || 'No se pudieron cargar las aulas.' });
+  }
+});
+
+router.get('/aula/:asignaturaId', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const pid = personalId(req);
+    const asignaturaId = parseInt(req.params.asignaturaId, 10);
+    if (!cid || !pid || !asignaturaId) return res.status(400).json({ error: 'Faltan datos.' });
+    const ctx = await contextoAulaCneb(cid, asignaturaId);
+    if (!ctx) return res.status(404).json({ error: 'Asignatura no encontrada.' });
+    const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
+    const ids = await idsPermitidos(cid, pid, anio);
+    if (!ids.has(Number(ctx.grupo_id))) {
+      return res.status(403).json({ error: 'Esa aula no es suya.' });
+    }
+    const sesiones = ctx.es_inicial ? await listarSesionesAula(cid, ctx) : [];
+    res.json({ ...ctx, sesiones });
+  } catch (e) {
+    console.error('[docente/cneb/aula]', e);
+    res.status(500).json({ error: e.message || 'No se pudo abrir el aula CNEB.' });
   }
 });
 

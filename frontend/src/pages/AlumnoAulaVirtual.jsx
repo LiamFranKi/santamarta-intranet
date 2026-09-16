@@ -7,6 +7,7 @@ import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import './DocenteAulaVirtual-gamificado.css';
 import EvidenciasGaleria from '../components/aula/EvidenciasGaleria';
+import AulaCnebSesiones from '../components/aula/AulaCnebSesiones';
 
 function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId = null }) {
   const { cursoId: cursoIdParam } = useParams(); // asignatura_id
@@ -33,6 +34,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
   const [videos, setVideos] = useState([]);
   const [enlaces, setEnlaces] = useState([]);
   const [evidencias, setEvidencias] = useState([]);
+  const [cnebEstado, setCnebEstado] = useState('unknown');
   
   // Estado para modal de tarea
   const [mostrarModalTarea, setMostrarModalTarea] = useState(false);
@@ -918,6 +920,9 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
     );
   }
 
+  const esCnebInicial = cnebEstado === 'si';
+  const mostrarCneb = cnebEstado !== 'no';
+
   return (
     <DashboardLayout>
       <div className="docente-aula-virtual">
@@ -980,6 +985,15 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
             </div>
 
         <div className="aula-dashboard-grid aula-dashboard-stack">
+          {mostrarCneb ? (
+            <AulaCnebSesiones
+              asignaturaId={asignaturaId}
+              rol="alumno"
+              bimestre={bimestreGlobal}
+              onActivo={(v) => setCnebEstado(v ? 'si' : 'no')}
+            />
+          ) : null}
+          {!esCnebInicial && cnebEstado === 'no' ? (
           <div className="aula-section-card temas-card expanded">
             <div className="card-header">
               <div className="card-icon">📚</div>
@@ -991,6 +1005,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
             </div>
             {renderCardContent('temas')}
           </div>
+          ) : null}
 
           <div className="aula-section-card tareas-card expanded">
             <div className="card-header">
@@ -1016,6 +1031,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
             {renderCardContent('examenes')}
           </div>
 
+          {!esCnebInicial ? (
           <div className="aula-section-card evidencias-card expanded">
             <div className="card-header">
               <div className="card-icon">🖼️</div>
@@ -1027,6 +1043,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
             </div>
             {renderCardContent('evidencias')}
           </div>
+          ) : null}
 
           <div className="aula-section-card videos-card expanded">
             <div className="card-header">

@@ -17879,7 +17879,9 @@ router.get('/aula-virtual/evidencias', async (req, res) => {
       'No tienes acceso a esta asignatura'
     );
     if (!asignaturaAcceso) return;
-    const evidencias = await listarEvidenciasSafe(asignatura_id, ciclo);
+    const evidencias = await listarEvidenciasSafe(asignatura_id, ciclo, {
+      sesionId: req.query.sesion_id || req.query.cneb_sesion_id,
+    });
     res.json({ evidencias });
   } catch (error) {
     console.error('Error obteniendo evidencias:', error);
@@ -17893,7 +17895,7 @@ router.get('/aula-virtual/evidencias', async (req, res) => {
 router.post('/aula-virtual/evidencias', uploadEvidencias.single('archivo'), async (req, res) => {
   try {
     const { colegio_id } = req.user;
-    const { asignatura_id, titulo, ciclo } = req.body;
+    const { asignatura_id, titulo, ciclo, cneb_sesion_id } = req.body;
     if (!asignatura_id || !titulo || !String(titulo).trim() || !ciclo) {
       return res.status(400).json({ error: 'asignatura_id, titulo y ciclo son requeridos' });
     }
@@ -17909,21 +17911,34 @@ router.post('/aula-virtual/evidencias', uploadEvidencias.single('archivo'), asyn
     );
     if (!asignaturaAcceso) return;
     const trabajadorId = trabajadorIdParaAsignatura(req, asignaturaAcceso);
-    await execute(
-      `INSERT INTO asignaturas_evidencias
-        (asignatura_id, trabajador_id, colegio_id, titulo, archivo, tipo, ciclo, fecha_hora)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        asignatura_id,
-        trabajadorId,
-        colegio_id,
-        String(titulo).trim().slice(0, 200),
-        req.file.filename,
-        tipoDesdeNombre(req.file.filename),
-        parseInt(ciclo, 10) || 1,
-        fechaHoraMySQLLima(),
-      ]
-    );
+    const sesionId =
+      cneb_sesion_id != null && cneb_sesion_id !== '' ? parseInt(cneb_sesion_id, 10) : null;
+    const vals = [
+      asignatura_id,
+      trabajadorId,
+      colegio_id,
+      String(titulo).trim().slice(0, 200),
+      req.file.filename,
+      tipoDesdeNombre(req.file.filename),
+      parseInt(ciclo, 10) || 1,
+      fechaHoraMySQLLima(),
+    ];
+    try {
+      await execute(
+        `INSERT INTO asignaturas_evidencias
+          (asignatura_id, trabajador_id, colegio_id, titulo, archivo, tipo, ciclo, fecha_hora, cneb_sesion_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [...vals, Number.isFinite(sesionId) ? sesionId : null]
+      );
+    } catch (e) {
+      if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+      await execute(
+        `INSERT INTO asignaturas_evidencias
+          (asignatura_id, trabajador_id, colegio_id, titulo, archivo, tipo, ciclo, fecha_hora)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        vals
+      );
+    }
     res.json({ success: true, message: 'Evidencia creada correctamente' });
   } catch (error) {
     console.error('Error creando evidencia:', error);

@@ -4722,7 +4722,9 @@ router.get('/aula-virtual/evidencias', async (req, res) => {
       return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
     }
 
-    const evidencias = await listarEvidenciasSafe(asignatura_id, ciclo);
+    const evidencias = await listarEvidenciasSafe(asignatura_id, ciclo, {
+      sesionId: req.query.sesion_id || req.query.cneb_sesion_id,
+    });
     res.json({ evidencias });
   } catch (error) {
     console.error('Error obteniendo evidencias:', error);

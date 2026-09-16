@@ -13,6 +13,7 @@ import api from '../services/api';
 import Swal from 'sweetalert2';
 import './DocenteAulaVirtual-gamificado.css';
 import EvidenciasGaleria from '../components/aula/EvidenciasGaleria';
+import AulaCnebSesiones from '../components/aula/AulaCnebSesiones';
 import { huecosCompletarMetaPorDescripcion, esCompletarCorrecto } from '../utils/examenCompletar';
 import {
   parseIdAlternativaExamen,
@@ -304,6 +305,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   const [evidencias, setEvidencias] = useState([]);
   const [temas, setTemas] = useState([]);
   const [archivos, setArchivos] = useState([]);
+  const [cnebEstado, setCnebEstado] = useState('unknown');
 
   // Estados para modales/formularios
   const [mostrarFormTema, setMostrarFormTema] = useState(false);
@@ -525,6 +527,8 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
         }
       }
       setCurso(cursoEncontrado || null);
+      const ini = String(cursoEncontrado?.nivel_nombre || '').toUpperCase().includes('INICIAL');
+      setCnebEstado(ini ? 'unknown' : 'no');
 
       const configResponse = await api.get('/docente/aula-virtual/config');
       setTotalNotas(configResponse.data.total_notas || 4);
@@ -2123,9 +2127,11 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                           </a>
                           {!soloLecturaTutor && (
                             <>
+                              {cnebEstado !== 'si' && (
                               <a href="#" onClick={(e) => { e.preventDefault(); handleAsignarRegistro(tarea); }}>
                                 📋 Asignar a Registro
                               </a>
+                              )}
                               <a href="#" onClick={(e) => { e.preventDefault(); handleEditarTarea(tarea); }}>
                                 ✏️ Editar Proyecto
                               </a>
@@ -2304,9 +2310,11 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                           </a>
                           {!soloLecturaTutor && (
                             <>
+                              {cnebEstado !== 'si' && (
                               <a href="#" onClick={(e) => { e.preventDefault(); handleAsignarRegistroExamen(examen); }}>
                                 📋 Asignar al Registro
                               </a>
+                              )}
                               <a href="#" onClick={(e) => { e.preventDefault(); handleHabilitarDeshabilitarExamen(examen); }}>
                                 🔒 Habilitar / Deshabilitar
                               </a>
@@ -3882,6 +3890,10 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   );
   };
 
+  const nivelInicialNombre = String(curso?.nivel_nombre || '').toUpperCase().includes('INICIAL');
+  const esCnebInicial = cnebEstado === 'si' || (cnebEstado === 'unknown' && nivelInicialNombre);
+  const mostrarCneb = cnebEstado !== 'no';
+
   return (
     <DashboardLayout>
       <div className="docente-aula-virtual">
@@ -3941,6 +3953,16 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
 
         {/* Franjas siempre abiertas */}
         <div className={gridCardsClases}>
+          {mostrarCneb ? (
+            <AulaCnebSesiones
+              asignaturaId={asignaturaId}
+              rol="docente"
+              readOnly={soloLecturaTutor}
+              bimestre={bimestreGlobal}
+              onActivo={(v) => setCnebEstado(v ? 'si' : 'no')}
+            />
+          ) : null}
+          {!esCnebInicial ? (
           <div className="aula-section-card temas-card expanded">
             <div className="card-header">
               <div className="card-icon">📚</div>
@@ -3978,6 +4000,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
             </div>
             {renderCardContent('temas')}
           </div>
+          ) : null}
 
           <div className="aula-section-card tareas-card expanded">
             <div className="card-header">
@@ -3990,9 +4013,11 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
               <div className="card-action-btns">
                 {!soloLecturaTutor && (
                   <>
+                    {!esCnebInicial && (
                     <button className="card-action-btn card-action-btn-secondary" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('tareas'); }} title="Ver proyectos de años anteriores">
                       📖 Biblioteca
                     </button>
+                    )}
                     <button className="card-action-btn" onClick={(e) => { e.stopPropagation(); setMostrarFormTarea(true); }}>
                       + Nuevo
                     </button>
@@ -4003,6 +4028,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
             {renderCardContent('tareas')}
           </div>
 
+          {!esCnebInicial && (
           <div className="aula-section-card sesiones-card expanded">
             <div className="card-header">
               <div className="card-icon">📄</div>
@@ -4045,6 +4071,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
             </div>
             {renderCardContent('sesiones')}
           </div>
+          )}
 
           <div className="aula-section-card examenes-card expanded">
             <div className="card-header">
@@ -4057,9 +4084,11 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
               <div className="card-action-btns">
                 {!soloLecturaTutor && (
                   <>
+                    {!esCnebInicial && (
                     <button className="card-action-btn card-action-btn-secondary" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('examenes'); }} title="Ver exámenes de años anteriores">
                       📖 Biblioteca
                     </button>
+                    )}
                     <button 
                       className="card-action-btn"
                       onClick={(e) => { 
@@ -4098,6 +4127,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
             {renderCardContent('examenes')}
           </div>
 
+          {!esCnebInicial && (
           <div className="aula-section-card evidencias-card expanded">
             <div className="card-header">
               <div className="card-icon">🖼️</div>
@@ -4109,6 +4139,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
               <div className="card-action-btns">
                 {!soloLecturaTutor && (
                   <>
+                    {!esCnebInicial && (
                     <button
                       type="button"
                       className="card-action-btn card-action-btn-secondary"
@@ -4120,6 +4151,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                     >
                       📖 Biblioteca
                     </button>
+                    )}
                     <button
                       type="button"
                       className="card-action-btn"
@@ -4137,6 +4169,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
             </div>
             {renderCardContent('evidencias')}
           </div>
+          )}
 
           <div className="aula-section-card videos-card expanded">
             <div className="card-header">
@@ -4149,9 +4182,11 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
               <div className="card-action-btns">
                 {!soloLecturaTutor && (
                   <>
+                    {!esCnebInicial && (
                     <button className="card-action-btn card-action-btn-secondary" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('videos'); }} title="Ver videos de años anteriores">
                       📖 Biblioteca
                     </button>
+                    )}
                     <button 
                       className="card-action-btn"
                       onClick={(e) => { 
@@ -4181,9 +4216,11 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
               <div className="card-action-btns">
                 {!soloLecturaTutor && (
                   <>
+                    {!esCnebInicial && (
                     <button className="card-action-btn card-action-btn-secondary" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('enlaces'); }} title="Ver enlaces de años anteriores">
                       📖 Biblioteca
                     </button>
+                    )}
                     <button 
                       className="card-action-btn"
                       onClick={(e) => { 
