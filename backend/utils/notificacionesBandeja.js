@@ -32,20 +32,24 @@ async function fetchNotificacionesBandeja(query, destinatarioIds) {
     )`;
 
   if (!ids.length) {
-    return query(`${todosSql} ORDER BY fecha_hora DESC, id DESC LIMIT 30`);
+    return query(
+      `SELECT * FROM ${todosSql} AS bandeja ORDER BY fecha_hora DESC, id DESC LIMIT 30`
+    );
   }
 
   const ph = ids.map(() => '?').join(',');
   return query(
-    `(
-      SELECT ${SELECT_BANDEJA}
-      FROM notificaciones n
-      WHERE n.para = 'USUARIO' AND n.destinatario_id IN (${ph})
-      ORDER BY n.id DESC
-      LIMIT 30
-    )
-    UNION ALL
-    ${todosSql}
+    `SELECT * FROM (
+      (
+        SELECT ${SELECT_BANDEJA}
+        FROM notificaciones n
+        WHERE n.para = 'USUARIO' AND n.destinatario_id IN (${ph})
+        ORDER BY n.id DESC
+        LIMIT 30
+      )
+      UNION ALL
+      ${todosSql}
+    ) AS bandeja
     ORDER BY fecha_hora DESC, id DESC
     LIMIT 30`,
     ids
