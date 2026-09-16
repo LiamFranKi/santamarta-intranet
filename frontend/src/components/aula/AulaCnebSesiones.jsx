@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import AdminCnebAuxiliar from '../../pages/admin/AdminCnebAuxiliar';
+import AdminCnebSesiones from '../../pages/admin/AdminCnebSesiones';
+import AdminCnebCorte from '../../pages/admin/AdminCnebCorte';
 import EvidenciasGaleria from './EvidenciasGaleria';
 import '../../pages/admin/AdminCnebPiloto.css';
 import './AulaCnebSesiones.css';
@@ -37,12 +38,13 @@ export default function AulaCnebSesiones({
   bimestre = 1,
   onActivo,
 }) {
-  const navigate = useNavigate();
   const esDocente = rol === 'docente';
   const apiBase = esDocente ? '/docente/cneb' : '/alumno/cneb';
   const onActivoRef = useRef(onActivo);
   onActivoRef.current = onActivo;
   const [meta, setMeta] = useState(null);
+  const [areasCat, setAreasCat] = useState([]);
+  const [editor, setEditor] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sesion, setSesion] = useState(null);
   const [vista, setVista] = useState('lista');
@@ -87,6 +89,38 @@ export default function AulaCnebSesiones({
   useEffect(() => {
     loadLista();
   }, [loadLista]);
+
+  useEffect(() => {
+    if (!meta?.es_inicial || !esDocente) return;
+    let alive = true;
+    (async () => {
+      try {
+        const { data } = await api.get('/docente/cneb/catalogo', { params: { nivel: 'INICIAL' } });
+        if (alive) setAreasCat(data.areas || data || []);
+      } catch {
+        if (alive) setAreasCat([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [meta?.es_inicial, esDocente]);
+
+  const contextoAula = useMemo(() => {
+    if (!meta) return null;
+    const grado = Number(meta.grado);
+    const corte = Number.isFinite(grado) && grado >= 3 && grado <= 5 ? grado : 5;
+    const aula = [meta.grado != null ? String(meta.grado) : '', meta.seccion || ''].filter(Boolean).join(' ') || 'Esta aula';
+    const tallerMapa = meta.mapa?.tipo === 'complementario';
+    return {
+      grupo_id: meta.grupo_id,
+      asignatura_id: meta.asignatura_id,
+      area_id: tallerMapa ? '' : meta.mapa?.area_id || '',
+      area_nombre: tallerMapa ? 'Taller interno' : meta.mapa?.area_nombre || meta.curso_nombre || '',
+      corte,
+      aula_label: `${aula} · ${corte} años`,
+    };
+  }, [meta]);
 
   const abrir = async (id) => {
     try {
@@ -179,11 +213,12 @@ export default function AulaCnebSesiones({
           <p className="card-subtitle">{areaLabel}</p>
         </div>
         <div className="card-action-btns">
-          {sesion ? (
+          {editor || sesion || vista === 'corte' ? (
             <button
               type="button"
               className="card-action-btn card-action-btn-secondary"
               onClick={() => {
+                setEditor(null);
                 setSesion(null);
                 setVista('lista');
                 setEvidencias([]);
@@ -192,13 +227,39 @@ export default function AulaCnebSesiones({
               ← Listado
             </button>
           ) : null}
-          {esDocente && !readOnly && !sesion ? (
+          {esDocente && !readOnly && !editor && !sesion ? (
+            <>
+              <button
+                type="button"
+                className="card-action-btn card-action-btn-secondary"
+                onClick={() => {
+                  setSesion(null);
+                  setEditor(null);
+                  setVista('corte');
+                }}
+              >
+                Corte AD/A/B/C
+              </button>
+              <button
+                type="button"
+                className="card-action-btn"
+                onClick={() => {
+                  setSesion(null);
+                  setVista('lista');
+                  setEditor({ sesionId: null });
+                }}
+              >
+                + Nueva sesión
+              </button>
+            </>
+          ) : null}
+          {esDocente && !readOnly && sesion && !editor ? (
             <button
               type="button"
               className="card-action-btn"
-              onClick={() => navigate('/docente/cneb')}
+              onClick={() => setEditor({ sesionId: sesion.id })}
             >
-              + Nueva sesión
+              Editar plan
             </button>
           ) : null}
         </div>
@@ -209,6 +270,36 @@ export default function AulaCnebSesiones({
           <div className="empty-state">
             <p>Cargando sesiones…</p>
           </div>
+        ) : editor ? (
+          <AdminCnebSesiones
+            nivel="INICIAL"
+            areas={areasCat}
+            etiquetaNivel={() => 'Inicial'}
+            apiBase="/docente/cneb"
+            embebido
+            contextoAula={contextoAula}
+            sesionId={editor.sesionId}
+            onCerrar={() => {
+              setEditor(null);
+              setVista('lista');
+            }}
+            onGuardado={() => {
+              loadLista();
+            }}
+          />
+        ) : vista === 'corte' ? (
+          <AdminCnebCorte
+            apiBase="/docente/cneb"
+            nivel="INICIAL"
+            grupos={
+              meta?.grupo_id
+                ? [{ id: meta.grupo_id, grado: meta.grado, seccion: meta.seccion }]
+                : []
+            }
+            grupoFijo={meta?.grupo_id}
+            bimestreDefault={bimestre}
+            etiquetaNivel={() => 'Inicial'}
+          />
         ) : sesion ? (
           <div className="aula-cneb-detalle">
             <header className="aula-cneb-detalle-head">

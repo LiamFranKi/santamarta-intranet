@@ -43,8 +43,11 @@ export default function AdminCnebCorte({
   grupos = [],
   bimestreDefault = 4,
   etiquetaNivel,
+  grupoFijo = null,
 }) {
-  const [grupoId, setGrupoId] = useState(grupos[0] ? String(grupos[0].id) : '');
+  const [grupoId, setGrupoId] = useState(
+    grupoFijo ? String(grupoFijo) : grupos[0] ? String(grupos[0].id) : ''
+  );
   const [bimestre, setBimestre] = useState(Number(bimestreDefault) || 4);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -53,8 +56,12 @@ export default function AdminCnebCorte({
   const [conclusiones, setConclusiones] = useState({});
 
   useEffect(() => {
+    if (grupoFijo) {
+      setGrupoId(String(grupoFijo));
+      return;
+    }
     if (!grupoId && grupos[0]) setGrupoId(String(grupos[0].id));
-  }, [grupos, grupoId]);
+  }, [grupos, grupoId, grupoFijo]);
 
   const load = useCallback(async () => {
     if (!grupoId || !nivel) return;
@@ -188,6 +195,7 @@ export default function AdminCnebCorte({
         </div>
       </div>
       <div className="cneb-ses-grid">
+        {grupoFijo ? null : (
         <label className="cneb-select-wrap">
           <span>Aula</span>
           <select value={grupoId} onChange={(e) => setGrupoId(e.target.value)}>
@@ -199,6 +207,7 @@ export default function AdminCnebCorte({
             ))}
           </select>
         </label>
+        )}
         <label className="cneb-select-wrap">
           <span>Bimestre</span>
           <select value={bimestre} onChange={(e) => setBimestre(Number(e.target.value))}>

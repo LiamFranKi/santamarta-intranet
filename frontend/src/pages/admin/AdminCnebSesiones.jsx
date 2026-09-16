@@ -18,19 +18,28 @@ function etiquetaAula(g) {
   return [gr, sec].filter(Boolean).join(' ') || `Aula ${g.id}`;
 }
 
-function formVacio(nivel) {
+function hoyISO() {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+function formVacio(nivel, ctx = null) {
   const duracion_min = 60;
+  const corteCtx = ctx?.corte != null ? Number(ctx.corte) : NaN;
   return {
     id: null,
     titulo: '',
     proposito: '',
     ficha_estudiante: '',
     duracion_min,
-    grupo_id: '',
-    area_id: '',
+    grupo_id: ctx?.grupo_id != null && ctx.grupo_id !== '' ? String(ctx.grupo_id) : '',
+    asignatura_id: ctx?.asignatura_id != null ? ctx.asignatura_id : null,
+    area_id: ctx?.area_id != null && ctx.area_id !== '' ? String(ctx.area_id) : '',
     competencia_id: '',
-    corte: nivel === 'INICIAL' ? 5 : 1,
-    fecha_sesion: '',
+    corte: Number.isFinite(corteCtx) && corteCtx > 0 ? corteCtx : nivel === 'INICIAL' ? 5 : 1,
+    fecha_sesion: hoyISO(),
     estado: 'borrador',
     desempeno_ids: [],
     momentos: { inicio: '', desarrollo: '', cierre: '' },
@@ -43,7 +52,17 @@ function sumaMinutos(minutos) {
   return ['inicio', 'desarrollo', 'cierre'].reduce((a, k) => a + (parseInt(minutos?.[k], 10) || 0), 0);
 }
 
-export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase = '/admin/cneb' }) {
+export default function AdminCnebSesiones({
+  nivel,
+  areas,
+  etiquetaNivel,
+  apiBase = '/admin/cneb',
+  embebido = false,
+  contextoAula = null,
+  sesionId = null,
+  onCerrar = null,
+  onGuardado = null,
+}) {
   const [lista, setLista] = useState([]);
   const [grupos, setGrupos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -73,10 +92,24 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
   }, [nivel, apiBase]);
 
   useEffect(() => {
+    loadLista();
+    if (embebido) {
+      if (sesionId) return;
+      const f = formVacio(nivel, contextoAula);
+      setForm(f);
+      setEditing(true);
+      return;
+    }
     setEditing(false);
     setForm(formVacio(nivel));
-    loadLista();
-  }, [nivel, loadLista]);
+  }, [nivel, loadLista, embebido, sesionId]);
+
+  useEffect(() => {
+    if (!embebido || !sesionId) return;
+    abrir(sesionId);
+    // abrir se redefine; solo al cambiar de sesión
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [embebido, sesionId]);
 
   const areaForm = useMemo(
     () => (areas || []).find((a) => String(a.id) === String(form.area_id)) || null,
@@ -127,6 +160,13 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
     });
   };
 
+  useEffect(() => {
+    if (!embebido || form.id || form.competencia_id || !form.area_id) return;
+    const a = (areas || []).find((x) => String(x.id) === String(form.area_id));
+    const first = a?.competencias?.[0];
+    if (first) patch({ competencia_id: String(first.id) });
+  }, [embebido, form.id, form.area_id, form.competencia_id, areas]);
+
   const toggleDes = (id) => {
     const sid = String(id);
     patch({
@@ -137,7 +177,7 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
   };
 
   const abrirNueva = () => {
-    setForm(formVacio(nivel));
+    setForm(formVacio(nivel, embebido ? contextoAula : null));
     setEditing(true);
   };
 
@@ -152,6 +192,7 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
         ficha_estudiante: s.ficha_estudiante || '',
         duracion_min: Number(s.duracion_min) || 60,
         grupo_id: s.grupo_id != null ? String(s.grupo_id) : '',
+        asignatura_id: s.asignatura_id != null ? s.asignatura_id : null,
         area_id: s.area_id != null ? String(s.area_id) : '',
         competencia_id: s.competencia_id != null ? String(s.competencia_id) : '',
         corte: s.corte != null ? Number(s.corte) : nivel === 'INICIAL' ? 5 : 1,
@@ -280,6 +321,7 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
         patch({ id: data.id });
       }
       await loadLista();
+      if (typeof onGuardado === 'function') onGuardado();
       await Swal.fire({
         icon: 'success',
         title: estado === 'aprobada' ? 'Sesión aprobada' : 'Sesión guardada',
@@ -337,9 +379,11 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
       await api.delete(`${apiBase}/sesiones/${id}`);
       if (form.id === id) {
         setEditing(false);
-        setForm(formVacio(nivel));
+        setForm(formVacio(nivel, embebido ? contextoAula : null));
+        if (embebido && typeof onCerrar === 'function') onCerrar();
       }
       await loadLista();
+      if (typeof onGuardado === 'function') onGuardado();
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'No se pudo eliminar', text: e.response?.data?.error || e.message });
     }
@@ -348,11 +392,11 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
   const suma = sumaMinutos(form.minutos);
   const sumaOk = suma === Number(form.duracion_min);
 
-  if (loading && !editing) {
+  if (loading && !editing && !embebido) {
     return <p className="cneb-muted">Cargando sesiones…</p>;
   }
 
-  if (!editing) {
+  if (!editing && !embebido) {
     return (
       <section className="cneb-panel">
         <div className="cneb-map-toolbar">
@@ -425,11 +469,15 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
             type="button"
             className="cneb-btn ghost"
             onClick={() => {
+              if (embebido && typeof onCerrar === 'function') {
+                onCerrar();
+                return;
+              }
               setEditing(false);
               setForm(formVacio(nivel));
             }}
           >
-            Volver al listado
+            {embebido ? 'Volver al aula' : 'Volver al listado'}
           </button>
           {form.id ? (
             <>
@@ -461,14 +509,27 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
       <div className="cneb-ses-grid">
         <label className="cneb-select-wrap">
           <span>Aula</span>
-          <select value={form.grupo_id} onChange={(e) => onGrupo(e.target.value)}>
-            <option value="">Elegir aula…</option>
-            {grupos.map((g) => (
-              <option key={g.id} value={g.id}>
-                {etiquetaAula(g)}
-              </option>
-            ))}
-          </select>
+          {embebido && contextoAula?.grupo_id ? (
+            <input
+              type="text"
+              className="cneb-search"
+              readOnly
+              value={
+                contextoAula.aula_label ||
+                etiquetaAula(grupos.find((g) => String(g.id) === String(form.grupo_id))) ||
+                'Esta aula'
+              }
+            />
+          ) : (
+            <select value={form.grupo_id} onChange={(e) => onGrupo(e.target.value)}>
+              <option value="">Elegir aula…</option>
+              {grupos.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {etiquetaAula(g)}
+                </option>
+              ))}
+            </select>
+          )}
         </label>
         <label className="cneb-select-wrap">
           <span>Fecha</span>
@@ -490,26 +551,48 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
         </label>
         <label className="cneb-select-wrap">
           <span>{nivel === 'INICIAL' ? 'Edad' : 'Grado'}</span>
-          <select value={form.corte} onChange={(e) => patch({ corte: Number(e.target.value), desempeno_ids: [] })}>
-            {cortes.map((c) => (
-              <option key={c.v} value={c.v}>
-                {c.label}
-              </option>
-            ))}
-          </select>
+          {embebido && contextoAula?.corte != null ? (
+            <input
+              type="text"
+              className="cneb-search"
+              readOnly
+              value={cortes.find((c) => Number(c.v) === Number(form.corte))?.label || `${form.corte} años`}
+            />
+          ) : (
+            <select value={form.corte} onChange={(e) => patch({ corte: Number(e.target.value), desempeno_ids: [] })}>
+              {cortes.map((c) => (
+                <option key={c.v} value={c.v}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          )}
         </label>
         <label className="cneb-select-wrap">
           <span>Área CNEB</span>
-          <select value={form.area_id} onChange={(e) => onArea(e.target.value)}>
-            <option value="">Taller interno (no SIAGIE)</option>
-            {(areas || [])
-              .filter((a) => a.tipo !== 'transversal')
-              .map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.nombre}
-                </option>
-              ))}
-          </select>
+          {embebido ? (
+            <input
+              type="text"
+              className="cneb-search"
+              readOnly
+              value={
+                contextoAula?.area_nombre ||
+                areaForm?.nombre ||
+                (!form.area_id ? 'Taller interno (no SIAGIE)' : 'Área')
+              }
+            />
+          ) : (
+            <select value={form.area_id} onChange={(e) => onArea(e.target.value)}>
+              <option value="">Taller interno (no SIAGIE)</option>
+              {(areas || [])
+                .filter((a) => a.tipo !== 'transversal')
+                .map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.nombre}
+                  </option>
+                ))}
+            </select>
+          )}
         </label>
         <label className="cneb-select-wrap">
           <span>Competencia</span>
