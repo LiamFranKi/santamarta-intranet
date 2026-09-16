@@ -112,7 +112,7 @@ export default function DashboardLayout({ children }) {
     setExpandedMenus(prev => ({
       ...prev,
       ...(path.startsWith('/admin/usuarios') && { usuarios: true }),
-      ...((path.startsWith('/admin/academico') || path.startsWith('/admin/avatares') || path.startsWith('/admin/gamificacion') || path.startsWith('/admin/horario-gen')) && { academico: true }),
+      ...((path.startsWith('/admin/academico') || path.startsWith('/admin/cneb') || path.startsWith('/admin/avatares') || path.startsWith('/admin/gamificacion') || path.startsWith('/admin/horario-gen')) && { academico: true }),
       ...(path.startsWith('/admin/reportes') && { reportes: true }),
       ...(
         (
@@ -152,7 +152,7 @@ export default function DashboardLayout({ children }) {
           : {}
       ),
       ...(path.startsWith('/admin/usuarios') && esPaqueteCoordinador(user?.tipo) ? { coordinadorUsuarios: true } : {}),
-      ...(path.startsWith('/admin/academico') && esPaqueteAcademico(user?.tipo) ? { coordinadorAcademico: true } : {}),
+      ...((path.startsWith('/admin/academico') || path.startsWith('/admin/cneb')) && esPaqueteAcademico(user?.tipo) ? { coordinadorAcademico: true } : {}),
       ...(
         (
           path.startsWith('/admin/documentos-gestion')
@@ -605,6 +605,14 @@ export default function DashboardLayout({ children }) {
                   <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/cursos">
                     <span className="sidebar-icon">📚</span>
                     <span className="sidebar-label">Cursos Asignados</span>
+                  </NavLink>
+                </div>
+              )}
+              {(tieneAsignaciones.tiene_grupos || tieneAsignaciones.tiene_cursos) && (
+                <div className="sidebar-item">
+                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/cneb">
+                    <span className="sidebar-icon">📗</span>
+                    <span className="sidebar-label">CNEB</span>
                   </NavLink>
                 </div>
               )}
@@ -1556,6 +1564,10 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>🧩</span>
                     <span className="sidebar-label">Áreas</span>
                   </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/cneb">
+                    <span className="sidebar-icon" aria-hidden>📗</span>
+                    <span className="sidebar-label">CNEB</span>
+                  </NavLink>
                 </div>
               </div>
               )}
@@ -1814,6 +1826,10 @@ export default function DashboardLayout({ children }) {
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/academico/areas">
                     <span className="sidebar-icon" aria-hidden>🗂️</span>
                     <span className="sidebar-label">Áreas</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/cneb">
+                    <span className="sidebar-icon" aria-hidden>📗</span>
+                    <span className="sidebar-label">CNEB</span>
                   </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/horario-gen">
                     <span className="sidebar-icon" aria-hidden>🗓️</span>

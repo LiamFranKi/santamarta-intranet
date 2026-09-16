@@ -20,6 +20,7 @@ import DocentePsicologiaMisPiar from './pages/DocentePsicologiaMisPiar';
 import DocentePsicologiaPiarDetalle from './pages/DocentePsicologiaPiarDetalle';
 import DocenteConexionesFamiliares from './pages/DocenteConexionesFamiliares';
 import DocenteCursos from './pages/DocenteCursos';
+import DocenteCneb from './pages/DocenteCneb';
 import DocenteHorario from './pages/DocenteHorario';
 import DocenteComunicados from './pages/DocenteComunicados';
 import DocenteActividades from './pages/DocenteActividades';
@@ -921,6 +922,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/docente/cneb"
+        element={
+          <PrivateRoute requiredType="DOCENTE">
+            <DocenteCneb />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/docente/horario"
         element={
           <PrivateRoute>
@@ -1497,6 +1506,14 @@ function AppRoutes() {
       />
       <Route
         path="/admin/academico/areas"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR', 'DIRECTOR']}>
+            <Dashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/cneb"
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR', 'DIRECTOR']}>
             <Dashboard />

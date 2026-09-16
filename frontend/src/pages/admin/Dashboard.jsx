@@ -21,6 +21,7 @@ import AdminConfigCumpleanos from './AdminConfigCumpleanos';
 import AdminConfigIndicadores from './AdminConfigIndicadores';
 import AdminMatriculasInscripcion from './AdminMatriculasInscripcion';
 import AdminAcademico from './AdminAcademico';
+import AdminCnebPiloto from './AdminCnebPiloto';
 import AdminPsicologiaLista from './AdminPsicologiaLista';
 import AdminPsicologiaExpediente from './AdminPsicologiaExpediente';
 import AdminReportesDeudores from './AdminReportesDeudores';
@@ -64,6 +65,7 @@ function rutaAdminPermitidaCoordinador(pathname, tipo) {
       '/admin/academico/cursos',
       '/admin/academico/asignaturas',
       '/admin/academico/areas',
+      '/admin/cneb',
     );
   }
   return ok.some((base) => p === base || p.startsWith(`${base}/`));
@@ -203,6 +205,11 @@ function Dashboard() {
       title: '📊 Áreas',
       description: 'Gestiona las áreas académicas',
       icon: '📊'
+    },
+    '/admin/cneb': {
+      title: 'Evaluación CNEB',
+      description: 'Sesiones, cotejo, corte AD/A/B/C y catálogo MINEDU',
+      icon: '📗'
     },
     '/admin/avatares': {
       title: '🎮 Gamificación',
@@ -495,6 +502,15 @@ function Dashboard() {
         <DashboardLayout>
           <div className="dashboard-container">
             <AdminPsicologiaExpediente alumnoId={alumnoId} />
+          </div>
+        </DashboardLayout>
+      );
+    }
+    if (location.pathname.startsWith('/admin/cneb')) {
+      return (
+        <DashboardLayout>
+          <div className="dashboard-container">
+            <AdminCnebPiloto />
           </div>
         </DashboardLayout>
       );
