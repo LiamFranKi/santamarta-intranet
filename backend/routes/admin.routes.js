@@ -315,15 +315,7 @@ router.get('/dashboard', async (req, res) => {
     const totalPensiones = parseInt(colegio?.total_pensiones || 10);
     const moneda = colegio?.moneda || 'S/';
 
-    const [matriculasPagadas, rGradosRows, rTrabajadoresRows] = await Promise.all([
-      query(
-        `SELECT m.id, m.alumno_id, c.pension, c.matricula
-         FROM matriculas m
-         INNER JOIN grupos g ON g.id = m.grupo_id
-         INNER JOIN costos c ON c.id = m.costo_id
-         WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
-        [colegio_id, anioActivo]
-      ),
+    const [rGradosRows, rTrabajadoresRows, rAlumnosRows, rApoderadosRows, rPresupuestoRows, rIngresosRows] = await Promise.all([
       query(
         'SELECT COUNT(*) as total FROM grupos WHERE colegio_id = ? AND anio = ?',
         [colegio_id, anioActivo]
@@ -332,61 +324,49 @@ router.get('/dashboard', async (req, res) => {
         `SELECT COUNT(*) as total FROM personal p
          WHERE p.colegio_id = ? AND ${sqlPersonalSinSuperadmin('p')}`,
         [colegio_id]
+      ),
+      query(
+        `SELECT COUNT(DISTINCT m.alumno_id) as total
+         FROM matriculas m
+         INNER JOIN grupos g ON g.id = m.grupo_id
+         WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
+        [colegio_id, anioActivo]
+      ),
+      query(
+        `SELECT COUNT(DISTINCT f.apoderado_id) as total
+         FROM familias f
+         INNER JOIN matriculas m ON m.alumno_id = f.alumno_id AND m.colegio_id = ?
+         INNER JOIN grupos g ON g.id = m.grupo_id
+         WHERE g.anio = ? AND (m.estado = 0)`,
+        [colegio_id, anioActivo]
+      ),
+      query(
+        `SELECT COALESCE(SUM(COALESCE(c.matricula, 0) + COALESCE(c.pension, 0) * ?), 0) as presupuesto
+         FROM matriculas m
+         INNER JOIN grupos g ON g.id = m.grupo_id
+         INNER JOIN costos c ON c.id = m.costo_id
+         WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
+        [totalPensiones, colegio_id, anioActivo]
+      ),
+      query(
+        `SELECT
+           COALESCE(SUM(p.monto), 0) AS total_ingresos,
+           COALESCE(SUM(COALESCE(p.mora, 0)), 0) AS total_mora
+         FROM pagos p
+         INNER JOIN matriculas m ON m.id = p.matricula_id
+         INNER JOIN grupos g ON g.id = m.grupo_id
+         WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
+           AND g.anio = ? AND (m.estado = 0)`,
+        [colegio_id, anioActivo]
       )
     ]);
     const [rGrados] = rGradosRows || [];
     const [rTrabajadores] = rTrabajadoresRows || [];
-    const matIdsPagadas = (matriculasPagadas || []).map(m => m.id);
-    const alumnoIdsPagados = [...new Set((matriculasPagadas || []).map(m => m.alumno_id))];
-
-    // Total Alumnos: con matrícula Regular en el año activo
-    const totalAlumnos = alumnoIdsPagados.length;
-
-    // Total Apoderados + ingresos en paralelo (no se bloquean entre sí)
-    let totalApoderados = 0;
-    let totalIngresos = 0;
-    let totalMoraRecaudada = 0;
-    const jobs = [];
-    if (alumnoIdsPagados.length > 0) {
-      const phAlu = alumnoIdsPagados.map(() => '?').join(',');
-      jobs.push(
-        query(
-          `SELECT COUNT(DISTINCT f.apoderado_id) as total
-           FROM familias f
-           WHERE f.alumno_id IN (${phAlu})`,
-          alumnoIdsPagados
-        ).then((rows) => {
-          totalApoderados = rows[0]?.total ?? 0;
-        })
-      );
-    }
-    if (matIdsPagadas.length > 0) {
-      const ph = matIdsPagadas.map(() => '?').join(',');
-      jobs.push(
-        query(
-          `SELECT
-             COALESCE(SUM(p.monto), 0) AS total_ingresos,
-             COALESCE(SUM(COALESCE(p.mora, 0)), 0) AS total_mora
-           FROM pagos p
-           WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
-             AND p.matricula_id IN (${ph})`,
-          [colegio_id, ...matIdsPagadas]
-        ).then((rows) => {
-          const rIngresos = rows[0];
-          totalIngresos = parseFloat(rIngresos?.total_ingresos || 0);
-          totalMoraRecaudada = parseFloat(rIngresos?.total_mora || 0);
-        })
-      );
-    }
-    if (jobs.length) await Promise.all(jobs);
-
-    let presupuestoAnual = 0;
-    for (const mat of matriculasPagadas || []) {
-      const pension = parseFloat(mat.pension || 0);
-      const matriculaCosto = parseFloat(mat.matricula || 0);
-      presupuestoAnual += matriculaCosto + (pension * totalPensiones);
-    }
-
+    const totalAlumnos = parseInt(rAlumnosRows?.[0]?.total || 0, 10);
+    const totalApoderados = parseInt(rApoderadosRows?.[0]?.total || 0, 10);
+    const presupuestoAnual = parseFloat(rPresupuestoRows?.[0]?.presupuesto || 0);
+    const totalIngresos = parseFloat(rIngresosRows?.[0]?.total_ingresos || 0);
+    const totalMoraRecaudada = parseFloat(rIngresosRows?.[0]?.total_mora || 0);
     const totalDeuda = Math.max(0, presupuestoAnual - totalIngresos);
 
     res.json({
@@ -433,7 +413,6 @@ router.get('/estadisticas/kpis', async (req, res) => {
        WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
       [colegio_id, anio]
     );
-    const matIdsPagadas = (matriculasPagadas || []).map(m => m.id);
     const alumnosTotal = [...new Set((matriculasPagadas || []).map(m => m.alumno_id))].length;
 
     // Presupuesto anual (matrícula + pensiones por alumno)
@@ -452,80 +431,71 @@ router.get('/estadisticas/kpis', async (req, res) => {
       }
     }
 
-    // Total cobrado (ingresos) del año para esas matrículas
+    const pagosJoin = `FROM pagos p
+         INNER JOIN matriculas m ON m.id = p.matricula_id
+         INNER JOIN grupos g ON g.id = m.grupo_id
+         WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
+           AND g.anio = ? AND (m.estado = 0)`;
+    const pagosBase = [colegio_id, anio];
+
     let totalCobrado = 0;
     let pagadoPorTipo = {};
-    if (matIdsPagadas.length > 0) {
-      const ph = matIdsPagadas.map(() => '?').join(',');
+    const pagosPorMatricula = {};
+    let cantidadDeudores = 0;
 
-      // Matrícula: considerar pagos sin filtrar por año (algunos se pagan el año anterior)
-      const [rIngMat] = await query(
-        `SELECT COALESCE(SUM(p.monto), 0) as total
-         FROM pagos p
-         WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
-           AND p.matricula_id IN (${ph}) AND p.tipo = 0`,
-        [colegio_id, ...matIdsPagadas]
-      );
+    if (matriculasPagadas.length > 0) {
+      const [
+        rIngMatRows,
+        rIngPensRows,
+        pagosMatricula,
+        pagosPensiones,
+        detRows,
+        pagadoPorMatriculaRows
+      ] = await Promise.all([
+        query(
+          `SELECT COALESCE(SUM(p.monto), 0) as total ${pagosJoin} AND p.tipo = 0`,
+          pagosBase
+        ),
+        query(
+          `SELECT COALESCE(SUM(p.monto), 0) as total ${pagosJoin} AND p.tipo > 0 AND ${ANIO_PAGO_SQL}`,
+          [...pagosBase, anio, anio]
+        ),
+        query(
+          `SELECT p.tipo, COALESCE(SUM(p.monto), 0) as total ${pagosJoin} AND p.tipo = 0 GROUP BY p.tipo`,
+          pagosBase
+        ),
+        query(
+          `SELECT p.tipo, p.nro_pago, COALESCE(SUM(p.monto), 0) as total
+           ${pagosJoin} AND p.tipo = 1 AND p.nro_pago >= 1 AND p.nro_pago <= ? AND ${ANIO_PAGO_SQL}
+           GROUP BY p.tipo, p.nro_pago`,
+          [...pagosBase, totalPensiones, anio, anio]
+        ),
+        query(
+          `SELECT p.matricula_id, p.tipo, COALESCE(p.nro_pago, 0) AS nro_pago,
+                  COALESCE(SUM(p.monto), 0) AS total
+           ${pagosJoin}
+             AND (p.tipo = 0 OR (p.tipo = 1 AND p.nro_pago >= 1 AND p.nro_pago <= ? AND ${ANIO_PAGO_SQL}))
+           GROUP BY p.matricula_id, p.tipo, p.nro_pago`,
+          [...pagosBase, totalPensiones, anio, anio]
+        ),
+        query(
+          `SELECT p.matricula_id, COALESCE(SUM(p.monto), 0) as pagado
+           ${pagosJoin}
+           GROUP BY p.matricula_id`,
+          pagosBase
+        )
+      ]);
 
-      // Pensiones: solo pagos del año consultado (ciclos de pensiones)
-      const [rIngPens] = await query(
-        `SELECT COALESCE(SUM(p.monto), 0) as total
-         FROM pagos p
-         WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
-           AND p.matricula_id IN (${ph}) AND p.tipo > 0 AND ${ANIO_PAGO_SQL}`,
-        [colegio_id, ...matIdsPagadas, anio, anio]
-      );
-
-      totalCobrado = parseFloat(rIngMat?.total || 0) + parseFloat(rIngPens?.total || 0);
-
-      // Pagado por tipo:
-      // - tipo = 0 (matrícula): sin filtro por año
-      // - tipo > 0 (pensiones): solo pagos del año consultado
-      pagadoPorTipo = {};
-
-      const pagosMatricula = await query(
-        `SELECT p.tipo, COALESCE(SUM(p.monto), 0) as total
-         FROM pagos p
-         WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
-           AND p.matricula_id IN (${ph}) AND p.tipo = 0
-         GROUP BY p.tipo`,
-        [colegio_id, ...matIdsPagadas]
-      );
+      totalCobrado = parseFloat(rIngMatRows?.[0]?.total || 0) + parseFloat(rIngPensRows?.[0]?.total || 0);
       (pagosMatricula || []).forEach((row) => {
         pagadoPorTipo[row.tipo] = parseFloat(row.total || 0);
       });
-
-      // Pensiones: en la BD son tipo=1 y el mes viene en nro_pago (1=primera pensión, 2=segunda, …)
-      const pagosPensiones = await query(
-        `SELECT p.tipo, p.nro_pago, COALESCE(SUM(p.monto), 0) as total
-         FROM pagos p
-         WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
-           AND p.matricula_id IN (${ph}) AND p.tipo = 1 AND p.nro_pago >= 1 AND p.nro_pago <= ? AND ${ANIO_PAGO_SQL}
-         GROUP BY p.tipo, p.nro_pago`,
-        [colegio_id, ...matIdsPagadas, totalPensiones, anio, anio]
-      );
       (pagosPensiones || []).forEach((row) => {
         const idx = parseInt(row.nro_pago, 10);
         if (idx >= 1 && idx <= totalPensiones) {
           pagadoPorTipo[idx] = parseFloat(row.total || 0);
         }
       });
-    }
-
-    // Mapa pagos por matrícula y concepto (misma lógica que detalle por alumno) para saldo = Σ max(0, tarifa − pagado)
-    const pagosPorMatricula = {};
-    if (matIdsPagadas.length > 0) {
-      const phDet = matIdsPagadas.map(() => '?').join(',');
-      const detRows = await query(
-        `SELECT p.matricula_id, p.tipo, COALESCE(p.nro_pago, 0) AS nro_pago,
-         COALESCE(SUM(p.monto), 0) AS total
-         FROM pagos p
-         WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
-           AND p.matricula_id IN (${phDet})
-           AND (p.tipo = 0 OR (p.tipo = 1 AND p.nro_pago >= 1 AND p.nro_pago <= ? AND ${ANIO_PAGO_SQL}))
-         GROUP BY p.matricula_id, p.tipo, p.nro_pago`,
-        [colegio_id, ...matIdsPagadas, totalPensiones, anio, anio]
-      );
       (detRows || []).forEach((row) => {
         const mid = row.matricula_id;
         if (!pagosPorMatricula[mid]) pagosPorMatricula[mid] = { t0: 0, pens: {} };
@@ -537,30 +507,18 @@ router.get('/estadisticas/kpis', async (req, res) => {
           if (np >= 1 && np <= totalPensiones) pagosPorMatricula[mid].pens[np] = tot;
         }
       });
-    }
-
-    const totalDeuda = Math.max(0, presupuestoAnual - totalCobrado);
-
-    // Cantidad de deudores: matrículas que aún deben (lo pagado < lo esperado) — una sola consulta
-    let cantidadDeudores = 0;
-    if (matIdsPagadas.length > 0) {
-      const ph = matIdsPagadas.map(() => '?').join(',');
-      const pagadoPorMatricula = await query(
-        `SELECT p.matricula_id, COALESCE(SUM(p.monto), 0) as pagado
-         FROM pagos p
-         WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
-           AND p.matricula_id IN (${ph})
-         GROUP BY p.matricula_id`,
-        [colegio_id, ...matIdsPagadas]
-      );
       const mapPagado = {};
-      (pagadoPorMatricula || []).forEach(row => { mapPagado[row.matricula_id] = parseFloat(row.pagado || 0); });
+      (pagadoPorMatriculaRows || []).forEach((row) => {
+        mapPagado[row.matricula_id] = parseFloat(row.pagado || 0);
+      });
       for (const mat of matriculasPagadas || []) {
         const pagado = mapPagado[mat.id] || 0;
         const esperado = parseFloat(mat.matricula || 0) + (parseFloat(mat.pension || 0) * totalPensiones);
         if (pagado < esperado) cantidadDeudores += 1;
       }
     }
+
+    const totalDeuda = Math.max(0, presupuestoAnual - totalCobrado);
     const alumnosAlDia = Math.max(0, alumnosTotal - cantidadDeudores);
 
     // Desglose por concepto (Matrícula + meses de pensión)
@@ -676,20 +634,20 @@ router.get('/estadisticas/deudas-por-nivel', async (req, res) => {
       [colegio_id, anio]
     );
 
-    const matIds = (matriculas || []).map((m) => m.id);
     const pagosPorMatricula = {};
-    if (matIds.length > 0 && pensionesVencidas.length > 0) {
-      const ph = matIds.map(() => '?').join(',');
+    if ((matriculas || []).length > 0 && pensionesVencidas.length > 0) {
       const phNros = pensionesVencidas.map(() => '?').join(',');
       const detRows = await query(
         `SELECT p.matricula_id, p.nro_pago, COALESCE(SUM(p.monto), 0) AS total
          FROM pagos p
+         INNER JOIN matriculas m ON m.id = p.matricula_id
+         INNER JOIN grupos g ON g.id = m.grupo_id
          WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
-           AND p.matricula_id IN (${ph})
+           AND g.anio = ? AND (m.estado = 0)
            AND p.tipo = 1 AND p.nro_pago IN (${phNros})
            AND ${ANIO_PAGO_SQL}
          GROUP BY p.matricula_id, p.nro_pago`,
-        [colegio_id, ...matIds, ...pensionesVencidas, anio, anio]
+        [colegio_id, anio, ...pensionesVencidas, anio, anio]
       );
       (detRows || []).forEach((row) => {
         const mid = row.matricula_id;

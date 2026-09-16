@@ -78,8 +78,8 @@ async function runTextQuery(sql, params) {
 
 async function query(sql, params = []) {
   try {
-    const sqlNorm = sql.trim().replace(/^[\s(]+/, '').toUpperCase();
-    if (!sqlNorm.startsWith('SELECT')) {
+    const sqlTrim = sql.trim();
+    if (!/^SELECT\b/i.test(sqlTrim) && !/^\(\s*SELECT\b/i.test(sqlTrim)) {
       throw new Error('Solo se permiten consultas SELECT. Modificación de datos no permitida.');
     }
     const [rows] = await runTextQuery(sql, params);
