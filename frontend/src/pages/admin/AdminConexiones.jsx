@@ -273,7 +273,7 @@ export default function AdminConexiones() {
       });
       return;
     }
-    if (alcance === 'grupos' && gruposSeleccionados.length === 0) {
+    if (perfilDestino !== 'todo_personal' && alcance === 'grupos' && gruposSeleccionados.length === 0) {
       Swal.fire({
         ...cfSwalSobreModal,
         title: 'Falta información',
@@ -284,7 +284,8 @@ export default function AdminConexiones() {
     }
     try {
       setEnviando(true);
-      const alcanceEfectivo = gruposSeleccionados.length > 0 ? 'grupos' : alcance;
+      const esTodoPersonal = perfilDestino === 'todo_personal';
+      const alcanceEfectivo = esTodoPersonal || alcance === 'todos' ? 'todos' : 'grupos';
       const fd = new FormData();
       fd.append('destinatarios', JSON.stringify([]));
       fd.append('grupos', JSON.stringify(alcanceEfectivo === 'grupos' ? gruposSeleccionados : []));
@@ -529,8 +530,24 @@ export default function AdminConexiones() {
 
               <div className="admin-conexiones-row">
                 <span className="admin-conexiones-label">Cobertura:</span>
-                <label><input type="radio" checked={alcance === 'todos'} onChange={() => setAlcance('todos')} /> Todos</label>
-                <label><input type="radio" checked={alcance === 'grupos'} onChange={() => setAlcance('grupos')} /> Grupos</label>
+                <label>
+                  <input
+                    type="radio"
+                    checked={alcance === 'todos' || perfilDestino === 'todo_personal'}
+                    onChange={() => {
+                      setAlcance('todos');
+                      setGruposSeleccionados([]);
+                    }}
+                  /> Todos
+                </label>
+                <label title={perfilDestino === 'todo_personal' ? 'Todo el personal cubre el colegio completo; no se envía por aulas.' : undefined}>
+                  <input
+                    type="radio"
+                    checked={alcance === 'grupos' && perfilDestino !== 'todo_personal'}
+                    disabled={perfilDestino === 'todo_personal'}
+                    onChange={() => setAlcance('grupos')}
+                  /> Grupos
+                </label>
               </div>
 
               <div className="admin-conexiones-row">
@@ -542,11 +559,24 @@ export default function AdminConexiones() {
                 <label><input type="radio" checked={perfilDestino === 'docentes'} onChange={() => setPerfilDestino('docentes')} /> Docentes</label>
                 <label><input type="radio" checked={perfilDestino === 'apoderados'} onChange={() => setPerfilDestino('apoderados')} /> Apoderados</label>
                 <label title="Administración, secretaría, promotoría, psicología, docentes, asistencia. No familias ni alumnos; los docentes que también son apoderados reciben en su usuario docente.">
-                  <input type="radio" checked={perfilDestino === 'todo_personal'} onChange={() => setPerfilDestino('todo_personal')} /> Todo el personal
+                  <input
+                    type="radio"
+                    checked={perfilDestino === 'todo_personal'}
+                    onChange={() => {
+                      setPerfilDestino('todo_personal');
+                      setAlcance('todos');
+                      setGruposSeleccionados([]);
+                    }}
+                  /> Todo el personal
                 </label>
               </div>
+              {perfilDestino === 'todo_personal' && (
+                <p className="grupo-subtitle" style={{ margin: '0 0 0.75rem' }}>
+                  Se envía a todo el personal del colegio. En el mensaje se verá «Enviado a todo el personal», no grados ni aulas.
+                </p>
+              )}
 
-              {alcance === 'grupos' && (
+              {alcance === 'grupos' && perfilDestino !== 'todo_personal' && (
                 <div className="admin-conexiones-grupos">
                   {grupos.map((g) => (
                     <label key={g.id} className="admin-conexiones-grupo-item">

@@ -34,6 +34,29 @@ function escaparHtmlBasico(str) {
     .replace(/"/g, '&quot;');
 }
 
+function recortarAsunto(asuntoOriginal) {
+  let asuntoFinal = String(asuntoOriginal || '').trim();
+  if (asuntoFinal.length > 300) asuntoFinal = asuntoFinal.substring(0, 300);
+  return asuntoFinal;
+}
+
+/**
+ * Banner para envíos a todo el personal: no listar grados/aulas.
+ */
+function enriquecerMensajeTodoPersonal({ asuntoOriginal, mensajeOriginal }) {
+  const bloque = `<div style="border-left:4px solid #0f766e;padding:14px 16px;margin:0 0 18px 0;background:linear-gradient(145deg,#ecfdf5 0%,#f0f9ff 45%,#eef2ff 100%);border-radius:0 12px 12px 0;font-size:14px;line-height:1.65;color:#0f172a;">
+<div style="font-weight:800;font-size:13px;letter-spacing:.02em;color:#134e4a;margin-bottom:10px;">Conexiones familiares</div>
+<div style="font-size:12px;color:#64748b;margin-bottom:8px;">Destinatarios de este mensaje:</div>
+<div><span style="display:inline-block;margin:4px 6px 4px 0;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:600;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.08);border-left:3px solid #0d9488;color:#1e293b;">Enviado a <span style="font-weight:800">todo el personal</span></span></div>
+<div style="font-size:12px;color:#64748b;margin-top:8px;">Administración, secretaría, promotoría, psicología, docentes y asistencia. No incluye familias ni alumnos.</div>
+</div>`;
+  return {
+    asuntoFinal: recortarAsunto(asuntoOriginal),
+    mensajeFinal: bloque + (mensajeOriginal || ''),
+    refCorta: 'Todo el personal'
+  };
+}
+
 /**
  * Asunto limpio (solo texto del remitente) + bloque HTML con contexto de grupo(s).
  * Si el remitente es tutor del grupo, la etiqueta es "Tutoría"; si no, "Grupo".
@@ -76,11 +99,7 @@ function enriquecerMensajeConexionesFamiliares({
     refUnaLinea = `${chips[0].lineaCompacta}${chips.length > 1 ? ` (+${chips.length - 1} más)` : ''}`;
   }
 
-  const ASUNTO_MAX = 300;
-  let asuntoFinal = String(asuntoOriginal || '').trim();
-  if (asuntoFinal.length > ASUNTO_MAX) {
-    asuntoFinal = asuntoFinal.substring(0, ASUNTO_MAX);
-  }
+  const asuntoFinal = recortarAsunto(asuntoOriginal);
 
   const chipsHtml = chips
     .map((c) => {
@@ -141,6 +160,7 @@ function perfilGrupoIncluyeDocentesDelGrupo(tipo) {
 module.exports = {
   obtenerMetaGruposConexiones,
   enriquecerMensajeConexionesFamiliares,
+  enriquecerMensajeTodoPersonal,
   normalizarEnviarA,
   perfilGrupoIncluyeAlumnos,
   perfilGrupoIncluyeApoderados,

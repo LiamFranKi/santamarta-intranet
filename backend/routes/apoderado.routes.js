@@ -9,6 +9,7 @@ const { authenticateToken, requireUserType } = require('../middleware/auth');
 const { requireMatriculaPortalActiva } = require('../middleware/matriculaPortal');
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
 const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = require('../utils/notificacionInsert');
+const { fetchNotificacionesBandeja } = require('../utils/notificacionesBandeja');
 const { enviarCorreoNotificacion } = require('../services/emailService');
 const { urlMensajesPorTipoUsuario } = require('../utils/notificacionUrls');
 const phpSerialize = require('php-serialize');
@@ -1101,56 +1102,9 @@ router.get('/notificaciones', async (req, res) => {
       [apoderado_id, colegio_id, colegio_id]
     );
 
-    const hijosUsuarioIds = hijosUsuarios.map(h => h.usuario_id);
+    const hijosUsuarioIds = (hijosUsuarios || []).map((h) => h.usuario_id);
     const todosDestinatariosIds = [usuario_id, ...hijosUsuarioIds];
-
-    // Obtener notificaciones para el apoderado Y para sus hijos
-    // NOTA: La tabla notificaciones NO tiene colegio_id, solo filtra por para y destinatario_id
-    let notificaciones = [];
-    
-    if (todosDestinatariosIds.length > 0) {
-      const placeholders = todosDestinatariosIds.map(() => '?').join(',');
-      notificaciones = await query(
-        `SELECT 
-           n.id,
-           n.asunto as titulo,
-           n.contenido as mensaje,
-           n.fecha_hora,
-           n.estado,
-           COALESCE(n.leida, 0) as leida,
-           n.accion_tipo,
-           n.accion_payload,
-           n.url_destino,
-           n.destinatario_id,
-           'NOTIFICACION' as tipo_origen
-         FROM notificaciones n
-         WHERE (n.para = 'TODOS' OR (n.para = 'USUARIO' AND n.destinatario_id IN (${placeholders})))
-         ORDER BY n.fecha_hora DESC
-         LIMIT 30`,
-        todosDestinatariosIds
-      );
-    } else {
-      // Si no tiene hijos, solo mostrar notificaciones directas al apoderado
-      notificaciones = await query(
-        `SELECT 
-           n.id,
-           n.asunto as titulo,
-           n.contenido as mensaje,
-           n.fecha_hora,
-           n.estado,
-           COALESCE(n.leida, 0) as leida,
-           n.accion_tipo,
-           n.accion_payload,
-           n.url_destino,
-           n.destinatario_id,
-           'NOTIFICACION' as tipo_origen
-         FROM notificaciones n
-         WHERE (n.para = 'TODOS' OR (n.para = 'USUARIO' AND n.destinatario_id = ?))
-         ORDER BY n.fecha_hora DESC
-         LIMIT 30`,
-        [usuario_id]
-      );
-    }
+    const notificaciones = await fetchNotificacionesBandeja(query, todosDestinatariosIds);
 
     const parsePayloadAp = (raw) => {
       if (raw == null || raw === '') return null;

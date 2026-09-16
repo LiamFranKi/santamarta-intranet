@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -15,8 +15,11 @@ function NotificacionesWidget({ variant = 'widget' }) {
   const navigate = useNavigate();
   const [notificaciones, setNotificaciones] = useState([]);
   const [mostrarDropdown, setMostrarDropdown] = useState(false);
+  const cargandoRef = useRef(false);
 
   const cargarNotificaciones = useCallback(async () => {
+    if (!user || cargandoRef.current) return;
+    cargandoRef.current = true;
     try {
       let ruta;
       if (user?.tipo === 'ALUMNO') {
@@ -39,6 +42,8 @@ function NotificacionesWidget({ variant = 'widget' }) {
       setNotificaciones(response.data.notificaciones || []);
     } catch (error) {
       console.error('Error cargando notificaciones:', error);
+    } finally {
+      cargandoRef.current = false;
     }
   }, [user]);
 
@@ -47,7 +52,7 @@ function NotificacionesWidget({ variant = 'widget' }) {
     cargarNotificaciones();
     const interval = setInterval(() => {
       cargarNotificaciones();
-    }, 30000);
+    }, 60000);
     return () => clearInterval(interval);
   }, [user, cargarNotificaciones]);
 

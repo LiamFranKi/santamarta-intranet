@@ -10,6 +10,7 @@ const { authenticateToken, requireUserType } = require('../middleware/auth');
 const { requireMatriculaPortalActiva } = require('../middleware/matriculaPortal');
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
 const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = require('../utils/notificacionInsert');
+const { fetchNotificacionesBandeja } = require('../utils/notificacionesBandeja');
 const phpSerialize = require('php-serialize');
 const { fechaHoraMySQLLima, fechaMySQLLima, horaMySQLLima } = require('../utils/fechaHoraLima');
 const { listarEvidenciasSafe } = require('../utils/aulaEvidencias');
@@ -966,25 +967,7 @@ router.get('/notificaciones', async (req, res) => {
     // NOTA: Las asistencias se guardan en asistencia_registros, pero las notificaciones
     // se crean automáticamente en la tabla notificaciones para los apoderados.
     // Aquí solo mostramos las notificaciones de la tabla notificaciones.
-    const notificaciones = await query(
-      `SELECT 
-         n.id,
-         n.asunto as titulo,
-         n.contenido as mensaje,
-         n.fecha_hora,
-         n.estado,
-         COALESCE(n.leida, 0) as leida,
-         n.accion_tipo,
-         n.accion_payload,
-         n.url_destino,
-         n.destinatario_id,
-         'NOTIFICACION' as tipo_origen
-       FROM notificaciones n
-       WHERE (n.para = 'TODOS' OR (n.para = 'USUARIO' AND n.destinatario_id = ?))
-       ORDER BY n.fecha_hora DESC
-       LIMIT 30`,
-      [usuario_id]
-    );
+    const notificaciones = await fetchNotificacionesBandeja(query, usuario_id);
 
     const parsePayload = (raw) => {
       if (raw == null || raw === '') return null;

@@ -14,6 +14,7 @@ const {
 } = require('../services/notificacionesBroadcastService');
 const { authenticateToken } = require('../middleware/auth');
 const { registrarAccion } = require('../utils/auditoria');
+const { fetchNotificacionesBandeja } = require('../utils/notificacionesBandeja');
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
 const { sqlFiltroAnioPago } = require('../utils/pagoFechaHora');
 const { normalizarUrlsImagenesEnHtml } = require('../utils/mensajesHtml');
@@ -2866,25 +2867,7 @@ router.delete('/institucional/documentos/:id', requireSoloAdministrador, async (
 router.get('/notificaciones', async (req, res) => {
   try {
     const { usuario_id } = req.user;
-    const notificaciones = await query(
-      `SELECT 
-         n.id,
-         n.asunto as titulo,
-         n.contenido as mensaje,
-         n.fecha_hora,
-         n.estado,
-         COALESCE(n.leida, 0) as leida,
-         n.accion_tipo,
-         n.accion_payload,
-         n.url_destino,
-         n.destinatario_id,
-         'NOTIFICACION' as tipo_origen
-       FROM notificaciones n
-       WHERE (n.para = 'TODOS' OR (n.para = 'USUARIO' AND n.destinatario_id = ?))
-       ORDER BY n.fecha_hora DESC
-       LIMIT 30`,
-      [usuario_id]
-    );
+    const notificaciones = await fetchNotificacionesBandeja(query, usuario_id);
     const parsePayload = (raw) => {
       if (raw == null || raw === '') return null;
       if (typeof raw === 'object') return raw;

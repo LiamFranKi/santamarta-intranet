@@ -141,50 +141,52 @@ router.get('/meta', async (req, res) => {
     const cid = colegio(req);
     const [cRow] = await query('SELECT anio_activo FROM colegios WHERE id = ? LIMIT 1', [cid]);
     const anioActivo = parseInt(cRow?.anio_activo || new Date().getFullYear(), 10);
-    const nivCols = await getTableColumns('niveles').catch(() => null);
+    const [nivCols, cCols, aCols] = await Promise.all([
+      getTableColumns('niveles').catch(() => null),
+      getTableColumns('cursos').catch(() => null),
+      getTableColumns('areas').catch(() => null)
+    ]);
     let nivelesSelect = 'id, nombre';
     if (nivCols?.has('grado_minimo')) nivelesSelect += ', grado_minimo';
     if (nivCols?.has('grado_maximo')) nivelesSelect += ', grado_maximo';
     const nivelesOrder = nivCols?.has('grado_minimo')
       ? 'COALESCE(grado_minimo, 0) ASC, id ASC'
       : 'id ASC';
-    const nivelesRows = await query(
-      `SELECT ${nivelesSelect} FROM niveles WHERE colegio_id = ? ORDER BY ${nivelesOrder}`,
-      [cid]
-    );
+    const [nivelesRows, turnosColegio, sedes, docentes, personal] = await Promise.all([
+      query(
+        `SELECT ${nivelesSelect} FROM niveles WHERE colegio_id = ? ORDER BY ${nivelesOrder}`,
+        [cid]
+      ),
+      query('SELECT id, nombre FROM turnos WHERE colegio_id = ? ORDER BY nombre ASC', [cid]).catch(() => []),
+      query('SELECT id, nombre FROM sedes WHERE colegio_id = ? ORDER BY id ASC', [cid]),
+      query(
+        `SELECT p.id,
+                TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS nombre
+         FROM personal p
+         INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'DOCENTE'
+         ORDER BY p.apellidos, p.nombres`,
+        [cid]
+      ),
+      query(
+        `SELECT DISTINCT p.id,
+                TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS nombre
+         FROM personal p
+         INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = ? AND u.estado = 'ACTIVO'
+           AND ${sqlUsuariosSinSuperadmin('u')}
+         ORDER BY p.apellidos, p.nombres`,
+        [cid]
+      ).catch(() => [])
+    ]);
     const niveles = [...(nivelesRows || [])].sort((a, b) => {
       const oa = ordenNivelEducativoNombre(a.nombre);
       const ob = ordenNivelEducativoNombre(b.nombre);
       if (oa !== ob) return oa - ob;
       return String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es');
     });
-    let turnos = await query('SELECT id, nombre FROM turnos WHERE colegio_id = ? ORDER BY nombre ASC', [cid]).catch(() => []);
+    let turnos = turnosColegio;
     if (!turnos || turnos.length === 0) {
       turnos = await query('SELECT id, nombre FROM turnos ORDER BY nombre ASC').catch(() => []);
     }
-    const sedes = await query('SELECT id, nombre FROM sedes WHERE colegio_id = ? ORDER BY id ASC', [cid]);
-    const docentes = await query(
-      `SELECT p.id,
-              TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS nombre
-       FROM personal p
-       INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'DOCENTE'
-       ORDER BY p.apellidos, p.nombres`,
-      [cid]
-    );
-    /** Todo el personal con usuario activo (tutores / equipo) */
-    const personal = await query(
-      `SELECT DISTINCT p.id,
-              TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS nombre
-       FROM personal p
-       INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = ? AND u.estado = 'ACTIVO'
-         AND ${sqlUsuariosSinSuperadmin('u')}
-       ORDER BY p.apellidos, p.nombres`,
-      [cid]
-    ).catch(() => []);
-    const [cCols, aCols] = await Promise.all([
-      getTableColumns('cursos').catch(() => null),
-      getTableColumns('areas').catch(() => null)
-    ]);
     res.json({
       anio_activo: anioActivo,
       niveles: niveles || [],
@@ -369,10 +371,7 @@ async function listGrupos(req, res) {
     }
 
     let sql = `SELECT ${gFields.map((c) => `g.\`${c}\``).join(', ')}`;
-    // Solo matrícula **Regular** (estado = 0); ver `matriculaEstados.sqlMatriculaEstadoSoloRegular`.
-    sql += `, (SELECT COUNT(DISTINCT m.alumno_id) FROM matriculas m
-         WHERE m.grupo_id = g.id AND m.colegio_id = g.colegio_id
-           AND ${sqlMatriculaEstadoSoloRegular('m')}) AS matriculas_count`;
+    sql += `, COALESCE(mc.matriculas_count, 0) AS matriculas_count`;
     if (gcols.has('nivel_id')) {
       sql += `, n.nombre AS nivel_nombre`;
       sql += `, n.tipo_calificacion`;
@@ -387,8 +386,14 @@ async function listGrupos(req, res) {
       sql += `, TRIM(CONCAT(COALESCE(p2.nombres,''), ' ', COALESCE(p2.apellidos,''))) AS tutor2_nombre`;
     }
 
-    sql += ` FROM grupos g`;
-    const params = [];
+    sql += ` FROM grupos g
+      LEFT JOIN (
+        SELECT m.grupo_id, COUNT(DISTINCT m.alumno_id) AS matriculas_count
+        FROM matriculas m
+        WHERE m.colegio_id = ? AND ${sqlMatriculaEstadoSoloRegular('m')}
+        GROUP BY m.grupo_id
+      ) mc ON mc.grupo_id = g.id`;
+    const params = [cid];
     if (gcols.has('nivel_id')) {
       sql += ` INNER JOIN niveles n ON n.id = g.nivel_id AND n.colegio_id = ?`;
       params.push(cid);

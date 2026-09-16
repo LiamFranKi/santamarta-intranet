@@ -16,6 +16,7 @@ const { esCajeroCajaChicaActivo } = require('../utils/cajaChicaCajeros');
 const PDFDocument = require('pdfkit');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
 const { registrarAccion } = require('../utils/auditoria');
+const { fetchNotificacionesBandeja } = require('../utils/notificacionesBandeja');
 const { uploadToPHPServer } = require('../utils/ftpUpload');
 const { enviarPushNotificationMultiple, enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
 const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = require('../utils/notificacionInsert');
@@ -48,6 +49,7 @@ const {
 const {
   obtenerMetaGruposConexiones,
   enriquecerMensajeConexionesFamiliares,
+  enriquecerMensajeTodoPersonal,
   normalizarEnviarA,
   perfilGrupoIncluyeAlumnos,
   perfilGrupoIncluyeApoderados,
@@ -2321,30 +2323,17 @@ router.get('/tiene-asignaciones', async (req, res) => {
       return res.json({ tiene_grupos: false, tiene_cursos: false });
     }
 
-    // Verificar si tiene grupos asignados
-    const gruposAsignados = await query(
-      `SELECT COUNT(DISTINCT g.id) as total
+    const [row] = await query(
+      `SELECT COUNT(DISTINCT g.id) as grupos, COUNT(DISTINCT a.id) as cursos
        FROM asignaturas a
        INNER JOIN grupos g ON g.id = a.grupo_id
        WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
       [personalId, colegio_id, anio_activo]
     );
 
-    // Verificar si tiene cursos asignados
-    const cursosAsignados = await query(
-      `SELECT COUNT(DISTINCT a.id) as total
-       FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [personalId, colegio_id, anio_activo]
-    );
-
-    const tieneGrupos = (gruposAsignados[0]?.total || 0) > 0;
-    const tieneCursos = (cursosAsignados[0]?.total || 0) > 0;
-
-    res.json({ 
-      tiene_grupos: tieneGrupos,
-      tiene_cursos: tieneCursos
+    res.json({
+      tiene_grupos: parseInt(row?.grupos || 0, 10) > 0,
+      tiene_cursos: parseInt(row?.cursos || 0, 10) > 0
     });
   } catch (error) {
     console.error('Error verificando asignaciones:', error);
@@ -9847,22 +9836,22 @@ router.get('/roles-adicionales', async (req, res) => {
         
         // Buscar si existe un apoderado con ese nro_documento que tenga hijos
         const esApoderado = await query(
-          `SELECT COUNT(DISTINCT f.alumno_id) as total_hijos
+          `SELECT 1 AS ok
            FROM apoderados ap
            INNER JOIN familias f ON f.apoderado_id = ap.id
            INNER JOIN alumnos a ON a.id = f.alumno_id
            INNER JOIN matriculas m ON m.alumno_id = a.id AND m.colegio_id = ap.colegio_id
            INNER JOIN grupos g ON g.id = m.grupo_id
-           WHERE ap.colegio_id = ? 
+           WHERE ap.colegio_id = ?
              AND ap.nro_documento = ?
              AND a.colegio_id = ?
              AND (m.estado = 0)
              AND g.anio = ?
-             AND ${sqlExistePagoMatriculaCancelado('m')}`,
+           LIMIT 1`,
           [colegio_id, nroDocumento, colegio_id, anio_activo]
         );
 
-        tieneHijos = (esApoderado[0]?.total_hijos || 0) > 0;
+        tieneHijos = !!(esApoderado && esApoderado[0]);
       }
     } catch (error) {
       console.error('Error verificando si es apoderado:', error);
@@ -9870,8 +9859,8 @@ router.get('/roles-adicionales', async (req, res) => {
       tieneHijos = false;
     }
 
-    // Obtener lista de hijos si es apoderado
-    if (tieneHijos) {
+    const cargarHijosCompletos = req.user.tipo === 'DOCENTE';
+    if (tieneHijos && cargarHijosCompletos) {
       try {
         const personalData = await query(
           `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
@@ -9925,10 +9914,6 @@ router.get('/roles-adicionales', async (req, res) => {
           );
           
           console.log(`📋 [ROLES-ADICIONALES] Hijos encontrados: ${hijos.length}`);
-          if (hijos.length > 0) {
-            console.log(`📋 [ROLES-ADICIONALES] Primer hijo completo:`, JSON.stringify(hijos[0], null, 2));
-            console.log(`📋 [ROLES-ADICIONALES] DNI del primer hijo:`, hijos[0].dni || hijos[0].nro_documento || 'NO DISPONIBLE');
-          }
         }
       } catch (error) {
         console.error('Error obteniendo lista de hijos:', error);
@@ -9958,16 +9943,6 @@ router.get('/roles-adicionales', async (req, res) => {
       esCajeroCajaChica = await esCajeroCajaChicaActivo(personalId, colegio_id);
     } catch (errCj) {
       console.error('Error verificando Cajero Caja Chica:', errCj);
-    }
-
-    console.log(`📋 [ROLES-ADICIONALES] Preparando respuesta JSON:`);
-    console.log(`📋 [ROLES-ADICIONALES] - es_apoderado: ${tieneHijos}`);
-    console.log(`📋 [ROLES-ADICIONALES] - es_tutor: ${esTutor}`);
-    console.log(`📋 [ROLES-ADICIONALES] - es_tutoria_general: ${esTutoriaGeneral}`);
-    console.log(`📋 [ROLES-ADICIONALES] - es_cajero_caja_chica: ${esCajeroCajaChica}`);
-    console.log(`📋 [ROLES-ADICIONALES] - hijos: ${hijos?.length || 0} hijos`);
-    if (hijos && hijos.length > 0) {
-      console.log(`📋 [ROLES-ADICIONALES] - Primer hijo en respuesta:`, JSON.stringify(hijos[0], null, 2));
     }
 
     res.json({
@@ -15652,6 +15627,12 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
       alcanceEnvio = 'grupos';
     }
 
+    // Todo el personal: audiencia de staff, nunca sellar grados/aulas en el mensaje.
+    if (enviarATipo === 'todo_personal') {
+      gruposArray = [];
+      alcanceEnvio = 'todos';
+    }
+
     const envioGlobalTodos = alcanceEnvio === 'todos';
     if (!envioGlobalTodos && (!destinatariosArray || destinatariosArray.length === 0) && (!gruposArray || gruposArray.length === 0)) {
       return res.status(400).json({ error: 'Debe seleccionar al menos un destinatario o grupo' });
@@ -15701,7 +15682,19 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
         } catch (err) {
           console.warn('[MENSAJES] No se pudo obtener nombre remitente:', err.message);
         }
-        if (gruposArray && gruposArray.length > 0) {
+        if (enviarATipo === 'todo_personal') {
+          try {
+            const enr = enriquecerMensajeTodoPersonal({
+              asuntoOriginal: asunto,
+              mensajeOriginal: mensaje
+            });
+            asuntoEnviar = enr.asuntoFinal;
+            mensajeEnviar = enr.mensajeFinal;
+            refGrupoNotif = enr.refCorta || '';
+          } catch (enrErr) {
+            console.warn('⚠️ [MENSAJES] Enriquecimiento todo el personal:', enrErr.message);
+          }
+        } else if (gruposArray && gruposArray.length > 0) {
           try {
             const gruposMeta = await obtenerMetaGruposConexiones(colegio_id, gruposArray);
             const enr = enriquecerMensajeConexionesFamiliares({
@@ -16014,25 +16007,27 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           try {
             let asuntoDest = asuntoEnviar;
             let mensajeDest = mensajeEnviar;
-            try {
-              const enrDocApod = await enriquecerMensajeDocenteParaDestinatario({
-                colegio_id,
-                anio_activo,
-                personal_id,
-                destinatarioUsuarioId: destinatarioId,
-                asuntoOriginal: asunto,
-                mensajeOriginal: mensajeEnviar,
-                contexto_alumno_id: contextoAlumnoIdEnvio,
-                contexto_grupo_id: contextoGrupoIdEnvio,
-                gruposIds: gruposArray && gruposArray.length ? gruposArray : [],
-                mensaje_desde_tutoria
-              });
-              if (enrDocApod) {
-                asuntoDest = enrDocApod.asuntoFinal;
-                mensajeDest = enrDocApod.mensajeFinal;
+            if (enviarATipo !== 'todo_personal') {
+              try {
+                const enrDocApod = await enriquecerMensajeDocenteParaDestinatario({
+                  colegio_id,
+                  anio_activo,
+                  personal_id,
+                  destinatarioUsuarioId: destinatarioId,
+                  asuntoOriginal: asunto,
+                  mensajeOriginal: mensajeEnviar,
+                  contexto_alumno_id: contextoAlumnoIdEnvio,
+                  contexto_grupo_id: contextoGrupoIdEnvio,
+                  gruposIds: gruposArray && gruposArray.length ? gruposArray : [],
+                  mensaje_desde_tutoria
+                });
+                if (enrDocApod) {
+                  asuntoDest = enrDocApod.asuntoFinal;
+                  mensajeDest = enrDocApod.mensajeFinal;
+                }
+              } catch (enrErr) {
+                console.warn('⚠️ [ENVIAR MENSAJE] Contexto docente→apoderado:', enrErr.message);
               }
-            } catch (enrErr) {
-              console.warn('⚠️ [ENVIAR MENSAJE] Contexto docente→apoderado:', enrErr.message);
             }
 
             mensajeDest = normalizarUrlsImagenesEnHtml(mensajeDest, phpBaseMensajes);
@@ -16699,25 +16694,7 @@ router.get('/notificaciones', async (req, res) => {
     // NOTA: Las asistencias se guardan en asistencia_registros, pero las notificaciones
     // se crean automáticamente en la tabla notificaciones cuando se registra asistencia.
     // Aquí solo mostramos las notificaciones de la tabla notificaciones.
-    const notificaciones = await query(
-      `SELECT 
-         n.id,
-         n.asunto as titulo,
-         n.contenido as mensaje,
-         n.fecha_hora,
-         n.estado,
-         COALESCE(n.leida, 0) as leida,
-         n.accion_tipo,
-         n.accion_payload,
-         n.url_destino,
-         n.destinatario_id,
-         'NOTIFICACION' as tipo_origen
-       FROM notificaciones n
-       WHERE (n.para = 'TODOS' OR (n.para = 'USUARIO' AND n.destinatario_id = ?))
-       ORDER BY n.fecha_hora DESC
-       LIMIT 30`,
-      [usuario_id]
-    );
+    const notificaciones = await fetchNotificacionesBandeja(query, usuario_id);
 
     const parsePayloadDoc = (raw) => {
       if (raw == null || raw === '') return null;
