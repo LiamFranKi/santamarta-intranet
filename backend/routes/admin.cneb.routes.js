@@ -95,7 +95,7 @@ const HINTS_AREA = [
   { codigo: 'CS', keys: ['ciencias sociales', 'historia', 'geografia'] },
   { codigo: 'REL', keys: ['religion', 'religiosa', 'catequesis'] },
   { codigo: 'PSI', keys: ['psicomot'] },
-  { codigo: 'EF', keys: ['educacion fisica', 'motricidad'] },
+  { codigo: 'EF', keys: ['educacion fisica', 'ed fisica', 'motricidad'] },
   { codigo: 'ARTE', keys: ['arte', 'cultura', 'musica'] },
   { codigo: 'COM', keys: ['comunicacion', 'lenguaje', 'castellano'] },
   { codigo: 'ING', keys: ['ingles', 'english'] },
@@ -105,19 +105,40 @@ const HINTS_AREA = [
   { codigo: 'TIC', keys: ['tic', 'informatica', 'virtual'] },
 ];
 
+function hintsAreaNivel(nivel) {
+  if (nivel !== 'INICIAL') return HINTS_AREA;
+  return HINTS_AREA.map((h) => {
+    if (h.codigo === 'PSI') {
+      return {
+        ...h,
+        keys: [...h.keys, 'educacion fisica', 'ed fisica', 'motricidad', 'deporte'],
+      };
+    }
+    if (h.codigo === 'EF') return { ...h, keys: [] };
+    return h;
+  });
+}
+
 function sugerirParaCurso(nombreCurso, areas, nivel) {
   const n = ` ${normalizarNombre(nombreCurso)} `;
   const extraIni = nivel === 'INICIAL' ? HINTS_COMPLEMENTARIO_INICIAL : [];
   if ([...HINTS_COMPLEMENTARIO, ...extraIni].some((h) => n.includes(h))) {
-    return { tipo: 'complementario', area_id: null, area_codigo: null };
+    return { tipo: 'complementario', area_id: null, area_codigo: null, area_nombre: null };
   }
-  for (const hint of HINTS_AREA) {
+  for (const hint of hintsAreaNivel(nivel)) {
     if (hint.keys.some((k) => n.includes(k))) {
       const area = (areas || []).find((a) => a.codigo === hint.codigo);
-      if (area) return { tipo: 'principal', area_id: area.id, area_codigo: area.codigo };
+      if (area) {
+        return {
+          tipo: 'principal',
+          area_id: area.id,
+          area_codigo: area.codigo,
+          area_nombre: area.nombre,
+        };
+      }
     }
   }
-  return { tipo: 'principal', area_id: null, area_codigo: null };
+  return { tipo: 'principal', area_id: null, area_codigo: null, area_nombre: null };
 }
 
 async function leerUso(cid, anio) {
@@ -743,7 +764,10 @@ router.get('/sesiones/:id/pdf', async (req, res) => {
     const cid = colegio(req);
     const id = parseInt(req.params.id, 10);
     if (!cid || !id) return res.status(400).json({ error: 'Datos inválidos.' });
-    const out = await sesionPdfBuffer(cid, id);
+    const out = await sesionPdfBuffer(cid, id, {
+      parte: req.query?.parte,
+      formato: req.query?.formato,
+    });
     if (!out) return res.status(404).json({ error: 'Sesión no encontrada.' });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);

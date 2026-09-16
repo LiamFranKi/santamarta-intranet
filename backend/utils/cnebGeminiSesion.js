@@ -22,7 +22,7 @@ async function llamarGeminiJson(prompt) {
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: {
       temperature: 0.4,
-      maxOutputTokens: 4096,
+      maxOutputTokens: 8192,
       responseMimeType: 'application/json',
     },
   };
@@ -80,6 +80,7 @@ function normalizarSalida(parsed, duracionMin) {
     ? parsed.cotejo.map((x) => String(x || '').trim()).filter(Boolean)
     : [];
   return {
+    titulo: String(parsed?.titulo || '').trim(),
     proposito: String(parsed?.proposito || '').trim(),
     minutos,
     momentos: {
@@ -88,6 +89,7 @@ function normalizarSalida(parsed, duracionMin) {
       cierre: String(mom.cierre || '').trim(),
     },
     cotejo,
+    ficha: String(parsed?.ficha || '').trim(),
   };
 }
 
@@ -97,7 +99,16 @@ async function generarSesionConIa({ plantilla, vars, duracionMin }) {
     e.code = 'GEMINI_NO_KEY';
     throw e;
   }
-  const prompt = aplicarPlantilla(plantilla || PROMPT_SESION_DEFAULT, vars);
+  let plantillaUso = String(plantilla || PROMPT_SESION_DEFAULT);
+  if (!/ficha/i.test(plantillaUso)) {
+    plantillaUso +=
+      '\nIncluye en el JSON el campo "ficha": texto listo para imprimir (nombre, fecha y 3 a 6 consignas del estudiante).';
+  }
+  if (!/"titulo"/i.test(plantillaUso)) {
+    plantillaUso +=
+      '\nSi el tema ({{titulo}}) viene vacío, propone un "titulo" concreto dentro de la competencia.';
+  }
+  const prompt = aplicarPlantilla(plantillaUso, vars);
   const { parsed, modelo, raw, tokens_entrada, tokens_salida } = await llamarGeminiJson(prompt);
   return {
     borrador: normalizarSalida(parsed, duracionMin),

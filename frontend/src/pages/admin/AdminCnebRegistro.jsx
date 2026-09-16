@@ -53,7 +53,7 @@ export default function AdminCnebRegistro({
           className={modo === 'corte' ? 'is-active' : ''}
           onClick={() => setModo('corte')}
         >
-          Corte AD/A/B/C
+          Corte AD/A/B/C (áreas oficiales)
         </button>
         <button
           type="button"

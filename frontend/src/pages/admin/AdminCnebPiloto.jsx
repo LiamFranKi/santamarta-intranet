@@ -190,7 +190,10 @@ export default function AdminCnebPiloto() {
     setDraft((prev) => {
       const next = { ...prev };
       cursos.forEach((c) => {
-        if (c.mapeado) return;
+        const actual = next[c.id] || { tipo: 'principal', area_id: '' };
+        const yaOk =
+          actual.tipo === 'complementario' || (actual.tipo === 'principal' && actual.area_id);
+        if (yaOk) return;
         const sug = c.sugerencia || {};
         next[c.id] = {
           tipo: sug.tipo || 'principal',
@@ -518,8 +521,9 @@ export default function AdminCnebPiloto() {
             <div>
               <h2>Cursos de {etiquetaNivel(nivel)}</h2>
               <p>
-                Los mismos cursos de Académico. Principal va al informe MINEDU; complementario
-                (natación, finanzas, etc.) queda interno.
+                El área CNEB no se adivina por el nombre del curso del colegio: sale del currículo
+                MINEDU de <strong>este</strong> nivel. Principal entra al informe y a SIAGIE;
+                complementario se evalúa en el registro interno y no viaja a SIAGIE.
               </p>
             </div>
             <div className="cneb-map-actions">
@@ -554,6 +558,34 @@ export default function AdminCnebPiloto() {
               </span>
             )}
           </div>
+          <div className="cneb-callout">
+            {nivel === 'INICIAL' ? (
+              <>
+                <p>
+                  <strong>Inicial (ciclo II):</strong> el CNEB no tiene «Educación Física». Ese curso
+                  del colegio corresponde al área <strong>Psicomotriz</strong> (motricidad). Personal
+                  Social, Comunicación, Matemática, Ciencia y Tecnología y Religión sí coinciden en
+                  nombre. Inglés y Computación, en este nivel, van como complementarios.
+                </p>
+                <p>
+                  En Primaria y Secundaria sí existe el área Educación Física. Use «Sugerir los
+                  vacíos» y revise el texto «Según MINEDU» de cada tarjeta.
+                </p>
+              </>
+            ) : (
+              <p>
+                <strong>{etiquetaNivel(nivel)}:</strong> las áreas oficiales son las del programa
+                curricular (Comunicación, Matemática, Ciencia y Tecnología, Educación Física, etc.).
+                Un taller (natación, ajedrez, finanzas) se marca complementario: se observa en el
+                cotejo del colegio, no en el corte AD/A/B/C ni en SIAGIE.
+              </p>
+            )}
+            <p>
+              Los complementarios <strong>sí se evalúan</strong> si el docente crea sesión + lista de
+              cotejo: aparecen en Registro (auxiliar y consolidado). No se muestran como AD/A/B/C de
+              un área oficial porque MINEDU no los reporta en SIAGIE.
+            </p>
+          </div>
           {cursos.length === 0 ? (
             <div className="cneb-empty">
               No hay cursos de {etiquetaNivel(nivel)} en Académico. Créelos ahí y vuelva a mapearlos.
@@ -571,6 +603,33 @@ export default function AdminCnebPiloto() {
                         {c.nivel_nombre}
                         {c.mapeado ? ' · guardado' : ' · pendiente'}
                       </p>
+                      {esComp || c.sugerencia?.tipo === 'complementario' ? (
+                        <p className="cneb-minedu-hint">
+                          Según MINEDU de este nivel: taller complementario (no va a SIAGIE).
+                        </p>
+                      ) : c.sugerencia?.area_nombre ? (
+                        <p className="cneb-minedu-hint">
+                          Según MINEDU: {c.sugerencia.area_nombre}
+                          {String(d.area_id) !== String(c.sugerencia.area_id) ? (
+                            <button
+                              type="button"
+                              className="cneb-hint-use"
+                              onClick={() =>
+                                setCursoDraft(c.id, {
+                                  tipo: 'principal',
+                                  area_id: String(c.sugerencia.area_id),
+                                })
+                              }
+                            >
+                              Usar
+                            </button>
+                          ) : null}
+                        </p>
+                      ) : (
+                        <p className="cneb-minedu-hint is-warn">
+                          MINEDU no sugiere área por el nombre. Elíjala del catálogo de este nivel.
+                        </p>
+                      )}
                     </div>
                     <div className="cneb-seg" role="group" aria-label={`Tipo de ${c.nombre}`}>
                       <button

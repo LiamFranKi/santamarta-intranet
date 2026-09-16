@@ -18,6 +18,7 @@ function leerCuerpoSesion(body, nivel) {
   return {
     titulo,
     proposito: String(body?.proposito || '').trim() || null,
+    ficha_estudiante: String(body?.ficha_estudiante || body?.ficha || '').trim() || null,
     duracion_min: duracion,
     grupo_id: parseIntOrNull(body?.grupo_id),
     asignatura_id: parseIntOrNull(body?.asignatura_id),
@@ -88,7 +89,6 @@ async function cargarSesion(cid, id) {
 async function reemplazarHijos(sesionId, { desempeno_ids: desempenoIds, momentos, minutos, cotejo }) {
   await execute('DELETE FROM cneb_sesion_desempenos WHERE sesion_id = ?', [sesionId]);
   await execute('DELETE FROM cneb_sesion_momentos WHERE sesion_id = ?', [sesionId]);
-  await execute('DELETE FROM cneb_sesion_cotejo WHERE sesion_id = ?', [sesionId]);
   for (const rawId of desempenoIds || []) {
     const did = parseInt(rawId, 10);
     if (!Number.isFinite(did)) continue;
@@ -146,53 +146,91 @@ async function reemplazarHijos(sesionId, { desempeno_ids: desempenoIds, momentos
 
 async function insertarSesion(cid, usuarioId, body) {
   const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
-  const ins = await execute(
-    `INSERT INTO cneb_sesiones
-      (colegio_id, anio, nivel_cneb, grupo_id, asignatura_id, area_id, competencia_id,
-       titulo, proposito, duracion_min, corte, fecha_sesion, estado, creado_por)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      cid,
-      anio,
-      body.nivel_cneb,
-      body.grupo_id,
-      body.asignatura_id,
-      body.area_id,
-      body.competencia_id,
-      body.titulo,
-      body.proposito,
-      body.duracion_min,
-      body.corte,
-      body.fecha_sesion,
-      body.estado,
-      usuarioId || null,
-    ]
-  );
+  const cols = [
+    cid,
+    anio,
+    body.nivel_cneb,
+    body.grupo_id,
+    body.asignatura_id,
+    body.area_id,
+    body.competencia_id,
+    body.titulo,
+    body.proposito,
+    body.duracion_min,
+    body.corte,
+    body.fecha_sesion,
+    body.estado,
+    usuarioId || null,
+  ];
+  let ins;
+  try {
+    ins = await execute(
+      `INSERT INTO cneb_sesiones
+        (colegio_id, anio, nivel_cneb, grupo_id, asignatura_id, area_id, competencia_id,
+         titulo, proposito, ficha_estudiante, duracion_min, corte, fecha_sesion, estado, creado_por)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [...cols.slice(0, 9), body.ficha_estudiante, ...cols.slice(9)]
+    );
+  } catch (e) {
+    if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+    ins = await execute(
+      `INSERT INTO cneb_sesiones
+        (colegio_id, anio, nivel_cneb, grupo_id, asignatura_id, area_id, competencia_id,
+         titulo, proposito, duracion_min, corte, fecha_sesion, estado, creado_por)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      cols
+    );
+  }
   await reemplazarHijos(ins.insertId, body);
   return cargarSesion(cid, ins.insertId);
 }
 
 async function actualizarSesion(cid, id, body) {
-  await execute(
-    `UPDATE cneb_sesiones SET
-       grupo_id = ?, asignatura_id = ?, area_id = ?, competencia_id = ?,
-       titulo = ?, proposito = ?, duracion_min = ?, corte = ?, fecha_sesion = ?, estado = ?
-     WHERE id = ? AND colegio_id = ?`,
-    [
-      body.grupo_id,
-      body.asignatura_id,
-      body.area_id,
-      body.competencia_id,
-      body.titulo,
-      body.proposito,
-      body.duracion_min,
-      body.corte,
-      body.fecha_sesion,
-      body.estado,
-      id,
-      cid,
-    ]
-  );
+  try {
+    await execute(
+      `UPDATE cneb_sesiones SET
+         grupo_id = ?, asignatura_id = ?, area_id = ?, competencia_id = ?,
+         titulo = ?, proposito = ?, ficha_estudiante = ?, duracion_min = ?, corte = ?, fecha_sesion = ?, estado = ?
+       WHERE id = ? AND colegio_id = ?`,
+      [
+        body.grupo_id,
+        body.asignatura_id,
+        body.area_id,
+        body.competencia_id,
+        body.titulo,
+        body.proposito,
+        body.ficha_estudiante,
+        body.duracion_min,
+        body.corte,
+        body.fecha_sesion,
+        body.estado,
+        id,
+        cid,
+      ]
+    );
+  } catch (e) {
+    if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+    await execute(
+      `UPDATE cneb_sesiones SET
+         grupo_id = ?, asignatura_id = ?, area_id = ?, competencia_id = ?,
+         titulo = ?, proposito = ?, duracion_min = ?, corte = ?, fecha_sesion = ?, estado = ?
+       WHERE id = ? AND colegio_id = ?`,
+      [
+        body.grupo_id,
+        body.asignatura_id,
+        body.area_id,
+        body.competencia_id,
+        body.titulo,
+        body.proposito,
+        body.duracion_min,
+        body.corte,
+        body.fecha_sesion,
+        body.estado,
+        id,
+        cid,
+      ]
+    );
+  }
   await reemplazarHijos(id, body);
   return cargarSesion(cid, id);
 }

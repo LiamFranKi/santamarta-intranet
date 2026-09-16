@@ -65,7 +65,8 @@ export default function AdminCnebPrompt({ apiBase = '/admin/cneb' }) {
           <h2>Prompt de la sesión (Gemini)</h2>
           <p>
             El colegio edita este texto. La IA no inventa competencias: solo usa el catálogo que
-            usted eligió en la sesión. ChatGPT se podrá conectar después con el mismo prompt.
+            usted eligió en la sesión. Si el tema viene vacío, propone uno. También redacta la ficha
+            del estudiante para imprimir.
           </p>
         </div>
         <div className="cneb-map-actions">
@@ -89,7 +90,9 @@ export default function AdminCnebPrompt({ apiBase = '/admin/cneb' }) {
       />
       <p className="cneb-muted">
         Variables: {'{{nivel}}'} {'{{corte_label}}'} {'{{duracion}}'} {'{{area}}'} {'{{competencia}}'}{' '}
-        {'{{capacidades}}'} {'{{desempenos}}'} {'{{titulo}}'} {'{{proposito}}'}
+        {'{{capacidades}}'} {'{{desempenos}}'} {'{{titulo}}'} {'{{proposito}}'}. Si ya guardó un prompt
+        antiguo, pulse «Plantilla original» para incluir título vacío y ficha, o déjelo: el servidor
+        pedirá igual esos campos.
       </p>
     </section>
   );

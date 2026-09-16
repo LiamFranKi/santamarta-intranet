@@ -24,6 +24,7 @@ function formVacio(nivel) {
     id: null,
     titulo: '',
     proposito: '',
+    ficha_estudiante: '',
     duracion_min,
     grupo_id: '',
     area_id: '',
@@ -148,6 +149,7 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
         id: s.id,
         titulo: s.titulo || '',
         proposito: s.proposito || '',
+        ficha_estudiante: s.ficha_estudiante || '',
         duracion_min: Number(s.duracion_min) || 60,
         grupo_id: s.grupo_id != null ? String(s.grupo_id) : '',
         area_id: s.area_id != null ? String(s.area_id) : '',
@@ -180,16 +182,18 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
         corte_label: cortes.find((c) => c.v === Number(form.corte))?.label,
       });
       const b = data.borrador;
-      aplicarBorrador(b);
+      aplicarBorrador(b, { forzarTitulo: !form.titulo.trim(), forzarProposito: !form.proposito });
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'No se pudo armar el borrador', text: e.response?.data?.error || e.message });
     }
   };
 
-  const aplicarBorrador = (b, { forzarProposito = false } = {}) => {
+  const aplicarBorrador = (b, { forzarProposito = false, forzarTitulo = false } = {}) => {
     if (!b) return;
     patch({
+      titulo: (forzarTitulo || !form.titulo) && b.titulo ? b.titulo : form.titulo,
       proposito: forzarProposito || !form.proposito ? b.proposito || form.proposito : form.proposito,
+      ficha_estudiante: b.ficha || b.ficha_estudiante || form.ficha_estudiante,
       minutos: b.minutos || form.minutos,
       momentos: b.momentos || form.momentos,
       cotejo: (b.cotejo || []).map((item) => ({ item: typeof item === 'string' ? item : item.item })),
@@ -200,12 +204,12 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
     const textos = desempenosCorte
       .filter((d) => form.desempeno_ids.map(String).includes(String(d.id)))
       .map((d) => d.texto);
-    if (!form.titulo.trim()) {
-      await Swal.fire({ icon: 'warning', title: 'Escriba primero el tema de la sesión' });
-      return;
-    }
-    if (!compForm?.nombre) {
-      await Swal.fire({ icon: 'warning', title: 'Elija área y competencia del catálogo' });
+    if (!compForm?.nombre && !form.titulo.trim()) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Falta un ancla',
+        text: 'Elija área y competencia del catálogo, o escriba un tema si es un taller interno.',
+      });
       return;
     }
     setGenerating(true);
@@ -217,8 +221,8 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
           nivel,
           titulo: form.titulo,
           proposito: form.proposito,
-          competencia_nombre: compForm?.nombre,
-          area_nombre: areaForm?.nombre,
+          competencia_nombre: compForm?.nombre || 'Taller interno (no SIAGIE)',
+          area_nombre: areaForm?.nombre || 'Taller interno',
           capacidades: (compForm?.capacidades || []).map((c) => c.nombre),
           desempenos_texto: textos,
           duracion_min: form.duracion_min,
@@ -226,11 +230,16 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
         },
         { timeout: 120000 }
       );
-      aplicarBorrador(data.borrador, { forzarProposito: !form.proposito });
+      aplicarBorrador(data.borrador, {
+        forzarProposito: !form.proposito,
+        forzarTitulo: !form.titulo.trim(),
+      });
       await Swal.fire({
         icon: 'success',
         title: 'Borrador con IA',
-        text: data.modelo ? `Modelo: ${data.modelo}. Revise y ajuste el texto antes de aprobar.` : 'Revise y ajuste el texto.',
+        text: data.modelo
+          ? `Modelo: ${data.modelo}. Revise tema, momentos y ficha antes de aprobar.`
+          : 'Revise y ajuste el texto.',
       });
     } catch (e) {
       Swal.fire({
@@ -284,20 +293,23 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
     }
   };
 
-  const descargarPdfSesion = async (id) => {
+  const descargarPdfSesion = async (id, opts = {}) => {
     if (!id) {
       await Swal.fire({ icon: 'warning', title: 'Guarde la sesión antes de descargar el PDF' });
       return;
     }
+    const parte = opts.parte || 'sesion';
+    const formato = opts.formato || 'colegio';
     try {
       const res = await api.get(`${apiBase}/sesiones/${id}/pdf`, {
+        params: { parte, formato },
         responseType: 'blob',
         timeout: 60000,
       });
       const href = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
       const a = document.createElement('a');
       a.href = href;
-      a.download = `sesion_cneb_${id}.pdf`;
+      a.download = parte === 'ficha' ? `ficha_cneb_${id}.pdf` : `sesion_cneb_${id}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -347,8 +359,8 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
           <div>
             <h2>Sesiones de {etiquetaNivel(nivel)}</h2>
             <p>
-              El docente (o coordinación) arma el inicio, el desarrollo y el cierre con minutos que
-              suman 45, 60 o 90. El suplente lee lo mismo. El PDF del aula virtual no se toca.
+              El docente (o coordinación) arma el inicio, el desarrollo y el cierre. Puede abrir para
+              editar, descargar PDF o eliminar: no afecta notas ni el aula virtual.
             </p>
           </div>
           <button type="button" className="cneb-btn primary" onClick={abrirNueva}>
@@ -365,7 +377,7 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
                   <p className="cneb-kicker">{s.estado === 'aprobada' ? 'Aprobada' : 'Borrador'}</p>
                   <h3>{s.titulo}</h3>
                   <p>
-                    {s.area_nombre || 'Sin área'}
+                    {s.area_nombre || 'Taller interno'}
                     {s.grado != null ? ` · ${s.grado} ${s.seccion || ''}`.trim() : ''}
                     {` · ${s.duracion_min} min`}
                     {s.fecha_sesion ? ` · ${String(s.fecha_sesion).slice(0, 10)}` : ''}
@@ -373,10 +385,17 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
                 </div>
                 <div className="cneb-map-actions">
                   <button type="button" className="cneb-btn ghost" onClick={() => abrir(s.id)}>
-                    Abrir
+                    Editar
                   </button>
                   <button type="button" className="cneb-btn ghost" onClick={() => descargarPdfSesion(s.id)}>
-                    PDF
+                    PDF sesión
+                  </button>
+                  <button
+                    type="button"
+                    className="cneb-btn ghost"
+                    onClick={() => descargarPdfSesion(s.id, { parte: 'ficha', formato: 'colegio' })}
+                  >
+                    Ficha
                   </button>
                   <button type="button" className="cneb-btn ghost" onClick={() => eliminar(s.id)}>
                     Eliminar
@@ -395,7 +414,11 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
       <div className="cneb-map-toolbar">
         <div>
           <h2>{form.id ? 'Editar sesión' : 'Nueva sesión'}</h2>
-          <p>Los tres momentos viven en la base de datos. Puede armar un borrador y luego ajustar el texto.</p>
+          <p>
+            Los tres momentos viven en la base. Puede editar, borrar o imprimir la ficha del
+            estudiante (evidencia física). Si deja el área vacía, es un taller interno: cotejo en el
+            registro, sin SIAGIE.
+          </p>
         </div>
         <div className="cneb-map-actions">
           <button
@@ -409,9 +432,28 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
             Volver al listado
           </button>
           {form.id ? (
-            <button type="button" className="cneb-btn ghost" onClick={() => descargarPdfSesion(form.id)}>
-              PDF de la sesión
-            </button>
+            <>
+              <button type="button" className="cneb-btn ghost" onClick={() => descargarPdfSesion(form.id)}>
+                PDF sesión
+              </button>
+              <button
+                type="button"
+                className="cneb-btn ghost"
+                onClick={() => descargarPdfSesion(form.id, { parte: 'ficha', formato: 'colegio' })}
+              >
+                Ficha colegio
+              </button>
+              <button
+                type="button"
+                className="cneb-btn ghost"
+                onClick={() => descargarPdfSesion(form.id, { parte: 'ficha', formato: 'minedu' })}
+              >
+                Ficha MINEDU
+              </button>
+              <button type="button" className="cneb-btn ghost" onClick={() => eliminar(form.id)}>
+                Eliminar
+              </button>
+            </>
           ) : null}
         </div>
       </div>
@@ -459,7 +501,7 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
         <label className="cneb-select-wrap">
           <span>Área CNEB</span>
           <select value={form.area_id} onChange={(e) => onArea(e.target.value)}>
-            <option value="">Elegir área…</option>
+            <option value="">Taller interno (no SIAGIE)</option>
             {(areas || [])
               .filter((a) => a.tipo !== 'transversal')
               .map((a) => (
@@ -492,7 +534,7 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
           type="text"
           className="cneb-search cneb-input-wide"
           maxLength={220}
-          placeholder="Ej. Nos cuidamos al lavarnos las manos"
+          placeholder="Puede dejarlo vacío: la IA propone el tema según la competencia"
           value={form.titulo}
           onChange={(e) => patch({ titulo: e.target.value })}
         />
@@ -506,6 +548,12 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
           placeholder="Qué se espera que logren en esta sesión"
         />
       </label>
+      {!form.area_id ? (
+        <p className="cneb-muted">
+          Sin área CNEB: el cotejo queda en el registro auxiliar y el consolidado del colegio. No
+          entra al corte AD/A/B/C ni al informe / SIAGIE.
+        </p>
+      ) : null}
 
       <h3 className="cneb-uso-title">Desempeños a observar</h3>
       {desempenosCorte.length === 0 ? (
@@ -530,14 +578,14 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
       )}
 
       <div className="cneb-map-actions" style={{ margin: '0.85rem 0' }}>
-        <button type="button" className="cneb-btn ghost" onClick={armarBorrador} disabled={!form.titulo.trim()}>
+        <button type="button" className="cneb-btn ghost" onClick={armarBorrador}>
           Armar borrador
         </button>
         <button
           type="button"
           className="cneb-btn primary"
           onClick={generarConIa}
-          disabled={generating || !form.titulo.trim()}
+          disabled={generating}
         >
           {generating ? 'Generando con IA…' : 'Generar con IA'}
         </button>
@@ -569,14 +617,28 @@ export default function AdminCnebSesiones({ nivel, areas, etiquetaNivel, apiBase
             onChange={(e) => patch({ momentos: { ...form.momentos, [tipo]: e.target.value } })}
             placeholder={
               tipo === 'inicio'
-                ? 'Motivación, saberes previos, propósito…'
+                ? 'Motivación, saberes previos, problematización y propósito…'
                 : tipo === 'desarrollo'
                   ? 'Actividades, materiales, evidencia…'
-                  : 'Metacognición, evaluación, cierre…'
+                  : 'Metacognición, recojo de evidencias…'
             }
           />
         </div>
       ))}
+
+      <label className="cneb-select-wrap cneb-full">
+        <span>Ficha del estudiante</span>
+        <textarea
+          rows={8}
+          value={form.ficha_estudiante}
+          onChange={(e) => patch({ ficha_estudiante: e.target.value })}
+          placeholder="Nombre, fecha, consignas numeradas, espacio para dibujar o escribir…"
+        />
+      </label>
+      <p className="cneb-muted">
+        Texto para imprimir y archivar evidencia física. La IA lo propone; puede dejarlo con nuestro
+        lenguaje de aula o descargar la versión con membrete MINEDU.
+      </p>
 
       <h3 className="cneb-uso-title">Lista de cotejo</h3>
       <p className="cneb-muted">Ítems que el docente marcará al observar. Puede editarlos o añadir más.</p>

@@ -158,8 +158,9 @@ export default function AdminCnebConsolidado({
         <div>
           <h2>Registro auxiliar consolidado · {etiquetaNivel ? etiquetaNivel(nivel) : nivel}</h2>
           <p>
-            Una sola grilla del aula: a la izquierda el cotejo de cada sesión; a la derecha el corte
-            AD/A/B/C del bimestre. Es el registro ancho tipo SIEWEB.
+            Una sola grilla del aula: a la izquierda el cotejo de cada sesión (incluye talleres
+            internos); a la derecha el corte AD/A/B/C solo de las áreas oficiales del nivel, que es
+            lo que viaja a SIAGIE.
           </p>
         </div>
         <div className="cneb-map-actions">

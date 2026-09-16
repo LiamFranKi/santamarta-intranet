@@ -561,7 +561,10 @@ router.get('/sesiones/:id/pdf', async (req, res) => {
     if (ses.grupo_id && !ids.has(Number(ses.grupo_id))) {
       return res.status(403).json({ error: 'Esa sesión no es de sus aulas.' });
     }
-    const out = await sesionPdfBuffer(cid, id);
+    const out = await sesionPdfBuffer(cid, id, {
+      parte: req.query?.parte,
+      formato: req.query?.formato,
+    });
     if (!out) return res.status(404).json({ error: 'Sesión no encontrada.' });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);

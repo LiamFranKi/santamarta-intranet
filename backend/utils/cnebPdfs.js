@@ -100,7 +100,7 @@ function dibujarSelloMinedu(doc, x, y, w, h) {
   doc.restore();
 }
 
-function dibujarMembrete(doc, { colegioNombre, subtitulo }) {
+function dibujarMembrete(doc, { colegioNombre, subtitulo, tituloOficial }) {
   const pageW = doc.page.width;
   const left = 36;
   const top = 28;
@@ -117,10 +117,15 @@ function dibujarMembrete(doc, { colegioNombre, subtitulo }) {
     width: pageW - 280,
     align: 'center',
   });
-  doc.fillColor(COLOR.teal).font('Helvetica-Bold').fontSize(9).text('INFORME DE PROGRESO DEL ESTUDIANTE', left + 100, top + 18, {
-    width: pageW - 280,
-    align: 'center',
-  });
+  doc.fillColor(COLOR.teal).font('Helvetica-Bold').fontSize(9).text(
+    tituloOficial || 'INFORME DE PROGRESO DEL ESTUDIANTE',
+    left + 100,
+    top + 18,
+    {
+      width: pageW - 280,
+      align: 'center',
+    }
+  );
   doc.fillColor(COLOR.muted).font('Helvetica').fontSize(8).text(subtitulo || '', left + 100, top + 32, {
     width: pageW - 280,
     align: 'center',
@@ -299,19 +304,93 @@ function momentoTitulo(tipo) {
   return 'Desarrollo';
 }
 
-async function sesionPdfBuffer(cid, sesionId) {
+function textoFichaSesion(ses) {
+  const guardada = String(ses?.ficha_estudiante || '').trim();
+  if (guardada) return guardada;
+  const cotejo = (ses?.cotejo || []).map((c, i) => `${i + 1}. ${c.item}`).join('\n');
+  return [
+    `Ficha de trabajo — ${ses?.titulo || 'Sesión'}`,
+    'Nombre: ____________________    Fecha: __________',
+    '',
+    '1. Dibuja o escribe lo que hicimos hoy.',
+    '2. ¿Qué aprendiste?',
+    '3. ¿Qué te resultó fácil o difícil?',
+    cotejo ? `\nPara el docente (cotejo):\n${cotejo}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function dibujarFichaPagina(doc, { colegio, ses, grupo, fecha, formato }) {
+  const minedu = String(formato || '').toLowerCase() === 'minedu';
+  const inner = doc.page.width - 72;
+  let y = dibujarMembrete(doc, {
+    colegioNombre: colegio?.nombre,
+    subtitulo: `${etiquetaNivel(ses.nivel_cneb)} · ${aulaLabel(grupo) || 'Aula'} · ${fecha}`,
+    tituloOficial: minedu ? 'FICHA DE APLICACIÓN · CNEB / MINEDU' : 'FICHA DE TRABAJO DEL ESTUDIANTE',
+  });
+  doc.fillColor(COLOR.ink).font('Helvetica-Bold').fontSize(12).text(ses.titulo || 'Sesión', 36, y, { width: inner });
+  y += 18;
+  filaDato(doc, y, 'ÁREA', ses.area_nombre || 'Taller interno', 36, inner * 0.5);
+  filaDato(doc, y, 'FECHA', fecha, 36 + inner * 0.5, inner * 0.5);
+  y += 16;
+  filaDato(doc, y, 'COMPET.', ses.competencia_nombre || '—', 36, inner);
+  y += 22;
+  filaDato(doc, y, 'NOMBRE', '________________________________', 36, inner * 0.62);
+  filaDato(doc, y, 'EDAD', '______', 36 + inner * 0.62, inner * 0.38);
+  y += 24;
+  const texto = textoFichaSesion(ses);
+  const th = Math.max(80, doc.heightOfString(texto, { width: inner - 16, fontSize: 10 }) + 16);
+  y = ensure(doc, y, Math.min(th, 200));
+  doc.rect(36, y, inner, Math.min(th, doc.page.height - y - 90)).strokeColor(COLOR.line).stroke();
+  doc.fillColor(COLOR.ink).font('Helvetica').fontSize(10).text(texto, 44, y + 8, {
+    width: inner - 16,
+  });
+  y += Math.min(th, doc.page.height - y - 90) + 16;
+  y = ensure(doc, y, 70);
+  doc.fillColor(COLOR.muted).font('Helvetica').fontSize(7.5).text(
+    minedu
+      ? 'Evidencia física alineada al CNEB. No reemplaza el informe oficial de SIAGIE ni las notas 0–20.'
+      : 'Evidencia del colegio. El docente o el niño completa la ficha; se archiva en el portafolio.',
+    36,
+    y,
+    { width: inner }
+  );
+  y += 28;
+  const w = (inner - 24) / 2;
+  doc.moveTo(36, y + 22).lineTo(36 + w, y + 22).strokeColor(COLOR.line).stroke();
+  doc.moveTo(36 + w + 24, y + 22).lineTo(36 + inner, y + 22).strokeColor(COLOR.line).stroke();
+  doc.fillColor(COLOR.muted).font('Helvetica').fontSize(7.5).text('Estudiante / familia', 36, y + 26, { width: w, align: 'center' });
+  doc.text('Docente', 36 + w + 24, y + 26, { width: w, align: 'center' });
+}
+
+async function sesionPdfBuffer(cid, sesionId, { parte = 'sesion', formato = 'colegio' } = {}) {
   const ses = await cargarSesion(cid, sesionId);
   if (!ses) return null;
   const colegio = await getColegioData(cid);
   const grupo = ses.grupo_id ? await metaGrupo(cid, ses.grupo_id) : null;
   const fecha = ses.fecha_sesion ? String(ses.fecha_sesion).slice(0, 10) : 'Sin fecha';
+  const slug = String(ses.titulo || 'sesion')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .slice(0, 40);
+  if (String(parte || '').toLowerCase() === 'ficha') {
+    const buf = await pdfToBuffer(async (doc) => {
+      dibujarFichaPagina(doc, { colegio, ses, grupo, fecha, formato });
+    });
+    return { buffer: buf, filename: `ficha_cneb_${ses.id}_${slug}.pdf` };
+  }
   const subtitulo = `Sesión de aprendizaje · ${etiquetaNivel(ses.nivel_cneb)} · ${ses.duracion_min} min`;
   const buf = await pdfToBuffer(async (doc) => {
-    let y = dibujarMembrete(doc, { colegioNombre: colegio?.nombre, subtitulo });
+    let y = dibujarMembrete(doc, {
+      colegioNombre: colegio?.nombre,
+      subtitulo,
+      tituloOficial: 'SESIÓN DE APRENDIZAJE · CNEB',
+    });
     const inner = doc.page.width - 72;
     doc.fillColor(COLOR.ink).font('Helvetica-Bold').fontSize(13).text(ses.titulo || 'Sesión', 36, y, { width: inner });
     y += 20;
-    filaDato(doc, y, 'ÁREA', ses.area_nombre || '—', 36, inner * 0.5);
+    filaDato(doc, y, 'ÁREA', ses.area_nombre || 'Taller interno', 36, inner * 0.5);
     filaDato(doc, y, 'AULA', aulaLabel(grupo), 36 + inner * 0.5, inner * 0.5);
     y += 16;
     filaDato(doc, y, 'COMPET.', ses.competencia_nombre || '—', 36, inner * 0.5);
@@ -353,11 +432,11 @@ async function sesionPdfBuffer(cid, sesionId) {
       doc.page.height - 28,
       { width: inner, align: 'center' }
     );
+    if (String(ses.ficha_estudiante || '').trim()) {
+      doc.addPage();
+      dibujarFichaPagina(doc, { colegio, ses, grupo, fecha, formato });
+    }
   });
-  const slug = String(ses.titulo || 'sesion')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .slice(0, 40);
   return { buffer: buf, filename: `sesion_cneb_${ses.id}_${slug}.pdf` };
 }
 

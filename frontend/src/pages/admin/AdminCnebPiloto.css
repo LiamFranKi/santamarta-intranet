@@ -587,6 +587,49 @@
   color: var(--cneb-muted);
 }
 
+.cneb-callout {
+  margin: 0 0 0.9rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  background: #ecfeff;
+  border: 1px solid #a5f3fc;
+  color: #155e75;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.cneb-callout p {
+  margin: 0 0 0.55rem;
+}
+
+.cneb-callout p:last-child {
+  margin-bottom: 0;
+}
+
+.cneb-minedu-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #0f766e;
+}
+
+.cneb-minedu-hint.is-warn {
+  color: #b45309;
+}
+
+.cneb-hint-use {
+  margin-left: 0.45rem;
+  border: 0;
+  background: #ccfbf1;
+  color: #0f766e;
+  border-radius: 999px;
+  padding: 0.08rem 0.5rem;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 .cneb-seg {
   display: inline-flex;
   border: 1px solid var(--cneb-line);
