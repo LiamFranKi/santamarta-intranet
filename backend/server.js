@@ -424,7 +424,7 @@ app.listen(PORT, () => {
         } catch (e) {
           console.error('❌ [AUTO-VERIFICACION] Error en primera ejecución:', e);
         }
-      }, 60000); // 60 segundos después de iniciar
+      }, 15 * 60 * 1000); // 15 min: no saturar MySQL al reiniciar en hora pico
       
       // Ejecutar cada 24 horas (86400000 ms = 24 horas)
       setInterval(async () => {
@@ -439,7 +439,7 @@ app.listen(PORT, () => {
       }, 24 * 60 * 60 * 1000); // Cada 24 horas
       
       console.log('📅 [AUTO-VERIFICACION] Sistema de verificación automática configurado:');
-      console.log('   - Primera ejecución: 60 segundos después de iniciar');
+      console.log('   - Primera ejecución: 15 minutos después de iniciar');
       console.log('   - Ejecuciones periódicas: cada 24 horas');
     } catch (error) {
       console.error('❌ [AUTO-VERIFICACION] Error configurando verificación automática:', error);
@@ -460,7 +460,7 @@ app.listen(PORT, () => {
         } catch (e) {
           console.error('❌ [CUMPLEANOS-PUSH] Error en primera ejecución:', e);
         }
-      }, 120000); // 2 min después de iniciar
+      }, 20 * 60 * 1000); // 20 min después de iniciar
       setInterval(async () => {
         try {
           console.log('🎂 [CUMPLEANOS-PUSH] Ejecutando notificaciones de cumpleaños del día...');
@@ -487,7 +487,7 @@ app.listen(PORT, () => {
         } catch (e) {
           console.error('❌ [INSTITUCIONAL-VENC] Error en primera ejecución:', e);
         }
-      }, 100000);
+      }, 21 * 60 * 1000);
       setInterval(async () => {
         try {
           console.log('📋 [INSTITUCIONAL-VENC] Verificación periódica (cada 24 h)...');
@@ -513,7 +513,7 @@ app.listen(PORT, () => {
         } catch (e) {
           console.error('❌ [AGENDA-INTERNA] Error en primera ejecución:', e);
         }
-      }, 110000);
+      }, 22 * 60 * 1000);
       setInterval(async () => {
         try {
           console.log('📅 [AGENDA-INTERNA] Verificación periódica (cada 24 h)...');
@@ -540,15 +540,15 @@ app.listen(PORT, () => {
         } catch (e) {
           console.error('❌ [EXAMEN-CIERRE-AUTO] Error en primera ejecución:', e);
         }
-      }, 90000);
+      }, 8 * 60 * 1000);
       setInterval(async () => {
         try {
           await verificarExamenesIntentosPendientes();
         } catch (e) {
           console.error('❌ [EXAMEN-CIERRE-AUTO] Error en ejecución periódica:', e);
         }
-      }, 2 * 60 * 1000);
-      console.log('📝 [EXAMEN-CIERRE-AUTO] Programado: primera ejecución ~90 s, luego cada 2 min');
+      }, 5 * 60 * 1000);
+      console.log('📝 [EXAMEN-CIERRE-AUTO] Programado: primera ejecución ~8 min, luego cada 5 min');
     } catch (error) {
       console.error('❌ [EXAMEN-CIERRE-AUTO] Error configurando:', error);
     }
@@ -566,9 +566,9 @@ app.listen(PORT, () => {
           console.error(`❌ [CLASE-INICIO] Error (${etiqueta}):`, e);
         }
       };
-      setTimeout(() => correr('primera'), 75000);
-      setInterval(() => correr('periodica'), 60 * 1000);
-      console.log('🔔 [CLASE-INICIO] Programado: primera ~75 s, luego cada 1 min (hora exacta Lima)');
+      setTimeout(() => correr('primera'), 5 * 60 * 1000);
+      setInterval(() => correr('periodica'), 2 * 60 * 1000);
+      console.log('🔔 [CLASE-INICIO] Programado: primera ~5 min, luego cada 2 min (hora exacta Lima)');
     } catch (error) {
       console.error('❌ [CLASE-INICIO] Error configurando:', error);
     }

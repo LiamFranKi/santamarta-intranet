@@ -116,7 +116,7 @@ function Dashboard() {
     }).catch(() => setStats(null)).finally(() => setLoadingStats(false));
   }, [user?.tipo]);
 
-  // Cargar KPIs de pagos/pensiones para el cuadro por concepto
+  // KPIs pesados de pagos: después del dashboard, para no saturar MySQL a la vez
   useEffect(() => {
     if (user?.tipo === 'PSICOLOGA' || esPaqueteCoordinador(user?.tipo)) {
       setKpis(null);
@@ -127,26 +127,30 @@ function Dashboard() {
       setLoadingNiveles(false);
       return;
     }
-    api.get('/admin/estadisticas/kpis')
-      .then((res) => setKpis(res.data))
-      .catch((err) => setErrorKpis(err.response?.data?.error || 'Error al cargar estadísticas por concepto'))
-      .finally(() => setLoadingKpis(false));
+    if (loadingStats) return undefined;
+    const t = setTimeout(() => {
+      api.get('/admin/estadisticas/kpis')
+        .then((res) => setKpis(res.data))
+        .catch((err) => setErrorKpis(err.response?.data?.error || 'Error al cargar estadísticas por concepto'))
+        .finally(() => setLoadingKpis(false));
 
-    api.get('/admin/estadisticas/deudas-por-nivel')
-      .then((res) => {
-        setDeudasNivel(res.data?.niveles || []);
-        setDeudasNivelMeta({
-          alumnos_al_dia: res.data?.alumnos_al_dia ?? 0,
-          cantidad_deudores: res.data?.cantidad_deudores ?? 0,
-          pensiones_vencidas: res.data?.pensiones_vencidas || [],
-        });
-      })
-      .catch(() => {
-        setDeudasNivel([]);
-        setDeudasNivelMeta(null);
-      })
-      .finally(() => setLoadingNiveles(false));
-  }, [user?.tipo]);
+      api.get('/admin/estadisticas/deudas-por-nivel')
+        .then((res) => {
+          setDeudasNivel(res.data?.niveles || []);
+          setDeudasNivelMeta({
+            alumnos_al_dia: res.data?.alumnos_al_dia ?? 0,
+            cantidad_deudores: res.data?.cantidad_deudores ?? 0,
+            pensiones_vencidas: res.data?.pensiones_vencidas || [],
+          });
+        })
+        .catch(() => {
+          setDeudasNivel([]);
+          setDeudasNivelMeta(null);
+        })
+        .finally(() => setLoadingNiveles(false));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [user?.tipo, loadingStats]);
 
   const navigate = useNavigate();
   const location = useLocation();

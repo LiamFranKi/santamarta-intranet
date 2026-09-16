@@ -34,6 +34,11 @@ const {
   aplicarEstructuraColegio,
 } = require('../utils/aulaEstructuraTemas');
 
+const { memoKeyed, withTimeout } = require('../utils/ttlCache');
+const dashMemo = memoKeyed(45 * 1000);
+const kpisMemo = memoKeyed(60 * 1000);
+const deudasMemo = memoKeyed(60 * 1000);
+
 const ANIO_PAGO_SQL = sqlFiltroAnioPago('p');
 const phpSerialize = require('php-serialize');
 
@@ -306,81 +311,97 @@ async function obtenerAdjuntosPorRemitenteFecha(remitenteId, fechaHora, mensajeR
 router.get('/dashboard', async (req, res) => {
   try {
     const { colegio_id } = req.user;
-
-    const [colegio] = await query(
-      'SELECT anio_activo, total_pensiones, moneda, inicio_pensiones FROM colegios WHERE id = ? LIMIT 1',
-      [colegio_id]
-    );
-    const anioActivo = parseInt(colegio?.anio_activo || new Date().getFullYear(), 10);
-    const totalPensiones = parseInt(colegio?.total_pensiones || 10);
-    const moneda = colegio?.moneda || 'S/';
-
-    const [rGradosRows, rTrabajadoresRows, rAlumnosRows, rApoderadosRows, rPresupuestoRows, rIngresosRows] = await Promise.all([
-      query(
-        'SELECT COUNT(*) as total FROM grupos WHERE colegio_id = ? AND anio = ?',
-        [colegio_id, anioActivo]
-      ),
-      query(
-        `SELECT COUNT(*) as total FROM personal p
-         WHERE p.colegio_id = ? AND ${sqlPersonalSinSuperadmin('p')}`,
+    const data = await dashMemo.run(String(colegio_id), async () => {
+      const [colegio] = await query(
+        'SELECT anio_activo, total_pensiones, moneda, inicio_pensiones FROM colegios WHERE id = ? LIMIT 1',
         [colegio_id]
-      ),
-      query(
-        `SELECT COUNT(DISTINCT m.alumno_id) as total
-         FROM matriculas m
-         INNER JOIN grupos g ON g.id = m.grupo_id
-         WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
-        [colegio_id, anioActivo]
-      ),
-      query(
-        `SELECT COUNT(DISTINCT f.apoderado_id) as total
-         FROM familias f
-         INNER JOIN matriculas m ON m.alumno_id = f.alumno_id AND m.colegio_id = ?
-         INNER JOIN grupos g ON g.id = m.grupo_id
-         WHERE g.anio = ? AND (m.estado = 0)`,
-        [colegio_id, anioActivo]
-      ),
-      query(
-        `SELECT COALESCE(SUM(COALESCE(c.matricula, 0) + COALESCE(c.pension, 0) * ?), 0) as presupuesto
-         FROM matriculas m
-         INNER JOIN grupos g ON g.id = m.grupo_id
-         INNER JOIN costos c ON c.id = m.costo_id
-         WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
-        [totalPensiones, colegio_id, anioActivo]
-      ),
-      query(
-        `SELECT
-           COALESCE(SUM(p.monto), 0) AS total_ingresos,
-           COALESCE(SUM(COALESCE(p.mora, 0)), 0) AS total_mora
-         FROM pagos p
-         INNER JOIN matriculas m ON m.id = p.matricula_id
-         INNER JOIN grupos g ON g.id = m.grupo_id
-         WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
-           AND g.anio = ? AND (m.estado = 0)`,
-        [colegio_id, anioActivo]
-      )
-    ]);
-    const [rGrados] = rGradosRows || [];
-    const [rTrabajadores] = rTrabajadoresRows || [];
-    const totalAlumnos = parseInt(rAlumnosRows?.[0]?.total || 0, 10);
-    const totalApoderados = parseInt(rApoderadosRows?.[0]?.total || 0, 10);
-    const presupuestoAnual = parseFloat(rPresupuestoRows?.[0]?.presupuesto || 0);
-    const totalIngresos = parseFloat(rIngresosRows?.[0]?.total_ingresos || 0);
-    const totalMoraRecaudada = parseFloat(rIngresosRows?.[0]?.total_mora || 0);
-    const totalDeuda = Math.max(0, presupuestoAnual - totalIngresos);
+      );
+      const anioActivo = parseInt(colegio?.anio_activo || new Date().getFullYear(), 10);
+      const totalPensiones = parseInt(colegio?.total_pensiones || 10);
+      const moneda = colegio?.moneda || 'S/';
 
-    res.json({
-      total_grados: rGrados?.total ?? 0,
-      total_trabajadores: rTrabajadores?.total ?? 0,
-      total_alumnos: totalAlumnos,
-      total_apoderados: totalApoderados,
-      presupuesto_anual: presupuestoAnual,
-      total_ingresos: totalIngresos,
-      total_mora_recaudada: totalMoraRecaudada,
-      total_deuda: totalDeuda,
-      moneda,
-      anio_activo: anioActivo
+      const [rGradosRows, rTrabajadoresRows, rAlumnosRows, rApoderadosRows] = await Promise.all([
+        query(
+          'SELECT COUNT(*) as total FROM grupos WHERE colegio_id = ? AND anio = ?',
+          [colegio_id, anioActivo]
+        ),
+        query(
+          `SELECT COUNT(*) as total FROM personal p
+           WHERE p.colegio_id = ? AND ${sqlPersonalSinSuperadmin('p')}`,
+          [colegio_id]
+        ),
+        query(
+          `SELECT COUNT(DISTINCT m.alumno_id) as total
+           FROM matriculas m
+           INNER JOIN grupos g ON g.id = m.grupo_id
+           WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
+          [colegio_id, anioActivo]
+        ),
+        query(
+          `SELECT COUNT(DISTINCT f.apoderado_id) as total
+           FROM familias f
+           INNER JOIN matriculas m ON m.alumno_id = f.alumno_id AND m.colegio_id = ?
+           INNER JOIN grupos g ON g.id = m.grupo_id
+           WHERE g.anio = ? AND (m.estado = 0)`,
+          [colegio_id, anioActivo]
+        )
+      ]);
+
+      let presupuestoAnual = 0;
+      let totalIngresos = 0;
+      let totalMoraRecaudada = 0;
+      try {
+        const [rPresupuestoRows, rIngresosRows] = await withTimeout(
+          Promise.all([
+            query(
+              `SELECT COALESCE(SUM(COALESCE(c.matricula, 0) + COALESCE(c.pension, 0) * ?), 0) as presupuesto
+               FROM matriculas m
+               INNER JOIN grupos g ON g.id = m.grupo_id
+               INNER JOIN costos c ON c.id = m.costo_id
+               WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
+              [totalPensiones, colegio_id, anioActivo]
+            ),
+            query(
+              `SELECT
+                 COALESCE(SUM(p.monto), 0) AS total_ingresos,
+                 COALESCE(SUM(COALESCE(p.mora, 0)), 0) AS total_mora
+               FROM matriculas m
+               INNER JOIN grupos g ON g.id = m.grupo_id
+               INNER JOIN pagos p ON p.matricula_id = m.id
+                 AND p.colegio_id = m.colegio_id
+                 AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
+               WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
+              [colegio_id, anioActivo]
+            )
+          ]),
+          8000,
+          'dashboard-pagos'
+        );
+        presupuestoAnual = parseFloat(rPresupuestoRows?.[0]?.presupuesto || 0);
+        totalIngresos = parseFloat(rIngresosRows?.[0]?.total_ingresos || 0);
+        totalMoraRecaudada = parseFloat(rIngresosRows?.[0]?.total_mora || 0);
+      } catch (e) {
+        console.warn('⚠️ [ADMIN DASHBOARD] Totales de pagos omitidos (MySQL ocupado):', e.message);
+      }
+
+      const [rGrados] = rGradosRows || [];
+      const [rTrabajadores] = rTrabajadoresRows || [];
+      const totalAlumnos = parseInt(rAlumnosRows?.[0]?.total || 0, 10);
+      const totalApoderados = parseInt(rApoderadosRows?.[0]?.total || 0, 10);
+      return {
+        total_grados: rGrados?.total ?? 0,
+        total_trabajadores: rTrabajadores?.total ?? 0,
+        total_alumnos: totalAlumnos,
+        total_apoderados: totalApoderados,
+        presupuesto_anual: presupuestoAnual,
+        total_ingresos: totalIngresos,
+        total_mora_recaudada: totalMoraRecaudada,
+        total_deuda: Math.max(0, presupuestoAnual - totalIngresos),
+        moneda,
+        anio_activo: anioActivo
+      };
     });
+    res.json(data);
   } catch (error) {
     console.error('Error dashboard admin:', error);
     res.status(500).json({ error: 'Error al obtener estadísticas' });
@@ -396,6 +417,7 @@ router.get('/estadisticas/kpis', async (req, res) => {
   try {
     const { colegio_id } = req.user;
     const anioParam = parseInt(req.query.anio, 10);
+    const payload = await kpisMemo.run(`${colegio_id}:${anioParam || 'a'}`, async () => {
     const [colegio] = await query(
       'SELECT anio_activo, total_pensiones, moneda, inicio_pensiones FROM colegios WHERE id = ? LIMIT 1',
       [colegio_id]
@@ -431,11 +453,12 @@ router.get('/estadisticas/kpis', async (req, res) => {
       }
     }
 
-    const pagosJoin = `FROM pagos p
-         INNER JOIN matriculas m ON m.id = p.matricula_id
+    const pagosJoin = `FROM matriculas m
          INNER JOIN grupos g ON g.id = m.grupo_id
-         WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
-           AND g.anio = ? AND (m.estado = 0)`;
+         INNER JOIN pagos p ON p.matricula_id = m.id
+           AND p.colegio_id = m.colegio_id
+           AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
+         WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`;
     const pagosBase = [colegio_id, anio];
 
     let totalCobrado = 0;
@@ -578,7 +601,7 @@ router.get('/estadisticas/kpis', async (req, res) => {
       });
     }
 
-    res.json({
+    return {
       anio,
       moneda,
       total_cobrado: totalCobrado,
@@ -588,7 +611,9 @@ router.get('/estadisticas/kpis', async (req, res) => {
       alumnos_al_dia: alumnosAlDia,
       cantidad_deudores: cantidadDeudores,
       conceptos
+    };
     });
+    res.json(payload);
   } catch (error) {
     console.error('Error estadísticas KPIs:', error);
     res.status(500).json({ error: 'Error al obtener KPIs de estadísticas' });
@@ -604,6 +629,7 @@ router.get('/estadisticas/deudas-por-nivel', async (req, res) => {
   try {
     const { colegio_id } = req.user;
     const anioParam = parseInt(req.query.anio, 10);
+    const payload = await deudasMemo.run(`${colegio_id}:${anioParam || 'a'}`, async () => {
     const [colegio] = await query(
       `SELECT anio_activo, total_pensiones, moneda, inicio_pensiones, pensiones_vencimiento
        FROM colegios WHERE id = ? LIMIT 1`,
@@ -639,11 +665,12 @@ router.get('/estadisticas/deudas-por-nivel', async (req, res) => {
       const phNros = pensionesVencidas.map(() => '?').join(',');
       const detRows = await query(
         `SELECT p.matricula_id, p.nro_pago, COALESCE(SUM(p.monto), 0) AS total
-         FROM pagos p
-         INNER JOIN matriculas m ON m.id = p.matricula_id
+         FROM matriculas m
          INNER JOIN grupos g ON g.id = m.grupo_id
-         WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
-           AND g.anio = ? AND (m.estado = 0)
+         INNER JOIN pagos p ON p.matricula_id = m.id
+           AND p.colegio_id = m.colegio_id
+           AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
+         WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)
            AND p.tipo = 1 AND p.nro_pago IN (${phNros})
            AND ${ANIO_PAGO_SQL}
          GROUP BY p.matricula_id, p.nro_pago`,
@@ -709,7 +736,7 @@ router.get('/estadisticas/deudas-por-nivel', async (req, res) => {
       }))
       .sort((a, b) => b.saldo - a.saldo);
 
-    res.json({
+    return {
       anio,
       moneda,
       criterio: 'pensiones_vencidas_hasta_hoy',
@@ -719,7 +746,9 @@ router.get('/estadisticas/deudas-por-nivel', async (req, res) => {
       alumnos_al_dia: alumnosAlDia,
       cantidad_deudores: cantidadDeudores,
       niveles,
+    };
     });
+    res.json(payload);
   } catch (error) {
     console.error('Error estadísticas deudas-por-nivel:', error);
     res.status(500).json({ error: 'Error al obtener deudas por nivel' });

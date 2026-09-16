@@ -1,6 +1,6 @@
 /**
- * Bandeja de campanita: dos SELECT cortos (índice por destinatario / para)
- * en lugar de UNION o OR, que escanean notificaciones y saturan el pool.
+ * Bandeja de campanita: SELECT cortos + cache para no repetir el scan de TODOS
+ * en cada pestaña abierta.
  */
 const SELECT_BANDEJA = `n.id,
          n.asunto as titulo,
@@ -13,6 +13,11 @@ const SELECT_BANDEJA = `n.id,
          n.url_destino,
          n.destinatario_id,
          'NOTIFICACION' as tipo_origen`;
+
+const TODOS_TTL_MS = 60 * 1000;
+const USER_TTL_MS = 20 * 1000;
+let todosCache = { rows: null, expires: 0, inflight: null };
+const userCache = new Map();
 
 function ordenarBandeja(rows) {
   const seen = new Set();
@@ -32,6 +37,32 @@ function ordenarBandeja(rows) {
   return merged.slice(0, 30);
 }
 
+async function fetchTodos(query) {
+  const now = Date.now();
+  if (todosCache.rows && now < todosCache.expires) return todosCache.rows;
+  if (todosCache.inflight) return todosCache.inflight;
+  todosCache.inflight = query(
+    `SELECT ${SELECT_BANDEJA}
+     FROM notificaciones n
+     WHERE n.para = 'TODOS'
+     ORDER BY n.id DESC
+     LIMIT 30`
+  )
+    .then((rows) => {
+      todosCache.rows = rows || [];
+      todosCache.expires = Date.now() + TODOS_TTL_MS;
+      return todosCache.rows;
+    })
+    .catch((err) => {
+      console.warn('⚠️ [CAMPANITA] Avisos generales omitidos:', err.message);
+      return todosCache.rows || [];
+    })
+    .finally(() => {
+      todosCache.inflight = null;
+    });
+  return todosCache.inflight;
+}
+
 async function fetchNotificacionesBandeja(query, destinatarioIds) {
   const ids = [
     ...new Set(
@@ -40,30 +71,46 @@ async function fetchNotificacionesBandeja(query, destinatarioIds) {
         .filter((n) => Number.isFinite(n) && n > 0)
     )
   ];
+  const cacheKey = ids.slice().sort((a, b) => a - b).join(',') || '0';
+  const now = Date.now();
+  const cached = userCache.get(cacheKey);
+  if (cached && now < cached.expires) return cached.rows;
+  if (cached && cached.inflight) return cached.inflight;
 
-  const todosSql = `SELECT ${SELECT_BANDEJA}
-      FROM notificaciones n
-      WHERE n.para = 'TODOS'
-      ORDER BY n.id DESC
-      LIMIT 30`;
-
-  if (!ids.length) {
-    return ordenarBandeja(await query(todosSql));
+  const slot = { rows: cached?.rows, expires: cached?.expires || 0, inflight: null };
+  slot.inflight = (async () => {
+    try {
+      let propias = [];
+      if (ids.length) {
+        const ph = ids.map(() => '?').join(',');
+        propias = await query(
+          `SELECT ${SELECT_BANDEJA}
+           FROM notificaciones n
+           WHERE n.para = 'USUARIO' AND n.destinatario_id IN (${ph})
+           ORDER BY n.id DESC
+           LIMIT 30`,
+          ids
+        );
+      }
+      const todos = await fetchTodos(query);
+      const rows = ordenarBandeja([...(propias || []), ...(todos || [])]);
+      slot.rows = rows;
+      slot.expires = Date.now() + USER_TTL_MS;
+      return rows;
+    } catch (err) {
+      console.warn('⚠️ [CAMPANITA] Bandeja omitida:', err.message);
+      return slot.rows || [];
+    } finally {
+      slot.inflight = null;
+    }
+  })();
+  userCache.set(cacheKey, slot);
+  if (userCache.size > 4000) {
+    for (const [k, v] of userCache) {
+      if (!v.inflight && Date.now() > v.expires) userCache.delete(k);
+    }
   }
-
-  const ph = ids.map(() => '?').join(',');
-  const [propias, todos] = await Promise.all([
-    query(
-      `SELECT ${SELECT_BANDEJA}
-       FROM notificaciones n
-       WHERE n.para = 'USUARIO' AND n.destinatario_id IN (${ph})
-       ORDER BY n.id DESC
-       LIMIT 30`,
-      ids
-    ),
-    query(todosSql)
-  ]);
-  return ordenarBandeja([...(propias || []), ...(todos || [])]);
+  return slot.inflight;
 }
 
 module.exports = { fetchNotificacionesBandeja };
