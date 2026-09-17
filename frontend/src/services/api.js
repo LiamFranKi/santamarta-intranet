@@ -155,16 +155,12 @@ api.interceptors.response.use(
       return Promise.reject(new Error('SESSION_REVOKED'));
     }
 
-    // Errores de autenticación: cerrar sesión. Un 500/502/503 es un fallo de API, no sesión inválida
-    // (si se cierra por 500, se borra el token y el resto de peticiones salen 401).
+    // 401 = sesión inválida. 403 genérico = falta de permiso (no cerrar sesión).
+    // SESSION_REVOKED se maneja arriba. 500/502/503 son fallos de API, no sesión.
     const criticalErrors = {
       401: {
         reason: 'SESION_EXPIRADA',
         message: 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.',
-      },
-      403: {
-        reason: 'SIN_PERMISOS',
-        message: 'No tienes permisos para acceder a este recurso. Tu sesión será cerrada.',
       },
     };
 

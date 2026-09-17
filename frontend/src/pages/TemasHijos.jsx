@@ -76,36 +76,28 @@ function TemasHijosPage() {
     (async () => {
       setLoading(true);
       try {
-        const cursosResp = await api.get(`${apiBase}/hijos/${hijoId}/cursos`);
-        const cursos = Array.isArray(cursosResp.data?.cursos) ? cursosResp.data.cursos : [];
+        const archivosResp = await api.get(`${apiBase}/hijos/${hijoId}/aula-virtual/temas-bimestre`, {
+          params: { ciclo: bimestre },
+        });
+        const lista = Array.isArray(archivosResp.data?.archivos) ? archivosResp.data.archivos : [];
         const archivoById = new Map();
 
-        for (const curso of cursos) {
-          const asignaturaId = curso?.asignatura_id;
-          if (!asignaturaId) continue;
-
-          const archivosResp = await api.get(`${apiBase}/hijos/${hijoId}/aula-virtual/archivos`, {
-            params: { asignatura_id: asignaturaId, ciclo: bimestre },
+        for (const a of lista) {
+          const id = a?.id;
+          if (id == null) continue;
+          const key = String(id);
+          if (archivoById.has(key)) continue;
+          archivoById.set(key, {
+            id,
+            nombre: a?.nombre || '',
+            archivo_url: a?.archivo_url || null,
+            fecha_hora: a?.fecha_hora || null,
+            ciclo: a?.ciclo || bimestre,
+            orden: a?.orden || 0,
+            asignatura_id: a?.asignatura_id || null,
+            curso_nombre: a?.curso_nombre || 'Curso',
+            docente_nombre: a?.docente_nombre || 'Docente',
           });
-          const lista = Array.isArray(archivosResp.data?.archivos) ? archivosResp.data.archivos : [];
-
-          for (const a of lista) {
-            const id = a?.id;
-            if (id == null) continue;
-            const key = String(id);
-            if (archivoById.has(key)) continue;
-            archivoById.set(key, {
-              id,
-              nombre: a?.nombre || '',
-              archivo_url: a?.archivo_url || null,
-              fecha_hora: a?.fecha_hora || null,
-              ciclo: a?.ciclo || bimestre,
-              orden: a?.orden || 0,
-              asignatura_id: curso?.asignatura_id || null,
-              curso_nombre: curso?.curso_nombre || 'Curso',
-              docente_nombre: a?.docente_nombre || curso?.docente_nombre || 'Docente',
-            });
-          }
         }
 
         if (cancelled || requestIdRef.current !== reqId) return;
@@ -115,10 +107,13 @@ function TemasHijosPage() {
         console.error('[TemasHijos] Error cargando temas:', e);
         if (!cancelled) {
           setArchivos([]);
+          const ocupado = e?.response?.status === 503 || e?.response?.data?.code === 'MYSQL_BUSY';
           Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: e?.response?.data?.error || e.message || 'No se pudieron cargar los temas',
+            icon: ocupado ? 'info' : 'error',
+            title: ocupado ? 'Servidor ocupado' : 'Error',
+            text: ocupado
+              ? 'El sistema está atendiendo muchas consultas. Espera unos segundos y vuelve a intentar.'
+              : (e?.response?.data?.error || e.message || 'No se pudieron cargar los temas'),
           });
         }
       } finally {

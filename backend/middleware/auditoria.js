@@ -44,6 +44,11 @@ const middlewareAuditoria = (req, res, next) => {
       return originalJson(data);
     }
 
+    // Los GET no se auditan: duplicaban el pool (auth + matrícula + consulta + INSERT).
+    if (req.method === 'GET') {
+      return originalJson(data);
+    }
+
     if (esGetAuditoriaAltaFrecuencia(req)) {
       return originalJson(data);
     }

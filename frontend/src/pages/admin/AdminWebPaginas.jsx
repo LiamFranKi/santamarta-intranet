@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Swal from 'sweetalert2';
 import api from '../../services/api';
+import AdminWebConvenios from './AdminWebConvenios';
 import './AdminWebPaginas.css';
 
 const API = '/admin/reclamos-sugerencias';
@@ -357,6 +358,13 @@ export default function AdminWebPaginas() {
         >
           Banner del inicio
         </button>
+        <button
+          type="button"
+          className={`rs-tab${subTab === 'convenios' ? ' rs-tab--active' : ''}`}
+          onClick={() => setSubTab('convenios')}
+        >
+          Convenios
+        </button>
       </nav>
 
       {subTab === 'niveles' && (
@@ -588,6 +596,7 @@ export default function AdminWebPaginas() {
           </div>
         </article>
       )}
+      {subTab === 'convenios' && <AdminWebConvenios />}
     </div>
   );
 }

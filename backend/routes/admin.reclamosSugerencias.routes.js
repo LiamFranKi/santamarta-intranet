@@ -19,8 +19,10 @@ const {
   resolveWebVanguardRoot,
   resolveWebDataFile,
   saveWebPublicImage,
+  saveWebPublicPdf,
   removeWebPublicFileIfSafe,
   sanitizeImageBasename,
+  sanitizePdfBasename,
   isUnderRoot,
 } = require('../utils/webVanguardFiles');
 const {
@@ -38,6 +40,14 @@ const {
   guardarRutaSlot,
 } = require('../utils/webPaginasNivelMedia');
 const { leerBannerInicio, guardarBannerInicio } = require('../utils/webPaginasInicio');
+const {
+  leerConvenios,
+  guardarPagina: guardarPaginaConvenios,
+  crearItem: crearConvenioItem,
+  guardarItem: guardarConvenioItem,
+  guardarRutaCampo: guardarConvenioArchivo,
+  eliminarItem: eliminarConvenioItem,
+} = require('../utils/webPaginasConvenios');
 
 router.use(authenticateToken);
 router.use(require('../utils/coordinadorAcceso').requireAdminOCoordinadorGet);
@@ -1489,6 +1499,26 @@ const uploadNivelImg = multer({
   limits: { fileSize: 12 * 1024 * 1024 },
 });
 
+const uploadConvenioPdf = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      const dir = path.join(os.tmpdir(), 'intranet-web-convenios');
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (_req, file, cb) => {
+      cb(null, `${Date.now()}-${sanitizePdfBasename(file.originalname)}`);
+    },
+  }),
+  fileFilter: (_req, file, cb) => {
+    const ok =
+      /^application\/pdf$/i.test(file.mimetype || '') ||
+      String(file.originalname || '').toLowerCase().endsWith('.pdf');
+    cb(ok ? null : new Error('Solo PDF'), ok);
+  },
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
+
 router.get('/paginas-niveles', async (_req, res) => {
   try {
     const payload = await leerPaginasNiveles(query);
@@ -1615,6 +1645,159 @@ router.get('/paginas-niveles/archivo', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message || 'Error al leer imagen.' });
   }
+});
+
+router.get('/paginas-convenios', async (_req, res) => {
+  try {
+    const payload = await leerConvenios(query);
+    res.json(payload);
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al leer convenios.' });
+  }
+});
+
+router.put('/paginas-convenios', async (req, res) => {
+  try {
+    const payload = await guardarPaginaConvenios(execute, query, req.body || {});
+    if (payload.necesita_migracion_convenios) {
+      return res.status(503).json({
+        error: 'Falta ejecutar la migración 098 (página Convenios).',
+        ...payload,
+      });
+    }
+    res.json({ ...payload, message: 'Textos de Convenios guardados' });
+  } catch (e) {
+    if (e && (e.code === 'ER_NO_SUCH_TABLE' || e.errno === 1146)) {
+      return res.status(503).json({
+        error: 'Falta ejecutar la migración 098 (página Convenios).',
+      });
+    }
+    res.status(e.status || 500).json({ error: e.message || 'Error al guardar Convenios.' });
+  }
+});
+
+router.post('/paginas-convenios/items', async (req, res) => {
+  try {
+    const payload = await crearConvenioItem(execute, query, req.body || {});
+    res.status(201).json({ ...payload, message: 'Convenio creado' });
+  } catch (e) {
+    if (e && (e.code === 'ER_NO_SUCH_TABLE' || e.errno === 1146 || e.status === 503)) {
+      return res.status(503).json({
+        error: 'Falta ejecutar la migración 098 (página Convenios).',
+        ...(e.payload || {}),
+      });
+    }
+    res.status(e.status || 500).json({ error: e.message || 'Error al crear el convenio.' });
+  }
+});
+
+router.put('/paginas-convenios/items/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      return res.status(400).json({ error: 'Id inválido' });
+    }
+    const payload = await guardarConvenioItem(execute, query, id, req.body || {});
+    res.json({ ...payload, message: 'Convenio actualizado' });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || 'Error al guardar el convenio.' });
+  }
+});
+
+router.delete('/paginas-convenios/items/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      return res.status(400).json({ error: 'Id inválido' });
+    }
+    const payload = await eliminarConvenioItem(execute, query, id, removeWebPublicFileIfSafe);
+    res.json({ ...payload, message: 'Convenio eliminado' });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || 'Error al eliminar el convenio.' });
+  }
+});
+
+router.post('/paginas-convenios/items/:id/imagen', (req, res) => {
+  uploadNivelImg.single('imagen')(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message || 'No se pudo subir la imagen' });
+    }
+    try {
+      const id = Number(req.params.id);
+      const slot = String(req.body?.slot || '').trim();
+      if (!Number.isInteger(id) || id < 1) {
+        return res.status(400).json({ error: 'Id inválido' });
+      }
+      if (slot !== 'logo' && slot !== 'imagen') {
+        return res.status(400).json({ error: 'Indique slot logo o imagen.' });
+      }
+      if (!req.file?.path) {
+        return res.status(400).json({ error: 'Seleccione una imagen' });
+      }
+      const ext = path.extname(req.file.originalname || req.file.filename || '').toLowerCase() || '.jpg';
+      const saved = saveWebPublicImage({
+        subdir: 'convenios',
+        publicPrefix: 'convenios',
+        originalName: req.file.originalname,
+        destName: `${slot}-${id}-${Date.now()}${ext === '.jpeg' ? '.jpg' : ext}`,
+        tempPath: req.file.path,
+      });
+      const payload = await guardarConvenioArchivo(execute, query, {
+        id,
+        campo: slot === 'logo' ? 'logo_ruta' : 'imagen_ruta',
+        ruta: saved.ruta,
+        removeOld: removeWebPublicFileIfSafe,
+      });
+      res.json({ ...payload, ruta: saved.ruta, message: 'Imagen actualizada' });
+    } catch (e) {
+      if (e && (e.code === 'ER_NO_SUCH_TABLE' || e.errno === 1146 || e.status === 503)) {
+        return res.status(503).json({
+          error: 'Falta ejecutar la migración 098 (página Convenios).',
+          ...(e.payload || {}),
+        });
+      }
+      res.status(e.status || 500).json({ error: e.message || 'Error al guardar la imagen.' });
+    }
+  });
+});
+
+router.post('/paginas-convenios/items/:id/pdf', (req, res) => {
+  uploadConvenioPdf.single('pdf')(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message || 'No se pudo subir el PDF' });
+    }
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id < 1) {
+        return res.status(400).json({ error: 'Id inválido' });
+      }
+      if (!req.file?.path) {
+        return res.status(400).json({ error: 'Seleccione un PDF' });
+      }
+      const saved = saveWebPublicPdf({
+        subdir: 'convenios',
+        publicPrefix: 'convenios',
+        originalName: req.file.originalname,
+        destName: `convenio-${id}-${Date.now()}.pdf`,
+        tempPath: req.file.path,
+      });
+      const payload = await guardarConvenioArchivo(execute, query, {
+        id,
+        campo: 'pdf_ruta',
+        ruta: saved.ruta,
+        removeOld: removeWebPublicFileIfSafe,
+      });
+      res.json({ ...payload, ruta: saved.ruta, message: 'PDF actualizado' });
+    } catch (e) {
+      if (e && (e.code === 'ER_NO_SUCH_TABLE' || e.errno === 1146 || e.status === 503)) {
+        return res.status(503).json({
+          error: 'Falta ejecutar la migración 098 (página Convenios).',
+          ...(e.payload || {}),
+        });
+      }
+      res.status(e.status || 500).json({ error: e.message || 'Error al guardar el PDF.' });
+    }
+  });
 });
 
 router.put('/paginas-niveles', async (req, res) => {

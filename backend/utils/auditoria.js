@@ -75,8 +75,9 @@ function registrarAccion({
         );
       } catch (error) {
         // No lanzar error para no interrumpir el flujo principal
-        // Solo loguear el error
-        console.error('Error registrando en auditoría:', error);
+        if (!/queue limit reached/i.test(String(error?.message || ''))) {
+          console.error('Error registrando en auditoría:', error.message || error);
+        }
       }
     });
   });

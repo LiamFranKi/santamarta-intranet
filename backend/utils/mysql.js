@@ -19,7 +19,7 @@ console.log(`🔌 MySQL: ${isProduction ? 'PRODUCCIÓN' : 'DESARROLLO'} - Host: 
 function mysqlPoolConnectionLimit() {
   const raw = parseInt(String(process.env.MYSQL_CONNECTION_LIMIT || '').trim(), 10);
   if (Number.isFinite(raw) && raw >= 5 && raw <= 100) return raw;
-  return isProduction ? 32 : 12;
+  return isProduction ? 48 : 12;
 }
 const MYSQL_POOL_LIMIT = mysqlPoolConnectionLimit();
 console.log(`🔌 MySQL pool connectionLimit=${MYSQL_POOL_LIMIT} (opcional: MYSQL_CONNECTION_LIMIT; max_connections del servidor debe ser mayor)`);
@@ -32,7 +32,7 @@ const mysqlReadPool = mysql.createPool({
   database: process.env.MYSQL_DATABASE,
   waitForConnections: true,
   connectionLimit: MYSQL_POOL_LIMIT,
-  queueLimit: 80,
+  queueLimit: 250,
   connectTimeout: 10000,
   multipleStatements: false,
   enableKeepAlive: true,
@@ -72,9 +72,23 @@ function formatSqlTextProtocol(sql, params) {
   return unmaskSqlLiterals(mysqlFormat(masked, queryParams), parts);
 }
 
+function isPoolSaturated(error) {
+  return /queue limit reached/i.test(String(error?.message || ''));
+}
+
 async function runTextQuery(sql, params) {
   const formatted = formatSqlTextProtocol(sql, params);
-  return mysqlReadPool.query(formatted);
+  let lastError;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      return await mysqlReadPool.query(formatted);
+    } catch (error) {
+      lastError = error;
+      if (!isPoolSaturated(error) || attempt === 3) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)));
+    }
+  }
+  throw lastError;
 }
 
 async function query(sql, params = []) {
@@ -86,9 +100,13 @@ async function query(sql, params = []) {
     const [rows] = await runTextQuery(sql, params);
     return rows;
   } catch (error) {
-    console.error('MySQL Error:', error);
-    console.error('SQL:', sql);
-    console.error('Params:', params);
+    if (isPoolSaturated(error)) {
+      console.error('MySQL Error: Queue limit reached (pool saturado)');
+    } else {
+      console.error('MySQL Error:', error);
+      console.error('SQL:', sql);
+      console.error('Params:', params);
+    }
     throw error;
   }
 }
@@ -102,7 +120,7 @@ async function execute(sql, params = []) {
       error?.code === 'ER_DUP_ENTRY' ||
       error?.errno === 1062 ||
       String(error?.sqlMessage || '').includes('Duplicate entry');
-    if (!isDup) {
+    if (!isDup && !isPoolSaturated(error)) {
       console.error('MySQL Execute Error:', error);
     }
     throw error;

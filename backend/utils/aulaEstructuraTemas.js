@@ -382,9 +382,26 @@ async function asegurarFichaHermana({ asignaturaId, trabajadorId, ciclo, numero,
   await insertarHueco({ asignaturaId, trabajadorId, ciclo, tipo: 'FICHA', numero: n });
 }
 
+function urlPublicaArchivoTema(archivo) {
+  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
+  const isDevelopment = process.env.NODE_ENV !== 'production';
+  const raw = String(archivo?.archivo || '').trim();
+  if (!raw) return null;
+  if (raw.startsWith('http')) {
+    return raw
+      .replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl)
+      .replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, phpSystemUrl);
+  }
+  const nombre = raw.startsWith('/Static/') ? raw.replace(/^\/Static\/Archivos\//, '') : raw;
+  return isDevelopment
+    ? `http://localhost:5000/Static/Archivos/${nombre}`
+    : `${phpSystemUrl}/Static/Archivos/${nombre}`;
+}
+
 module.exports = {
   MAX_TEMAS_BIMESTRE,
   BIMESTRES,
+  urlPublicaArchivoTema,
   archivosTieneEstructuraCols,
   clampCantidad,
   toActivo01,

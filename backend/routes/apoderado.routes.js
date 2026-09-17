@@ -20,7 +20,7 @@ const {
 } = require('../utils/mensajesHijoDocenteContexto');
 const { fechaHoraMySQLLima, fechaMySQLLima } = require('../utils/fechaHoraLima');
 const { listarEvidenciasSafe } = require('../utils/aulaEvidencias');
-const { esTemaPendiente } = require('../utils/aulaEstructuraTemas');
+const { esTemaPendiente, urlPublicaArchivoTema } = require('../utils/aulaEstructuraTemas');
 const { ACTIVIDADES_SELECT_SQL, ACTIVIDADES_SELECT_CON_EVENTO_SQL } = require('../utils/actividadesFecha');
 const { mezclarReunionesEnActividades } = require('../utils/reunionesHelper');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
@@ -4123,6 +4123,56 @@ router.get('/hijos/:hijoId/aula-virtual/archivos', soloLecturaProxy, async (req,
   } catch (error) {
     console.error('Error obteniendo archivos:', error);
     res.status(500).json({ error: error.message || 'Error al obtener archivos' });
+  }
+});
+
+/**
+ * GET /api/apoderado/hijos/:hijoId/aula-virtual/temas-bimestre
+ * Todos los temas/fichas del hijo en un bimestre (una sola consulta, todos los cursos).
+ */
+router.get('/hijos/:hijoId/aula-virtual/temas-bimestre', soloLecturaProxy, async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const cicloFiltro = req.query.ciclo ? parseInt(req.query.ciclo, 10) : 1;
+
+    const { alumnoId } = await verificarHijoYUsuarioApoderado(req, hijoId);
+
+    const archivos = await query(
+      `SELECT aa.*,
+              a.id AS asignatura_id,
+              c.nombre AS curso_nombre,
+              CONCAT(p.nombres, ' ', p.apellidos) AS docente_nombre
+       FROM asignaturas_archivos aa
+       INNER JOIN asignaturas a ON a.id = aa.asignatura_id
+       INNER JOIN cursos c ON c.id = a.curso_id
+       LEFT JOIN personal p ON p.id = COALESCE(aa.trabajador_id, a.personal_id)
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN matriculas m ON m.grupo_id = g.id
+       WHERE m.alumno_id = ?
+         AND m.colegio_id = ?
+         AND g.anio = ?
+         AND m.estado = 0
+         AND aa.ciclo = ?
+       ORDER BY c.nombre ASC, aa.orden ASC, aa.id ASC`,
+      [alumnoId, colegio_id, anio_activo, cicloFiltro]
+    );
+
+    const archivosConUrls = (archivos || [])
+      .map((archivo) => ({
+        ...archivo,
+        archivo_url: urlPublicaArchivoTema(archivo),
+      }))
+      .filter((archivo) => !esTemaPendiente(archivo));
+
+    res.json({ archivos: archivosConUrls });
+  } catch (error) {
+    console.error('Error obteniendo temas del bimestre (apoderado):', error);
+    const msg = String(error.message || '');
+    if (msg.includes('permisos') || msg.includes('hijo') || msg.includes('matrícula') || msg.includes('matricula')) {
+      return res.status(403).json({ error: error.message });
+    }
+    res.status(500).json({ error: error.message || 'Error al obtener temas' });
   }
 });
 
