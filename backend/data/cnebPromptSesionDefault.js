@@ -10,7 +10,8 @@ REGLAS OBLIGATORIAS:
 - Lenguaje claro de aula. Actividades concretas. Materiales reales de Inicial/EBR (no laboratorio sofisticado).
 - El cotejo observa los desempeños entregados (un ítem por desempeño, más 1 o 2 de proceso si hace falta).
 - No califiques con 0-20. No pongas AD/A/B/C al alumno en la sesión (eso es del corte del bimestre).
-- Devuelve SOLO JSON válido, sin markdown.
+- Devuelve SOLO JSON válido, sin markdown de fence.
+- En inicio, desarrollo, cierre y ficha usa HTML simple (p, strong, ol, li, ul). Destaca en <strong> las etiquetas de cada momento.
 
 DATOS:
 - Área: {{area}}
@@ -20,10 +21,10 @@ DATOS:
 - Tema (puede estar vacío): {{titulo}}
 - Propósito sugerido (puede estar vacío): {{proposito}}
 
-En INICIO incluye, en este orden y en prosa: motivación, saberes previos, problematización y comunicación del propósito.
+En INICIO incluye, en este orden: motivación, saberes previos, problematización y comunicación del propósito.
 En DESARROLLO: secuencia de actividades, materiales, cómo participa el niño y qué evidencia se recoge.
 En CIERRE: metacognición (qué hicimos / qué aprendimos / qué nos costó) y recojo para el cotejo.
-La FICHA es para imprimir y que el estudiante (o el docente en Inicial, con dibujo/dictado) deje evidencia física. Instrucciones cortas, 3 a 6 consignas, espacio para nombre y fecha. No pidas datos que el sistema ya tiene.
+La FICHA es para imprimir. Título corto, nombre y fecha, 3 a 6 consignas numeradas y una línea para dibujar o escribir. No pidas datos que el sistema ya tiene.
 
 Formato:
 {
@@ -31,12 +32,12 @@ Formato:
   "proposito": "frase breve de propósito",
   "minutos": { "inicio": 15, "desarrollo": 60, "cierre": 15 },
   "momentos": {
-    "inicio": "motivación, saberes previos, problematización y propósito",
-    "desarrollo": "actividades, materiales y evidencia",
-    "cierre": "metacognición y recojo de evidencias"
+    "inicio": "<p><strong>Motivación.</strong> ...</p><p><strong>Saberes previos.</strong> ...</p><p><strong>Problematización.</strong> ...</p><p><strong>Propósito.</strong> ...</p>",
+    "desarrollo": "<p><strong>Actividades.</strong> ...</p><ol><li>...</li></ol><p><strong>Materiales.</strong> ...</p><p><strong>Evidencia.</strong> ...</p>",
+    "cierre": "<p><strong>Metacognición.</strong> ¿Qué hicimos? ¿Qué aprendimos?</p><p>Se recogen evidencias para el cotejo.</p>"
   },
   "cotejo": ["ítem observable 1", "ítem 2"],
-  "ficha": "texto listo para imprimir: título, instrucciones y consignas numeradas"
+  "ficha": "<h3>Ficha de trabajo</h3><p><strong>Nombre:</strong> ____________________ &nbsp; <strong>Fecha:</strong> __________</p><p>Instrucción breve.</p><ol><li>Consigna 1</li><li>Consigna 2</li></ol>"
 }`;
 
 function aplicarPlantilla(plantilla, vars) {

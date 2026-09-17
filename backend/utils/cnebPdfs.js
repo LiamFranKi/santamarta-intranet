@@ -5,6 +5,7 @@ const { query } = require('./mysql');
 const { getColegioData } = require('./colegio');
 const { cargarCorte } = require('./cnebAuxiliar');
 const { cargarSesion } = require('./cnebSesionStore');
+const { htmlABloques, htmlATextoPlano } = require('./cnebTextoRico');
 
 const ESCALA = [
   {
@@ -330,6 +331,38 @@ async function informePdfBuffer(cid, { anio, bimestre, grupoId, nivel, matricula
   };
 }
 
+function dibujarTextoRico(doc, html, x, y, width, { fontSize = 9 } = {}) {
+  const bloques = htmlABloques(html);
+  if (!bloques.length) {
+    const plano = htmlATextoPlano(html) || '—';
+    doc.fillColor(COLOR.ink).font('Helvetica').fontSize(fontSize).text(plano, x, y, { width });
+    return doc.y + 6;
+  }
+  bloques.forEach((b, idx) => {
+    y = ensure(doc, y, fontSize + 8);
+    const indent = b.type === 'li' ? 12 : 0;
+    const parts = b.parts.length ? b.parts : [{ text: ' ', bold: false }];
+    if (b.type === 'li') {
+      doc.fillColor(COLOR.ink).font('Helvetica').fontSize(fontSize).text('•', x, y, { width: 10 });
+    }
+    parts.forEach((p, i) => {
+      const last = i === parts.length - 1;
+      const prefix = b.type === 'h' || (b.type === 'p' && idx === 0 && p.bold && i === 0) ? '' : '';
+      doc
+        .fillColor(COLOR.ink)
+        .font(p.bold || b.type === 'h' ? 'Helvetica-Bold' : 'Helvetica')
+        .fontSize(b.type === 'h' ? fontSize + 1 : fontSize)
+        .text(`${prefix}${p.text}`, i === 0 ? x + indent : undefined, i === 0 ? y : undefined, {
+          width: width - indent,
+          continued: !last,
+          lineGap: 1.5,
+        });
+    });
+    y = doc.y + (b.type === 'h' ? 6 : 4);
+  });
+  return y;
+}
+
 function momentoTitulo(tipo) {
   if (tipo === 'inicio') return 'Inicio';
   if (tipo === 'cierre') return 'Cierre';
@@ -372,13 +405,11 @@ function dibujarFichaPagina(doc, { colegio, ses, grupo, fecha, formato }) {
   filaDato(doc, y, 'EDAD', '______', 36 + inner * 0.62, inner * 0.38);
   y += 24;
   const texto = textoFichaSesion(ses);
-  const th = Math.max(80, doc.heightOfString(texto, { width: inner - 16, fontSize: 10 }) + 16);
-  y = ensure(doc, y, Math.min(th, 200));
-  doc.rect(36, y, inner, Math.min(th, doc.page.height - y - 90)).strokeColor(COLOR.line).stroke();
-  doc.fillColor(COLOR.ink).font('Helvetica').fontSize(10).text(texto, 44, y + 8, {
-    width: inner - 16,
-  });
-  y += Math.min(th, doc.page.height - y - 90) + 16;
+  const cajaTop = y;
+  const cajaH = Math.max(120, doc.page.height - y - 100);
+  doc.rect(36, cajaTop, inner, cajaH).strokeColor(COLOR.line).stroke();
+  y = dibujarTextoRico(doc, texto, 44, cajaTop + 8, inner - 16, { fontSize: 10 });
+  y = Math.max(y, cajaTop + cajaH) + 12;
   y = ensure(doc, y, 70);
   doc.fillColor(COLOR.muted).font('Helvetica').fontSize(7.5).text(
     minedu
@@ -442,10 +473,8 @@ async function sesionPdfBuffer(cid, sesionId, { parte = 'sesion', formato = 'col
       doc.rect(36, y, inner, 16).fillAndStroke(COLOR.teal, COLOR.teal);
       doc.fillColor('#fff').font('Helvetica-Bold').fontSize(9).text(`${momentoTitulo(tipo)}  ·  ${mins} min`, 42, y + 4);
       y += 18;
-      const th = Math.max(24, doc.heightOfString(texto, { width: inner - 8, fontSize: 9 }) + 8);
-      y = ensure(doc, y, th);
-      doc.fillColor(COLOR.ink).font('Helvetica').fontSize(9).text(texto, 40, y, { width: inner - 8 });
-      y += th + 8;
+      y = dibujarTextoRico(doc, texto, 40, y, inner - 8, { fontSize: 9 });
+      y += 8;
     });
     const cotejo = ses.cotejo || [];
     if (cotejo.length) {

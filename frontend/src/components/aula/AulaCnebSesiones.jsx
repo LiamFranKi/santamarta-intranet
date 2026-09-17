@@ -5,6 +5,8 @@ import AdminCnebAuxiliar from '../../pages/admin/AdminCnebAuxiliar';
 import AdminCnebSesiones, { hallarAreaCneb } from '../../pages/admin/AdminCnebSesiones';
 import AdminCnebCorte from '../../pages/admin/AdminCnebCorte';
 import EvidenciasGaleria from './EvidenciasGaleria';
+import CnebHtmlVista from './CnebHtmlVista';
+import { htmlVacio } from '../../utils/cnebTextoRico';
 import '../../pages/admin/AdminCnebPiloto.css';
 import './AulaCnebSesiones.css';
 
@@ -342,7 +344,7 @@ export default function AulaCnebSesiones({
                         {titulo}
                         {esDocente && mins ? <span> {mins} min</span> : null}
                       </h5>
-                      <p>{texto || 'Aún no hay texto en este momento.'}</p>
+                      <CnebHtmlVista html={texto} vacio="Aún no hay texto en este momento." />
                     </article>
                   );
                 })}
@@ -354,6 +356,20 @@ export default function AulaCnebSesiones({
                         <li key={d.id}>{d.texto}</li>
                       ))}
                     </ol>
+                  </article>
+                ) : null}
+                {!htmlVacio(sesion.ficha_estudiante) ? (
+                  <article className="aula-cneb-momento aula-cneb-ficha-vista">
+                    <h5>Ficha del estudiante</h5>
+                    <p className="aula-cneb-row-sub">
+                      Así queda la hoja que se imprime. El niño dibuja o escribe; no es una nota.
+                    </p>
+                    <div className="cneb-ficha-preview">
+                      <CnebHtmlVista html={sesion.ficha_estudiante} />
+                      <div className="cneb-ficha-dibujo" aria-hidden>
+                        Espacio para dibujar o escribir
+                      </div>
+                    </div>
                   </article>
                 ) : null}
                 {esDocente && (sesion.cotejo || []).length > 0 && vista === 'plan' ? (

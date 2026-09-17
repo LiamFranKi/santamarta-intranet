@@ -64,11 +64,18 @@
 
 .aula-cneb-momento p,
 .aula-cneb-momento li {
-  margin: 0;
-  white-space: pre-wrap;
+  margin: 0 0 0.4rem;
   color: #1e293b;
-  line-height: 1.45;
+  line-height: 1.5;
   font-size: 0.92rem;
+}
+
+.aula-cneb-momento .cneb-rich {
+  white-space: normal;
+}
+
+.aula-cneb-ficha-vista .cneb-ficha-preview {
+  margin-top: 0.55rem;
 }
 
 .aula-cneb-momento ol {

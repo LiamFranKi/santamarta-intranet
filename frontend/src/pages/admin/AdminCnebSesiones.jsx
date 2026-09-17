@@ -1,6 +1,66 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
+import CnebHtmlVista from '../../components/aula/CnebHtmlVista';
+import { htmlVacio, textoCnebAHtml } from '../../utils/cnebTextoRico';
+
+const QUILL_CNEB = {
+  toolbar: [
+    ['bold', 'italic', 'underline'],
+    [{ header: [3, 4, false] }],
+    [{ list: 'ordered' }, { list: 'bullet' }],
+    ['clean'],
+  ],
+};
+
+const QUILL_FORMATS = ['bold', 'italic', 'underline', 'header', 'list', 'bullet'];
+
+function urlVanguarcito() {
+  const base = String(api.defaults?.baseURL || '').replace(/\/api\/?$/i, '');
+  if (base) return `${base}/assets/fichas-ia/vanguarcito.png`;
+  const { protocol, hostname } = window.location;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:5000/assets/fichas-ia/vanguarcito.png';
+  }
+  return `${protocol}//${hostname}/assets/fichas-ia/vanguarcito.png`;
+}
+
+function abrirSwalGenerandoCneb() {
+  Swal.fire({
+    html: `
+      <div class="cneb-ia-carga">
+        <div class="cneb-ia-mascota-wrap">
+          <div class="cneb-ia-aura" aria-hidden="true"></div>
+          <img src="${urlVanguarcito()}" alt="" class="cneb-ia-mascota" />
+        </div>
+        <h3 class="cneb-ia-titulo">Vanguarcito está armando la sesión</h3>
+        <p class="cneb-ia-texto">Redacta inicio, desarrollo, cierre y la ficha del estudiante con el catálogo CNEB.</p>
+        <div class="cneb-ia-bar"><div class="cneb-ia-bar-inner"></div></div>
+        <p class="cneb-ia-hint">Puede tardar un minuto · no cierre esta ventana</p>
+        <p class="cneb-ia-dots"><span>●</span><span> ●</span><span> ●</span></p>
+      </div>
+    `,
+    showConfirmButton: false,
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    customClass: { popup: 'cneb-ia-swal' },
+    didOpen: () => {
+      const loader = Swal.getContainer()?.querySelector('.swal2-loader');
+      if (loader) loader.style.display = 'none';
+      const img = Swal.getPopup()?.querySelector('.cneb-ia-mascota');
+      if (!img) return;
+      img.onerror = () => {
+        const span = document.createElement('span');
+        span.className = 'cneb-ia-emoji';
+        span.setAttribute('aria-hidden', 'true');
+        span.textContent = '🤖';
+        img.replaceWith(span);
+      };
+    },
+  });
+}
 
 const DURACIONES = [45, 60, 90];
 
@@ -237,7 +297,7 @@ export default function AdminCnebSesiones({
         id: s.id,
         titulo: s.titulo || '',
         proposito: s.proposito || '',
-        ficha_estudiante: s.ficha_estudiante || '',
+        ficha_estudiante: textoCnebAHtml(s.ficha_estudiante),
         duracion_min: Number(s.duracion_min) || 60,
         grupo_id: s.grupo_id != null ? String(s.grupo_id) : '',
         asignatura_id: s.asignatura_id != null ? s.asignatura_id : null,
@@ -247,7 +307,11 @@ export default function AdminCnebSesiones({
         fecha_sesion: s.fecha_sesion ? String(s.fecha_sesion).slice(0, 10) : '',
         estado: s.estado || 'borrador',
         desempeno_ids: s.desempeno_ids || [],
-        momentos: s.momentos || { inicio: '', desarrollo: '', cierre: '' },
+        momentos: {
+          inicio: textoCnebAHtml(s.momentos?.inicio),
+          desarrollo: textoCnebAHtml(s.momentos?.desarrollo),
+          cierre: textoCnebAHtml(s.momentos?.cierre),
+        },
         minutos: s.minutos || partirMinutos(s.duracion_min),
         cotejo: (s.cotejo || []).map((c) => ({ item: c.item, desempeno_id: c.desempeno_id })),
       });
@@ -282,9 +346,13 @@ export default function AdminCnebSesiones({
     patch({
       titulo: (forzarTitulo || !form.titulo) && b.titulo ? b.titulo : form.titulo,
       proposito: forzarProposito || !form.proposito ? b.proposito || form.proposito : form.proposito,
-      ficha_estudiante: b.ficha || b.ficha_estudiante || form.ficha_estudiante,
+      ficha_estudiante: textoCnebAHtml(b.ficha || b.ficha_estudiante || form.ficha_estudiante),
       minutos: b.minutos || form.minutos,
-      momentos: b.momentos || form.momentos,
+      momentos: {
+        inicio: textoCnebAHtml(b.momentos?.inicio || form.momentos.inicio),
+        desarrollo: textoCnebAHtml(b.momentos?.desarrollo || form.momentos.desarrollo),
+        cierre: textoCnebAHtml(b.momentos?.cierre || form.momentos.cierre),
+      },
       cotejo: (b.cotejo || []).map((item) => ({ item: typeof item === 'string' ? item : item.item })),
     });
   };
@@ -302,6 +370,7 @@ export default function AdminCnebSesiones({
       return;
     }
     setGenerating(true);
+    abrirSwalGenerandoCneb();
     try {
       const { data } = await api.post(
         `${apiBase}/sesiones/generar-ia`,
@@ -323,6 +392,7 @@ export default function AdminCnebSesiones({
         forzarProposito: !form.proposito,
         forzarTitulo: !form.titulo.trim(),
       });
+      Swal.close();
       await Swal.fire({
         icon: 'success',
         title: 'Borrador con IA',
@@ -331,6 +401,7 @@ export default function AdminCnebSesiones({
           : 'Revise y ajuste el texto.',
       });
     } catch (e) {
+      Swal.close();
       Swal.fire({
         icon: 'error',
         title: 'No se pudo generar con IA',
@@ -738,10 +809,15 @@ export default function AdminCnebSesiones({
               />
             </label>
           </div>
-          <textarea
-            rows={5}
-            value={form.momentos[tipo]}
-            onChange={(e) => patch({ momentos: { ...form.momentos, [tipo]: e.target.value } })}
+          <ReactQuill
+            theme="snow"
+            className="cneb-quill"
+            modules={QUILL_CNEB}
+            formats={QUILL_FORMATS}
+            value={form.momentos[tipo] || ''}
+            onChange={(html) =>
+              setForm((f) => ({ ...f, momentos: { ...f.momentos, [tipo]: html } }))
+            }
             placeholder={
               tipo === 'inicio'
                 ? 'Motivación, saberes previos, problematización y propósito…'
@@ -753,18 +829,39 @@ export default function AdminCnebSesiones({
         </div>
       ))}
 
-      <label className="cneb-select-wrap cneb-full">
-        <span>Ficha del estudiante</span>
-        <textarea
-          rows={8}
-          value={form.ficha_estudiante}
-          onChange={(e) => patch({ ficha_estudiante: e.target.value })}
-          placeholder="Nombre, fecha, consignas numeradas, espacio para dibujar o escribir…"
-        />
-      </label>
+      <div className="cneb-ficha-grid">
+        <label className="cneb-select-wrap cneb-full">
+          <span>Ficha del estudiante (editar)</span>
+          <ReactQuill
+            theme="snow"
+            className="cneb-quill"
+            modules={QUILL_CNEB}
+            formats={QUILL_FORMATS}
+            value={form.ficha_estudiante || ''}
+            onChange={(html) => setForm((f) => ({ ...f, ficha_estudiante: html }))}
+            placeholder="Título, nombre, fecha y consignas numeradas…"
+          />
+        </label>
+        <div className="cneb-ficha-preview-wrap">
+          <span className="cneb-ficha-preview-label">Así se verá al imprimir</span>
+          <div className="cneb-ficha-preview">
+            {htmlVacio(form.ficha_estudiante) ? (
+              <p className="cneb-muted">
+                Genere con IA o escriba consignas. Aquí verá negritas, listas y espacios como en
+                el PDF.
+              </p>
+            ) : (
+              <CnebHtmlVista html={form.ficha_estudiante} />
+            )}
+            <div className="cneb-ficha-dibujo" aria-hidden>
+              Espacio para dibujar o escribir
+            </div>
+          </div>
+        </div>
+      </div>
       <p className="cneb-muted">
-        Texto para imprimir y archivar evidencia física. La IA lo propone; puede dejarlo con nuestro
-        lenguaje de aula o descargar la versión con membrete MINEDU.
+        Hoja para archivar evidencia física. Use negrita y listas; el PDF respeta ese formato. Puede
+        descargar la versión colegio o con membrete MINEDU.
       </p>
 
       <h3 className="cneb-uso-title">Lista de cotejo</h3>

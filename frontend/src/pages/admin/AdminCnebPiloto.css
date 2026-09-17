@@ -1052,3 +1052,234 @@
   color: var(--cneb-ink);
   background: #f8fafc;
 }
+
+.cneb-quill .ql-toolbar {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px 10px 0 0;
+  background: #fff;
+}
+
+.cneb-quill .ql-container {
+  border: 1px solid #cbd5e1;
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  background: #fff;
+  min-height: 8.5rem;
+  font-family: inherit;
+  font-size: 0.92rem;
+}
+
+.cneb-quill .ql-editor {
+  min-height: 8.5rem;
+  color: #0f172a;
+  line-height: 1.5;
+}
+
+.cneb-quill .ql-editor p,
+.cneb-rich p {
+  margin: 0 0 0.45rem;
+}
+
+.cneb-quill .ql-editor ol,
+.cneb-quill .ql-editor ul,
+.cneb-rich ol,
+.cneb-rich ul {
+  margin: 0 0 0.55rem;
+  padding-left: 1.25rem;
+}
+
+.cneb-rich {
+  color: #0f172a;
+  line-height: 1.5;
+  font-size: 0.92rem;
+}
+
+.cneb-rich strong,
+.cneb-rich b {
+  color: #0f766e;
+  font-weight: 800;
+}
+
+.cneb-rich h3,
+.cneb-rich h4 {
+  margin: 0 0 0.4rem;
+  color: #0f766e;
+}
+
+.cneb-ficha-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem;
+  margin: 0.4rem 0 0.35rem;
+}
+
+@media (max-width: 900px) {
+  .cneb-ficha-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cneb-ficha-preview-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.cneb-ficha-preview-label,
+.cneb-ficha-grid .cneb-select-wrap > span {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.cneb-ficha-preview {
+  background: #fffef7;
+  border: 1px solid #e7d7a7;
+  border-radius: 14px;
+  padding: 1rem 1.1rem 0.85rem;
+  min-height: 14rem;
+  box-shadow: 0 10px 28px rgba(120, 83, 16, 0.08);
+}
+
+.cneb-ficha-dibujo {
+  margin-top: 0.75rem;
+  min-height: 4.2rem;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 10px;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.02em;
+}
+
+.swal2-popup.cneb-ia-swal {
+  border-radius: 20px !important;
+  padding: 1.5rem 1.25rem 1.75rem !important;
+  max-width: 420px !important;
+  background: linear-gradient(180deg, #ecfdf5 0%, #fff 55%) !important;
+  border: 2px solid #5eead4 !important;
+}
+
+.cneb-ia-carga {
+  text-align: center;
+  padding: 0.25rem 0;
+}
+
+.cneb-ia-mascota-wrap {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  margin: 0 auto 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cneb-ia-aura {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, #2dd4bf, #34d399, #a78bfa, #fbbf24, #2dd4bf);
+  opacity: 0.35;
+  animation: cneb-ia-spin 4s linear infinite;
+  filter: blur(8px);
+}
+
+.cneb-ia-mascota {
+  position: relative;
+  z-index: 2;
+  width: 180px;
+  height: auto;
+  max-height: 190px;
+  object-fit: contain;
+  animation: cneb-ia-bounce 1.8s ease-in-out infinite;
+  filter: drop-shadow(0 12px 24px rgba(15, 118, 110, 0.35));
+}
+
+.cneb-ia-emoji {
+  position: relative;
+  z-index: 2;
+  font-size: 5.5rem;
+  line-height: 1;
+  animation: cneb-ia-bounce 1.8s ease-in-out infinite;
+}
+
+.cneb-ia-titulo {
+  margin: 0 0 0.5rem;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #0f766e;
+}
+
+.cneb-ia-texto {
+  margin: 0 0 1rem;
+  font-size: 0.92rem;
+  color: #475569;
+  line-height: 1.45;
+}
+
+.cneb-ia-bar {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+
+.cneb-ia-bar-inner {
+  height: 100%;
+  width: 40%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0d9488, #22c55e, #0d9488);
+  background-size: 200% 100%;
+  animation: cneb-ia-bar 1.6s ease-in-out infinite;
+}
+
+.cneb-ia-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.cneb-ia-dots {
+  margin-top: 0.5rem;
+  font-size: 1.2rem;
+  color: #0d9488;
+}
+
+.cneb-ia-dots span {
+  animation: cneb-ia-dots 1.4s ease-in-out infinite;
+}
+
+.cneb-ia-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.cneb-ia-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes cneb-ia-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes cneb-ia-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes cneb-ia-bar {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+
+@keyframes cneb-ia-dots {
+  0%, 20% { opacity: 0.2; }
+  50% { opacity: 1; }
+}

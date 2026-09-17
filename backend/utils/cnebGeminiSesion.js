@@ -2,6 +2,7 @@ const axios = require('axios');
 const { geminiDisponible, modelosAProbar } = require('../services/fichasIa/geminiFichaService');
 const { partirMinutos } = require('./cnebSesionBorrador');
 const { PROMPT_SESION_DEFAULT, aplicarPlantilla } = require('../data/cnebPromptSesionDefault');
+const { textoCnebAHtml } = require('./cnebTextoRico');
 
 function extraerJson(text) {
   const cleaned = String(text || '')
@@ -84,12 +85,12 @@ function normalizarSalida(parsed, duracionMin) {
     proposito: String(parsed?.proposito || '').trim(),
     minutos,
     momentos: {
-      inicio: String(mom.inicio || '').trim(),
-      desarrollo: String(mom.desarrollo || '').trim(),
-      cierre: String(mom.cierre || '').trim(),
+      inicio: textoCnebAHtml(mom.inicio),
+      desarrollo: textoCnebAHtml(mom.desarrollo),
+      cierre: textoCnebAHtml(mom.cierre),
     },
     cotejo,
-    ficha: String(parsed?.ficha || '').trim(),
+    ficha: textoCnebAHtml(parsed?.ficha),
   };
 }
 
@@ -107,6 +108,10 @@ async function generarSesionConIa({ plantilla, vars, duracionMin }) {
   if (!/"titulo"/i.test(plantillaUso)) {
     plantillaUso +=
       '\nSi el tema ({{titulo}}) viene vacío, propone un "titulo" concreto dentro de la competencia.';
+  }
+  if (!/<p|<strong|html/i.test(plantillaUso)) {
+    plantillaUso +=
+      '\nEn momentos.inicio, momentos.desarrollo, momentos.cierre y ficha usa HTML simple: <p>, <strong>, <ol><li>, <ul><li>. Destaca en negrita cada momento (Motivación, Saberes previos, Problematización, Propósito, Actividades, Materiales, Evidencia, Metacognición). En la ficha incluye título, nombre, fecha y consignas numeradas.';
   }
   const prompt = aplicarPlantilla(plantillaUso, vars);
   const { parsed, modelo, raw, tokens_entrada, tokens_salida } = await llamarGeminiJson(prompt);
