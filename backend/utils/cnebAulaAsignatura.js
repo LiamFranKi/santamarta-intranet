@@ -8,6 +8,48 @@ function nivelDesdeNombre(nombre) {
   return null;
 }
 
+function normalizarNombre(s) {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+const HINTS_AREA_INICIAL = [
+  { codigo: 'PS', keys: ['personal social', 'psicosocial', 'identidad'] },
+  { codigo: 'REL', keys: ['religion', 'religiosa', 'catequesis'] },
+  { codigo: 'PSI', keys: ['psicomot', 'educacion fisica', 'ed fisica', 'motricidad'] },
+  { codigo: 'COM', keys: ['comunicacion', 'lenguaje', 'castellano'] },
+  { codigo: 'MAT', keys: ['matematic', 'logico'] },
+  { codigo: 'CYT', keys: ['ciencia', 'tecnolog', 'exploracion'] },
+];
+
+async function resolverAreaPorCurso(cursoNombre) {
+  const areas = await query(
+    `SELECT id, codigo, nombre FROM cneb_areas
+     WHERE nivel_cneb = 'INICIAL' AND activo = 1 AND tipo <> 'transversal'
+     ORDER BY orden ASC, id ASC`
+  ).catch(() => []);
+  const n = normalizarNombre(cursoNombre);
+  if (!n || !(areas || []).length) return null;
+  const exacta = areas.find((a) => normalizarNombre(a.nombre) === n);
+  if (exacta) return exacta;
+  const parcial = areas.find((a) => {
+    const an = normalizarNombre(a.nombre);
+    return n.includes(an) || an.includes(n);
+  });
+  if (parcial) return parcial;
+  for (const hint of HINTS_AREA_INICIAL) {
+    if (hint.keys.some((k) => n.includes(k))) {
+      const area = areas.find((a) => a.codigo === hint.codigo);
+      if (area) return area;
+    }
+  }
+  return null;
+}
+
 async function contextoAulaCneb(cid, asignaturaId) {
   const aid = parseInt(asignaturaId, 10);
   if (!cid || !Number.isFinite(aid)) return null;
@@ -41,6 +83,17 @@ async function contextoAulaCneb(cid, asignaturaId) {
       mapa = m || null;
     } catch (e) {
       if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
+    }
+    if (!mapa || (mapa.tipo !== 'complementario' && !mapa.area_id)) {
+      const resuelta = await resolverAreaPorCurso(row.curso_nombre);
+      if (resuelta) {
+        mapa = {
+          tipo: 'principal',
+          area_id: resuelta.id,
+          area_nombre: resuelta.nombre,
+          area_codigo: resuelta.codigo,
+        };
+      }
     }
   }
   return {

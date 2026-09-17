@@ -1,4 +1,6 @@
-.cneb-page {
+.cneb-page,
+.cneb-panel,
+.aula-cneb-card {
   --cneb-ink: #0f172a;
   --cneb-muted: #64748b;
   --cneb-line: #e2e8f0;
@@ -7,6 +9,9 @@
   --cneb-teal: #0f766e;
   --cneb-sky: #0369a1;
   --cneb-font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.cneb-page {
   max-width: 1180px;
   margin: 0 auto;
   padding: 0 0 3rem;
@@ -299,11 +304,12 @@
 }
 
 .cneb-panel {
-  background: var(--cneb-card);
-  border: 1px solid var(--cneb-line);
+  background: var(--cneb-card, #fff);
+  border: 1px solid var(--cneb-line, #e2e8f0);
   border-radius: 18px;
   padding: 1.1rem 1.15rem 1.25rem;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+  color: var(--cneb-ink, #0f172a);
 }
 
 .cneb-catalog {
@@ -902,18 +908,20 @@
 
 .cneb-table th,
 .cneb-table td {
-  border-bottom: 1px solid var(--cneb-line);
-  border-right: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--cneb-line, #e2e8f0);
+  border-right: 1px solid #e2e8f0;
   padding: 0.4rem 0.45rem;
   vertical-align: middle;
   background: #fff;
+  color: #0f172a;
 }
 
 .cneb-table thead th {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #f8fafc;
+  background: #0f766e;
+  color: #fff;
   font-size: 0.72rem;
   font-weight: 800;
   text-align: left;
@@ -921,10 +929,21 @@
 
 .cneb-table--corte thead tr:first-child th {
   top: 0;
+  background: #0f766e;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 
 .cneb-table--corte thead tr:nth-child(2) th {
-  top: 2.1rem;
+  top: 2.15rem;
+  background: #115e59;
+  color: #ecfdf5;
+  font-weight: 700;
+  max-width: 7.5rem;
+  white-space: normal;
+  line-height: 1.25;
 }
 
 .cneb-sticky {
@@ -933,12 +952,19 @@
   z-index: 1;
   min-width: 160px;
   background: #fff;
+  color: #0f172a;
   box-shadow: 4px 0 8px rgba(15, 23, 42, 0.04);
 }
 
 .cneb-table thead .cneb-sticky {
   z-index: 3;
-  background: #f8fafc;
+  background: #0f766e;
+  color: #fff;
+}
+
+.cneb-table tbody td.cneb-sticky {
+  background: #fff;
+  color: #0f172a;
 }
 
 .cneb-logro,
@@ -988,7 +1014,25 @@
 }
 
 .cneb-th-corte {
-  background: #ecfdf5 !important;
+  background: #0f766e !important;
+  color: #fff !important;
+}
+
+.cneb-leyenda-corte {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1.1rem;
+  margin: 0.75rem 0 0;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid #ccfbf1;
+  border-radius: 12px;
+  background: #f0fdfa;
+  color: #0f172a;
+  font-size: 0.78rem;
+}
+
+.cneb-leyenda-corte strong {
+  color: #0f766e;
 }
 
 .cneb-th-muted {

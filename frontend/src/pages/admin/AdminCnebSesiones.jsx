@@ -4,6 +4,42 @@ import Swal from 'sweetalert2';
 
 const DURACIONES = [45, 60, 90];
 
+export function hallarAreaCneb(areas, areaId, nombre) {
+  const list = (areas || []).filter((a) => a.tipo !== 'transversal');
+  if (areaId != null && areaId !== '') {
+    const byId = list.find((a) => String(a.id) === String(areaId));
+    if (byId) return byId;
+  }
+  const n = String(nombre || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+  if (!n) return null;
+  const exacta = list.find((a) => {
+    const an = String(a.nombre || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+    return an === n;
+  });
+  if (exacta) return exacta;
+  return (
+    list.find((a) => {
+      const an = String(a.nombre || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+      return n.includes(an) || an.includes(n);
+    }) || null
+  );
+}
+
 function partirMinutos(total) {
   const t = Math.max(20, parseInt(total, 10) || 60);
   if (t <= 45) return { inicio: 8, desarrollo: t - 15, cierre: 7 };
@@ -161,11 +197,23 @@ export default function AdminCnebSesiones({
   };
 
   useEffect(() => {
-    if (!embebido || form.id || form.competencia_id || !form.area_id) return;
-    const a = (areas || []).find((x) => String(x.id) === String(form.area_id));
-    const first = a?.competencias?.[0];
-    if (first) patch({ competencia_id: String(first.id) });
-  }, [embebido, form.id, form.area_id, form.competencia_id, areas]);
+    if (!embebido || form.id) return;
+    const encontrada = hallarAreaCneb(
+      areas,
+      form.area_id || contextoAula?.area_id,
+      contextoAula?.area_nombre
+    );
+    if (!encontrada) return;
+    const first = encontrada.competencias?.[0];
+    setForm((f) => {
+      const nextArea = String(encontrada.id);
+      const nextComp = f.competencia_id || (first ? String(first.id) : '');
+      if (String(f.area_id) === nextArea && String(f.competencia_id || '') === String(nextComp || '')) {
+        return f;
+      }
+      return { ...f, area_id: nextArea, competencia_id: nextComp, desempeno_ids: f.desempeno_ids || [] };
+    });
+  }, [embebido, form.id, areas, contextoAula]);
 
   const toggleDes = (id) => {
     const sid = String(id);
@@ -570,16 +618,12 @@ export default function AdminCnebSesiones({
         </label>
         <label className="cneb-select-wrap">
           <span>Área CNEB</span>
-          {embebido ? (
+          {embebido && areaForm ? (
             <input
               type="text"
               className="cneb-search"
               readOnly
-              value={
-                contextoAula?.area_nombre ||
-                areaForm?.nombre ||
-                (!form.area_id ? 'Taller interno (no SIAGIE)' : 'Área')
-              }
+              value={areaForm.nombre || contextoAula?.area_nombre || 'Área'}
             />
           ) : (
             <select value={form.area_id} onChange={(e) => onArea(e.target.value)}>
@@ -601,7 +645,7 @@ export default function AdminCnebSesiones({
             onChange={(e) => patch({ competencia_id: e.target.value, desempeno_ids: [] })}
             disabled={!comps.length}
           >
-            <option value="">Elegir competencia…</option>
+            <option value="">{comps.length ? 'Elegir competencia…' : 'Cargando competencias…'}</option>
             {comps.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.nombre}

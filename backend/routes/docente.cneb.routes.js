@@ -164,7 +164,16 @@ router.get('/aula/:asignaturaId', async (req, res) => {
       return res.status(403).json({ error: 'Esa aula no es suya.' });
     }
     const sesiones = ctx.es_inicial ? await listarSesionesAula(cid, ctx) : [];
-    res.json({ ...ctx, sesiones });
+    let areas = [];
+    if (ctx.es_inicial) {
+      try {
+        const arbol = await arbolCatalogo('INICIAL');
+        areas = arbol.areas || [];
+      } catch {
+        areas = [];
+      }
+    }
+    res.json({ ...ctx, sesiones, areas });
   } catch (e) {
     console.error('[docente/cneb/aula]', e);
     res.status(500).json({ error: e.message || 'No se pudo abrir el aula CNEB.' });

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import AdminCnebAuxiliar from '../../pages/admin/AdminCnebAuxiliar';
-import AdminCnebSesiones from '../../pages/admin/AdminCnebSesiones';
+import AdminCnebSesiones, { hallarAreaCneb } from '../../pages/admin/AdminCnebSesiones';
 import AdminCnebCorte from '../../pages/admin/AdminCnebCorte';
 import EvidenciasGaleria from './EvidenciasGaleria';
 import '../../pages/admin/AdminCnebPiloto.css';
@@ -77,6 +77,7 @@ export default function AulaCnebSesiones({
     try {
       const { data } = await api.get(`${apiBase}/aula/${asignaturaId}`);
       setMeta(data);
+      if (data?.areas?.length) setAreasCat(data.areas);
       if (onActivoRef.current) onActivoRef.current(Boolean(data?.es_inicial));
     } catch {
       setMeta(null);
@@ -112,15 +113,20 @@ export default function AulaCnebSesiones({
     const corte = Number.isFinite(grado) && grado >= 3 && grado <= 5 ? grado : 5;
     const aula = [meta.grado != null ? String(meta.grado) : '', meta.seccion || ''].filter(Boolean).join(' ') || 'Esta aula';
     const tallerMapa = meta.mapa?.tipo === 'complementario';
+    const areaResuelta = tallerMapa
+      ? null
+      : hallarAreaCneb(areasCat, meta.mapa?.area_id, meta.mapa?.area_nombre || meta.curso_nombre);
     return {
       grupo_id: meta.grupo_id,
       asignatura_id: meta.asignatura_id,
-      area_id: tallerMapa ? '' : meta.mapa?.area_id || '',
-      area_nombre: tallerMapa ? 'Taller interno' : meta.mapa?.area_nombre || meta.curso_nombre || '',
+      area_id: tallerMapa ? '' : areaResuelta?.id || meta.mapa?.area_id || '',
+      area_nombre: tallerMapa
+        ? 'Taller interno'
+        : areaResuelta?.nombre || meta.mapa?.area_nombre || meta.curso_nombre || '',
       corte,
       aula_label: `${aula} · ${corte} años`,
     };
-  }, [meta]);
+  }, [meta, areasCat]);
 
   const abrir = async (id) => {
     try {

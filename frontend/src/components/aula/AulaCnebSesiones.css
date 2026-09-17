@@ -122,3 +122,42 @@
 .aula-cneb-auxiliar {
   overflow-x: auto;
 }
+
+.aula-cneb-card .card-content-expanded .cneb-table thead,
+.aula-cneb-card .cneb-table thead {
+  background: #0f766e;
+  color: #fff;
+}
+
+.aula-cneb-card .card-content-expanded .cneb-table thead th,
+.aula-cneb-card .cneb-table thead th {
+  background: #0f766e;
+  color: #fff;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+.aula-cneb-card .card-content-expanded .cneb-table--corte thead tr:nth-child(2) th,
+.aula-cneb-card .cneb-table--corte thead tr:nth-child(2) th {
+  background: #115e59;
+  color: #ecfdf5;
+}
+
+.aula-cneb-card .card-content-expanded .cneb-table td,
+.aula-cneb-card .cneb-table td {
+  text-align: left;
+  color: #0f172a;
+  background: #fff;
+}
+
+.aula-cneb-card .card-content-expanded .cneb-table tbody td.cneb-sticky,
+.aula-cneb-card .cneb-table tbody td.cneb-sticky {
+  background: #fff;
+  color: #0f172a;
+}
+
+.aula-cneb-card .cneb-panel {
+  background: #fff;
+  color: #0f172a;
+}

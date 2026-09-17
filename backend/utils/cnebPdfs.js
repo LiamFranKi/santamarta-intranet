@@ -52,11 +52,16 @@ function logoColegioPath() {
   return null;
 }
 
+function logoMineduPath() {
+  const p = path.join(__dirname, '..', 'public', 'assets', 'logos', 'minedu.png');
+  return fs.existsSync(p) ? p : null;
+}
+
 function pdfToBuffer(build) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: 'A4',
-      margin: 36,
+      margin: 28,
       info: { Title: 'Informe CNEB', Author: 'Intranet Vanguard' },
     });
     const chunks = [];
@@ -85,6 +90,15 @@ function bimRoman(b) {
 }
 
 function dibujarSelloMinedu(doc, x, y, w, h) {
+  const logo = logoMineduPath();
+  if (logo) {
+    try {
+      doc.image(logo, x, y, { fit: [w, h], align: 'right', valign: 'center' });
+      return;
+    } catch {
+      /* sello dibujado */
+    }
+  }
   doc.save();
   doc.roundedRect(x, y, w, h, 4).fillAndStroke('#fff', COLOR.red);
   const band = 7;
@@ -102,36 +116,36 @@ function dibujarSelloMinedu(doc, x, y, w, h) {
 
 function dibujarMembrete(doc, { colegioNombre, subtitulo, tituloOficial }) {
   const pageW = doc.page.width;
-  const left = 36;
-  const top = 28;
+  const left = 28;
+  const top = 22;
   const logo = logoColegioPath();
   if (logo) {
     try {
-      doc.image(logo, left, top, { fit: [92, 40], valign: 'center' });
+      doc.image(logo, left, top, { fit: [78, 36], valign: 'center' });
     } catch {
       /* sin logo */
     }
   }
-  dibujarSelloMinedu(doc, pageW - 36 - 132, top, 132, 42);
-  doc.fillColor(COLOR.ink).font('Helvetica-Bold').fontSize(11).text(String(colegioNombre || 'Institución educativa').toUpperCase(), left + 100, top + 2, {
-    width: pageW - 280,
+  dibujarSelloMinedu(doc, pageW - 28 - 148, top - 2, 148, 40);
+  doc.fillColor(COLOR.ink).font('Helvetica-Bold').fontSize(10).text(String(colegioNombre || 'Institución educativa').toUpperCase(), left + 84, top, {
+    width: pageW - 270,
     align: 'center',
   });
-  doc.fillColor(COLOR.teal).font('Helvetica-Bold').fontSize(9).text(
+  doc.fillColor(COLOR.teal).font('Helvetica-Bold').fontSize(8.5).text(
     tituloOficial || 'INFORME DE PROGRESO DEL ESTUDIANTE',
-    left + 100,
-    top + 18,
+    left + 84,
+    top + 14,
     {
-      width: pageW - 280,
+      width: pageW - 270,
       align: 'center',
     }
   );
-  doc.fillColor(COLOR.muted).font('Helvetica').fontSize(8).text(subtitulo || '', left + 100, top + 32, {
-    width: pageW - 280,
+  doc.fillColor(COLOR.muted).font('Helvetica').fontSize(7.5).text(subtitulo || '', left + 84, top + 26, {
+    width: pageW - 270,
     align: 'center',
   });
-  doc.moveTo(left, top + 50).lineTo(pageW - 36, top + 50).strokeColor(COLOR.teal).lineWidth(1.2).stroke();
-  return top + 58;
+  doc.moveTo(left, top + 42).lineTo(pageW - 28, top + 42).strokeColor(COLOR.teal).lineWidth(1.1).stroke();
+  return top + 48;
 }
 
 function ensure(doc, y, need) {
@@ -155,28 +169,34 @@ function filaDato(doc, y, label, value, x, w) {
   doc.fillColor(COLOR.ink).font('Helvetica').fontSize(8).text(String(value || '—'), x + 46, y + 4, { width: w - 50 });
 }
 
-function dibujarEscala(doc, y) {
-  y = ensure(doc, y, 78);
-  doc.fillColor(COLOR.ink).font('Helvetica-Bold').fontSize(8).text('Escala de calificación (CNEB / MINEDU)', 36, y);
-  y += 12;
-  ESCALA.forEach((e) => {
-    doc.fillColor(letraColor(e.letra)).font('Helvetica-Bold').fontSize(8).text(e.letra, 36, y, { width: 18 });
-    doc.fillColor(COLOR.ink).font('Helvetica-Bold').fontSize(7.5).text(e.titulo, 56, y, { width: 90 });
-    doc.font('Helvetica').fontSize(7).fillColor(COLOR.muted).text(e.texto, 148, y, { width: 410 });
-    y += 14;
+function dibujarEscala(doc, y, inner) {
+  const colW = inner / 4;
+  ESCALA.forEach((e, i) => {
+    const x = 28 + i * colW;
+    doc.rect(x, y, colW, 26).fillAndStroke(i % 2 === 0 ? COLOR.head : '#fff', COLOR.line);
+    doc.fillColor(letraColor(e.letra)).font('Helvetica-Bold').fontSize(8).text(e.letra, x + 4, y + 3, {
+      width: 22,
+    });
+    doc.fillColor(COLOR.ink).font('Helvetica-Bold').fontSize(6.5).text(e.titulo, x + 26, y + 4, {
+      width: colW - 32,
+    });
+    doc.fillColor(COLOR.muted).font('Helvetica').fontSize(5.6).text(e.texto, x + 4, y + 13, {
+      width: colW - 8,
+      height: 12,
+      ellipsis: true,
+    });
   });
-  return y + 4;
+  return y + 28;
 }
 
-function dibujarFirmas(doc, y) {
-  y = ensure(doc, y, 70);
-  const w = (doc.page.width - 72 - 24) / 3;
+function dibujarFirmas(doc, y, inner) {
+  const w = (inner - 16) / 3;
   ['Docente / tutor', 'Dirección', 'Padre / madre / apoderado'].forEach((t, i) => {
-    const x = 36 + i * (w + 12);
-    doc.moveTo(x, y + 28).lineTo(x + w, y + 28).strokeColor(COLOR.line).lineWidth(0.8).stroke();
-    doc.fillColor(COLOR.muted).font('Helvetica').fontSize(7.5).text(t, x, y + 32, { width: w, align: 'center' });
+    const x = 28 + i * (w + 8);
+    doc.moveTo(x, y + 18).lineTo(x + w, y + 18).strokeColor(COLOR.line).lineWidth(0.7).stroke();
+    doc.fillColor(COLOR.muted).font('Helvetica').fontSize(7).text(t, x, y + 21, { width: w, align: 'center' });
   });
-  return y + 52;
+  return y + 34;
 }
 
 function agruparAreas(competencias) {
@@ -210,61 +230,73 @@ async function metaGrupo(cid, grupoId) {
 function dibujarAlumnoInforme(doc, { alumno, competencias, valores, meta, startY }) {
   let y = startY;
   const pageW = doc.page.width;
-  const inner = pageW - 72;
+  const inner = pageW - 56;
   const map = new Map();
   (valores || []).forEach((v) => map.set(`${v.matricula_id}_${v.competencia_id}`, v));
 
-  y = ensure(doc, y, 40);
-  filaDato(doc, y, 'ESTUDIANTE', alumno.nombre, 36, inner * 0.68);
-  filaDato(doc, y, 'DNI', alumno.dni || '—', 36 + inner * 0.68, inner * 0.32);
+  filaDato(doc, y, 'ESTUDIANTE', alumno.nombre, 28, inner * 0.68);
+  filaDato(doc, y, 'DNI', alumno.dni || '—', 28 + inner * 0.68, inner * 0.32);
   y += 16;
-  filaDato(doc, y, 'AULA', aulaLabel(meta.grupo), 36, inner * 0.34);
-  filaDato(doc, y, 'NIVEL', etiquetaNivel(meta.nivel), 36 + inner * 0.34, inner * 0.34);
-  filaDato(doc, y, 'PERIODO', `${bimRoman(meta.bimestre)} bimestre · ${meta.anio}`, 36 + inner * 0.68, inner * 0.32);
-  y += 24;
+  filaDato(doc, y, 'AULA', aulaLabel(meta.grupo), 28, inner * 0.34);
+  filaDato(doc, y, 'NIVEL', etiquetaNivel(meta.nivel), 28 + inner * 0.34, inner * 0.34);
+  filaDato(doc, y, 'PERIODO', `${bimRoman(meta.bimestre)} bimestre · ${meta.anio}`, 28 + inner * 0.68, inner * 0.32);
+  y += 20;
 
   const areas = agruparAreas(competencias);
+  const pieFijo = 92;
+  const usable = doc.page.height - y - pieFijo;
+  const nRows = areas.reduce((acc, [, comps]) => acc + 1 + comps.length, 0) + 2;
+  const rowH = Math.max(11, Math.min(14, Math.floor(usable / Math.max(8, nRows))));
+
   areas.forEach(([area, comps]) => {
-    y = ensure(doc, y, 22 + comps.length * 16);
-    doc.rect(36, y, inner, 16).fillAndStroke(COLOR.teal, COLOR.teal);
-    doc.fillColor('#fff').font('Helvetica-Bold').fontSize(8).text(area.toUpperCase(), 42, y + 4, { width: inner - 12 });
-    y += 16;
+    doc.rect(28, y, inner, rowH).fillAndStroke(COLOR.teal, COLOR.teal);
+    doc.fillColor('#fff').font('Helvetica-Bold').fontSize(7).text(area.toUpperCase(), 32, y + 2.5, {
+      width: inner - 8,
+      height: rowH - 3,
+      ellipsis: true,
+      lineBreak: false,
+    });
+    y += rowH;
     comps.forEach((c, i) => {
-      y = ensure(doc, y, 18);
       const bg = i % 2 === 0 ? '#fff' : COLOR.tealBg;
       const v = map.get(`${alumno.matricula_id}_${c.id}`);
       const letra = v?.letra || '—';
-      doc.rect(36, y, inner - 36, 16).fillAndStroke(bg, COLOR.line);
-      doc.rect(36 + inner - 36, y, 36, 16).fillAndStroke('#fff', COLOR.line);
-      doc.fillColor(COLOR.ink).font('Helvetica').fontSize(7.5).text(c.nombre, 42, y + 4, { width: inner - 50 });
-      doc.fillColor(letraColor(letra)).font('Helvetica-Bold').fontSize(9).text(letra, 36 + inner - 36, y + 4, {
-        width: 36,
+      doc.rect(28, y, inner - 32, rowH).fillAndStroke(bg, COLOR.line);
+      doc.rect(28 + inner - 32, y, 32, rowH).fillAndStroke('#fff', COLOR.line);
+      doc.fillColor(COLOR.ink).font('Helvetica').fontSize(7).text(c.nombre, 32, y + 2.5, {
+        width: inner - 42,
+        height: rowH - 3,
+        ellipsis: true,
+        lineBreak: false,
+      });
+      doc.fillColor(letraColor(letra)).font('Helvetica-Bold').fontSize(8).text(letra, 28 + inner - 32, y + 2, {
+        width: 32,
         align: 'center',
       });
-      y += 16;
+      y += rowH;
     });
-    y += 6;
   });
 
   const conc = conclusionAlumno(valores, alumno.matricula_id);
-  y = ensure(doc, y, 48);
-  doc.rect(36, y, inner, 12).fillAndStroke(COLOR.head, COLOR.line);
-  doc.fillColor(COLOR.ink).font('Helvetica-Bold').fontSize(7.5).text('Conclusión descriptiva del periodo', 42, y + 3);
-  y += 12;
-  const concH = Math.max(28, doc.heightOfString(conc || 'Sin conclusión descriptiva registrada.', { width: inner - 12, fontSize: 8 }) + 10);
-  y = ensure(doc, y, concH);
-  doc.rect(36, y, inner, concH).strokeColor(COLOR.line).stroke();
-  doc.fillColor(COLOR.muted).font('Helvetica').fontSize(8).text(conc || 'Sin conclusión descriptiva registrada.', 42, y + 6, {
-    width: inner - 12,
+  y += 6;
+  doc.rect(28, y, inner, 11).fillAndStroke(COLOR.head, COLOR.line);
+  doc.fillColor(COLOR.ink).font('Helvetica-Bold').fontSize(7).text('Conclusión descriptiva del periodo', 32, y + 2.5);
+  y += 11;
+  const concH = 22;
+  doc.rect(28, y, inner, concH).strokeColor(COLOR.line).stroke();
+  doc.fillColor(COLOR.muted).font('Helvetica').fontSize(7).text(conc || 'Sin conclusión descriptiva registrada.', 32, y + 4, {
+    width: inner - 8,
+    height: concH - 6,
+    ellipsis: true,
   });
-  y += concH + 10;
+  y += concH + 8;
 
-  y = dibujarEscala(doc, y);
-  y = dibujarFirmas(doc, y);
-  doc.fillColor(COLOR.muted).font('Helvetica').fontSize(6.5).text(
-    'Documento interno del colegio, alineado al CNEB. No reemplaza el informe oficial que genera SIAGIE.',
-    36,
-    doc.page.height - 28,
+  y = dibujarEscala(doc, y, inner);
+  y = dibujarFirmas(doc, y + 4, inner);
+  doc.fillColor(COLOR.muted).font('Helvetica').fontSize(6).text(
+    'Documento interno del colegio, alineado al CNEB. El logo MINEDU es referencial y no convierte este archivo en informe oficial de SIAGIE.',
+    28,
+    doc.page.height - 18,
     { width: inner, align: 'center' }
   );
   return y;

@@ -178,8 +178,8 @@ export default function AdminCnebCorte({
         <div>
           <h2>Corte bimestral · {etiquetaNivel ? etiquetaNivel(nivel) : nivel}</h2>
           <p>
-            Letra por competencia (AD, A, B, C) y conclusión del periodo. El informe PDF usa el logo
-            del colegio y la escala oficial CNEB; no sustituye el reporte de SIAGIE.
+            Letra por competencia (AD, A, B, C) y conclusión del periodo. El PDF lleva el logo MINEDU
+            como referencia curricular; no sustituye el reporte oficial de SIAGIE.
           </p>
         </div>
         <div className="cneb-map-actions">
@@ -291,6 +291,22 @@ export default function AdminCnebCorte({
           </table>
         </div>
       )}
+      {data?.alumnos?.length ? (
+        <div className="cneb-leyenda-corte">
+          <span>
+            <strong>AD</strong> Logro destacado
+          </span>
+          <span>
+            <strong>A</strong> Logro esperado
+          </span>
+          <span>
+            <strong>B</strong> En proceso
+          </span>
+          <span>
+            <strong>C</strong> En inicio
+          </span>
+        </div>
+      ) : null}
     </section>
   );
 }
