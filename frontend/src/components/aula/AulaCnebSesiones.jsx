@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import AdminCnebAuxiliar from '../../pages/admin/AdminCnebAuxiliar';
-import AdminCnebSesiones, { hallarAreaCneb } from '../../pages/admin/AdminCnebSesiones';
+import AdminCnebSesiones, { hallarAreaCneb, MarcoCnebVista } from '../../pages/admin/AdminCnebSesiones';
 import AdminCnebCorte from '../../pages/admin/AdminCnebCorte';
 import EvidenciasGaleria from './EvidenciasGaleria';
 import CnebHtmlVista from './CnebHtmlVista';
@@ -129,6 +129,26 @@ export default function AulaCnebSesiones({
       aula_label: `${aula} · ${corte} años`,
     };
   }, [meta, areasCat]);
+
+  const marcoSesion = useMemo(() => {
+    if (!sesion) return null;
+    const area = hallarAreaCneb(areasCat, sesion.area_id, sesion.area_nombre);
+    const comp = (area?.competencias || []).find((c) => String(c.id) === String(sesion.competencia_id));
+    const corte = Number(sesion.corte);
+    const caps = (sesion.capacidades || []).length ? sesion.capacidades : comp?.capacidades || [];
+    const estandar = sesion.estandar_ciclo || comp?.estandar_ciclo || '';
+    const desGuardados = sesion.desempenos || [];
+    const desCatalogo = (comp?.desempenos || []).filter((d) =>
+      Number.isFinite(corte) ? Number(d.edad) === corte || Number(d.grado) === corte : true
+    );
+    return {
+      competenciaNombre: sesion.competencia_nombre || comp?.nombre || '',
+      capacidades: caps,
+      estandar,
+      desempenos: desGuardados.length ? desGuardados : desCatalogo,
+      edadLabel: Number.isFinite(corte) && corte > 0 ? `${corte} años` : '',
+    };
+  }, [sesion, areasCat]);
 
   const abrir = async (id) => {
     try {
@@ -333,6 +353,16 @@ export default function AulaCnebSesiones({
 
             {(!esDocente || vista === 'plan') && (
               <>
+                {esDocente && marcoSesion?.competenciaNombre ? (
+                  <MarcoCnebVista
+                    competenciaNombre={marcoSesion.competenciaNombre}
+                    capacidades={marcoSesion.capacidades}
+                    estandar={marcoSesion.estandar}
+                    desempenos={marcoSesion.desempenos}
+                    edadLabel={marcoSesion.edadLabel}
+                    modo="lectura"
+                  />
+                ) : null}
                 {['inicio', 'desarrollo', 'cierre'].map((tipo) => {
                   const titulo = tipo === 'inicio' ? 'Inicio' : tipo === 'cierre' ? 'Cierre' : 'Desarrollo';
                   const texto = sesion.momentos?.[tipo] || '';
@@ -348,16 +378,6 @@ export default function AulaCnebSesiones({
                     </article>
                   );
                 })}
-                {esDocente && (sesion.desempenos || []).length > 0 ? (
-                  <article className="aula-cneb-momento">
-                    <h5>Desempeños a observar</h5>
-                    <ol>
-                      {sesion.desempenos.map((d) => (
-                        <li key={d.id}>{d.texto}</li>
-                      ))}
-                    </ol>
-                  </article>
-                ) : null}
                 {!htmlVacio(sesion.ficha_estudiante) ? (
                   <article className="aula-cneb-momento aula-cneb-ficha-vista">
                     <h5>Ficha del estudiante</h5>

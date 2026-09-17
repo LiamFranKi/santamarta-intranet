@@ -54,8 +54,85 @@ function logoColegioPath() {
 }
 
 function logoMineduPath() {
-  const p = path.join(__dirname, '..', 'public', 'assets', 'logos', 'minedu.png');
-  return fs.existsSync(p) ? p : null;
+  const dir = path.join(__dirname, '..', 'public', 'assets', 'logos');
+  for (const name of ['minedu.png', 'minedu.jpg', 'minedu.jpeg']) {
+    const p = path.join(dir, name);
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+function dibujarLogoMinedu(doc, x, y, w, h) {
+  const logo = logoMineduPath();
+  if (logo) {
+    try {
+      const buf = fs.readFileSync(logo);
+      doc.image(buf, x, y, { fit: [w, h], align: 'right', valign: 'center' });
+      return true;
+    } catch {
+      try {
+        doc.image(logo, x, y, { fit: [w, h], align: 'right', valign: 'center' });
+        return true;
+      } catch {
+        /* sello dibujado */
+      }
+    }
+  }
+  return false;
+}
+
+function dibujarSelloMinedu(doc, x, y, w, h) {
+  if (dibujarLogoMinedu(doc, x, y, w, h)) return;
+  doc.save();
+  doc.roundedRect(x, y, w, h, 4).fillAndStroke('#fff', COLOR.red);
+  const band = 7;
+  doc.rect(x + 1, y + 1, band, h - 2).fill(COLOR.red);
+  doc.rect(x + 1 + band, y + 1, band, h - 2).fill('#fff');
+  doc.rect(x + 1 + band * 2, y + 1, band, h - 2).fill(COLOR.red);
+  const tx = x + band * 3 + 8;
+  doc.fillColor(COLOR.red).font('Helvetica-Bold').fontSize(9).text('MINEDU', tx, y + 8, { width: w - band * 3 - 12 });
+  doc.fillColor(COLOR.ink).font('Helvetica').fontSize(7).text('Currículo Nacional\nCNEB', tx, y + 20, {
+    width: w - band * 3 - 12,
+    lineGap: 1,
+  });
+  doc.restore();
+}
+
+function dibujarMembrete(doc, { colegioNombre, subtitulo, tituloOficial }) {
+  const pageW = doc.page.width;
+  const left = 28;
+  const top = 18;
+  const mineduW = 228;
+  const mineduH = 50;
+  const logo = logoColegioPath();
+  if (logo) {
+    try {
+      doc.image(logo, left, top, { fit: [72, 50], valign: 'center' });
+    } catch {
+      /* sin logo */
+    }
+  }
+  dibujarSelloMinedu(doc, pageW - 28 - mineduW, top, mineduW, mineduH);
+  const cx = left + 80;
+  const cw = pageW - cx - mineduW - 40;
+  doc.fillColor(COLOR.ink).font('Helvetica-Bold').fontSize(10).text(
+    String(colegioNombre || 'Institución educativa').toUpperCase(),
+    cx,
+    top + 2,
+    { width: cw, align: 'center' }
+  );
+  doc.fillColor(COLOR.teal).font('Helvetica-Bold').fontSize(8.5).text(
+    tituloOficial || 'INFORME DE PROGRESO DEL ESTUDIANTE',
+    cx,
+    top + 16,
+    { width: cw, align: 'center' }
+  );
+  doc.fillColor(COLOR.muted).font('Helvetica').fontSize(7.5).text(subtitulo || '', cx, top + 30, {
+    width: cw,
+    align: 'center',
+  });
+  doc.moveTo(left, top + 56).lineTo(pageW - 28, top + 56).strokeColor(COLOR.teal).lineWidth(1.1).stroke();
+  return top + 62;
 }
 
 function pdfToBuffer(build) {
@@ -88,65 +165,6 @@ function aulaLabel(grupo) {
 
 function bimRoman(b) {
   return ['I', 'II', 'III', 'IV'][Math.max(1, Math.min(4, Number(b) || 4)) - 1];
-}
-
-function dibujarSelloMinedu(doc, x, y, w, h) {
-  const logo = logoMineduPath();
-  if (logo) {
-    try {
-      doc.image(logo, x, y, { fit: [w, h], align: 'right', valign: 'center' });
-      return;
-    } catch {
-      /* sello dibujado */
-    }
-  }
-  doc.save();
-  doc.roundedRect(x, y, w, h, 4).fillAndStroke('#fff', COLOR.red);
-  const band = 7;
-  doc.rect(x + 1, y + 1, band, h - 2).fill(COLOR.red);
-  doc.rect(x + 1 + band, y + 1, band, h - 2).fill('#fff');
-  doc.rect(x + 1 + band * 2, y + 1, band, h - 2).fill(COLOR.red);
-  const tx = x + band * 3 + 8;
-  doc.fillColor(COLOR.red).font('Helvetica-Bold').fontSize(9).text('MINEDU', tx, y + 8, { width: w - band * 3 - 12 });
-  doc.fillColor(COLOR.ink).font('Helvetica').fontSize(7).text('Currículo Nacional\nCNEB', tx, y + 20, {
-    width: w - band * 3 - 12,
-    lineGap: 1,
-  });
-  doc.restore();
-}
-
-function dibujarMembrete(doc, { colegioNombre, subtitulo, tituloOficial }) {
-  const pageW = doc.page.width;
-  const left = 28;
-  const top = 22;
-  const logo = logoColegioPath();
-  if (logo) {
-    try {
-      doc.image(logo, left, top, { fit: [78, 36], valign: 'center' });
-    } catch {
-      /* sin logo */
-    }
-  }
-  dibujarSelloMinedu(doc, pageW - 28 - 148, top - 2, 148, 40);
-  doc.fillColor(COLOR.ink).font('Helvetica-Bold').fontSize(10).text(String(colegioNombre || 'Institución educativa').toUpperCase(), left + 84, top, {
-    width: pageW - 270,
-    align: 'center',
-  });
-  doc.fillColor(COLOR.teal).font('Helvetica-Bold').fontSize(8.5).text(
-    tituloOficial || 'INFORME DE PROGRESO DEL ESTUDIANTE',
-    left + 84,
-    top + 14,
-    {
-      width: pageW - 270,
-      align: 'center',
-    }
-  );
-  doc.fillColor(COLOR.muted).font('Helvetica').fontSize(7.5).text(subtitulo || '', left + 84, top + 26, {
-    width: pageW - 270,
-    align: 'center',
-  });
-  doc.moveTo(left, top + 42).lineTo(pageW - 28, top + 42).strokeColor(COLOR.teal).lineWidth(1.1).stroke();
-  return top + 48;
 }
 
 function ensure(doc, y, need) {
@@ -210,6 +228,160 @@ function agruparAreas(competencias) {
   return [...map.entries()];
 }
 
+function nombresCapacidad(capacidades) {
+  return (capacidades || [])
+    .map((c) => (typeof c === 'string' ? c : c?.nombre))
+    .map((n) => String(n || '').trim())
+    .filter(Boolean);
+}
+
+function filtrarDesempenos(lista, { nivel, corte }) {
+  const all = lista || [];
+  if (!Number.isFinite(Number(corte)) || Number(corte) <= 0) return all;
+  if (String(nivel || '').toUpperCase() === 'INICIAL') {
+    const f = all.filter((d) => Number(d.edad) === Number(corte));
+    return f.length ? f : all;
+  }
+  const f = all.filter((d) => Number(d.grado) === Number(corte));
+  return f.length ? f : all;
+}
+
+function etiquetaCorte(nivel, corte) {
+  if (!Number.isFinite(Number(corte)) || Number(corte) <= 0) return '';
+  return String(nivel || '').toUpperCase() === 'INICIAL' ? `${corte} años` : `${corte}.º`;
+}
+
+async function cargarMarcoCompetencias(competencias, { nivel, corte }) {
+  const list = competencias || [];
+  if (!list.length) return [];
+  const ids = list.map((c) => c.id);
+  const ph = ids.map(() => '?').join(',');
+  let capacidades = [];
+  let desempenos = [];
+  try {
+    capacidades = await query(
+      `SELECT id, competencia_id, nombre, orden FROM cneb_capacidades
+       WHERE competencia_id IN (${ph}) ORDER BY orden ASC, id ASC`,
+      ids
+    );
+  } catch {
+    capacidades = [];
+  }
+  try {
+    desempenos = await query(
+      `SELECT id, competencia_id, edad, grado, texto, orden FROM cneb_desempenos
+       WHERE competencia_id IN (${ph}) ORDER BY COALESCE(edad, grado) ASC, orden ASC, id ASC`,
+      ids
+    );
+  } catch (e) {
+    if (e.code === 'ER_BAD_FIELD_ERROR') {
+      desempenos = await query(
+        `SELECT id, competencia_id, edad, texto, orden FROM cneb_desempenos
+         WHERE competencia_id IN (${ph}) ORDER BY edad ASC, orden ASC, id ASC`,
+        ids
+      );
+    } else {
+      desempenos = [];
+    }
+  }
+  const capBy = new Map();
+  (capacidades || []).forEach((x) => {
+    if (!capBy.has(x.competencia_id)) capBy.set(x.competencia_id, []);
+    capBy.get(x.competencia_id).push(x);
+  });
+  const desBy = new Map();
+  (desempenos || []).forEach((x) => {
+    if (!desBy.has(x.competencia_id)) desBy.set(x.competencia_id, []);
+    desBy.get(x.competencia_id).push(x);
+  });
+  return list.map((c) => ({
+    ...c,
+    capacidades: capBy.get(c.id) || c.capacidades || [],
+    desempenos: filtrarDesempenos(desBy.get(c.id) || c.desempenos || [], { nivel, corte }),
+  }));
+}
+
+function dibujarTextoFluido(doc, texto, x, y, width, { fontSize = 8, color = COLOR.ink, bold = false } = {}) {
+  const t = String(texto || '');
+  if (!t) return y;
+  doc.fillColor(color).font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(fontSize);
+  const h = doc.heightOfString(t, { width, fontSize });
+  const remaining = doc.page.height - 42 - y;
+  if (h > remaining && remaining < 52) {
+    doc.addPage();
+    y = 36;
+  } else {
+    y = ensure(doc, y, Math.min(h + 6, 90));
+  }
+  doc.fillColor(color).font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(fontSize).text(t, x, y, { width });
+  return doc.y + 3;
+}
+
+function dibujarMarcoCneb(doc, y, inner, {
+  x = 28,
+  competenciaNombre,
+  letra = null,
+  capacidades,
+  estandar,
+  desempenos,
+  edadLabel,
+}) {
+  y = ensure(doc, y, 32);
+  const headH = 18;
+  const letraW = letra != null ? 30 : 0;
+  doc.rect(x, y, inner, headH).fillAndStroke(COLOR.teal, COLOR.teal);
+  doc.fillColor('#fff').font('Helvetica-Bold').fontSize(8).text(competenciaNombre || 'Competencia', x + 6, y + 5, {
+    width: inner - 12 - letraW,
+    lineBreak: false,
+    ellipsis: true,
+  });
+  if (letra != null) {
+    doc.fillColor('#fff').font('Helvetica-Bold').fontSize(10).text(String(letra || '—'), x + inner - letraW, y + 4, {
+      width: letraW - 2,
+      align: 'center',
+    });
+  }
+  y += headH + 8;
+
+  y = ensure(doc, y, 16);
+  doc.fillColor(COLOR.teal).font('Helvetica-Bold').fontSize(7.5).text('CAPACIDADES', x, y);
+  y += 11;
+  const caps = nombresCapacidad(capacidades);
+  if (!caps.length) {
+    y = dibujarTextoFluido(doc, 'Sin capacidades en el catálogo.', x, y, inner, { color: COLOR.muted });
+  } else {
+    caps.forEach((n) => {
+      y = dibujarTextoFluido(doc, `•  ${n}`, x, y, inner);
+    });
+  }
+
+  y += 3;
+  y = ensure(doc, y, 16);
+  doc.fillColor(COLOR.teal).font('Helvetica-Bold').fontSize(7.5).text('ESTÁNDAR DE APRENDIZAJE', x, y);
+  y += 11;
+  const est = String(estandar || '').trim();
+  if (!est) {
+    y = dibujarTextoFluido(doc, 'Sin estándar cargado.', x, y, inner, { color: COLOR.muted });
+  } else {
+    y = dibujarTextoFluido(doc, est, x, y, inner);
+  }
+
+  y += 3;
+  y = ensure(doc, y, 16);
+  const desTitulo = edadLabel ? `DESEMPEÑOS · ${String(edadLabel).toUpperCase()}` : 'DESEMPEÑOS';
+  doc.fillColor(COLOR.teal).font('Helvetica-Bold').fontSize(7.5).text(desTitulo, x, y);
+  y += 11;
+  const des = desempenos || [];
+  if (!des.length) {
+    y = dibujarTextoFluido(doc, 'Sin desempeños para esta edad.', x, y, inner, { color: COLOR.muted });
+  } else {
+    des.forEach((d, i) => {
+      y = dibujarTextoFluido(doc, `${i + 1}. ${d.texto || d}`, x, y, inner);
+    });
+  }
+  return y + 8;
+}
+
 function conclusionAlumno(valores, matriculaId) {
   const texts = (valores || [])
     .filter((v) => Number(v.matricula_id) === Number(matriculaId) && String(v.conclusion || '').trim())
@@ -228,7 +400,7 @@ async function metaGrupo(cid, grupoId) {
   return g || null;
 }
 
-function dibujarAlumnoInforme(doc, { alumno, competencias, valores, meta, startY }) {
+function dibujarAlumnoInforme(doc, { alumno, competencias, valores, meta, startY, edadLabel }) {
   let y = startY;
   const pageW = doc.page.width;
   const inner = pageW - 56;
@@ -241,61 +413,48 @@ function dibujarAlumnoInforme(doc, { alumno, competencias, valores, meta, startY
   filaDato(doc, y, 'AULA', aulaLabel(meta.grupo), 28, inner * 0.34);
   filaDato(doc, y, 'NIVEL', etiquetaNivel(meta.nivel), 28 + inner * 0.34, inner * 0.34);
   filaDato(doc, y, 'PERIODO', `${bimRoman(meta.bimestre)} bimestre · ${meta.anio}`, 28 + inner * 0.68, inner * 0.32);
-  y += 20;
+  y += 22;
 
-  const areas = agruparAreas(competencias);
-  const pieFijo = 92;
-  const usable = doc.page.height - y - pieFijo;
-  const nRows = areas.reduce((acc, [, comps]) => acc + 1 + comps.length, 0) + 2;
-  const rowH = Math.max(11, Math.min(14, Math.floor(usable / Math.max(8, nRows))));
-
-  areas.forEach(([area, comps]) => {
-    doc.rect(28, y, inner, rowH).fillAndStroke(COLOR.teal, COLOR.teal);
-    doc.fillColor('#fff').font('Helvetica-Bold').fontSize(7).text(area.toUpperCase(), 32, y + 2.5, {
+  agruparAreas(competencias).forEach(([area, comps]) => {
+    y = ensure(doc, y, 22);
+    doc.rect(28, y, inner, 16).fillAndStroke(COLOR.teal, COLOR.teal);
+    doc.fillColor('#fff').font('Helvetica-Bold').fontSize(8).text(String(area || 'Área').toUpperCase(), 32, y + 4, {
       width: inner - 8,
-      height: rowH - 3,
-      ellipsis: true,
       lineBreak: false,
+      ellipsis: true,
     });
-    y += rowH;
-    comps.forEach((c, i) => {
-      const bg = i % 2 === 0 ? '#fff' : COLOR.tealBg;
+    y += 20;
+    comps.forEach((c) => {
       const v = map.get(`${alumno.matricula_id}_${c.id}`);
-      const letra = v?.letra || '—';
-      doc.rect(28, y, inner - 32, rowH).fillAndStroke(bg, COLOR.line);
-      doc.rect(28 + inner - 32, y, 32, rowH).fillAndStroke('#fff', COLOR.line);
-      doc.fillColor(COLOR.ink).font('Helvetica').fontSize(7).text(c.nombre, 32, y + 2.5, {
-        width: inner - 42,
-        height: rowH - 3,
-        ellipsis: true,
-        lineBreak: false,
+      y = dibujarMarcoCneb(doc, y, inner, {
+        competenciaNombre: c.nombre,
+        letra: v?.letra || '—',
+        capacidades: c.capacidades,
+        estandar: c.estandar_ciclo,
+        desempenos: c.desempenos,
+        edadLabel,
       });
-      doc.fillColor(letraColor(letra)).font('Helvetica-Bold').fontSize(8).text(letra, 28 + inner - 32, y + 2, {
-        width: 32,
-        align: 'center',
-      });
-      y += rowH;
     });
   });
 
   const conc = conclusionAlumno(valores, alumno.matricula_id);
-  y += 6;
-  doc.rect(28, y, inner, 11).fillAndStroke(COLOR.head, COLOR.line);
-  doc.fillColor(COLOR.ink).font('Helvetica-Bold').fontSize(7).text('Conclusión descriptiva del periodo', 32, y + 2.5);
-  y += 11;
-  const concH = 22;
+  const concText = conc || 'Sin conclusión descriptiva registrada.';
+  y = ensure(doc, y, 48);
+  doc.rect(28, y, inner, 14).fillAndStroke(COLOR.head, COLOR.line);
+  doc.fillColor(COLOR.ink).font('Helvetica-Bold').fontSize(8).text('Conclusión descriptiva del periodo', 32, y + 3.5);
+  y += 14;
+  doc.fillColor(COLOR.ink).font('Helvetica').fontSize(8);
+  const concH = Math.max(28, doc.heightOfString(concText, { width: inner - 8, fontSize: 8 }) + 10);
+  y = ensure(doc, y, concH);
   doc.rect(28, y, inner, concH).strokeColor(COLOR.line).stroke();
-  doc.fillColor(COLOR.muted).font('Helvetica').fontSize(7).text(conc || 'Sin conclusión descriptiva registrada.', 32, y + 4, {
-    width: inner - 8,
-    height: concH - 6,
-    ellipsis: true,
-  });
-  y += concH + 8;
+  doc.fillColor(COLOR.muted).font('Helvetica').fontSize(8).text(concText, 32, y + 5, { width: inner - 8 });
+  y += concH + 10;
 
+  y = ensure(doc, y, 72);
   y = dibujarEscala(doc, y, inner);
   y = dibujarFirmas(doc, y + 4, inner);
   doc.fillColor(COLOR.muted).font('Helvetica').fontSize(6).text(
-    'Documento interno del colegio, alineado al CNEB. El logo MINEDU es referencial y no convierte este archivo en informe oficial de SIAGIE.',
+    'Documento interno del colegio, alineado al CNEB. Incluye capacidades, estándar y desempeños del catálogo MINEDU. El logo MINEDU es referencial y no convierte este archivo en informe oficial de SIAGIE.',
     28,
     doc.page.height - 18,
     { width: inner, align: 'center' }
@@ -307,6 +466,9 @@ async function informePdfBuffer(cid, { anio, bimestre, grupoId, nivel, matricula
   const colegio = await getColegioData(cid);
   const grupo = await metaGrupo(cid, grupoId);
   const { alumnos, competencias, valores } = await cargarCorte(cid, { anio, bimestre, grupoId, nivel });
+  const corte = Number(grupo?.grado);
+  const edadLabel = etiquetaCorte(nivel, corte);
+  const competenciasMarco = await cargarMarcoCompetencias(competencias, { nivel, corte });
   const lista = matriculaId
     ? (alumnos || []).filter((a) => Number(a.matricula_id) === Number(matriculaId))
     : alumnos || [];
@@ -321,7 +483,14 @@ async function informePdfBuffer(cid, { anio, bimestre, grupoId, nivel, matricula
     lista.forEach((al, i) => {
       if (i > 0) doc.addPage();
       const startY = dibujarMembrete(doc, { colegioNombre: colegio?.nombre, subtitulo });
-      dibujarAlumnoInforme(doc, { alumno: al, competencias, valores, meta, startY });
+      dibujarAlumnoInforme(doc, {
+        alumno: al,
+        competencias: competenciasMarco,
+        valores,
+        meta,
+        startY,
+        edadLabel,
+      });
     });
   });
   const who = matriculaId ? `alumno_${matriculaId}` : `aula`;
@@ -459,6 +628,28 @@ async function sesionPdfBuffer(cid, sesionId, { parte = 'sesion', formato = 'col
     filaDato(doc, y, 'COMPET.', ses.competencia_nombre || '—', 36, inner * 0.5);
     filaDato(doc, y, 'FECHA', fecha, 36 + inner * 0.5, inner * 0.5);
     y += 22;
+    let capsSes = ses.capacidades || [];
+    let estSes = ses.estandar_ciclo || '';
+    let desSes = ses.desempenos || [];
+    if (ses.competencia_id && (!capsSes.length || !desSes.length || !String(estSes).trim())) {
+      const [marco] = await cargarMarcoCompetencias(
+        [{ id: ses.competencia_id, nombre: ses.competencia_nombre, estandar_ciclo: estSes }],
+        { nivel: ses.nivel_cneb, corte: ses.corte }
+      );
+      if (marco) {
+        if (!capsSes.length) capsSes = marco.capacidades;
+        if (!String(estSes).trim()) estSes = marco.estandar_ciclo;
+        if (!desSes.length) desSes = marco.desempenos;
+      }
+    }
+    y = dibujarMarcoCneb(doc, y, inner, {
+      x: 36,
+      competenciaNombre: ses.competencia_nombre || 'Competencia',
+      capacidades: capsSes,
+      estandar: estSes,
+      desempenos: desSes,
+      edadLabel: etiquetaCorte(ses.nivel_cneb, ses.corte),
+    });
     if (ses.proposito) {
       doc.fillColor(COLOR.teal).font('Helvetica-Bold').fontSize(8).text('PROPÓSITO', 36, y);
       y += 12;

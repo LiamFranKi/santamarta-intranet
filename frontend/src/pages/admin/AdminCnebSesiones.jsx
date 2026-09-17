@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import api from '../../services/api';
@@ -100,6 +100,99 @@ export function hallarAreaCneb(areas, areaId, nombre) {
   );
 }
 
+function nombresCapacidad(capacidades) {
+  return (capacidades || [])
+    .map((c) => (typeof c === 'string' ? c : c?.nombre))
+    .map((n) => String(n || '').trim())
+    .filter(Boolean);
+}
+
+export function MarcoCnebVista({
+  competenciaNombre,
+  capacidades,
+  estandar,
+  desempenos,
+  edadLabel,
+  modo = 'lectura',
+  seleccionados = [],
+  onToggle,
+  onMarcarTodos,
+  onQuitarMarcas,
+}) {
+  const caps = nombresCapacidad(capacidades);
+  const sel = (seleccionados || []).map(String);
+  return (
+    <article className="cneb-marco">
+      <p className="cneb-marco-kicker">Marco CNEB · va de la mano</p>
+      {competenciaNombre ? (
+        <p className="cneb-marco-comp">
+          <strong>Competencia:</strong> {competenciaNombre}
+        </p>
+      ) : null}
+      <p className="cneb-marco-hint">
+        Las <strong>capacidades</strong> y el <strong>estándar de aprendizaje</strong> no se eligen:
+        MINEDU las trae al escoger la competencia. Usted marca los <strong>desempeños</strong>
+        {edadLabel ? ` de ${edadLabel}` : ''} que va a observar hoy.
+      </p>
+      <h4>Capacidades</h4>
+      {caps.length ? (
+        <ul className="cneb-caps cneb-caps-pills">
+          {caps.map((n) => (
+            <li key={n}>{n}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="cneb-muted">Sin capacidades en el catálogo de esta competencia.</p>
+      )}
+      <h4>Estándar de aprendizaje</h4>
+      {estandar ? (
+        <p className="cneb-estandar">{estandar}</p>
+      ) : (
+        <p className="cneb-muted">Esta competencia aún no tiene estándar cargado.</p>
+      )}
+      <div className="cneb-marco-des-head">
+        <h4>Desempeños{edadLabel ? ` · ${edadLabel}` : ''}</h4>
+        {modo === 'edicion' && (desempenos || []).length ? (
+          <div className="cneb-marco-des-actions">
+            <button type="button" className="cneb-mini" onClick={onMarcarTodos}>
+              Marcar todos
+            </button>
+            <button type="button" className="cneb-mini" onClick={onQuitarMarcas}>
+              Quitar marcas
+            </button>
+          </div>
+        ) : null}
+      </div>
+      {!(desempenos || []).length ? (
+        <p className="cneb-muted">
+          {modo === 'edicion'
+            ? 'Elija área y competencia. En Inicial los desempeños ya están por edad.'
+            : 'No hay desempeños marcados en esta sesión.'}
+        </p>
+      ) : modo === 'edicion' ? (
+        <div className="cneb-des-checks">
+          {desempenos.map((d) => (
+            <label key={d.id} className="cneb-check">
+              <input
+                type="checkbox"
+                checked={sel.includes(String(d.id))}
+                onChange={() => onToggle(d.id)}
+              />
+              <span>{d.texto}</span>
+            </label>
+          ))}
+        </div>
+      ) : (
+        <ol className="cneb-des-list">
+          {desempenos.map((d) => (
+            <li key={d.id}>{d.texto}</li>
+          ))}
+        </ol>
+      )}
+    </article>
+  );
+}
+
 function partirMinutos(total) {
   const t = Math.max(20, parseInt(total, 10) || 60);
   if (t <= 45) return { inicio: 8, desarrollo: t - 15, cierre: 7 };
@@ -166,6 +259,7 @@ export default function AdminCnebSesiones({
   const [generating, setGenerating] = useState(false);
   const [form, setForm] = useState(() => formVacio(nivel));
   const [editing, setEditing] = useState(false);
+  const lastMarcoRef = useRef('');
 
   const loadLista = useCallback(async () => {
     setLoading(true);
@@ -189,6 +283,7 @@ export default function AdminCnebSesiones({
 
   useEffect(() => {
     loadLista();
+    lastMarcoRef.current = '';
     if (embebido) {
       if (sesionId) return;
       const f = formVacio(nivel, contextoAula);
@@ -213,7 +308,7 @@ export default function AdminCnebSesiones({
   );
   const comps = areaForm?.competencias || [];
   const compForm = useMemo(
-    () => comps.find((c) => String(c.id) === String(form.competencia_id)) || comps[0] || null,
+    () => comps.find((c) => String(c.id) === String(form.competencia_id)) || null,
     [comps, form.competencia_id]
   );
 
@@ -232,6 +327,26 @@ export default function AdminCnebSesiones({
     if (nivel === 'SECUNDARIA') return [1, 2, 3, 4, 5].map((n) => ({ v: n, label: `${n}.º` }));
     return [3, 4, 5].map((n) => ({ v: n, label: `${n} años` }));
   }, [nivel]);
+
+  const edadLabel = useMemo(() => {
+    const c = cortes.find((x) => Number(x.v) === Number(form.corte));
+    return c?.label || (nivel === 'INICIAL' ? `${form.corte} años` : `${form.corte}.º`);
+  }, [cortes, form.corte, nivel]);
+
+  useEffect(() => {
+    const cid = String(form.competencia_id || '');
+    if (!cid) return;
+    const ids = (desempenosCorte || []).map((d) => d.id);
+    if (!ids.length) return;
+    const key = `${cid}:${form.corte}`;
+    if (lastMarcoRef.current === key) return;
+    lastMarcoRef.current = key;
+    setForm((f) => {
+      if (String(f.competencia_id) !== cid) return f;
+      if (f.id && (f.desempeno_ids || []).length) return f;
+      return { ...f, desempeno_ids: ids };
+    });
+  }, [form.competencia_id, form.corte, desempenosCorte]);
 
   const patch = (p) => setForm((f) => ({ ...f, ...p }));
 
@@ -285,6 +400,7 @@ export default function AdminCnebSesiones({
   };
 
   const abrirNueva = () => {
+    lastMarcoRef.current = '';
     setForm(formVacio(nivel, embebido ? contextoAula : null));
     setEditing(true);
   };
@@ -293,6 +409,9 @@ export default function AdminCnebSesiones({
     try {
       const { data } = await api.get(`${apiBase}/sesiones/${id}`);
       const s = data.sesion;
+      lastMarcoRef.current = (s.desempeno_ids || []).length
+        ? `${s.competencia_id || ''}:${s.corte != null ? Number(s.corte) : ''}`
+        : '';
       setForm({
         id: s.id,
         titulo: s.titulo || '',
@@ -726,6 +845,25 @@ export default function AdminCnebSesiones({
         </label>
       </div>
 
+      {form.area_id && compForm ? (
+        <MarcoCnebVista
+          competenciaNombre={compForm.nombre}
+          capacidades={compForm.capacidades}
+          estandar={compForm.estandar_ciclo}
+          desempenos={desempenosCorte}
+          edadLabel={edadLabel}
+          modo="edicion"
+          seleccionados={form.desempeno_ids}
+          onToggle={toggleDes}
+          onMarcarTodos={() => patch({ desempeno_ids: desempenosCorte.map((d) => d.id) })}
+          onQuitarMarcas={() => patch({ desempeno_ids: [] })}
+        />
+      ) : form.area_id ? (
+        <p className="cneb-muted">
+          Elija la competencia para ver capacidades, estándar de aprendizaje y desempeños de {edadLabel}.
+        </p>
+      ) : null}
+
       <label className="cneb-select-wrap cneb-full">
         <span>Tema / título</span>
         <input
@@ -752,28 +890,6 @@ export default function AdminCnebSesiones({
           entra al corte AD/A/B/C ni al informe / SIAGIE.
         </p>
       ) : null}
-
-      <h3 className="cneb-uso-title">Desempeños a observar</h3>
-      {desempenosCorte.length === 0 ? (
-        <p className="cneb-muted">
-          {nivel === 'INICIAL'
-            ? 'Elija área y competencia. En Inicial los desempeños ya están por edad.'
-            : 'En Primaria y Secundaria las competencias están listas; los desempeños por grado se completan en la siguiente carga. Puede escribir el cotejo a mano.'}
-        </p>
-      ) : (
-        <div className="cneb-des-checks">
-          {desempenosCorte.map((d) => (
-            <label key={d.id} className="cneb-check">
-              <input
-                type="checkbox"
-                checked={form.desempeno_ids.map(String).includes(String(d.id))}
-                onChange={() => toggleDes(d.id)}
-              />
-              <span>{d.texto}</span>
-            </label>
-          ))}
-        </div>
-      )}
 
       <div className="cneb-map-actions" style={{ margin: '0.85rem 0' }}>
         <button type="button" className="cneb-btn ghost" onClick={armarBorrador}>

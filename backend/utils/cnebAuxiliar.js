@@ -80,7 +80,7 @@ async function listarAlumnosGrupo(cid, grupoId) {
 
 async function competenciasDeNivel(nivel) {
   return query(
-    `SELECT c.id, c.nombre, a.nombre AS area_nombre, a.codigo AS area_codigo, a.orden AS area_orden, c.orden
+    `SELECT c.id, c.nombre, c.estandar_ciclo, a.nombre AS area_nombre, a.codigo AS area_codigo, a.orden AS area_orden, c.orden
      FROM cneb_competencias c
      INNER JOIN cneb_areas a ON a.id = c.area_id
      WHERE a.nivel_cneb = ? AND a.activo = 1 AND c.activo = 1 AND a.tipo <> 'transversal'

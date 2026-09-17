@@ -178,8 +178,9 @@ export default function AdminCnebCorte({
         <div>
           <h2>Corte bimestral · {etiquetaNivel ? etiquetaNivel(nivel) : nivel}</h2>
           <p>
-            Letra por competencia (AD, A, B, C) y conclusión del periodo. El PDF lleva el logo MINEDU
-            como referencia curricular; no sustituye el reporte oficial de SIAGIE.
+            Letra por competencia (AD, A, B, C), capacidades, estándar de aprendizaje y desempeños
+            de la edad. El PDF lleva el logo MINEDU como referencia curricular; no sustituye el
+            reporte oficial de SIAGIE.
           </p>
         </div>
         <div className="cneb-map-actions">

@@ -447,6 +447,100 @@
   color: #334155;
 }
 
+.cneb-marco {
+  border: 1px solid #99f6e4;
+  background: linear-gradient(180deg, #f0fdfa 0%, #fff 38%);
+  border-radius: 14px;
+  padding: 0.95rem 1.05rem 1.1rem;
+  margin: 0.2rem 0 1rem;
+}
+
+.cneb-marco-kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0f766e;
+}
+
+.cneb-marco-comp {
+  margin: 0 0 0.45rem;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  color: var(--cneb-ink);
+}
+
+.cneb-marco-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: #475569;
+}
+
+.cneb-marco h4 {
+  margin: 0.75rem 0 0.35rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cneb-muted);
+}
+
+.cneb-caps-pills {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.cneb-caps-pills li {
+  margin: 0;
+  background: #fff;
+  border: 1px solid #99f6e4;
+  border-radius: 999px;
+  padding: 0.28rem 0.75rem;
+  font-size: 0.84rem;
+  font-weight: 650;
+  color: #0f766e;
+}
+
+.cneb-marco-des-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+}
+
+.cneb-marco-des-head h4 {
+  margin: 0;
+}
+
+.cneb-marco-des-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.cneb-mini {
+  border: 1px solid var(--cneb-line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.22rem 0.65rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: #334155;
+}
+
+.cneb-mini:hover {
+  border-color: #0f766e;
+  color: #0f766e;
+}
+
 .cneb-edad-row {
   display: flex;
   flex-wrap: wrap;
@@ -768,19 +862,33 @@
 .cneb-des-checks {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  max-height: 220px;
-  overflow: auto;
-  padding: 0.2rem 0.1rem 0.4rem;
+  gap: 0.45rem;
+  padding: 0.35rem 0.1rem 0.2rem;
 }
 
 .cneb-check {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.55rem;
   align-items: flex-start;
-  font-size: 0.88rem;
-  line-height: 1.4;
+  font-size: 0.9rem;
+  line-height: 1.45;
   cursor: pointer;
+  background: #fff;
+  border: 1px solid var(--cneb-line);
+  border-radius: 10px;
+  padding: 0.5rem 0.65rem;
+}
+
+.cneb-check input {
+  margin-top: 0.18rem;
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+}
+
+.cneb-check:has(input:checked) {
+  border-color: #5eead4;
+  background: #f0fdfa;
 }
 
 .cneb-suma {

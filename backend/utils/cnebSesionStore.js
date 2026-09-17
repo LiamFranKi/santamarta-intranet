@@ -39,7 +39,7 @@ function leerCuerpoSesion(body, nivel) {
 async function cargarSesion(cid, id) {
   const [ses] = await query(
     `SELECT s.*, ar.nombre AS area_nombre, ar.codigo AS area_codigo,
-            cp.nombre AS competencia_nombre,
+            cp.nombre AS competencia_nombre, cp.estandar_ciclo,
             g.grado, g.seccion
      FROM cneb_sesiones s
      LEFT JOIN cneb_areas ar ON ar.id = s.area_id
@@ -49,7 +49,7 @@ async function cargarSesion(cid, id) {
     [id, cid]
   );
   if (!ses) return null;
-  const [desempenos, momentos, cotejo] = await Promise.all([
+  const [desempenos, momentos, cotejo, capacidades] = await Promise.all([
     query(
       `SELECT d.id, d.edad, d.grado, d.texto, d.orden
        FROM cneb_sesion_desempenos sd
@@ -68,6 +68,13 @@ async function cargarSesion(cid, id) {
        WHERE sesion_id = ? ORDER BY orden ASC, id ASC`,
       [id]
     ),
+    ses.competencia_id
+      ? query(
+          `SELECT id, nombre, orden FROM cneb_capacidades
+           WHERE competencia_id = ? ORDER BY orden ASC, id ASC`,
+          [ses.competencia_id]
+        )
+      : Promise.resolve([]),
   ]);
   const mom = { inicio: '', desarrollo: '', cierre: '' };
   const min = partirMinutos(ses.duracion_min);
@@ -80,6 +87,7 @@ async function cargarSesion(cid, id) {
     ...ses,
     desempeno_ids: (desempenos || []).map((d) => d.id),
     desempenos: desempenos || [],
+    capacidades: capacidades || [],
     momentos: mom,
     minutos: min,
     cotejo: cotejo || [],
