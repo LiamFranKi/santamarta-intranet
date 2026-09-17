@@ -7,9 +7,26 @@ const { textoCnebAHtml } = require('./cnebTextoRico');
 function extraerJson(text) {
   const cleaned = String(text || '')
     .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
     .replace(/```\s*$/i, '')
     .trim();
-  return JSON.parse(cleaned);
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start >= 0 && end > start) return JSON.parse(cleaned.slice(start, end + 1));
+    throw new Error('La IA no devolvió JSON válido.');
+  }
+}
+
+function sePuedeReintentar(err) {
+  const status = err.response?.status;
+  const msg = String(err.response?.data?.error?.message || err.message || '');
+  if (!status || status === 404 || status === 400) return true;
+  if (/JSON mode is not enabled/i.test(msg)) return true;
+  if (/not found|not supported/i.test(msg)) return true;
+  return false;
 }
 
 async function llamarGeminiJson(prompt) {
@@ -19,23 +36,25 @@ async function llamarGeminiJson(prompt) {
     e.code = 'GEMINI_NO_KEY';
     throw e;
   }
-  const body = {
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: 0.4,
-      maxOutputTokens: 8192,
-      responseMimeType: 'application/json',
-    },
-  };
+  const genBase = { temperature: 0.4, maxOutputTokens: 8192 };
+  const intentos = [
+    { ver: 'v1beta', json: true },
+    { ver: 'v1beta', json: false },
+    { ver: 'v1', json: false },
+  ];
   let ultimo;
   for (const modelo of modelosAProbar()) {
-    for (const ver of ['v1beta', 'v1']) {
-      const url = `https://generativelanguage.googleapis.com/${ver}/models/${modelo}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    for (const intento of intentos) {
+      const url = `https://generativelanguage.googleapis.com/${intento.ver}/models/${modelo}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const generationConfig = intento.json
+        ? { ...genBase, responseMimeType: 'application/json' }
+        : genBase;
       try {
-        const res = await axios.post(url, body, {
-          timeout: 90000,
-          headers: { 'Content-Type': 'application/json' },
-        });
+        const res = await axios.post(
+          url,
+          { contents: [{ parts: [{ text: prompt }] }], generationConfig },
+          { timeout: 90000, headers: { 'Content-Type': 'application/json' } }
+        );
         const text = res.data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '';
         const parsed = extraerJson(text);
         const usage = res.data?.usageMetadata || {};
@@ -48,16 +67,30 @@ async function llamarGeminiJson(prompt) {
         };
       } catch (err) {
         ultimo = err;
-        if (err.response?.status && err.response.status !== 404) {
+        if (err.response?.status === 429) {
+          const e = new Error(`Gemini llegó al límite de uso (429). Espere un minuto e intente de nuevo.`);
+          e.code = 'GEMINI_RATE_LIMIT';
+          throw e;
+        }
+        if (err.response?.status === 403) {
+          const e = new Error(
+            err.response?.data?.error?.message ||
+              'Gemini rechazó la clave (403). Revise GOOGLE_AI_API_KEY.'
+          );
+          e.code = 'GEMINI_FORBIDDEN';
+          throw e;
+        }
+        if (!sePuedeReintentar(err)) {
           const msg = err.response?.data?.error?.message || err.message;
-          const e = new Error(`Gemini (${err.response.status}) en ${modelo}: ${msg}`);
+          const e = new Error(`Gemini (${err.response?.status || '?'}) en ${modelo}: ${msg}`);
           e.code = 'GEMINI_ERROR';
           throw e;
         }
       }
     }
   }
-  const e = new Error(ultimo?.message || 'Ningún modelo Gemini respondió.');
+  const detalle = ultimo?.response?.data?.error?.message || ultimo?.message || 'Ningún modelo Gemini respondió.';
+  const e = new Error(`No se pudo generar con IA: ${detalle}`);
   e.code = 'GEMINI_ALL_MODELS_FAILED';
   throw e;
 }
