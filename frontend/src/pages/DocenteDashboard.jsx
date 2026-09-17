@@ -426,27 +426,6 @@ function DocenteDashboard() {
             </div>
           )}
 
-          {(tieneAsignaciones.tiene_grupos || tieneAsignaciones.tiene_cursos) && (
-            <div
-              className="stat-card mundo-card stat-card-clickable"
-              onClick={() => navigate('/docente/cneb')}
-              style={{ cursor: 'pointer', background: coloresPastelesDashboard[6] }}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  navigate('/docente/cneb');
-                }
-              }}
-            >
-              <div className="stat-icon">📗</div>
-              <div className="stat-content">
-                <div className="stat-number">CNEB</div>
-                <div className="stat-label">Sesiones y corte</div>
-              </div>
-            </div>
-          )}
-
           {/* Card Estudiantes - Solo mostrar si tiene grupos o cursos */}
           {(tieneAsignaciones.tiene_grupos || tieneAsignaciones.tiene_cursos) && (
             <div className="stat-card mundo-card" style={{ background: coloresPastelesDashboard[2] }}>

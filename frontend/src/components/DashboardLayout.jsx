@@ -608,14 +608,6 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               )}
-              {(tieneAsignaciones.tiene_grupos || tieneAsignaciones.tiene_cursos) && (
-                <div className="sidebar-item">
-                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/cneb">
-                    <span className="sidebar-icon">📗</span>
-                    <span className="sidebar-label">CNEB</span>
-                  </NavLink>
-                </div>
-              )}
               {/* Mi Horario - Solo mostrar si tiene grupos o cursos */}
               {(tieneAsignaciones.tiene_grupos || tieneAsignaciones.tiene_cursos) && (
                 <div className="sidebar-item">
