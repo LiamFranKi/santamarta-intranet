@@ -426,7 +426,14 @@ router.get('/corte', async (req, res) => {
     if (!(await validarGrupoPropio(cid, pid, anio, grupoId))) {
       return res.status(403).json({ error: 'Solo puede ver el corte de sus aulas.' });
     }
-    const data = await cargarCorte(cid, { anio, bimestre, grupoId, nivel });
+    const data = await cargarCorte(cid, {
+      anio,
+      bimestre,
+      grupoId,
+      nivel,
+      areaId: req.query.area_id,
+      asignaturaId: req.query.asignatura_id,
+    });
     res.json({ anio, bimestre, ...data });
   } catch (e) {
     console.error('[docente/cneb/corte GET]', e);

@@ -80,7 +80,7 @@ async function listarAlumnosGrupo(cid, grupoId) {
 
 async function competenciasDeNivel(nivel) {
   return query(
-    `SELECT c.id, c.nombre, c.estandar_ciclo, a.nombre AS area_nombre, a.codigo AS area_codigo, a.orden AS area_orden, c.orden
+    `SELECT c.id, c.area_id, c.nombre, c.estandar_ciclo, a.nombre AS area_nombre, a.codigo AS area_codigo, a.orden AS area_orden, c.orden
      FROM cneb_competencias c
      INNER JOIN cneb_areas a ON a.id = c.area_id
      WHERE a.nivel_cneb = ? AND a.activo = 1 AND c.activo = 1 AND a.tipo <> 'transversal'
@@ -139,7 +139,7 @@ async function guardarAuxiliar(cid, sesionId, filas) {
   return { ok: true, guardados: n };
 }
 
-async function cargarCorte(cid, { anio, bimestre, grupoId, nivel }) {
+async function cargarCorte(cid, { anio, bimestre, grupoId, nivel, areaId, asignaturaId }) {
   const alumnos = await listarAlumnosGrupo(cid, grupoId);
   const competencias = await competenciasDeNivel(nivel);
   const matIds = alumnos.map((a) => a.matricula_id);
@@ -153,7 +153,28 @@ async function cargarCorte(cid, { anio, bimestre, grupoId, nivel }) {
       [cid, anio, bimestre, ...matIds]
     );
   }
-  return { alumnos, competencias, valores };
+  const sesParams = [cid, anio, nivel, grupoId];
+  let sesExtra = '';
+  const asId = parseInt(asignaturaId, 10);
+  const arId = parseInt(areaId, 10);
+  if (Number.isFinite(asId) && asId > 0) {
+    sesExtra += ' AND s.asignatura_id = ?';
+    sesParams.push(asId);
+  } else if (Number.isFinite(arId) && arId > 0) {
+    sesExtra += ' AND s.area_id = ?';
+    sesParams.push(arId);
+  }
+  const sesiones = await query(
+    `SELECT s.id, s.titulo, s.fecha_sesion, s.area_id, s.competencia_id, s.asignatura_id,
+            ar.nombre AS area_nombre, cp.nombre AS competencia_nombre
+     FROM cneb_sesiones s
+     LEFT JOIN cneb_areas ar ON ar.id = s.area_id
+     LEFT JOIN cneb_competencias cp ON cp.id = s.competencia_id
+     WHERE s.colegio_id = ? AND s.anio = ? AND s.nivel_cneb = ? AND s.grupo_id = ?${sesExtra}
+     ORDER BY COALESCE(s.fecha_sesion, s.creado_en) ASC, s.id ASC`,
+    sesParams
+  ).catch(() => []);
+  return { alumnos, competencias, valores, sesiones: sesiones || [] };
 }
 
 async function guardarCorte(cid, { anio, bimestre, items }) {

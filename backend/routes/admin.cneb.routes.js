@@ -625,7 +625,14 @@ router.get('/corte', async (req, res) => {
     const bimestre = Math.min(4, Math.max(1, parseInt(req.query.bimestre, 10) || 4));
     if (!cid || !nivel || !grupoId) return res.status(400).json({ error: 'Indique nivel y aula.' });
     const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
-    const data = await cargarCorte(cid, { anio, bimestre, grupoId, nivel });
+    const data = await cargarCorte(cid, {
+      anio,
+      bimestre,
+      grupoId,
+      nivel,
+      areaId: req.query.area_id,
+      asignaturaId: req.query.asignatura_id,
+    });
     res.json({ anio, bimestre, ...data });
   } catch (e) {
     console.error('[cneb/corte GET]', e);

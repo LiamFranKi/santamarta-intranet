@@ -257,17 +257,19 @@ export default function AulaCnebSesiones({
           ) : null}
           {esDocente && !readOnly && !editor && !sesion ? (
             <>
-              <button
-                type="button"
-                className="card-action-btn card-action-btn-secondary"
-                onClick={() => {
-                  setSesion(null);
-                  setEditor(null);
-                  setVista('corte');
-                }}
-              >
-                Corte AD/A/B/C
-              </button>
+              {sesiones.length > 0 && !taller ? (
+                <button
+                  type="button"
+                  className="card-action-btn card-action-btn-secondary"
+                  onClick={() => {
+                    setSesion(null);
+                    setEditor(null);
+                    setVista('corte');
+                  }}
+                >
+                  Corte AD/A/B/C
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="card-action-btn"
@@ -327,6 +329,10 @@ export default function AulaCnebSesiones({
             grupoFijo={meta?.grupo_id}
             bimestreDefault={bimestre}
             etiquetaNivel={() => 'Inicial'}
+            areaId={contextoAula?.area_id || ''}
+            areaNombre={contextoAula?.area_nombre || areaLabel}
+            asignaturaId={meta?.asignatura_id || contextoAula?.asignatura_id || ''}
+            haySesiones={sesiones.length > 0}
           />
         ) : sesion ? (
           <div className="aula-cneb-detalle">

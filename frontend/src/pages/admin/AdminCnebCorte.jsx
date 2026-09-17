@@ -44,6 +44,10 @@ export default function AdminCnebCorte({
   bimestreDefault = 4,
   etiquetaNivel,
   grupoFijo = null,
+  areaId = null,
+  areaNombre = '',
+  asignaturaId = null,
+  haySesiones = true,
 }) {
   const [grupoId, setGrupoId] = useState(
     grupoFijo ? String(grupoFijo) : grupos[0] ? String(grupos[0].id) : ''
@@ -68,7 +72,13 @@ export default function AdminCnebCorte({
     setLoading(true);
     try {
       const { data: d } = await api.get(`${apiBase}/corte`, {
-        params: { nivel, grupo_id: grupoId, bimestre },
+        params: {
+          nivel,
+          grupo_id: grupoId,
+          bimestre,
+          ...(areaId ? { area_id: areaId } : {}),
+          ...(asignaturaId ? { asignatura_id: asignaturaId } : {}),
+        },
       });
       setData(d);
       const nextL = {};
@@ -88,26 +98,45 @@ export default function AdminCnebCorte({
     } finally {
       setLoading(false);
     }
-  }, [apiBase, nivel, grupoId, bimestre]);
+  }, [apiBase, nivel, grupoId, bimestre, areaId, asignaturaId]);
 
   useEffect(() => {
     load();
   }, [load]);
 
+  const sesionesVista = useMemo(() => data?.sesiones || [], [data]);
+  const soloSesionesElegidas =
+    (areaId != null && areaId !== '') || (asignaturaId != null && asignaturaId !== '');
+
+  const competenciasVista = useMemo(() => {
+    const all = data?.competencias || [];
+    if (soloSesionesElegidas) {
+      const ids = new Set(
+        sesionesVista.map((s) => s.competencia_id).filter((id) => id != null && id !== '')
+      );
+      if (ids.size) {
+        const keys = new Set([...ids].map((id) => String(id)));
+        return all.filter((c) => keys.has(String(c.id)));
+      }
+      return [];
+    }
+    return all;
+  }, [data, sesionesVista, soloSesionesElegidas]);
+
   const areasAgrupadas = useMemo(() => {
     const map = new Map();
-    (data?.competencias || []).forEach((c) => {
+    competenciasVista.forEach((c) => {
       const key = c.area_nombre || 'Área';
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(c);
     });
     return [...map.entries()];
-  }, [data]);
+  }, [competenciasVista]);
 
   const guardar = async () => {
     const items = [];
     (data?.alumnos || []).forEach((al) => {
-      (data?.competencias || []).forEach((c) => {
+      competenciasVista.forEach((c) => {
         const k = `${al.matricula_id}_${c.id}`;
         items.push({
           matricula_id: al.matricula_id,
@@ -178,19 +207,19 @@ export default function AdminCnebCorte({
         <div>
           <h2>Corte bimestral · {etiquetaNivel ? etiquetaNivel(nivel) : nivel}</h2>
           <p>
-            Letra por competencia (AD, A, B, C), capacidades, estándar de aprendizaje y desempeños
-            de la edad. El PDF lleva el logo MINEDU como referencia curricular; no sustituye el
-            reporte oficial de SIAGIE.
+            {soloSesionesElegidas
+              ? `Solo las sesiones que ya creó en ${areaNombre || 'este curso'}. Las competencias que no trabajó en una sesión no aparecen.`
+              : 'Letra por competencia (AD, A, B, C) al cierre del bimestre. El PDF lleva el logo MINEDU como referencia curricular; no sustituye el reporte oficial de SIAGIE.'}
           </p>
         </div>
         <div className="cneb-map-actions">
-          <button type="button" className="cneb-btn ghost" onClick={exportar} disabled={!grupoId}>
+          <button type="button" className="cneb-btn ghost" onClick={exportar} disabled={!grupoId || !haySesiones}>
             Descargar Excel
           </button>
-          <button type="button" className="cneb-btn ghost" onClick={exportarInforme} disabled={!grupoId}>
+          <button type="button" className="cneb-btn ghost" onClick={exportarInforme} disabled={!grupoId || !haySesiones}>
             Informe PDF
           </button>
-          <button type="button" className="cneb-btn primary" onClick={guardar} disabled={saving || !data}>
+          <button type="button" className="cneb-btn primary" onClick={guardar} disabled={saving || !data || !haySesiones}>
             {saving ? 'Guardando…' : 'Guardar corte'}
           </button>
         </div>
@@ -224,10 +253,34 @@ export default function AdminCnebCorte({
         <p className="cneb-muted">Cargando corte…</p>
       ) : !grupoId ? (
         <div className="cneb-empty">Elija un aula para ver el corte.</div>
+      ) : !haySesiones || (soloSesionesElegidas && !sesionesVista.length) ? (
+        <div className="cneb-empty">
+          Todavía no hay sesiones en este curso. Primero cree una sesión (inicio, desarrollo y
+          cierre) y observe a los niños. El corte solo muestra las sesiones que usted eligió.
+        </div>
       ) : !(data?.alumnos || []).length ? (
         <div className="cneb-empty">No hay alumnos regulares en esta aula.</div>
+      ) : !competenciasVista.length ? (
+        <div className="cneb-empty">
+          Las sesiones de este curso aún no tienen competencia CNEB. Ábralas, elija la competencia
+          y vuelva al corte.
+        </div>
       ) : (
         <div className="cneb-table-wrap">
+          {soloSesionesElegidas && sesionesVista.length ? (
+            <div className="cneb-corte-sesiones">
+              <p className="cneb-kicker">Sesiones de este curso que entran al corte</p>
+              <ul>
+                {sesionesVista.map((s) => (
+                  <li key={s.id}>
+                    <strong>{s.titulo}</strong>
+                    {s.fecha_sesion ? ` · ${String(s.fecha_sesion).slice(0, 10)}` : ''}
+                    {s.competencia_nombre ? ` · ${s.competencia_nombre}` : ''}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <table className="cneb-table cneb-table--corte">
             <thead>
               <tr>
@@ -242,7 +295,7 @@ export default function AdminCnebCorte({
                 <th rowSpan={2}>Conclusión del periodo</th>
               </tr>
               <tr>
-                {(data.competencias || []).map((c) => (
+                {competenciasVista.map((c) => (
                   <th key={c.id} title={c.nombre}>
                     {String(c.nombre || '').slice(0, 28)}
                   </th>
@@ -255,7 +308,7 @@ export default function AdminCnebCorte({
                   <td className="cneb-sticky">
                     <strong>{al.nombre}</strong>
                   </td>
-                  {(data.competencias || []).map((c) => {
+                  {competenciasVista.map((c) => {
                     const k = `${al.matricula_id}_${c.id}`;
                     return (
                       <td key={c.id}>
@@ -292,7 +345,7 @@ export default function AdminCnebCorte({
           </table>
         </div>
       )}
-      {data?.alumnos?.length ? (
+      {haySesiones && data?.alumnos?.length && competenciasVista.length ? (
         <div className="cneb-leyenda-corte">
           <span>
             <strong>AD</strong> Logro destacado
