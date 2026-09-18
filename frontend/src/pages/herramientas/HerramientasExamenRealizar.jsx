@@ -290,11 +290,7 @@ export default function HerramientasExamenRealizar() {
               {examen.bloque_contenido ? (
                 <Box
                   className="hex-exam-bloque-html"
-                  sx={{
-                    '& p': { marginTop: 0 },
-                    lineHeight: 1.6,
-                    mb: (examen.bloque_archivos || []).length ? 2 : 0
-                  }}
+                  sx={{ mb: (examen.bloque_archivos || []).length ? 2 : 0 }}
                   dangerouslySetInnerHTML={{ __html: examen.bloque_contenido }}
                 />
               ) : null}

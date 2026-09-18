@@ -43,7 +43,7 @@ SELECT
   @colegio_id,
   NULL,
   @titulo,
-  'Examen de nivel intermedio-alto dirigido al equipo docente. Evalúa dominio del CNEB (competencias, enfoques, evaluación formativa y diversificación) y el criterio profesional para aplicarlo en el aula. 15 preguntas de alternativa (autoevaluadas) y 5 de criterio (revisión manual).',
+  'Examen de nivel intermedio-alto para el equipo docente: dominio del CNEB y criterio para aplicarlo en el aula.',
   'BORRADOR',
   'CALIFICADO',
   NULL,
@@ -59,7 +59,7 @@ SELECT
   0,
   'PREDETERMINADO',
   20,
-  '<p><strong>Indicaciones</strong></p><ul><li>Tiempo referencial: 90 minutos. Un intento.</li><li>Preguntas 1 a 15: marque la alternativa más coherente con el CNEB (MINEDU).</li><li>Preguntas 16 a 20: responda con criterio profesional (12 a 20 líneas). Fundamente con categorías del CNEB y un ejemplo de su aula.</li><li>No se evalúa opinión libre desconectada del currículo: se espera precisión conceptual y viabilidad pedagógica.</li></ul><p>Referente: Currículo Nacional de la Educación Básica (RM N. 281-2016-MINEDU; modificación RM N. 159-2017-MINEDU), programas curriculares y enfoque formativo de la evaluación.</p>',
+  '<p>Tiempo referencial: <strong>90 minutos</strong>. Un intento. 20 preguntas: 15 de alternativa (autoevaluadas) y 5 de criterio (revisión manual).</p><p><strong>Parte 1 (preguntas 1 a 15).</strong> Marque la alternativa más coherente con el CNEB. No elija por costumbre de aula si contradice el currículo nacional.</p><p><strong>Parte 2 (preguntas 16 a 20).</strong> Escriba entre 12 y 20 líneas. Fundamente con categorías del CNEB (competencia, capacidades, estándar o enfoques) y un ejemplo de su propia aula. No se evalúa opinión desconectada del currículo.</p><p><strong>Referente.</strong> Currículo Nacional de la Educación Básica (MINEDU), RM N.° 281-2016-MINEDU y RM N.° 159-2017-MINEDU.</p>',
   NULL,
   NULL
 FROM DUAL

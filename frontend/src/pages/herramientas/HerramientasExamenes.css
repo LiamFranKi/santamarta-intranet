@@ -108,6 +108,41 @@
   box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05) !important;
 }
 
+.hex-exam-bloque-html {
+  color: #334155;
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+
+.hex-exam-bloque-html p {
+  margin: 0 0 0.9em;
+}
+
+.hex-exam-bloque-html p:last-child,
+.hex-exam-bloque-html ul:last-child,
+.hex-exam-bloque-html ol:last-child {
+  margin-bottom: 0;
+}
+
+.hex-exam-bloque-html ul,
+.hex-exam-bloque-html ol {
+  margin: 0.15em 0 1em;
+  padding-left: 1.25em;
+}
+
+.hex-exam-bloque-html li {
+  margin: 0 0 0.45em;
+}
+
+.hex-exam-bloque-html li:last-child {
+  margin-bottom: 0;
+}
+
+.hex-exam-bloque-html strong {
+  color: #1e1b4b;
+  font-weight: 800;
+}
+
 .hex-q-card {
   border-radius: 18px !important;
   border: 1px solid #e2e8f0 !important;
