@@ -1,5 +1,6 @@
 const { query, execute, getAnioActivo } = require('./mysql');
 const { partirMinutos } = require('./cnebSesionBorrador');
+const { leerDua } = require('./cnebDua');
 
 const MOMENTOS = ['inicio', 'desarrollo', 'cierre'];
 
@@ -33,6 +34,7 @@ function leerCuerpoSesion(body, nivel) {
     minutos,
     suma,
     cotejo: Array.isArray(body?.cotejo) ? body.cotejo : [],
+    dua: leerDua(body?.dua || body?.dua_json),
   };
 }
 
@@ -91,6 +93,7 @@ async function cargarSesion(cid, id) {
     momentos: mom,
     minutos: min,
     cotejo: cotejo || [],
+    dua: leerDua(ses.dua_json),
   };
 }
 
@@ -171,34 +174,47 @@ async function insertarSesion(cid, usuarioId, body) {
     usuarioId || null,
   ];
   let ins;
+  const duaStr = JSON.stringify(body.dua || leerDua(null));
   try {
     ins = await execute(
       `INSERT INTO cneb_sesiones
         (colegio_id, anio, nivel_cneb, grupo_id, asignatura_id, area_id, competencia_id,
-         titulo, proposito, ficha_estudiante, duracion_min, corte, fecha_sesion, estado, creado_por)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [...cols.slice(0, 9), body.ficha_estudiante, ...cols.slice(9)]
+         titulo, proposito, ficha_estudiante, dua_json, duracion_min, corte, fecha_sesion, estado, creado_por)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [...cols.slice(0, 9), body.ficha_estudiante, duaStr, ...cols.slice(9)]
     );
   } catch (e) {
     if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
-    ins = await execute(
-      `INSERT INTO cneb_sesiones
+    try {
+      ins = await execute(
+        `INSERT INTO cneb_sesiones
+        (colegio_id, anio, nivel_cneb, grupo_id, asignatura_id, area_id, competencia_id,
+         titulo, proposito, ficha_estudiante, duracion_min, corte, fecha_sesion, estado, creado_por)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [...cols.slice(0, 9), body.ficha_estudiante, ...cols.slice(9)]
+      );
+    } catch (e2) {
+      if (e2.code !== 'ER_BAD_FIELD_ERROR') throw e2;
+      ins = await execute(
+        `INSERT INTO cneb_sesiones
         (colegio_id, anio, nivel_cneb, grupo_id, asignatura_id, area_id, competencia_id,
          titulo, proposito, duracion_min, corte, fecha_sesion, estado, creado_por)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      cols
-    );
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        cols
+      );
+    }
   }
   await reemplazarHijos(ins.insertId, body);
   return cargarSesion(cid, ins.insertId);
 }
 
 async function actualizarSesion(cid, id, body) {
+  const duaStr = JSON.stringify(body.dua || leerDua(null));
   try {
     await execute(
       `UPDATE cneb_sesiones SET
          grupo_id = ?, asignatura_id = ?, area_id = ?, competencia_id = ?,
-         titulo = ?, proposito = ?, ficha_estudiante = ?, duracion_min = ?, corte = ?, fecha_sesion = ?, estado = ?
+         titulo = ?, proposito = ?, ficha_estudiante = ?, dua_json = ?, duracion_min = ?, corte = ?, fecha_sesion = ?, estado = ?
        WHERE id = ? AND colegio_id = ?`,
       [
         body.grupo_id,
@@ -208,6 +224,7 @@ async function actualizarSesion(cid, id, body) {
         body.titulo,
         body.proposito,
         body.ficha_estudiante,
+        duaStr,
         body.duracion_min,
         body.corte,
         body.fecha_sesion,
@@ -218,26 +235,51 @@ async function actualizarSesion(cid, id, body) {
     );
   } catch (e) {
     if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
-    await execute(
-      `UPDATE cneb_sesiones SET
+    try {
+      await execute(
+        `UPDATE cneb_sesiones SET
+         grupo_id = ?, asignatura_id = ?, area_id = ?, competencia_id = ?,
+         titulo = ?, proposito = ?, ficha_estudiante = ?, duracion_min = ?, corte = ?, fecha_sesion = ?, estado = ?
+         WHERE id = ? AND colegio_id = ?`,
+        [
+          body.grupo_id,
+          body.asignatura_id,
+          body.area_id,
+          body.competencia_id,
+          body.titulo,
+          body.proposito,
+          body.ficha_estudiante,
+          body.duracion_min,
+          body.corte,
+          body.fecha_sesion,
+          body.estado,
+          id,
+          cid,
+        ]
+      );
+    } catch (e2) {
+      if (e2.code !== 'ER_BAD_FIELD_ERROR') throw e2;
+      await execute(
+        `UPDATE cneb_sesiones SET
          grupo_id = ?, asignatura_id = ?, area_id = ?, competencia_id = ?,
          titulo = ?, proposito = ?, duracion_min = ?, corte = ?, fecha_sesion = ?, estado = ?
-       WHERE id = ? AND colegio_id = ?`,
-      [
-        body.grupo_id,
-        body.asignatura_id,
-        body.area_id,
-        body.competencia_id,
-        body.titulo,
-        body.proposito,
-        body.duracion_min,
-        body.corte,
-        body.fecha_sesion,
-        body.estado,
-        id,
-        cid,
-      ]
-    );
+         WHERE id = ? AND colegio_id = ?`,
+        [
+          body.grupo_id,
+          body.asignatura_id,
+          body.area_id,
+          body.competencia_id,
+          body.titulo,
+          body.proposito,
+          body.duracion_min,
+          body.corte,
+          body.fecha_sesion,
+          body.estado,
+          id,
+          cid,
+        ]
+      );
+    }
   }
   await reemplazarHijos(id, body);
   return cargarSesion(cid, id);

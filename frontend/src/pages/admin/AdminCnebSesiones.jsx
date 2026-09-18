@@ -4,7 +4,9 @@ import 'react-quill/dist/quill.snow.css';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import CnebHtmlVista from '../../components/aula/CnebHtmlVista';
+import CnebInclusivoPanel from '../../components/aula/CnebInclusivoPanel';
 import { htmlVacio, textoCnebAHtml } from '../../utils/cnebTextoRico';
+import { emptyDua, fusionarProcedimientos, leerDua } from '../../utils/cnebDua';
 
 const QUILL_CNEB = {
   toolbar: [
@@ -234,6 +236,7 @@ function formVacio(nivel, ctx = null) {
     momentos: { inicio: '', desarrollo: '', cierre: '' },
     minutos: partirMinutos(duracion_min),
     cotejo: [],
+    dua: emptyDua(),
   };
 }
 
@@ -433,6 +436,7 @@ export default function AdminCnebSesiones({
         },
         minutos: s.minutos || partirMinutos(s.duracion_min),
         cotejo: (s.cotejo || []).map((c) => ({ item: c.item, desempeno_id: c.desempeno_id })),
+        dua: leerDua(s.dua || s.dua_json),
       });
       setEditing(true);
     } catch (e) {
@@ -473,6 +477,10 @@ export default function AdminCnebSesiones({
         cierre: textoCnebAHtml(b.momentos?.cierre || form.momentos.cierre),
       },
       cotejo: (b.cotejo || []).map((item) => ({ item: typeof item === 'string' ? item : item.item })),
+      dua: {
+        ...(form.dua || emptyDua()),
+        procedimientos: fusionarProcedimientos(form.dua?.procedimientos, b.procedimientos),
+      },
     });
   };
 
@@ -504,6 +512,8 @@ export default function AdminCnebSesiones({
           desempenos_texto: textos,
           duracion_min: form.duracion_min,
           corte_label: cortes.find((c) => c.v === Number(form.corte))?.label,
+          grupo_id: form.grupo_id,
+          dua: form.dua,
         },
         { timeout: 120000 }
       );
@@ -909,6 +919,13 @@ export default function AdminCnebSesiones({
           Minutos: {suma} / {form.duracion_min}
         </span>
       </div>
+
+      <CnebInclusivoPanel
+        apiBase={apiBase}
+        grupoId={form.grupo_id}
+        dua={form.dua}
+        onChangeDua={(dua) => patch({ dua })}
+      />
 
       {['inicio', 'desarrollo', 'cierre'].map((tipo) => (
         <div key={tipo} className="cneb-momento">

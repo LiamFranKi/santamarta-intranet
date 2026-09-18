@@ -6,6 +6,7 @@ const { getColegioData } = require('./colegio');
 const { cargarCorte } = require('./cnebAuxiliar');
 const { cargarSesion } = require('./cnebSesionStore');
 const { htmlABloques, htmlATextoPlano } = require('./cnebTextoRico');
+const { DUA_CAT_LABEL, DUA_OPCIONES, leerDua, duaTieneAlgo } = require('./cnebDua');
 
 const ESCALA = [
   {
@@ -768,6 +769,44 @@ async function sesionPdfBuffer(cid, sesionId, { parte = 'sesion', formato = 'col
       cotejo.forEach((c, i) => {
         y = dibujarTextoFluido(doc, `${i + 1}. ${c.item}`, 40, y, inner - 8, { fontSize: 8.5 });
       });
+    }
+    const dua = leerDua(ses.dua || ses.dua_json);
+    if (duaTieneAlgo(dua)) {
+      y = ensure(doc, y, 22);
+      doc.fillColor(COLOR.teal).font('Helvetica-Bold').fontSize(9).text('DUA de esta sesión (evidencia de aula)', 36, y);
+      y += 12;
+      Object.keys(DUA_OPCIONES).forEach((cat) => {
+        const labs = (dua[cat] || []).map((k) => DUA_OPCIONES[cat].find((x) => x.key === k)?.label || k);
+        if (!labs.length) return;
+        y = dibujarTextoFluido(doc, `${DUA_CAT_LABEL[cat]}: ${labs.join(' · ')}`, 40, y, inner - 8, { fontSize: 8.5 });
+      });
+      if (dua.nota) {
+        y = dibujarTextoFluido(doc, `Nota: ${dua.nota}`, 40, y, inner - 8, { fontSize: 8.5 });
+      }
+      const procs = dua.procedimientos || [];
+      if (procs.length) {
+        y = ensure(doc, y, 16);
+        y = dibujarTextoFluido(
+          doc,
+          'Procedimiento de hoy (ajustes de esta sesión con el/los estudiante(s) que tienen PIAR):',
+          40,
+          y,
+          inner - 8,
+          { fontSize: 8.5 }
+        );
+        procs.forEach((p) => {
+          const quien = String(p.nombre || '').trim() || 'Estudiante con apoyos';
+          y = dibujarTextoFluido(doc, `${quien}: ${p.texto}`, 40, y, inner - 8, { fontSize: 8.5 });
+        });
+      }
+      y += 4;
+      doc.fillColor(COLOR.muted).font('Helvetica').fontSize(7).text(
+        'Registro institucional de diseño inclusivo. No modifica SIAGIE ni identifica diagnósticos en la ficha del estudiante.',
+        36,
+        y,
+        { width: inner }
+      );
+      y += 14;
     }
     doc.fillColor(COLOR.muted).font('Helvetica').fontSize(6.5).text(
       'Para el docente titular o el suplente. No modifica el aula virtual ni las notas 0–20.',

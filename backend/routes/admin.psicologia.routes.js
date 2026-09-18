@@ -6,13 +6,14 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const express = require('express');
-const PDFDocument = require('pdfkit');
 const router = express.Router();
 const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
-const { fechaHoraMySQLLima, fechaHoraTextoLima, fechaTextoLima } = require('../utils/fechaHoraLima');
+const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
 const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = require('../utils/notificacionInsert');
 const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
+const { piarPdfBuffer, actaReunionPdfBuffer } = require('../utils/piarPdf');
+const { docentesUsuarioDelAulaAlumno, tutoresUsuarioDelAlumno, urlDestinoPiarPorTipo } = require('../utils/cnebPiarAula');
 
 const PSICOLOGIA_TIPOS = new Set(['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA']);
 
@@ -256,8 +257,8 @@ async function notificarDocenteDerivacion(req, { colegio_id, docentePersonalId, 
   }
 }
 
-/** Notificar creación/activación de PIAR a psicología, docente responsable y apoderados del alumno. */
-async function notificarAltaPiar(req, { colegio_id, alumnoId, piarId, estadoPiar, docenteResponsablePersonalId }) {
+/** Notificar PIAR: staff, docente responsable, docentes del aula, tutor/co-tutor y familia. */
+async function notificarAltaPiar(req, { colegio_id, alumnoId, piarId, estadoPiar, docenteResponsablePersonalId, anio }) {
   const remitenteId = req.user?.usuario_id != null ? Number(req.user.usuario_id) : null;
   if (!Number.isFinite(remitenteId)) return;
   const [alRow] = await query(
@@ -266,56 +267,74 @@ async function notificarAltaPiar(req, { colegio_id, alumnoId, piarId, estadoPiar
     [alumnoId, colegio_id]
   );
   const nombreAl = (alRow && alRow.nombre) || `Alumno ${alumnoId}`;
-  const asunto = estadoPiar === 'ACTIVO' ? 'PIAR activo publicado' : 'PIAR registrado';
-  const contenido = `Se registró un PIAR para ${nombreAl}. Estado: ${estadoPiar || 'BORRADOR'}.`;
+  const publicado = estadoPiar === 'ACTIVO';
 
-  const destinatarios = new Set();
+  const dest = new Map();
+  const add = (id, tipo, rol) => {
+    const n = Number(id);
+    if (!Number.isFinite(n) || n === remitenteId) return;
+    const prev = dest.get(n);
+    if (!prev) dest.set(n, { tipo: String(tipo || 'ADMINISTRADOR'), rol: rol || null });
+    else if (rol === 'tutor') dest.set(n, { tipo: prev.tipo, rol: 'tutor' });
+  };
 
-  // Psicología/staff administrativo.
   const staffRows = await query(
-    `SELECT u.id
+    `SELECT u.id, u.tipo
      FROM usuarios u
      WHERE u.colegio_id = ? AND u.estado = 'ACTIVO'
        AND u.tipo IN ('PSICOLOGA', 'ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA')`,
     [colegio_id]
   );
-  for (const r of staffRows || []) {
-    const id = Number(r.id);
-    if (Number.isFinite(id) && id !== remitenteId) destinatarios.add(id);
-  }
+  for (const r of staffRows || []) add(r.id, r.tipo);
 
-  // Docente responsable asignado en PIAR (si existe).
   if (Number.isFinite(Number(docenteResponsablePersonalId))) {
     const docRows = await query(
-      `SELECT u.id FROM usuarios u
+      `SELECT u.id, u.tipo FROM usuarios u
        WHERE u.personal_id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'DOCENTE' LIMIT 1`,
       [Number(docenteResponsablePersonalId), colegio_id]
     );
-    const uid = Number(docRows?.[0]?.id);
-    if (Number.isFinite(uid) && uid !== remitenteId) destinatarios.add(uid);
+    if (docRows?.[0]) add(docRows[0].id, docRows[0].tipo, 'docente');
   }
 
-  // Apoderados del alumno.
-  const apRows = await query(
-    `SELECT DISTINCT u.id
-     FROM familias f
-     INNER JOIN apoderados ap ON ap.id = f.apoderado_id
-     INNER JOIN usuarios u ON u.apoderado_id = ap.id
-     WHERE f.alumno_id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'APODERADO'`,
-    [alumnoId, colegio_id]
-  );
-  for (const r of apRows || []) {
-    const id = Number(r.id);
-    if (Number.isFinite(id) && id !== remitenteId) destinatarios.add(id);
+  if (publicado) {
+    const aulaDocs = await docentesUsuarioDelAulaAlumno(colegio_id, alumnoId, anio);
+    for (const r of aulaDocs || []) add(r.id, 'DOCENTE', 'docente');
+    const tutores = await tutoresUsuarioDelAlumno(colegio_id, alumnoId, anio);
+    for (const r of tutores || []) add(r.id, r.tipo || 'DOCENTE', 'tutor');
+    const apRows = await query(
+      `SELECT DISTINCT u.id
+       FROM familias f
+       INNER JOIN apoderados ap ON ap.id = f.apoderado_id
+       INNER JOIN usuarios u ON u.apoderado_id = ap.id
+       WHERE f.alumno_id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'APODERADO'`,
+      [alumnoId, colegio_id]
+    );
+    for (const r of apRows || []) add(r.id, 'APODERADO');
   }
 
-  for (const destinatarioId of destinatarios) {
+  for (const [destinatarioId, meta] of dest.entries()) {
+    const tipo = meta.tipo;
+    const rol = meta.rol;
+    const asunto = !publicado
+      ? 'PIAR registrado'
+      : rol === 'tutor'
+        ? 'PIAR en su tutoría: apoyos en aula y CNEB'
+        : tipo === 'APODERADO'
+          ? 'Plan de apoyos (PIAR) publicado'
+          : 'PIAR publicado: apoyos en aula y CNEB';
+    const contenido = !publicado
+      ? `Se registró un PIAR (borrador) de ${nombreAl}.`
+      : tipo === 'APODERADO'
+        ? `Se publicó el plan de apoyos (PIAR) de ${nombreAl}. Puede verlo en Psicología.`
+        : rol === 'tutor'
+          ? `En su tutoría hay un estudiante con plan de apoyos (PIAR) publicado: ${nombreAl}. Revise los apoyos; en la sesión CNEB queda el procedimiento de hoy.`
+          : `Hay un PIAR publicado de ${nombreAl}. Revise los apoyos en Herramientas → PIAR y deje el procedimiento de hoy en la sesión CNEB.`;
     try {
       const dup = await notificacionMensajeDuplicadaReciente(query, {
         usuario_id: remitenteId,
         destinatario_id: destinatarioId,
         accion_tipo: 'PSICOLOGIA_PIAR',
-        contenido: `piar#${piarId}`,
+        contenido: publicado ? `piar#${piarId}#activo` : `piar#${piarId}`,
         ventanaSegundos: 90,
       });
       if (dup) continue;
@@ -327,8 +346,8 @@ async function notificarAltaPiar(req, { colegio_id, alumnoId, piarId, estadoPiar
         contenido,
         estado: 'NO ENVIADO',
         accion_tipo: 'PSICOLOGIA_PIAR',
-        accion_payload: { piar_id: piarId, alumno_id: alumnoId },
-        url_destino: '/admin/psicologia',
+        accion_payload: { piar_id: piarId, alumno_id: alumnoId, rol: rol || null },
+        url_destino: urlDestinoPiarPorTipo(tipo, { piarId, alumnoId }),
       });
     } catch (nErr) {
       console.warn('[psicologia] notificación PIAR:', nErr.message);
@@ -1384,6 +1403,7 @@ router.post('/alumnos/:alumnoId/piar', async (req, res) => {
         piarId: ins.insertId,
         estadoPiar: estado,
         docenteResponsablePersonalId: b.docente_responsable_personal_id != null ? parseInt(b.docente_responsable_personal_id, 10) : null,
+        anio,
       });
     } catch (nErr) {
       console.warn('[psicologia] notificación alta PIAR omitida:', nErr.message);
@@ -1403,7 +1423,10 @@ router.put('/piar/:id', async (req, res) => {
   try {
     const cid = colegioId(req);
     const id = parseInt(req.params.id, 10);
-    const [row] = await query('SELECT id, alumno_id, anio FROM psicologia_piar WHERE id = ? AND colegio_id = ? LIMIT 1', [id, cid]);
+    const [row] = await query(
+      'SELECT id, alumno_id, anio, docente_responsable_personal_id FROM psicologia_piar WHERE id = ? AND colegio_id = ? LIMIT 1',
+      [id, cid]
+    );
     if (!row) return res.status(404).json({ error: 'No encontrado' });
     const b = req.body || {};
     const sets = [];
@@ -1478,6 +1501,22 @@ router.put('/piar/:id', async (req, res) => {
          WHERE colegio_id = ? AND alumno_id = ? AND anio = ? AND id != ? AND estado = 'ACTIVO'`,
         [cid, row.alumno_id, row.anio, id]
       );
+      try {
+        const docResp =
+          b.docente_responsable_personal_id != null
+            ? parseInt(b.docente_responsable_personal_id, 10)
+            : row.docente_responsable_personal_id;
+        await notificarAltaPiar(req, {
+          colegio_id: cid,
+          alumnoId: row.alumno_id,
+          piarId: id,
+          estadoPiar: 'ACTIVO',
+          docenteResponsablePersonalId: docResp,
+          anio: row.anio,
+        });
+      } catch (nErr) {
+        console.warn('[psicologia] notificación publicación PIAR omitida:', nErr.message);
+      }
     }
 
     res.json({ ok: true });
@@ -1550,32 +1589,7 @@ router.post('/piar/:id/seguimiento', async (req, res) => {
   }
 });
 
-function parseJsonSafe(v, fallback) {
-  if (v == null) return fallback;
-  if (typeof v === 'object') return v;
-  try {
-    return JSON.parse(String(v));
-  } catch {
-    return fallback;
-  }
-}
-
-/** Inserta imagen base64 (data URL) en PDFKit; devuelve false si no hay imagen válida. */
-function tryPdfImageFromDataUrl(doc, dataUrl, maxW = 220, maxH = 100) {
-  if (!dataUrl || typeof dataUrl !== 'string') return false;
-  const m = dataUrl.match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/i);
-  if (!m) return false;
-  try {
-    const buf = Buffer.from(m[2], 'base64');
-    doc.image(buf, { fit: [maxW, maxH] });
-    return true;
-  } catch (imgErr) {
-    console.warn('[psicologia pdf] firma imagen:', imgErr.message);
-    return false;
-  }
-}
-
-/** PDF — Acta de reunión (texto; firmas digitalizadas en intranet). */
+/** PDF — Acta de reunión. */
 router.get('/reuniones/:id/pdf', async (req, res) => {
   try {
     const cid = colegioId(req);
@@ -1589,58 +1603,10 @@ router.get('/reuniones/:id/pdf', async (req, res) => {
       [id, cid]
     );
     if (!rows.length) return res.status(404).json({ error: 'No encontrado' });
-    const r = rows[0];
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const buf = await actaReunionPdfBuffer(cid, rows[0]);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="Acta_reunion_psicologia_${id}.pdf"`);
-    doc.pipe(res);
-    doc.fontSize(15).font('Helvetica-Bold').text('ACTA DE REUNIÓN CON PADRES / FAMILIA', { align: 'center' });
-    doc.moveDown(0.6);
-    doc.fontSize(10).font('Helvetica');
-    doc.text(`Alumno/a: ${r.alumno_nombre || '—'}`);
-    const refReu =
-      r.fecha_reunion != null && String(r.fecha_reunion).trim() !== ''
-        ? r.fecha_reunion
-        : r.updated_at || r.created_at;
-    const fechaReuTxt = refReu ? fechaHoraTextoLima(refReu) : '—';
-    doc.text(`Fecha y hora reunión (Lima): ${fechaReuTxt}`);
-    doc.text(`Estado documento: ${r.estado || '—'}`);
-    doc.moveDown();
-    const bloques = [
-      ['Participantes', r.participantes],
-      ['Temas tratados', r.temas_tratados],
-      ['Acuerdos', r.acuerdos],
-      ['Compromisos de la familia', r.compromisos_familia],
-      ['Compromisos del colegio', r.compromisos_colegio],
-    ];
-    for (const [tit, txt] of bloques) {
-      doc.font('Helvetica-Bold').text(`${tit}`, { underline: true });
-      doc.font('Helvetica').text(String(txt && String(txt).trim() ? txt : '—'), { align: 'left' });
-      doc.moveDown(0.4);
-    }
-    doc.moveDown(0.5);
-    doc.fontSize(11).fillColor('#000').font('Helvetica-Bold').text('Firmas (registradas en intranet)', { underline: true });
-    doc.moveDown(0.35);
-    doc.fontSize(9).font('Helvetica');
-    const firmasPdf = [
-      ['Familia / apoderado', r.firma_padre_imagen],
-      ['Psicología', r.firma_psicologia_imagen],
-      ['Docente', r.firma_docente_imagen],
-    ];
-    for (const [etiq, img] of firmasPdf) {
-      doc.fillColor('#000').font('Helvetica-Bold').text(`${etiq}`);
-      doc.font('Helvetica').fillColor('#333');
-      if (!tryPdfImageFromDataUrl(doc, img)) {
-        doc.text('(Sin firma digital en este documento)');
-      }
-      doc.moveDown(0.5);
-    }
-    doc.moveDown(0.2);
-    doc.fontSize(8).fillColor('#555').font('Helvetica').text(
-      'Documento generado desde VanguardNet. Las firmas arriba corresponden a las capturadas en el expediente electrónico.',
-      { align: 'left' }
-    );
-    doc.end();
+    res.send(buf);
   } catch (e) {
     console.error('[psicologia pdf reunion]', e);
     if (!res.headersSent) res.status(500).json({ error: e.message || 'Error' });
@@ -1674,62 +1640,6 @@ router.get('/piar/:id/pdf', async (req, res) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'No encontrado' });
     const p = rows[0];
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="PIAR_${p.anio}_v${p.numero_version}_${id}.pdf"`);
-    doc.pipe(res);
-    doc.fontSize(14).font('Helvetica-Bold').text('PLAN INDIVIDUAL DE AJUSTES RAZONABLES (PIAR)', { align: 'center' });
-    doc.moveDown(0.5);
-    doc.fontSize(10).font('Helvetica');
-    doc.text(`Estudiante: ${p.alumno_nombre || '—'}`);
-    doc.text(`Año: ${p.anio} · Versión: ${p.numero_version} · Estado: ${p.estado || '—'}`);
-    doc.text(`Fecha elaboración (Lima): ${fechaTextoLima(p.fecha_elaboracion)}`);
-    doc.text(
-      `Nivel — grado — sección (año PIAR): ${p.grupo_aula_etiqueta && String(p.grupo_aula_etiqueta).trim() ? p.grupo_aula_etiqueta : '—'}`
-    );
-    doc.moveDown(0.25);
-    doc.font('Helvetica-Bold').text('Responsables', { underline: true });
-    doc.font('Helvetica');
-    doc.text(`Elaboración (psicología / registro): ${String(p.elaborado_por_nombre || '').trim() || '—'}`);
-    doc.text(`Docente responsable (seguimiento en aula): ${String(p.docente_responsable_nombre || '').trim() || '—'}`);
-    doc.text(`Coordinador PIAR: ${String(p.coordinador_nombre || '').trim() || '—'}`);
-    doc.moveDown();
-    const narr = [
-      ['Diagnóstico (si aplica)', p.diagnostico],
-      ['Fortalezas', p.fortalezas],
-      ['Áreas de dificultad', p.areas_dificultad],
-      ['Estilo de aprendizaje', p.estilo_aprendizaje],
-      ['Observaciones', p.observaciones_relevantes],
-      ['Estrategias docentes', p.estrategias_docentes],
-      ['Frecuencia de aplicación', p.frecuencia_aplicacion],
-      ['Fecha de revisión (Lima)', fechaTextoLima(p.fecha_revision)],
-      ['Avances observados', p.avances_observados],
-      ['Ajustes tras revisión', p.ajustes_necesarios_revision],
-    ];
-    for (const [tit, txt] of narr) {
-      doc.font('Helvetica-Bold').text(`${tit}`, { underline: true });
-      doc.font('Helvetica').text(String(txt && String(txt).trim() ? txt : '—'));
-      doc.moveDown(0.35);
-    }
-    const adj = parseJsonSafe(p.ajustes_checklist_json, {});
-    doc.font('Helvetica-Bold').text('Ajustes razonables (checklist)', { underline: true });
-    doc.font('Helvetica');
-    Object.keys(adj).forEach((k) => {
-      const arr = Array.isArray(adj[k]) ? adj[k] : [];
-      doc.text(`· ${k}: ${arr.length ? arr.join(', ') : '—'}`);
-    });
-    doc.moveDown(0.3);
-    const objs = parseJsonSafe(p.objetivos_json, []);
-    doc.font('Helvetica-Bold').text('Objetivos', { underline: true });
-    doc.font('Helvetica');
-    if (Array.isArray(objs) && objs.length) {
-      objs.forEach((o, i) => {
-        doc.text(`${i + 1}. ${o.objetivo || '—'} — Indicador: ${o.indicador || '—'}`);
-      });
-    } else {
-      doc.text('—');
-    }
-    doc.moveDown(0.4);
     let segRows = [];
     try {
       segRows = await query(
@@ -1742,24 +1652,10 @@ router.get('/piar/:id/pdf', async (req, res) => {
     } catch (segErr) {
       console.warn('[psicologia pdf piar] seguimiento:', segErr.message);
     }
-    doc.fontSize(11).fillColor('#000').font('Helvetica-Bold').text('Bitácora de seguimiento', { underline: true });
-    doc.font('Helvetica').fontSize(10);
-    if (segRows && segRows.length) {
-      segRows.forEach((s) => {
-        const rol = String(s.autor_tipo || '') === 'DOCENTE' ? 'Docente' : 'Psicología / administración';
-        doc.font('Helvetica-Bold').fontSize(9).text(`${rol} · ${fechaHoraTextoLima(s.created_at)}`);
-        doc.font('Helvetica').fontSize(10).text(String(s.contenido && String(s.contenido).trim() ? s.contenido : '—'));
-        doc.moveDown(0.35);
-      });
-    } else {
-      doc.text('—');
-    }
-    doc.moveDown();
-    doc.fontSize(9).fillColor('#555').font('Helvetica').text(
-      'Documento generado desde VanguardNet. Las firmas digitalizadas se encuentran en el expediente electrónico.',
-      { align: 'left' }
-    );
-    doc.end();
+    const buf = await piarPdfBuffer(cid, p, { seguimiento: segRows });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="PIAR_${p.anio}_v${p.numero_version}_${id}.pdf"`);
+    res.send(buf);
   } catch (e) {
     console.error('[psicologia pdf piar]', e);
     if (!res.headersSent) res.status(500).json({ error: e.message || 'Error' });
@@ -1767,3 +1663,4 @@ router.get('/piar/:id/pdf', async (req, res) => {
 });
 
 module.exports = router;
+

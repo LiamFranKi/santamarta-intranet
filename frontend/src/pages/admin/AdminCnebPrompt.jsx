@@ -90,9 +90,10 @@ export default function AdminCnebPrompt({ apiBase = '/admin/cneb' }) {
       />
       <p className="cneb-muted">
         Variables: {'{{nivel}}'} {'{{corte_label}}'} {'{{duracion}}'} {'{{area}}'} {'{{competencia}}'}{' '}
-        {'{{capacidades}}'} {'{{desempenos}}'} {'{{titulo}}'} {'{{proposito}}'}. Si ya guardó un prompt
-        antiguo, pulse «Plantilla original» para incluir título vacío y ficha, o déjelo: el servidor
-        pedirá igual esos campos.
+        {'{{capacidades}}'} {'{{desempenos}}'} {'{{titulo}}'} {'{{proposito}}'} {'{{apoyos_aula}}'}.
+        {'{{apoyos_aula}}'} trae DUA del grupo y, si hay PIAR publicado, los apoyos (sin diagnóstico).
+        Si el prompt guardado no la incluye, el servidor la añade igual. Si ya guardó un prompt
+        antiguo, pulse «Plantilla original» para incluir título vacío, ficha e inclusión.
       </p>
     </section>
   );

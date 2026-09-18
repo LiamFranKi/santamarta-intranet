@@ -36,6 +36,13 @@ import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { useAuth } from '../../context/AuthContext';
 import PsicologiaSignaturePad from '../../components/PsicologiaSignaturePad';
+import PiarWizard from '../../components/psicologia/PiarWizard';
+import {
+  emptyAjustes,
+  apoyosComoLista,
+  PIAR_ESTADO_LABEL,
+} from '../../utils/piarEtiquetas';
+import '../../components/psicologia/PiarStudio.css';
 import './AdminPsicologia.css';
 
 const MOTIVOS_DER = [
@@ -45,34 +52,6 @@ const MOTIVOS_DER = [
   { key: 'socializacion', label: 'Problemas de socialización' },
   { key: 'sospecha_nee', label: 'Sospecha de NEE' },
 ];
-
-const PIAR_CHECKS = {
-  metodologia: [
-    { key: 'material_visual', label: 'Material visual' },
-    { key: 'instrucciones_paso', label: 'Instrucciones paso a paso' },
-    { key: 'bloques_cortos', label: 'Trabajo por bloques cortos' },
-    { key: 'proyectos', label: 'Aprendizaje basado en proyectos' },
-  ],
-  tiempo: [
-    { key: 'tiempo_extendido', label: 'Tiempo extendido en tareas' },
-    { key: 'pausas_activas', label: 'Pausas activas' },
-  ],
-  evaluacion: [
-    { key: 'oral', label: 'Evaluación oral' },
-    { key: 'imagenes_om', label: 'Imágenes / opción múltiple' },
-    { key: 'menos_preguntas', label: 'Reducción de preguntas' },
-    { key: 'tecnologia', label: 'Tecnología (audio/video)' },
-  ],
-  ambiente: [
-    { key: 'ubicacion_preferente', label: 'Ubicación preferencial' },
-    { key: 'menos_distractores', label: 'Reducción de distractores' },
-    { key: 'rutinas', label: 'Rutinas estructuradas' },
-  ],
-};
-
-function emptyAjustes() {
-  return { metodologia: [], tiempo: [], evaluacion: [], ambiente: [] };
-}
 
 const LIMA_TZ = 'America/Lima';
 
@@ -145,7 +124,8 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
   const [searchParams] = useSearchParams();
   const matriculaId = searchParams.get('matricula_id');
 
-  const [tab, setTab] = useState(0);
+  const [tab, setTab] = useState(searchParams.get('tab') === 'piar' ? 5 : 0);
+  const [piarGuardando, setPiarGuardando] = useState(false);
   const [meta, setMeta] = useState(null);
   const [resumen, setResumen] = useState(null);
   const [timeline, setTimeline] = useState([]);
@@ -293,6 +273,10 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
   useEffect(() => {
     reloadAll();
   }, [reloadAll]);
+
+  useEffect(() => {
+    if (searchParams.get('tab') === 'piar') setTab(5);
+  }, [searchParams]);
 
   /** Si el usuario logueado es personal docente, preseleccionar en la ficha de derivación (solo alta nueva). */
   useEffect(() => {
@@ -797,7 +781,8 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
     }
   };
 
-  const guardarPiar = async () => {
+  const guardarPiar = async (estadoOverride) => {
+    setPiarGuardando(true);
     try {
       const body = {
         matricula_id: matriculaId || null,
@@ -818,7 +803,7 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
           ? piarForm.objetivos.filter((o) => o && (o.objetivo || o.indicador))
           : [],
         evaluacion_kpi_json: piarForm.evaluacion_kpi,
-        estado: piarForm.estado,
+        estado: estadoOverride || piarForm.estado,
         fecha_elaboracion: new Date().toISOString().slice(0, 10),
       };
       if (piarEditing?.id && alumnoId) {
@@ -854,6 +839,8 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
       reloadAll();
     } catch (e) {
       Swal.fire({ icon: 'error', title: e.response?.data?.error || 'Error' });
+    } finally {
+      setPiarGuardando(false);
     }
   };
 
@@ -1195,38 +1182,60 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
         </TabPanel>
 
         <TabPanel value={tab} index={5}>
-          <Alert severity="info" sx={{ mb: 2 }}>
-            <strong>Uso del PIAR y parte del docente:</strong> el plan se elabora y versiona desde esta pantalla (psicología /
-            administración). Los <strong>ajustes razonables</strong> y los <strong>compromisos de aula</strong> se consensúan con el docente
-            referente y se registran en el formulario (apartado &quot;Estrategias / seguimiento en aula&quot; y docente responsable).{' '}
-            Asigne <strong>docente responsable</strong> en el formulario del PIAR para que ese docente vea el plan en{' '}
-            <strong>Herramientas → PIAR</strong> y pueda registrar seguimiento y ajustes de aula. El <strong>seguimiento en
-            bitácora</strong> (fechas y notas) lo pueden ir cargando <strong>psicología y el docente asignado</strong>; más adelante se
-            podrá sumar el apoderado. <strong>Eliminar:</strong> solo <strong>BORRADOR</strong>; los activos se archivan o se versiona de
-            nuevo.
-          </Alert>
-          <Stack direction="row" justifyContent="flex-end" sx={{ mb: 2 }}>
-            <Button variant="contained" onClick={abrirNuevoPiar}>
-              + Nuevo PIAR (nueva versión)
-            </Button>
-          </Stack>
-          <Stack spacing={1.5}>
-            {piarLista.map((p) => (
-              <Box key={p.id} className="psi-piar-list-card">
-                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1}>
-                  <Box>
-                    <Typography fontWeight={800} sx={{ color: '#5b21b6' }}>
+          <div className="psi-piar-hero">
+            <div>
+              <h2>Plan individual de ajustes razonables</h2>
+              <p>
+                Elabore el plan en cinco pasos. Al publicarlo, el docente lo ve en Herramientas → PIAR y la familia
+                consulta la versión activa. Solo se elimina un borrador; un plan publicado se archiva o se versiona.
+              </p>
+            </div>
+            <button type="button" onClick={abrirNuevoPiar}>
+              + Nuevo PIAR
+            </button>
+          </div>
+          <div className="psi-piar-studio-list">
+            {piarLista.map((p) => {
+              const apoyos = apoyosComoLista(p.ajustes_checklist_json).slice(0, 6);
+              return (
+                <article key={p.id} className="psi-piar-studio-card">
+                  <div>
+                    <h3>
                       Año {p.anio} · Versión {p.numero_version}
-                    </Typography>
-                    <span className={`psi-piar-estado ${String(p.estado).toLowerCase()}`}>{p.estado}</span>
+                    </h3>
+                    <span className={`psi-piar-estado ${String(p.estado).toLowerCase()}`}>
+                      {PIAR_ESTADO_LABEL[p.estado] || p.estado}
+                    </span>
                     {p.created_at ? (
                       <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
                         {formatLimaLine(p.created_at)}
                       </Typography>
                     ) : null}
-                  </Box>
-                  <Stack direction="row" spacing={0.5} alignItems="center">
-                    <Button size="small" variant="outlined" className="psi-piar-btn-pdf" onClick={() => descargarPdf(`/admin/psicologia/piar/${p.id}/pdf`, `PIAR_${p.anio}_v${p.numero_version}.pdf`)}>
+                    {p.fortalezas ? (
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        {String(p.fortalezas).slice(0, 140)}
+                        {String(p.fortalezas).length > 140 ? '…' : ''}
+                      </Typography>
+                    ) : null}
+                    {apoyos.length > 0 && (
+                      <div className="piar-chip-row" style={{ marginTop: 10 }}>
+                        {apoyos.map((a) => (
+                          <span key={`${a.cat}-${a.key}`} className="piar-chip">
+                            {a.label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="psi-piar-studio-card__actions">
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      className="psi-piar-btn-pdf"
+                      onClick={() =>
+                        descargarPdf(`/admin/psicologia/piar/${p.id}/pdf`, `PIAR_${p.anio}_v${p.numero_version}.pdf`)
+                      }
+                    >
                       PDF
                     </Button>
                     <Tooltip title="Editar PIAR">
@@ -1234,7 +1243,13 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
                         <EditIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title={p.estado === 'BORRADOR' ? 'Eliminar PIAR (solo borrador)' : 'Solo se eliminan PIAR en BORRADOR. Archivo o nueva versión si ya está activo.'}>
+                    <Tooltip
+                      title={
+                        p.estado === 'BORRADOR'
+                          ? 'Eliminar PIAR (solo borrador)'
+                          : 'Solo se eliminan PIAR en BORRADOR. Archivo o nueva versión si ya está activo.'
+                      }
+                    >
                       <span>
                         <IconButton
                           size="small"
@@ -1247,16 +1262,12 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
                         </IconButton>
                       </span>
                     </Tooltip>
-                  </Stack>
-                </Stack>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                  {(p.diagnostico || '').slice(0, 120)}
-                  {(p.diagnostico || '').length > 120 ? '…' : ''}
-                </Typography>
-              </Box>
-            ))}
+                  </div>
+                </article>
+              );
+            })}
             {!piarLista.length && <Typography className="psi-muted">Sin planes PIAR.</Typography>}
-          </Stack>
+          </div>
         </TabPanel>
       </div>
 
@@ -1513,8 +1524,29 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
         </DialogActions>
       </Dialog>
 
-      <Dialog
+      <PiarWizard
         open={dlgPiar}
+        editing={piarEditing}
+        form={piarForm}
+        setForm={setPiarForm}
+        meta={meta}
+        alumnoNombre={nombre}
+        seguimientoItems={seguimientoItems}
+        seguimientoNuevo={seguimientoNuevo}
+        setSeguimientoNuevo={setSeguimientoNuevo}
+        onAgregarNota={agregarSeguimientoAdmin}
+        onClose={() => {
+          setDlgPiar(false);
+          setSeguimientoItems([]);
+          setSeguimientoNuevo('');
+        }}
+        onGuardar={guardarPiar}
+        guardando={piarGuardando}
+        formatLimaLine={formatLimaLine}
+      />
+
+      <Dialog
+        open={false}
         onClose={() => {
           setDlgPiar(false);
           setSeguimientoItems([]);
@@ -1687,7 +1719,7 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
           <Typography variant="subtitle2" sx={{ mt: 2 }}>
             Ajustes razonables (checklist)
           </Typography>
-          {Object.entries(PIAR_CHECKS).map(([cat, items]) => (
+          {Object.entries({}).map(([cat, items]) => (
             <Box key={cat} sx={{ mb: 1 }}>
               <Typography variant="caption" fontWeight={700} textTransform="uppercase">
                 {cat}

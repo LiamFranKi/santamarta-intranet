@@ -1415,3 +1415,155 @@
   0%, 20% { opacity: 0.2; }
   50% { opacity: 1; }
 }
+
+.cneb-piar-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.4rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.12rem 0.42rem;
+  border-radius: 999px;
+  background: #ede9fe;
+  color: #5b21b6;
+  border: 1px solid #c4b5fd;
+  vertical-align: middle;
+  cursor: help;
+}
+
+.cneb-dua-panel {
+  margin: 0 0 1.1rem;
+  padding: 1rem 1.05rem;
+  border-radius: 16px;
+  border: 1px solid #ddd6fe;
+  background: linear-gradient(165deg, #faf5ff 0%, #fff 55%, #f0fdfa 100%);
+}
+
+.cneb-dua-panel__head h3 {
+  margin: 0 0 0.3rem;
+  font-size: 1.02rem;
+  color: #5b21b6;
+}
+
+.cneb-dua-panel__head p {
+  margin: 0 0 0.85rem;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: #57534e;
+}
+
+.cneb-dua-piar-list {
+  margin-bottom: 0.9rem;
+}
+
+.cneb-dua-piar-list strong {
+  display: block;
+  color: #5b21b6;
+  font-size: 0.86rem;
+  margin-bottom: 0.45rem;
+}
+
+.cneb-dua-piar-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.cneb-dua-piar-list li {
+  background: #fff;
+  border: 1px solid #ede9fe;
+  border-radius: 12px;
+  padding: 0.65rem 0.75rem;
+}
+
+.cneb-dua-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+
+.cneb-dua-chip {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #115e59;
+  border: 1px solid #99f6e4;
+}
+
+.cneb-dua-link {
+  display: inline-block;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #6d28d9;
+}
+
+.cneb-dua-cat h4 {
+  margin: 0.7rem 0 0.4rem;
+  font-size: 0.82rem;
+  color: #5b21b6;
+}
+
+.cneb-dua-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.cneb-dua-tile {
+  border: 1px solid #e7e5e4;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.38rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #44403c;
+  cursor: pointer;
+}
+
+.cneb-dua-tile.is-on {
+  border-color: #5eead4;
+  background: #f0fdfa;
+  color: #115e59;
+}
+
+.cneb-dua-proc {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  margin-top: 0.55rem;
+}
+
+.cneb-dua-proc span {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #6d28d9;
+}
+
+.cneb-dua-proc textarea {
+  width: 100%;
+  border: 1px solid #ddd6fe;
+  border-radius: 10px;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  resize: vertical;
+  min-height: 4.2rem;
+  font-family: inherit;
+}
+
+.cneb-sticky .cneb-piar-badge {
+  display: inline-flex;
+  margin-top: 0.2rem;
+  margin-left: 0;
+}
+

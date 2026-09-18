@@ -2,6 +2,7 @@ const ExcelJS = require('exceljs');
 const { query, execute } = require('./mysql');
 const { sqlMatriculaEstadoSoloRegular } = require('./matriculaEstados');
 const { getColegioData } = require('./colegio');
+const { anexarPiarAAlumnos } = require('./cnebPiarAula');
 
 const XL = {
   title: 'FF0F766E',
@@ -91,14 +92,14 @@ async function competenciasDeNivel(nivel) {
 
 async function cargarAuxiliar(cid, sesionId) {
   const [ses] = await query(
-    `SELECT id, colegio_id, grupo_id, titulo FROM cneb_sesiones WHERE id = ? AND colegio_id = ? LIMIT 1`,
+    `SELECT id, colegio_id, grupo_id, titulo, anio FROM cneb_sesiones WHERE id = ? AND colegio_id = ? LIMIT 1`,
     [sesionId, cid]
   );
   if (!ses) return null;
   if (!ses.grupo_id) {
     return { sesion: ses, alumnos: [], items: [], valores: [] };
   }
-  const [alumnos, items, valores] = await Promise.all([
+  const [alumnosRaw, items, valores] = await Promise.all([
     listarAlumnosGrupo(cid, ses.grupo_id),
     query(
       `SELECT id, item, orden FROM cneb_sesion_cotejo WHERE sesion_id = ? ORDER BY orden ASC, id ASC`,
@@ -110,6 +111,7 @@ async function cargarAuxiliar(cid, sesionId) {
       [sesionId]
     ),
   ]);
+  const alumnos = await anexarPiarAAlumnos(cid, ses.anio, ses.grupo_id, alumnosRaw);
   return { sesion: ses, alumnos, items, valores };
 }
 
@@ -140,7 +142,8 @@ async function guardarAuxiliar(cid, sesionId, filas) {
 }
 
 async function cargarCorte(cid, { anio, bimestre, grupoId, nivel, areaId, asignaturaId }) {
-  const alumnos = await listarAlumnosGrupo(cid, grupoId);
+  const alumnosRaw = await listarAlumnosGrupo(cid, grupoId);
+  const alumnos = await anexarPiarAAlumnos(cid, anio, grupoId, alumnosRaw);
   const competencias = await competenciasDeNivel(nivel);
   const matIds = alumnos.map((a) => a.matricula_id);
   let valores = [];
@@ -199,7 +202,8 @@ async function guardarCorte(cid, { anio, bimestre, items }) {
 }
 
 async function cargarConsolidado(cid, { anio, bimestre, grupoId, nivel }) {
-  const alumnos = await listarAlumnosGrupo(cid, grupoId);
+  const alumnosRaw = await listarAlumnosGrupo(cid, grupoId);
+  const alumnos = await anexarPiarAAlumnos(cid, anio, grupoId, alumnosRaw);
   const sesiones = await query(
     `SELECT s.id, s.titulo, s.fecha_sesion, s.duracion_min, s.estado, s.area_id, s.competencia_id,
             ar.nombre AS area_nombre, cp.nombre AS competencia_nombre

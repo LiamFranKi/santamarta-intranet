@@ -14,6 +14,8 @@ import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { getStaticFileUrl } from '../../config/staticFiles';
 import './AdminPsicologia.css';
+import '../../components/psicologia/PiarStudio.css';
+import { PIAR_ESTADO_LABEL } from '../../utils/piarEtiquetas';
 
 /** Secciones habituales en el colegio (orden: UNICA primero). */
 const SECCIONES_OPCIONES = ['UNICA', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
@@ -479,43 +481,24 @@ export default function AdminPsicologiaLista() {
             No hay PIAR registrados todavía.
           </p>
         ) : (
-          <div className="psi-pendientes-table-wrap">
-            <table className="psi-pendientes-table">
-              <thead>
-                <tr>
-                  <th>Alumno</th>
-                  <th>Año</th>
-                  <th>Versión</th>
-                  <th>Estado</th>
-                  <th>Docente responsable</th>
-                  <th>Actualización</th>
-                  <th style={{ minWidth: 120 }}>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {piarLista.map((p) => (
-                  <tr key={p.id}>
-                    <td>{p.alumno_nombre || `Alumno ${p.alumno_id}`}</td>
-                    <td>{p.anio}</td>
-                    <td>{p.numero_version}</td>
-                    <td>{p.estado}</td>
-                    <td>{p.docente_responsable_nombre || '—'}</td>
-                    <td>{formatLimaSoloFecha(p.updated_at)}</td>
-                    <td>
-                      <div className="psi-pend-actions">
-                        <button
-                          type="button"
-                          className="psi-pend-btn-abrir"
-                          onClick={() => navigate(`/admin/psicologia/alumno/${p.alumno_id}`)}
-                        >
-                          Abrir
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="psi-lista-piar-grid">
+            {piarLista.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className="psi-lista-piar-card"
+                onClick={() => navigate(`/admin/psicologia/alumno/${p.alumno_id}?tab=piar`)}
+              >
+                <strong>{p.alumno_nombre || `Alumno ${p.alumno_id}`}</strong>
+                <span>Año {p.anio}</span>
+                <span>v{p.numero_version}</span>
+                <span>{PIAR_ESTADO_LABEL[p.estado] || p.estado}</span>
+                {p.docente_responsable_nombre ? <span>{p.docente_responsable_nombre}</span> : null}
+                <div style={{ marginTop: 8, fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>
+                  Actualización: {formatLimaSoloFecha(p.updated_at)}
+                </div>
+              </button>
+            ))}
           </div>
         )}
       </div>

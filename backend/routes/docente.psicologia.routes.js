@@ -6,6 +6,7 @@ const router = express.Router();
 const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
 const { notificarStaffNuevaDerivacionDocente } = require('../utils/psicologiaDerivacionNotificarStaff');
+const { piarPdfBuffer } = require('../utils/piarPdf');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -428,6 +429,51 @@ router.get('/piar/:id', async (req, res) => {
   } catch (e) {
     console.error('[docente/psicologia/piar GET]', e);
     res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+router.get('/piar/:id/pdf', async (req, res) => {
+  try {
+    const colegio_id = cid(req);
+    const pid = personalId(req);
+    const id = parseInt(req.params.id, 10);
+    if (!colegio_id || !pid || !Number.isFinite(id)) return res.status(400).json({ error: 'Parámetros inválidos' });
+    const row = await assertDocentePuedeVerPiar(colegio_id, pid, id);
+    if (!row) return res.status(404).json({ error: 'PIAR no encontrado o sin acceso para usted.' });
+    const [al] = await query(
+      `SELECT TRIM(CONCAT(
+          COALESCE(a.apellido_paterno,''), ' ',
+          COALESCE(a.apellido_materno,''), ' ',
+          COALESCE(a.nombres,''))) AS nombre
+       FROM alumnos a WHERE a.id = ? AND a.colegio_id = ? LIMIT 1`,
+      [row.alumno_id, colegio_id]
+    );
+    let items = [];
+    try {
+      items = await query(
+        `SELECT s.autor_tipo, s.contenido, s.created_at
+         FROM psicologia_piar_seguimiento s
+         WHERE s.colegio_id = ? AND s.piar_id = ?
+         ORDER BY s.id ASC`,
+        [colegio_id, id]
+      );
+    } catch (segErr) {
+      console.warn('[docente/psicologia/piar pdf] seguimiento:', segErr.message);
+    }
+    const buf = await piarPdfBuffer(
+      colegio_id,
+      { ...row, alumno_nombre: al?.nombre || '' },
+      { seguimiento: items }
+    );
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="PIAR_${row.anio}_v${row.numero_version}_${id}.pdf"`
+    );
+    res.send(buf);
+  } catch (e) {
+    console.error('[docente/psicologia/piar pdf]', e);
+    if (!res.headersSent) res.status(500).json({ error: e.message || 'Error' });
   }
 });
 

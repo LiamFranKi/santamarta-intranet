@@ -5,16 +5,8 @@ import DashboardLayout from '../components/DashboardLayout';
 import ApoderadoPsicologaMensajeModal from '../components/ApoderadoPsicologaMensajeModal';
 import api from '../services/api';
 import './admin/AdminPsicologia.css';
-
-function parseJson(v, fb) {
-  if (v == null) return fb;
-  if (typeof v === 'object') return v;
-  try {
-    return JSON.parse(String(v));
-  } catch {
-    return fb;
-  }
-}
+import '../components/psicologia/PiarStudio.css';
+import { apoyosComoLista, parseJsonPiar, PIAR_ESTADO_LABEL } from '../utils/piarEtiquetas';
 
 function inicialesNombre(nombreCompleto) {
   const p = String(nombreCompleto || '')
@@ -94,8 +86,8 @@ export default function ApoderadoPsicologia() {
     }
     if (alumnoId && vista) {
       const piar = vista.piar_activo;
-      const objs = parseJson(piar?.objetivos_json, []);
-      const adj = parseJson(piar?.ajustes_checklist_json, {});
+      const objs = parseJsonPiar(piar?.objetivos_json, []);
+      const apoyos = apoyosComoLista(piar?.ajustes_checklist_json);
       const actas = vista.actas_cerradas || [];
       return (
         <div className="psi-page psi-apod-detalle">
@@ -166,7 +158,7 @@ export default function ApoderadoPsicologia() {
               ) : (
                 <div className="psi-apod-piar-card">
                   <div className="psi-apod-piar-card__meta">
-                    Año {piar.anio} · Versión {piar.numero_version}
+                    Año {piar.anio} · Versión {piar.numero_version} · {PIAR_ESTADO_LABEL[piar.estado] || 'Publicado'}
                   </div>
                   <p className="psi-apod-piar-card__row">
                     <strong>Fortalezas:</strong> {piar.fortalezas || '—'}
@@ -181,23 +173,33 @@ export default function ApoderadoPsicologia() {
                     <strong>Objetivos:</strong>
                   </p>
                   <ul>
-                    {Array.isArray(objs) &&
-                      objs.map((o, i) => (
-                        <li key={i}>
-                          {o.objetivo || '—'} — <em>{o.indicador || '—'}</em>
-                        </li>
-                      ))}
+                    {Array.isArray(objs) && objs.some((o) => o && (o.objetivo || o.indicador))
+                      ? objs.map((o, i) =>
+                          o && (o.objetivo || o.indicador) ? (
+                            <li key={i}>
+                              {o.objetivo || '—'}
+                              {o.indicador ? <em> — {o.indicador}</em> : null}
+                            </li>
+                          ) : null
+                        )
+                      : (
+                          <li>Sin objetivos registrados.</li>
+                        )}
                   </ul>
                   <p className="psi-apod-piar-card__row">
-                    <strong>Ajustes (resumen):</strong>
+                    <strong>Apoyos en el aula:</strong>
                   </p>
-                  <div className="psi-apod-piar-card__caption">
-                    {Object.keys(adj).map((k) => (
-                      <span key={k}>
-                        {k}: {(Array.isArray(adj[k]) ? adj[k] : []).join(', ') || '—'};{' '}
-                      </span>
-                    ))}
-                  </div>
+                  {apoyos.length ? (
+                    <div className="piar-chip-row" style={{ marginTop: 6 }}>
+                      {apoyos.map((a) => (
+                        <span key={`${a.cat}-${a.key}`} className="piar-chip" title={a.catLabel}>
+                          {a.label}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="psi-apod-piar-card__caption">Aún no hay apoyos publicados.</p>
+                  )}
                   {piar.fecha_revision && (
                     <p className="psi-apod-piar-card__caption">Próxima revisión: {piar.fecha_revision}</p>
                   )}

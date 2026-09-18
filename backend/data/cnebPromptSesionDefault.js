@@ -21,6 +21,11 @@ DATOS:
 - Tema (puede estar vacío): {{titulo}}
 - Propósito sugerido (puede estar vacío): {{proposito}}
 
+INCLUSIÓN (DUA + PIAR, si hay datos):
+{{apoyos_aula}}
+En DESARROLLO deje explícito: materiales accesibles, tiempos y cómo se recoge evidencia (oral, dibujo o más tiempo). El cotejo es el MISMO para todo el grupo. La ficha impresa NO debe nombrar diagnósticos ni “niño PIAR”.
+Si hay estudiantes con PIAR, rellene "procedimientos": para CADA uno, 2 a 4 frases de qué hará el docente HOY con ese niño (consigna, materiales, tiempo, evidencia). Use los piar_id y alumno_id dados. Sin diagnóstico. Si el docente ya escribió un procedimiento, cópielo igual.
+
 En INICIO incluye, en este orden: motivación, saberes previos, problematización y comunicación del propósito.
 En DESARROLLO: secuencia de actividades, materiales, cómo participa el niño y qué evidencia se recoge.
 En CIERRE: metacognición (qué hicimos / qué aprendimos / qué nos costó) y recojo para el cotejo.
@@ -37,7 +42,8 @@ Formato:
     "cierre": "<p><strong>Metacognición.</strong> ¿Qué hicimos? ¿Qué aprendimos?</p><p>Se recogen evidencias para el cotejo.</p>"
   },
   "cotejo": ["ítem observable 1", "ítem 2"],
-  "ficha": "<h3>Ficha de trabajo</h3><p><strong>Nombre:</strong> ____________________ &nbsp; <strong>Fecha:</strong> __________</p><p>Instrucción breve.</p><ol><li>Consigna 1</li><li>Consigna 2</li></ol>"
+  "ficha": "<h3>Ficha de trabajo</h3><p><strong>Nombre:</strong> ____________________ &nbsp; <strong>Fecha:</strong> __________</p><p>Instrucción breve.</p><ol><li>Consigna 1</li><li>Consigna 2</li></ol>",
+  "procedimientos": [{ "piar_id": 0, "alumno_id": 0, "texto": "Qué hará el docente HOY con este niño (sin diagnóstico)." }]
 }`;
 
 function aplicarPlantilla(plantilla, vars) {

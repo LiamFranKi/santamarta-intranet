@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
+import CnebPiarMarca from '../../components/aula/CnebPiarMarca';
 
 const LETRAS = ['', 'AD', 'A', 'B', 'C'];
 
@@ -307,6 +308,7 @@ export default function AdminCnebCorte({
                 <tr key={al.matricula_id}>
                   <td className="cneb-sticky">
                     <strong>{al.nombre}</strong>
+                    <CnebPiarMarca piar={al.piar} />
                   </td>
                   {competenciasVista.map((c) => {
                     const k = `${al.matricula_id}_${c.id}`;

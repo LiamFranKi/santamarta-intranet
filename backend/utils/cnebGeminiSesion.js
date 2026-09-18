@@ -124,6 +124,7 @@ function normalizarSalida(parsed, duracionMin) {
     },
     cotejo,
     ficha: textoCnebAHtml(parsed?.ficha),
+    procedimientos: Array.isArray(parsed?.procedimientos) ? parsed.procedimientos : [],
   };
 }
 
@@ -145,6 +146,14 @@ async function generarSesionConIa({ plantilla, vars, duracionMin }) {
   if (!/<p|<strong|html/i.test(plantillaUso)) {
     plantillaUso +=
       '\nEn momentos.inicio, momentos.desarrollo, momentos.cierre y ficha usa HTML simple: <p>, <strong>, <ol><li>, <ul><li>. Destaca en negrita cada momento (Motivación, Saberes previos, Problematización, Propósito, Actividades, Materiales, Evidencia, Metacognición). En la ficha incluye título, nombre, fecha y consignas numeradas.';
+  }
+  if (vars?.apoyos_aula && !/\{\{apoyos_aula\}\}/.test(plantillaUso)) {
+    plantillaUso +=
+      '\n\nINCLUSIÓN / DUA (obligatorio):\n{{apoyos_aula}}\nIncorpórelo en el DESARROLLO (materiales, tiempos, evidencia). Mismo cotejo para todos. La ficha no nombra diagnósticos.';
+  }
+  if (vars?.apoyos_aula && !/"procedimientos"/i.test(plantillaUso)) {
+    plantillaUso +=
+      '\nIncluye "procedimientos": [{"piar_id":n,"alumno_id":n,"texto":"qué hará el docente HOY con ese niño"}] cuando haya PIAR. Sin diagnóstico. Si el docente ya escribió el texto, cópielo igual.';
   }
   const prompt = aplicarPlantilla(plantillaUso, vars);
   const { parsed, modelo, raw, tokens_entrada, tokens_salida } = await llamarGeminiJson(prompt);

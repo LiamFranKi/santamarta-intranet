@@ -220,6 +220,16 @@ export function normalizarUrlNotificacion(notif, user) {
     }
   }
 
+  if (tipoAccion === 'PSICOLOGIA_PIAR') {
+    const piarId = payload.piar_id;
+    const alumnoId = payload.alumno_id;
+    if (user?.tipo === 'DOCENTE' && piarId) return `/docente/psicologia/piar/${piarId}`;
+    if (user?.tipo === 'APODERADO' && alumnoId) return `/apoderado/psicologia/${alumnoId}`;
+    if (alumnoId) return `/admin/psicologia/alumno/${alumnoId}?tab=piar`;
+    if (user?.tipo === 'DOCENTE') return '/docente/psicologia/piar';
+    return '/admin/psicologia';
+  }
+
   if (url) return url;
 
   // ——— Respaldo: sin url_destino (datos viejos o respuesta parcial) ———

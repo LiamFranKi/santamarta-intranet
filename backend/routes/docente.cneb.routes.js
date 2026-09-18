@@ -30,6 +30,7 @@ const {
 } = require('../utils/cnebAuxiliar');
 const { informePdfBuffer, sesionPdfBuffer } = require('../utils/cnebPdfs');
 const { contextoAulaCneb, listarSesionesAula } = require('../utils/cnebAulaAsignatura');
+const { piarActivosDelGrupo, varsGenerarSesionIa } = require('../utils/cnebPiarAula');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -147,6 +148,23 @@ router.get('/sesiones/meta', async (req, res) => {
   } catch (e) {
     console.error('[docente/cneb/sesiones/meta]', e);
     res.status(500).json({ error: e.message || 'No se pudieron cargar las aulas.' });
+  }
+});
+
+router.get('/aula-piar', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const pid = personalId(req);
+    const grupoId = parseInt(req.query.grupo_id, 10);
+    if (!cid || !pid || !Number.isFinite(grupoId)) return res.status(400).json({ error: 'Indique el aula.' });
+    const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
+    const ids = await idsPermitidos(cid, pid, anio);
+    if (!ids.has(grupoId)) return res.status(403).json({ error: 'Esa aula no es suya.' });
+    const estudiantes = await piarActivosDelGrupo(cid, anio, grupoId);
+    res.json({ anio, grupo_id: grupoId, estudiantes });
+  } catch (e) {
+    console.error('[docente/cneb/aula-piar]', e);
+    res.status(500).json({ error: e.message || 'No se pudo cargar el PIAR del aula.' });
   }
 });
 
@@ -323,6 +341,7 @@ router.post('/sesiones/generar-ia', async (req, res) => {
   try {
     const cid = colegio(req);
     const duracion = Math.min(180, Math.max(20, parseInt(req.body?.duracion_min, 10) || 60));
+    const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
     let plantilla = PROMPT_SESION_DEFAULT;
     try {
       const [row] = await query('SELECT prompt_sesion FROM cneb_ajustes WHERE colegio_id = ? LIMIT 1', [cid]);
@@ -333,19 +352,7 @@ router.post('/sesiones/generar-ia', async (req, res) => {
     const result = await generarSesionConIa({
       plantilla,
       duracionMin: duracion,
-      vars: {
-        nivel: req.body?.nivel || 'INICIAL',
-        corte_label: req.body?.corte_label || '',
-        duracion: String(duracion),
-        area: req.body?.area_nombre || '',
-        competencia: req.body?.competencia_nombre || '',
-        capacidades: Array.isArray(req.body?.capacidades) ? req.body.capacidades.join('; ') : '',
-        desempenos: Array.isArray(req.body?.desempenos_texto)
-          ? req.body.desempenos_texto.map((t, i) => `${i + 1}. ${t}`).join('\n')
-          : '',
-        titulo: req.body?.titulo || '',
-        proposito: req.body?.proposito || '',
-      },
+      vars: await varsGenerarSesionIa(cid, req.body || {}, anio),
     });
     try {
       await execute(

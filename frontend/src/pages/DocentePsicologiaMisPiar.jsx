@@ -5,6 +5,8 @@ import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import './DocentePsicologia.css';
 import './admin/AdminPsicologia.css';
+import '../components/psicologia/PiarStudio.css';
+import { PIAR_ESTADO_LABEL } from '../utils/piarEtiquetas';
 
 const LIMA_TZ = 'America/Lima';
 
@@ -129,7 +131,7 @@ export default function DocentePsicologiaMisPiar() {
                       <div className="psi-doc-piar-item__chips">
                         <span className="psi-doc-piar-chip">Año {r.anio}</span>
                         <span className="psi-doc-piar-chip">v{r.numero_version}</span>
-                        <span className={chipClassEstado(r.estado)}>{r.estado}</span>
+                        <span className={chipClassEstado(r.estado)}>{PIAR_ESTADO_LABEL[r.estado] || r.estado}</span>
                       </div>
                       <div className="psi-doc-piar-item__fecha">
                         Actualización: {formatLimaSoloFecha(r.updated_at || r.created_at)}

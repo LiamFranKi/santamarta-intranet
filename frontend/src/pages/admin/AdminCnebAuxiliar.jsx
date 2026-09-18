@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
+import CnebPiarMarca from '../../components/aula/CnebPiarMarca';
 
 const LOGROS = [
   { v: 'si', label: 'Sí' },
@@ -170,6 +171,7 @@ export default function AdminCnebAuxiliar({ apiBase = '/admin/cneb', sesionId, o
               <tr key={al.matricula_id}>
                 <td className="cneb-sticky">
                   <strong>{al.nombre}</strong>
+                  <CnebPiarMarca piar={al.piar} />
                 </td>
                 {(data.items || []).map((it) => (
                   <td key={it.id}>
