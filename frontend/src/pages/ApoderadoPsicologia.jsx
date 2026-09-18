@@ -7,6 +7,7 @@ import api from '../services/api';
 import './admin/AdminPsicologia.css';
 import '../components/psicologia/PiarStudio.css';
 import { apoyosComoLista, parseJsonPiar, PIAR_ESTADO_LABEL } from '../utils/piarEtiquetas';
+import CnebHtmlVista from '../components/aula/CnebHtmlVista';
 
 function inicialesNombre(nombreCompleto) {
   const p = String(nombreCompleto || '')
@@ -160,12 +161,14 @@ export default function ApoderadoPsicologia() {
                   <div className="psi-apod-piar-card__meta">
                     Año {piar.anio} · Versión {piar.numero_version} · {PIAR_ESTADO_LABEL[piar.estado] || 'Publicado'}
                   </div>
-                  <p className="psi-apod-piar-card__row">
-                    <strong>Fortalezas:</strong> {piar.fortalezas || '—'}
-                  </p>
-                  <p className="psi-apod-piar-card__row">
-                    <strong>Áreas de apoyo:</strong> {piar.areas_dificultad || '—'}
-                  </p>
+                  <div className="psi-apod-piar-card__row">
+                    <strong>Fortalezas:</strong>
+                    <CnebHtmlVista html={piar.fortalezas} className="piar-html" vacio="—" />
+                  </div>
+                  <div className="psi-apod-piar-card__row">
+                    <strong>Áreas de apoyo:</strong>
+                    <CnebHtmlVista html={piar.areas_dificultad} className="piar-html" vacio="—" />
+                  </div>
                   <p className="psi-apod-piar-card__row">
                     <strong>Estilo de aprendizaje:</strong> {piar.estilo_aprendizaje || '—'}
                   </p>
@@ -204,9 +207,10 @@ export default function ApoderadoPsicologia() {
                     <p className="psi-apod-piar-card__caption">Próxima revisión: {piar.fecha_revision}</p>
                   )}
                   {piar.avances_observados && (
-                    <p className="psi-apod-piar-card__row">
-                      <strong>Avances:</strong> {piar.avances_observados}
-                    </p>
+                    <div className="psi-apod-piar-card__row">
+                      <strong>Avances:</strong>
+                      <CnebHtmlVista html={piar.avances_observados} className="piar-html" />
+                    </div>
                   )}
                 </div>
               )}

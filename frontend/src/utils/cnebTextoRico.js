@@ -92,10 +92,21 @@ export function sanitizarCnebHtml(html) {
   });
 }
 
-export function htmlVacio(html) {
-  const plano = String(html || '')
+export function htmlATextoPlano(html) {
+  return String(html || '')
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, '\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]+\n/g, '\n')
     .trim();
-  return !plano;
+}
+
+export function htmlVacio(html) {
+  return !htmlATextoPlano(html);
 }

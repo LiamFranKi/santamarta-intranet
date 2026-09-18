@@ -13,6 +13,9 @@ import {
   PIAR_KPI_LABEL,
   PIAR_ESCALA_LABEL,
 } from '../utils/piarEtiquetas';
+import CnebHtmlVista from '../components/aula/CnebHtmlVista';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 const LIMA_TZ = 'America/Lima';
 
@@ -194,11 +197,13 @@ export default function DocentePsicologiaPiarDetalle() {
         <div className="piar-plan-block">
           <h3>Retrato del estudiante</h3>
           <p>
-            <strong>Fortalezas:</strong> {piar.fortalezas || '—'}
+            <strong>Fortalezas:</strong>
           </p>
+          <CnebHtmlVista html={piar.fortalezas} className="piar-html" vacio="—" />
           <p>
-            <strong>Áreas de apoyo:</strong> {piar.areas_dificultad || '—'}
+            <strong>Áreas de apoyo:</strong>
           </p>
+          <CnebHtmlVista html={piar.areas_dificultad} className="piar-html" vacio="—" />
           <p>
             <strong>Estilo de aprendizaje:</strong> {piar.estilo_aprendizaje || '—'}
           </p>
@@ -263,40 +268,60 @@ export default function DocentePsicologiaPiarDetalle() {
           <Typography variant="subtitle1" sx={{ fontWeight: 800, color: puedeEditar ? '#0f766e' : '#64748b', mb: 1 }}>
             Su parte — seguimiento en aula (docente)
           </Typography>
-          <TextField
-            fullWidth
-            multiline
-            minRows={4}
-            label="Estrategias y seguimiento en aula"
-            margin="dense"
-            value={form.estrategias_docentes}
-            onChange={(e) => setForm((f) => ({ ...f, estrategias_docentes: e.target.value }))}
-            InputProps={{ readOnly: !puedeEditar }}
-          />
-          <TextField
-            fullWidth
-            multiline
-            minRows={2}
-            label="Frecuencia de aplicación / revisión"
-            margin="dense"
-            value={form.frecuencia_aplicacion}
-            onChange={(e) => setForm((f) => ({ ...f, frecuencia_aplicacion: e.target.value }))}
-            InputProps={{ readOnly: !puedeEditar }}
-          />
-          <TextField
-            fullWidth
-            multiline
-            minRows={3}
-            label="Avances observados (síntesis en aula)"
-            margin="dense"
-            value={form.avances_observados}
-            onChange={(e) => setForm((f) => ({ ...f, avances_observados: e.target.value }))}
-            InputProps={{ readOnly: !puedeEditar }}
-          />
-          {puedeEditar && (
-            <Button variant="contained" sx={{ mt: 1.5 }} onClick={guardarAula} disabled={guardandoAula}>
-              {guardandoAula ? 'Guardando…' : 'Guardar cambios del aula'}
-            </Button>
+          {puedeEditar ? (
+            <>
+              <div className="piar-studio__field" style={{ marginTop: 8 }}>
+                <span>Estrategias y seguimiento en aula</span>
+                <div className="piar-studio__rich">
+                  <ReactQuill
+                    theme="snow"
+                    value={form.estrategias_docentes || ''}
+                    onChange={(html) => setForm((f) => ({ ...f, estrategias_docentes: html }))}
+                    modules={{ toolbar: [['bold', 'italic', 'underline'], [{ list: 'ordered' }, { list: 'bullet' }], ['clean']] }}
+                  />
+                </div>
+              </div>
+              <div className="piar-studio__field" style={{ marginTop: 10 }}>
+                <span>Frecuencia de aplicación / revisión</span>
+                <div className="piar-studio__rich">
+                  <ReactQuill
+                    theme="snow"
+                    value={form.frecuencia_aplicacion || ''}
+                    onChange={(html) => setForm((f) => ({ ...f, frecuencia_aplicacion: html }))}
+                    modules={{ toolbar: [['bold', 'italic', 'underline'], [{ list: 'ordered' }, { list: 'bullet' }], ['clean']] }}
+                  />
+                </div>
+              </div>
+              <div className="piar-studio__field" style={{ marginTop: 10 }}>
+                <span>Avances observados (síntesis en aula)</span>
+                <div className="piar-studio__rich">
+                  <ReactQuill
+                    theme="snow"
+                    value={form.avances_observados || ''}
+                    onChange={(html) => setForm((f) => ({ ...f, avances_observados: html }))}
+                    modules={{ toolbar: [['bold', 'italic', 'underline'], [{ list: 'ordered' }, { list: 'bullet' }], ['clean']] }}
+                  />
+                </div>
+              </div>
+              <Button variant="contained" sx={{ mt: 1.5 }} onClick={guardarAula} disabled={guardandoAula}>
+                {guardandoAula ? 'Guardando…' : 'Guardar cambios del aula'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <p>
+                <strong>Estrategias:</strong>
+              </p>
+              <CnebHtmlVista html={form.estrategias_docentes} className="piar-html" vacio="—" />
+              <p>
+                <strong>Frecuencia:</strong>
+              </p>
+              <CnebHtmlVista html={form.frecuencia_aplicacion} className="piar-html" vacio="—" />
+              <p>
+                <strong>Avances:</strong>
+              </p>
+              <CnebHtmlVista html={form.avances_observados} className="piar-html" vacio="—" />
+            </>
           )}
         </Box>
 

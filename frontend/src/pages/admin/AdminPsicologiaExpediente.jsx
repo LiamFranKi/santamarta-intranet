@@ -44,6 +44,7 @@ import {
 } from '../../utils/piarEtiquetas';
 import '../../components/psicologia/PiarStudio.css';
 import './AdminPsicologia.css';
+import { htmlATextoPlano } from '../../utils/cnebTextoRico';
 
 const MOTIVOS_DER = [
   { key: 'conducta_disruptiva', label: 'Conducta disruptiva' },
@@ -1197,6 +1198,7 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
           <div className="psi-piar-studio-list">
             {piarLista.map((p) => {
               const apoyos = apoyosComoLista(p.ajustes_checklist_json).slice(0, 6);
+              const excerpt = htmlATextoPlano(p.fortalezas);
               return (
                 <article key={p.id} className="psi-piar-studio-card">
                   <div>
@@ -1211,10 +1213,10 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
                         {formatLimaLine(p.created_at)}
                       </Typography>
                     ) : null}
-                    {p.fortalezas ? (
+                    {excerpt ? (
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        {String(p.fortalezas).slice(0, 140)}
-                        {String(p.fortalezas).length > 140 ? '…' : ''}
+                        {excerpt.slice(0, 140)}
+                        {excerpt.length > 140 ? '…' : ''}
                       </Typography>
                     ) : null}
                     {apoyos.length > 0 && (

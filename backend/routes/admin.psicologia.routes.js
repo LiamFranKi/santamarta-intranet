@@ -14,6 +14,7 @@ const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = requ
 const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
 const { piarPdfBuffer, actaReunionPdfBuffer } = require('../utils/piarPdf');
 const { docentesUsuarioDelAulaAlumno, tutoresUsuarioDelAlumno, urlDestinoPiarPorTipo } = require('../utils/cnebPiarAula');
+const { sqlMatriculaEstadoSoloRegular } = require('../utils/matriculaEstados');
 
 const PSICOLOGIA_TIPOS = new Set(['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA']);
 
@@ -1296,11 +1297,21 @@ router.get('/piar/lista', async (req, res) => {
     const cid = colegioId(req);
     const rows = await query(
       `SELECT p.id, p.alumno_id, p.anio, p.numero_version, p.estado, p.updated_at, p.docente_responsable_personal_id,
+              COALESCE(a.nro_documento, '') AS nro_documento,
               TRIM(CONCAT(COALESCE(a.apellido_paterno,''), ' ', COALESCE(a.apellido_materno,''), ' ', COALESCE(a.nombres,''))) AS alumno_nombre,
-              ${sqlNombrePersonal('pd')} AS docente_responsable_nombre
+              ${sqlNombrePersonal('pd')} AS docente_responsable_nombre,
+              g.grado, g.seccion, n.nombre AS nivel_nombre
        FROM psicologia_piar p
        INNER JOIN alumnos a ON a.id = p.alumno_id AND a.colegio_id = p.colegio_id
        LEFT JOIN personal pd ON pd.id = p.docente_responsable_personal_id
+       LEFT JOIN matriculas m ON m.id = (
+         SELECT m2.id FROM matriculas m2
+         INNER JOIN grupos g2 ON g2.id = m2.grupo_id AND g2.colegio_id = m2.colegio_id AND g2.anio = p.anio
+         WHERE m2.alumno_id = p.alumno_id AND m2.colegio_id = p.colegio_id AND ${sqlMatriculaEstadoSoloRegular('m2')}
+         ORDER BY m2.id DESC LIMIT 1
+       )
+       LEFT JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
+       LEFT JOIN niveles n ON n.id = g.nivel_id
        WHERE p.colegio_id = ?
        ORDER BY p.updated_at DESC, p.id DESC
        LIMIT 400`,

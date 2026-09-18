@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -94,6 +94,10 @@ export default function AdminPsicologiaLista() {
   const [loadingPiarLista, setLoadingPiarLista] = useState(true);
   const [piarListaErr, setPiarListaErr] = useState(null);
   const [tabActiva, setTabActiva] = useState('pendientes');
+  const [piarQ, setPiarQ] = useState('');
+  const [piarNivel, setPiarNivel] = useState('');
+  const [piarGrado, setPiarGrado] = useState('');
+  const [piarEstado, setPiarEstado] = useState('');
 
   const cargarPendientes = useCallback(() => {
     setLoadingPendientes(true);
@@ -122,6 +126,41 @@ export default function AdminPsicologiaLista() {
   useEffect(() => {
     cargarPendientes();
   }, [cargarPendientes]);
+
+  const normFiltro = (s) =>
+    String(s || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+  const piarNiveles = useMemo(() => {
+    const set = new Set((piarLista || []).map((p) => String(p.nivel_nombre || '').trim()).filter(Boolean));
+    return [...set].sort((a, b) => a.localeCompare(b, 'es'));
+  }, [piarLista]);
+
+  const piarGrados = useMemo(() => {
+    const set = new Set(
+      (piarLista || [])
+        .filter((p) => !piarNivel || String(p.nivel_nombre || '') === piarNivel)
+        .map((p) => (p.grado != null && p.grado !== '' ? String(p.grado) : ''))
+        .filter(Boolean)
+    );
+    return [...set].sort((a, b) => Number(a) - Number(b));
+  }, [piarLista, piarNivel]);
+
+  const piarFiltrado = useMemo(() => {
+    const q = normFiltro(piarQ);
+    return (piarLista || []).filter((p) => {
+      if (piarNivel && String(p.nivel_nombre || '') !== piarNivel) return false;
+      if (piarGrado && String(p.grado ?? '') !== String(piarGrado)) return false;
+      if (piarEstado && String(p.estado) !== piarEstado) return false;
+      if (!q) return true;
+      const hay = [p.alumno_nombre, p.nro_documento, p.docente_responsable_nombre, p.grado, p.seccion, p.nivel_nombre]
+        .map(normFiltro)
+        .join(' ');
+      return hay.includes(q);
+    });
+  }, [piarLista, piarQ, piarNivel, piarGrado, piarEstado]);
 
   const cargarPiarLista = useCallback(() => {
     setLoadingPiarLista(true);
@@ -461,12 +500,54 @@ export default function AdminPsicologiaLista() {
               ? '…'
               : piarLista.length === 0
                 ? 'Sin registros'
-                : `${piarLista.length} registro${piarLista.length === 1 ? '' : 's'}`}
+                : piarFiltrado.length === piarLista.length
+                  ? `${piarLista.length} registro${piarLista.length === 1 ? '' : 's'}`
+                  : `${piarFiltrado.length} de ${piarLista.length}`}
           </span>
         </div>
         <p className="psi-pendientes-sub">
           Consulta rápida de planes PIAR registrados por Psicología (incluye versiones y estado actual).
         </p>
+        <div className="psi-piar-filtros">
+          <input
+            type="search"
+            value={piarQ}
+            onChange={(e) => setPiarQ(e.target.value)}
+            placeholder="Buscar por nombre, DNI, docente…"
+            aria-label="Buscar PIAR"
+          />
+          <select
+            value={piarNivel}
+            onChange={(e) => {
+              setPiarNivel(e.target.value);
+              setPiarGrado('');
+            }}
+            aria-label="Filtrar por nivel"
+          >
+            <option value="">Todos los niveles</option>
+            {piarNiveles.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          <select value={piarGrado} onChange={(e) => setPiarGrado(e.target.value)} aria-label="Filtrar por grado">
+            <option value="">Todos los grados</option>
+            {piarGrados.map((g) => (
+              <option key={g} value={g}>
+                {g}°
+              </option>
+            ))}
+          </select>
+          <select value={piarEstado} onChange={(e) => setPiarEstado(e.target.value)} aria-label="Filtrar por estado">
+            <option value="">Todos los estados</option>
+            {Object.entries(PIAR_ESTADO_LABEL).map(([k, lab]) => (
+              <option key={k} value={k}>
+                {lab}
+              </option>
+            ))}
+          </select>
+        </div>
         {piarListaErr && (
           <Alert severity="warning" sx={{ mb: 1 }}>
             {piarListaErr}
@@ -480,9 +561,13 @@ export default function AdminPsicologiaLista() {
           <p className="psi-muted" style={{ margin: 0 }}>
             No hay PIAR registrados todavía.
           </p>
+        ) : piarFiltrado.length === 0 ? (
+          <p className="psi-muted" style={{ margin: 0 }}>
+            Ningún PIAR coincide con el filtro.
+          </p>
         ) : (
           <div className="psi-lista-piar-grid">
-            {piarLista.map((p) => (
+            {piarFiltrado.map((p) => (
               <button
                 key={p.id}
                 type="button"
@@ -490,6 +575,14 @@ export default function AdminPsicologiaLista() {
                 onClick={() => navigate(`/admin/psicologia/alumno/${p.alumno_id}?tab=piar`)}
               >
                 <strong>{p.alumno_nombre || `Alumno ${p.alumno_id}`}</strong>
+                {p.nro_documento ? <span>DNI {p.nro_documento}</span> : null}
+                {p.nivel_nombre || p.grado ? (
+                  <span>
+                    {[p.nivel_nombre, p.grado != null && p.grado !== '' ? `${p.grado}°` : '', p.seccion]
+                      .filter(Boolean)
+                      .join(' ')}
+                  </span>
+                ) : null}
                 <span>Año {p.anio}</span>
                 <span>v{p.numero_version}</span>
                 <span>{PIAR_ESTADO_LABEL[p.estado] || p.estado}</span>

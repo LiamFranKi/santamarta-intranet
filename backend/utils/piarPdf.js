@@ -83,9 +83,24 @@ function seccionTitulo(doc, y, texto) {
   return y + 26;
 }
 
+function htmlATextoPlano(html) {
+  return String(html || '')
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function bloqueTexto(doc, y, etiqueta, valor) {
   const inner = doc.page.width - 80;
-  const txt = String(valor && String(valor).trim() ? valor : '—');
+  const plano = htmlATextoPlano(valor);
+  const txt = plano || '—';
   doc.font('Helvetica').fontSize(9);
   const h = Math.max(28, doc.heightOfString(txt, { width: inner - 16 }) + 22);
   y = ensureY(doc, y, h + 6);
