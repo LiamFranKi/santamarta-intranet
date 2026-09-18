@@ -12,7 +12,7 @@ function fmtPtsNotif(n) {
 }
 const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { enviarPushNotificacionesIndividuales } = require('./pushNotificationService');
-const { obtenerDestinatariosEncuesta } = require('./encuestasNotificacionService');
+const { tiposPersonalParaNotificar } = require('../utils/hexAudiencias');
 
 /** Deep link según rol: docente/admin no deben recibir solo /herramientas-examenes/... (fuera de su menú). */
 function urlHerramientasExamenPorTipo(examen_id, tipoUsuario, pagina) {
@@ -20,8 +20,12 @@ function urlHerramientasExamenPorTipo(examen_id, tipoUsuario, pagina) {
   if (!Number.isFinite(id)) return '/herramientas-examenes';
   const t = String(tipoUsuario || '').toUpperCase();
   const tail = pagina === 'resultado' ? `resultado/${id}` : `realizar/${id}`;
-  if (t === 'DOCENTE') return `/docente/herramientas/examenes/${tail}`;
-  if (t === 'ADMINISTRADOR' || t === 'PROMOTORIA') return `/admin/herramientas/examenes/${tail}`;
+  if (t === 'DOCENTE' || t === 'COORDINADOR' || t === 'DIRECTOR' || t === 'CONTADOR' || t === 'PSICOLOGA') {
+    return `/docente/herramientas/examenes/${tail}`;
+  }
+  if (t === 'ADMINISTRADOR' || t === 'PROMOTORIA') {
+    return `/admin/herramientas/examenes/${tail}`;
+  }
   return `/herramientas-examenes/${tail}`;
 }
 
@@ -47,16 +51,36 @@ async function obtenerDestinatariosHerramientasExamen(colegio_id, anio, audienci
   const gids = (grupo_ids || []).map((g) => parseInt(g, 10)).filter(Boolean);
   const audList = Array.isArray(audiencias) ? audiencias.map((a) => (typeof a === 'object' ? a.tipo : a)) : [];
   const types = new Set(audList.map((t) => String(t || '').toUpperCase()));
+  if (types.size === 0) return [];
+
+  if (types.has('TODOS') && gids.length === 0) {
+    return query(
+      `SELECT id, email, tipo, personal_id FROM usuarios WHERE colegio_id = ? AND (estado = 'ACTIVO' OR estado IS NULL)`,
+      [colegio_id]
+    );
+  }
 
   if (gids.length === 0) {
-    const rows = await obtenerDestinatariosEncuesta(colegio_id, audiencias);
-    return rows || [];
+    const parts = [];
+    const params = [colegio_id];
+    if (types.has('ALUMNO')) parts.push(`tipo = 'ALUMNO'`);
+    if (types.has('APODERADO')) parts.push(`tipo = 'APODERADO'`);
+    const staff = tiposPersonalParaNotificar(types);
+    if (staff.length) {
+      parts.push(`tipo IN (${staff.map(() => '?').join(',')})`);
+      params.push(...staff);
+    }
+    if (parts.length === 0) return [];
+    return query(
+      `SELECT id, email, tipo, personal_id FROM usuarios WHERE colegio_id = ? AND (estado = 'ACTIVO' OR estado IS NULL) AND (${parts.join(' OR ')})`,
+      params
+    );
   }
 
   const ph = gids.map(() => '?').join(',');
   const ids = new Set();
 
-  const includeTipo = (t) => types.has('TODOS') || types.has(t);
+  const includeTipo = (t) => types.has('TODOS') || types.has(t) || (types.has('TODO_PERSONAL') && t !== 'ALUMNO' && t !== 'APODERADO');
 
   if (includeTipo('ALUMNO')) {
     const r = await query(
@@ -70,7 +94,8 @@ async function obtenerDestinatariosHerramientasExamen(colegio_id, anio, audienci
     (r || []).forEach((x) => ids.add(x.id));
   }
 
-  if (includeTipo('DOCENTE')) {
+  const docentesPorAula = types.has('DOCENTE') && !types.has('TODO_PERSONAL') && !types.has('TODOS');
+  if (docentesPorAula) {
     const r = await query(
       `SELECT DISTINCT u.id FROM usuarios u
        INNER JOIN personal p ON p.id = u.personal_id
@@ -107,27 +132,19 @@ async function obtenerDestinatariosHerramientasExamen(colegio_id, anio, audienci
     (r || []).forEach((x) => ids.add(x.id));
   }
 
-  if (includeTipo('ADMINISTRADOR')) {
+  const staff = tiposPersonalParaNotificar(types);
+  const staffQuery = docentesPorAula ? staff.filter((t) => t !== 'DOCENTE') : staff;
+  if (staffQuery.length) {
+    const phT = staffQuery.map(() => '?').join(',');
     const r = await query(
-      `SELECT id FROM usuarios WHERE colegio_id = ? AND tipo = 'ADMINISTRADOR' AND (estado = 'ACTIVO' OR estado IS NULL)`,
-      [colegio_id]
+      `SELECT id FROM usuarios WHERE colegio_id = ? AND tipo IN (${phT}) AND (estado = 'ACTIVO' OR estado IS NULL)`,
+      [colegio_id, ...staffQuery]
     );
     (r || []).forEach((x) => ids.add(x.id));
   }
-
-  if (includeTipo('PROMOTORIA')) {
-    const r = await query(
-      `SELECT id FROM usuarios WHERE colegio_id = ? AND tipo = 'PROMOTORIA' AND (estado = 'ACTIVO' OR estado IS NULL)`,
-      [colegio_id]
-    );
-    (r || []).forEach((x) => ids.add(x.id));
-  }
-
-  if (types.size === 0) return [];
 
   const allIds = [...ids];
   if (allIds.length === 0) return [];
-
   const phId = allIds.map(() => '?').join(',');
   return query(
     `SELECT id, email, tipo, personal_id FROM usuarios WHERE colegio_id = ? AND id IN (${phId})`,

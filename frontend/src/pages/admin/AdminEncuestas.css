@@ -291,6 +291,29 @@
   background: #ecfdf5;
   color: #047857;
 }
+.admin-enc-aud-chip--personal-clave.is-on {
+  border-color: #8b5cf6;
+  background: #f5f3ff;
+  color: #5b21b6;
+}
+.admin-enc-aud-chip--personal.is-on {
+  border-color: #6366f1;
+  background: #eef2ff;
+  color: #3730a3;
+}
+.admin-enc-aud-hint {
+  margin: 0 0 10px;
+  font-size: 0.86rem;
+  color: #64748b;
+}
+.admin-conexiones-perfiles-titulo {
+  margin: 10px 0 8px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
 
 .admin-enc-cobertura {
   padding-top: 0.35rem;

@@ -8,16 +8,9 @@ import { useAuth } from '../../context/AuthContext';
 import './HerramientasExamenes.css';
 import { fmtPts } from './hexExamenesFormat';
 import { hexExamenesUrls } from './hexExamenesPaths';
+import { labelAudienciaHex } from './hexAudiencias';
 
 const MODO = { PRACTICA: 'Práctica', CALIFICADO: 'Calificatorio', MIXTO: 'Mixto' };
-const AUD_LABEL = {
-  ALUMNO: 'Alumnos',
-  APODERADO: 'Apoderados',
-  DOCENTE: 'Docentes',
-  PROMOTORIA: 'Promotoría',
-  ADMINISTRADOR: 'Administradores',
-  TODOS: 'Todos'
-};
 
 function chipResultadoExamen(e) {
   const u = e.ultimo_intento;
@@ -149,7 +142,7 @@ export default function HerramientasExamenesDisponiblesPanel({
                   <div className="hex-disp-chips">
                     {(e.audiencias || []).map((a) => (
                       <span key={a} className="hex-disp-chip">
-                        {AUD_LABEL[a] || a}
+                        {labelAudienciaHex(a)}
                       </span>
                     ))}
                     {ch ? <span className={`hex-disp-chip ${chipClass}`}>{ch.label}</span> : null}

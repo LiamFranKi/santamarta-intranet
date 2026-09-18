@@ -16,6 +16,11 @@ const {
   notificarAdminsEncuestaRespondida,
   obtenerNombreMostrarUsuario
 } = require('../services/encuestasNotificacionService');
+const {
+  usuarioCoincideAudienciaHex,
+  personalOmiteFiltroAulas,
+  normalizarAudiencias
+} = require('../utils/hexAudiencias');
 
 const ADMIN_TYPES = new Set(['ADMINISTRADOR', 'PROMOTORIA']);
 
@@ -125,11 +130,16 @@ async function cargarRespuestasPorRespuestaIds(respuestaIds) {
 
 /** Audiencia: filas encuestas_audiencias */
 function usuarioCoincideAudiencia(user, audiencias) {
+  if (usuarioCoincideAudienciaHex(user, audiencias)) return true;
   if (!audiencias || audiencias.length === 0) return false;
-  if (audiencias.some((a) => a.tipo === 'TODOS')) return true;
-  if (audiencias.some((a) => a.tipo === user.tipo)) return true;
+  // Alias previos: no quitar visibilidad a encuestas ya dirigidas a docentes.
   if (user.tipo === 'PSICOLOGA' && audiencias.some((a) => a.tipo === 'DOCENTE')) return true;
-  if ((user.tipo === 'COORDINADOR' || user.tipo === 'DIRECTOR' || user.tipo === 'CONTADOR') && audiencias.some((a) => a.tipo === 'DOCENTE' || a.tipo === 'COORDINADOR' || a.tipo === 'DIRECTOR' || a.tipo === 'CONTADOR')) return true;
+  if (
+    (user.tipo === 'COORDINADOR' || user.tipo === 'DIRECTOR' || user.tipo === 'CONTADOR') &&
+    audiencias.some((a) => a.tipo === 'DOCENTE' || a.tipo === 'COORDINADOR' || a.tipo === 'DIRECTOR' || a.tipo === 'CONTADOR')
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -185,10 +195,10 @@ async function obtenerGruposUsuario(user, colegio_id, anio) {
   return { todos: false, ids: [] };
 }
 
-function usuarioCoincideAlcanceGrupos(user, encuestaGrupoIds, ug) {
+function usuarioCoincideAlcanceGrupos(user, encuestaGrupoIds, ug, audiencias) {
   if (!encuestaGrupoIds || encuestaGrupoIds.length === 0) return true;
   const tipo = String(user.tipo || '').toUpperCase();
-  if (tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA') return true;
+  if (personalOmiteFiltroAulas(tipo, audiencias)) return true;
   if (ug.todos) return true;
   const setE = new Set(encuestaGrupoIds);
   return ug.ids.some((g) => setE.has(g));
@@ -200,7 +210,7 @@ async function usuarioPuedeVerEncuesta(user, colegio_id, encuestaId, audiencias)
   if (!gids.length) return true;
   const anio = await getAnioActivo(colegio_id);
   const ug = await obtenerGruposUsuario(user, colegio_id, anio);
-  return usuarioCoincideAlcanceGrupos(user, gids, ug);
+  return usuarioCoincideAlcanceGrupos(user, gids, ug, audiencias);
 }
 
 function htmlTieneContenido(html) {
@@ -918,7 +928,7 @@ router.post('/admin', authenticateToken, requireAdminOrPromotoria, async (req, r
     if (!titulo || !String(titulo).trim()) {
       return res.status(400).json({ error: 'Título requerido' });
     }
-    const audienciasLimpias = (audiencias || []).filter((t) => t && t !== 'PERSONAL');
+    const audienciasLimpias = normalizarAudiencias(audiencias);
     if (!Array.isArray(audienciasLimpias) || audienciasLimpias.length === 0) {
       return res.status(400).json({ error: 'Selecciona al menos una audiencia' });
     }
@@ -1074,7 +1084,7 @@ router.put('/admin/:id', authenticateToken, requireAdminOrPromotoria, async (req
     );
 
     if (!tiene && Array.isArray(audiencias) && audiencias.length) {
-      const audLimpias = audiencias.filter((t) => t && t !== 'PERSONAL');
+      const audLimpias = normalizarAudiencias(audiencias);
       if (audLimpias.length) {
         await execute(`DELETE FROM encuestas_audiencias WHERE encuesta_id = ?`, [id]);
         for (const t of new Set(audLimpias)) {

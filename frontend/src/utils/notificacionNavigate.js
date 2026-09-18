@@ -46,8 +46,10 @@ function reescribirUrlHerramientasExamen(url, tipoUsuario) {
   const t = String(tipoUsuario || '').toUpperCase();
   const base = '/herramientas-examenes';
   const suffix = url.length > base.length ? url.slice(base.length) : '';
-  if (t === 'DOCENTE' || t === 'COORDINADOR' || t === 'DIRECTOR' || t === 'CONTADOR') return `/docente/herramientas/examenes${suffix}`;
-  if (t === 'ADMINISTRADOR' || t === 'PROMOTORIA' || t === 'PSICOLOGA') return `/admin/herramientas/examenes${suffix}`;
+  if (t === 'DOCENTE' || t === 'COORDINADOR' || t === 'DIRECTOR' || t === 'CONTADOR' || t === 'PSICOLOGA') {
+    return `/docente/herramientas/examenes${suffix}`;
+  }
+  if (t === 'ADMINISTRADOR' || t === 'PROMOTORIA') return `/admin/herramientas/examenes${suffix}`;
   return url;
 }
 

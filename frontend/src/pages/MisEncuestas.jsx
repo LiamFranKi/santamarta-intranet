@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { labelAudienciaHex } from './herramientas/hexAudiencias';
 
 const ENCUESTA_PASTELS = [
   { bg: '#eff6ff', border: '#bfdbfe' },
@@ -112,7 +113,7 @@ export default function MisEncuestas() {
                     ) : null}
                     <Stack direction="row" gap={0.5} flexWrap="wrap" useFlexGap>
                       {(e.audiencias || []).map((a) => (
-                        <Chip key={a} size="small" label={a} variant="outlined" />
+                        <Chip key={a} size="small" label={labelAudienciaHex(a)} variant="outlined" />
                       ))}
                     </Stack>
                     <Box sx={{ mt: 'auto' }}>

@@ -18,6 +18,7 @@ import api from '../../services/api';
 import Swal from 'sweetalert2';
 import './AdminUsuarios.css';
 import './AdminEncuestas.css';
+import { labelAudienciaHex } from '../herramientas/hexAudiencias';
 
 export default function AdminEncuestas() {
   const navigate = useNavigate();
@@ -134,7 +135,7 @@ export default function AdminEncuestas() {
                         <div className="admin-enc-audiencias-chips">
                           {(e.audiencias || []).map((a) => (
                             <span key={a} className="admin-usu-badge admin-usu-badge-muted">
-                              {a}
+                              {labelAudienciaHex(a)}
                             </span>
                           ))}
                         </div>

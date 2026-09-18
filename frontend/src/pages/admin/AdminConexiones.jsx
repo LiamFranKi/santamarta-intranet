@@ -8,6 +8,12 @@ import 'react-quill/dist/quill.snow.css';
 import '../DocenteGrupos.css';
 import AdjuntosPendientes from '../../components/mensajes/AdjuntosPendientes';
 import './AdminConexiones.css';
+import {
+  PERFILES_ENVIO_COMUNIDAD,
+  PERFILES_ENVIO_PERSONAL,
+  esPerfilStaffSinAulas,
+  labelPerfilDestinoEnvio
+} from '../herramientas/hexAudiencias';
 
 const cfSwalSobreModal = {
   target: document.body,
@@ -35,17 +41,8 @@ function formatFechaHora(value) {
   return { fecha, hora };
 }
 
-const ETIQUETA_PERFIL_DESTINO = {
-  TODOS: 'Todos los perfiles',
-  ALUMNOS: 'Alumnos',
-  DOCENTES: 'Docentes',
-  APODERADOS: 'Apoderados',
-  TODO_PERSONAL: 'Todo el personal'
-};
-
 function etiquetaPerfilDestino(codigo) {
-  const k = String(codigo || '').toUpperCase();
-  return ETIQUETA_PERFIL_DESTINO[k] || k || '—';
+  return labelPerfilDestinoEnvio(codigo);
 }
 
 function formatCobertura(row) {
@@ -273,7 +270,11 @@ export default function AdminConexiones() {
       });
       return;
     }
-    if (perfilDestino !== 'todo_personal' && alcance === 'grupos' && gruposSeleccionados.length === 0) {
+    if (
+      !esPerfilStaffSinAulas(perfilDestino) &&
+      alcance === 'grupos' &&
+      gruposSeleccionados.length === 0
+    ) {
       Swal.fire({
         ...cfSwalSobreModal,
         title: 'Falta información',
@@ -284,8 +285,8 @@ export default function AdminConexiones() {
     }
     try {
       setEnviando(true);
-      const esTodoPersonal = perfilDestino === 'todo_personal';
-      const alcanceEfectivo = esTodoPersonal || alcance === 'todos' ? 'todos' : 'grupos';
+      const alcanceEfectivo =
+        esPerfilStaffSinAulas(perfilDestino) || alcance === 'todos' ? 'todos' : 'grupos';
       const fd = new FormData();
       fd.append('destinatarios', JSON.stringify([]));
       fd.append('grupos', JSON.stringify(alcanceEfectivo === 'grupos' ? gruposSeleccionados : []));
@@ -533,50 +534,77 @@ export default function AdminConexiones() {
                 <label>
                   <input
                     type="radio"
-                    checked={alcance === 'todos' || perfilDestino === 'todo_personal'}
+                    checked={alcance === 'todos' || esPerfilStaffSinAulas(perfilDestino)}
                     onChange={() => {
                       setAlcance('todos');
                       setGruposSeleccionados([]);
                     }}
                   /> Todos
                 </label>
-                <label title={perfilDestino === 'todo_personal' ? 'Todo el personal cubre el colegio completo; no se envía por aulas.' : undefined}>
+                <label title={esPerfilStaffSinAulas(perfilDestino) ? 'Ese perfil cubre el colegio completo; no se envía por aulas.' : undefined}>
                   <input
                     type="radio"
-                    checked={alcance === 'grupos' && perfilDestino !== 'todo_personal'}
-                    disabled={perfilDestino === 'todo_personal'}
+                    checked={alcance === 'grupos' && !esPerfilStaffSinAulas(perfilDestino)}
+                    disabled={esPerfilStaffSinAulas(perfilDestino)}
                     onChange={() => setAlcance('grupos')}
                   /> Grupos
                 </label>
               </div>
 
-              <div className="admin-conexiones-row">
+              <div className="admin-conexiones-row admin-conexiones-perfiles">
                 <span className="admin-conexiones-label">Perfil destino:</span>
-                <label title="Alumnos y apoderados de los grupos. No incluye a los docentes del aula.">
-                  <input type="radio" checked={perfilDestino === 'todos'} onChange={() => setPerfilDestino('todos')} /> Apoderados y alumnos
-                </label>
-                <label><input type="radio" checked={perfilDestino === 'alumnos'} onChange={() => setPerfilDestino('alumnos')} /> Alumnos</label>
-                <label><input type="radio" checked={perfilDestino === 'docentes'} onChange={() => setPerfilDestino('docentes')} /> Docentes</label>
-                <label><input type="radio" checked={perfilDestino === 'apoderados'} onChange={() => setPerfilDestino('apoderados')} /> Apoderados</label>
-                <label title="Administración, secretaría, promotoría, psicología, docentes, asistencia. No familias ni alumnos; los docentes que también son apoderados reciben en su usuario docente.">
-                  <input
-                    type="radio"
-                    checked={perfilDestino === 'todo_personal'}
-                    onChange={() => {
-                      setPerfilDestino('todo_personal');
-                      setAlcance('todos');
-                      setGruposSeleccionados([]);
-                    }}
-                  /> Todo el personal
-                </label>
+                <div className="admin-conexiones-perfiles-grupos">
+                  <p className="admin-conexiones-perfiles-titulo">Comunidad</p>
+                  <div className="admin-conexiones-perfiles-chips">
+                    {PERFILES_ENVIO_COMUNIDAD.map((p) => (
+                      <label key={p.value} title={p.value === 'todos' ? 'Alumnos y apoderados. No incluye al personal del aula.' : undefined}>
+                        <input
+                          type="radio"
+                          checked={perfilDestino === p.value}
+                          onChange={() => setPerfilDestino(p.value)}
+                        />{' '}
+                        {p.label}
+                      </label>
+                    ))}
+                  </div>
+                  <p className="admin-conexiones-perfiles-titulo">Personal</p>
+                  <div className="admin-conexiones-perfiles-chips">
+                    {PERFILES_ENVIO_PERSONAL.map((p) => (
+                      <label
+                        key={p.value}
+                        className={p.clave ? 'admin-conexiones-perfil-clave' : undefined}
+                        title={
+                          p.value === 'todo_personal'
+                            ? 'Todos los trabajadores. No familias ni alumnos.'
+                            : undefined
+                        }
+                      >
+                        <input
+                          type="radio"
+                          checked={perfilDestino === p.value}
+                          onChange={() => {
+                            setPerfilDestino(p.value);
+                            if (p.value === 'todo_personal' || esPerfilStaffSinAulas(p.value)) {
+                              setAlcance('todos');
+                              setGruposSeleccionados([]);
+                            }
+                          }}
+                        />{' '}
+                        {p.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
-              {perfilDestino === 'todo_personal' && (
+              {esPerfilStaffSinAulas(perfilDestino) && (
                 <p className="grupo-subtitle" style={{ margin: '0 0 0.75rem' }}>
-                  Se envía a todo el personal del colegio. En el mensaje se verá «Enviado a todo el personal», no grados ni aulas.
+                  {perfilDestino === 'todo_personal'
+                    ? 'Se envía a todo el personal del colegio. En el mensaje se verá «Enviado a todo el personal», no grados ni aulas.'
+                    : 'Se envía a ese cargo en todo el colegio, sin filtrar por aulas.'}
                 </p>
               )}
 
-              {alcance === 'grupos' && perfilDestino !== 'todo_personal' && (
+              {alcance === 'grupos' && !esPerfilStaffSinAulas(perfilDestino) && (
                 <div className="admin-conexiones-grupos">
                   {grupos.map((g) => (
                     <label key={g.id} className="admin-conexiones-grupo-item">

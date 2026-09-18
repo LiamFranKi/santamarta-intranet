@@ -4,6 +4,7 @@
 const { query, execute, getAnioActivo } = require('../utils/mysql');
 const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { enviarPushNotificacionesIndividuales } = require('./pushNotificationService');
+const { tiposPersonalParaNotificar } = require('../utils/hexAudiencias');
 
 /**
  * Destinatarios por audiencia. Si grupo_ids tiene valores, filtra por grupos del año activo
@@ -26,15 +27,18 @@ async function obtenerDestinatariosEncuesta(colegio_id, audiencias, grupo_ids = 
       );
     }
     const parts = [];
+    const params = [colegio_id];
     if (types.includes('ALUMNO')) parts.push(`tipo = 'ALUMNO'`);
     if (types.includes('APODERADO')) parts.push(`tipo = 'APODERADO'`);
-    if (types.includes('DOCENTE')) parts.push(`tipo = 'DOCENTE'`);
-    if (types.includes('PROMOTORIA')) parts.push(`tipo = 'PROMOTORIA'`);
-    if (types.includes('ADMINISTRADOR')) parts.push(`tipo = 'ADMINISTRADOR'`);
+    const staff = tiposPersonalParaNotificar(typeSet);
+    if (staff.length) {
+      parts.push(`tipo IN (${staff.map(() => '?').join(',')})`);
+      params.push(...staff);
+    }
     if (parts.length === 0) return [];
     return query(
       `SELECT id, email, tipo, personal_id FROM usuarios WHERE colegio_id = ? AND (estado = 'ACTIVO' OR estado IS NULL) AND (${parts.join(' OR ')})`,
-      [colegio_id]
+      params
     );
   }
 
@@ -92,18 +96,14 @@ async function obtenerDestinatariosEncuesta(colegio_id, audiencias, grupo_ids = 
     (r || []).forEach((x) => ids.add(x.id));
   }
 
-  if (includeTipo('ADMINISTRADOR')) {
+  const docentesPorAula = typeSet.has('DOCENTE') && !typeSet.has('TODO_PERSONAL') && !typeSet.has('TODOS');
+  const staff = tiposPersonalParaNotificar(typeSet);
+  const staffQuery = docentesPorAula ? staff.filter((t) => t !== 'DOCENTE') : staff;
+  if (staffQuery.length) {
+    const phT = staffQuery.map(() => '?').join(',');
     const r = await query(
-      `SELECT id FROM usuarios WHERE colegio_id = ? AND tipo = 'ADMINISTRADOR' AND (estado = 'ACTIVO' OR estado IS NULL)`,
-      [colegio_id]
-    );
-    (r || []).forEach((x) => ids.add(x.id));
-  }
-
-  if (includeTipo('PROMOTORIA')) {
-    const r = await query(
-      `SELECT id FROM usuarios WHERE colegio_id = ? AND tipo = 'PROMOTORIA' AND (estado = 'ACTIVO' OR estado IS NULL)`,
-      [colegio_id]
+      `SELECT id FROM usuarios WHERE colegio_id = ? AND tipo IN (${phT}) AND (estado = 'ACTIVO' OR estado IS NULL)`,
+      [colegio_id, ...staffQuery]
     );
     (r || []).forEach((x) => ids.add(x.id));
   }

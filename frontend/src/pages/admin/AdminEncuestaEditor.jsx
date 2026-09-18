@@ -28,15 +28,22 @@ import { mensajeHtmlTieneContenido } from '../../utils/mensajesHtml';
 import Swal from 'sweetalert2';
 import './AdminUsuarios.css';
 import './AdminEncuestas.css';
+import {
+  HEX_AUDIENCIAS,
+  HEX_AUD_PERSONAL,
+  HEX_AUD_TODOS
+} from '../herramientas/hexAudiencias';
 
-const AUDIENCIAS = [
-  { value: 'ALUMNO', label: 'Alumnos', tone: 'alumnos' },
-  { value: 'APODERADO', label: 'Apoderados', tone: 'apoderados' },
-  { value: 'DOCENTE', label: 'Docentes', tone: 'docentes' },
-  { value: 'PROMOTORIA', label: 'Promotoría', tone: 'promotoria' },
-  { value: 'ADMINISTRADOR', label: 'Administradores', tone: 'admins' },
-  { value: 'TODOS', label: 'Todos los usuarios', tone: 'todos' }
-];
+function toneAudiencia(a) {
+  if (a.value === 'ALUMNO') return 'alumnos';
+  if (a.value === 'APODERADO') return 'apoderados';
+  if (a.value === 'DOCENTE') return 'docentes';
+  if (a.value === 'PROMOTORIA') return 'promotoria';
+  if (a.value === 'ADMINISTRADOR') return 'admins';
+  if (a.value === HEX_AUD_TODOS) return 'todos';
+  if (a.value === HEX_AUD_PERSONAL) return 'personal-clave';
+  return 'personal';
+}
 
 const TIPOS_PREG = [
   { value: 'marcar', label: 'Marcar (radio/checkbox)' },
@@ -162,7 +169,15 @@ export default function AdminEncuestaEditor() {
   }, [id, esNueva, navigate]);
 
   const toggleAud = (v) => {
-    setAudiencias((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
+    setAudiencias((prev) => {
+      if (prev.includes(v)) return prev.filter((x) => x !== v);
+      if (v === HEX_AUD_TODOS) return [HEX_AUD_TODOS];
+      const next = prev.filter((x) => x !== HEX_AUD_TODOS);
+      if (v === HEX_AUD_PERSONAL) {
+        return [...next.filter((x) => x === 'ALUMNO' || x === 'APODERADO'), HEX_AUD_PERSONAL];
+      }
+      return [...next, v];
+    });
   };
 
   const toggleGrupo = (gid) => {
@@ -399,14 +414,37 @@ export default function AdminEncuestaEditor() {
           <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
             Perfiles (puedes elegir varios)
           </Typography>
+          <p className="admin-enc-aud-hint">
+            «Todo el personal» cubre a todos los trabajadores. Los cargos sueltos sirven si la encuesta es solo para
+            un perfil.
+          </p>
+          <p className="admin-conexiones-perfiles-titulo">Comunidad</p>
           <div className="admin-enc-aud-grid">
-            {AUDIENCIAS.map((a) => {
+            {HEX_AUDIENCIAS.filter((a) => a.grupo === 'comunidad' || a.grupo === 'comunidad-extra').map((a) => {
               const on = audiencias.includes(a.value);
               return (
                 <button
                   key={a.value}
                   type="button"
-                  className={`admin-enc-aud-chip admin-enc-aud-chip--${a.tone}${on ? ' is-on' : ''}`}
+                  className={`admin-enc-aud-chip admin-enc-aud-chip--${toneAudiencia(a)}${on ? ' is-on' : ''}`}
+                  disabled={tieneRespuestas}
+                  onClick={() => toggleAud(a.value)}
+                >
+                  <span className="admin-enc-aud-check">{on ? '✓' : ''}</span>
+                  {a.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="admin-conexiones-perfiles-titulo">Personal</p>
+          <div className="admin-enc-aud-grid">
+            {HEX_AUDIENCIAS.filter((a) => a.grupo === 'personal-clave' || a.grupo === 'personal').map((a) => {
+              const on = audiencias.includes(a.value);
+              return (
+                <button
+                  key={a.value}
+                  type="button"
+                  className={`admin-enc-aud-chip admin-enc-aud-chip--${toneAudiencia(a)}${on ? ' is-on' : ''}`}
                   disabled={tieneRespuestas}
                   onClick={() => toggleAud(a.value)}
                 >

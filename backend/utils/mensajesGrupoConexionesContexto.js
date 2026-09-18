@@ -3,6 +3,7 @@
  */
 const { query } = require('./mysql');
 const { personalEsTutorDeGrupoMeta } = require('./grupoTutores');
+const { TIPOS_PERSONAL, normalizarEnviarAHex } = require('./hexAudiencias');
 
 /**
  * @param {number} colegio_id
@@ -48,7 +49,7 @@ function enriquecerMensajeTodoPersonal({ asuntoOriginal, mensajeOriginal }) {
 <div style="font-weight:800;font-size:13px;letter-spacing:.02em;color:#134e4a;margin-bottom:10px;">Conexiones familiares</div>
 <div style="font-size:12px;color:#64748b;margin-bottom:8px;">Destinatarios de este mensaje:</div>
 <div><span style="display:inline-block;margin:4px 6px 4px 0;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:600;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.08);border-left:3px solid #0d9488;color:#1e293b;">Enviado a <span style="font-weight:800">todo el personal</span></span></div>
-<div style="font-size:12px;color:#64748b;margin-top:8px;">Administración, secretaría, promotoría, psicología, docentes y asistencia. No incluye familias ni alumnos.</div>
+<div style="font-size:12px;color:#64748b;margin-top:8px;">Todo el personal del colegio (dirección, coordinación, docentes, administración y demás cargos). No incluye familias ni alumnos.</div>
 </div>`;
   return {
     asuntoFinal: recortarAsunto(asuntoOriginal),
@@ -125,18 +126,8 @@ function enriquecerMensajeConexionesFamiliares({
   };
 }
 
-const PERFILES_ENVIAR_A = [
-  'apoderados',
-  'alumnos',
-  'docentes',
-  'todos',
-  'todo_personal',
-  'apoderados_alumnos'
-];
-
 function normalizarEnviarA(value) {
-  const v = String(value || 'todos').toLowerCase();
-  return PERFILES_ENVIAR_A.includes(v) ? v : 'todos';
+  return normalizarEnviarAHex(value);
 }
 
 /** Alumnos del aula: "todos" / "apoderados_alumnos" / "alumnos". */
@@ -164,5 +155,6 @@ module.exports = {
   normalizarEnviarA,
   perfilGrupoIncluyeAlumnos,
   perfilGrupoIncluyeApoderados,
-  perfilGrupoIncluyeDocentesDelGrupo
+  perfilGrupoIncluyeDocentesDelGrupo,
+  TIPOS_PERSONAL
 };

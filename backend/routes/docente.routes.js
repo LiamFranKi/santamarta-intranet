@@ -55,6 +55,13 @@ const {
   perfilGrupoIncluyeApoderados,
   perfilGrupoIncluyeDocentesDelGrupo
 } = require('../utils/mensajesGrupoConexionesContexto');
+const {
+  TIPOS_PERSONAL,
+  esTipoPersonal,
+  tipoUsuarioDesdeEnviarA,
+  esEnviarACargoPersonal,
+  enviarAOmiteFiltroAulas
+} = require('../utils/hexAudiencias');
 const { fetchUsuariosTutoresGrupos } = require('../utils/grupoTutores');
 const { enriquecerMensajeDocenteParaDestinatario } = require('../utils/mensajesDocenteApoderadoContexto');
 const { mountSelfServiceCvRoutes } = require('../utils/personalCv');
@@ -9965,6 +9972,7 @@ router.get('/documentos-gestion', async (req, res) => {
       );
     } else {
       const perfilesPermitidos = [tipoUsuario];
+      if (esTipoPersonal(tipoUsuario)) perfilesPermitidos.push('TODO_PERSONAL');
       documentos = await query(
         `SELECT d.id, d.titulo, d.nombre_archivo_original, d.ruta_almacenamiento, d.perfil_destino,
                 d.fecha_publicacion, d.created_at,
@@ -15599,8 +15607,8 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
       alcanceEnvio = 'grupos';
     }
 
-    // Todo el personal: audiencia de staff, nunca sellar grados/aulas en el mensaje.
-    if (enviarATipo === 'todo_personal') {
+    // Todo el personal o un cargo de staff (no docente): colegio completo, sin aulas.
+    if (enviarATipo === 'todo_personal' || enviarAOmiteFiltroAulas(enviarATipo)) {
       gruposArray = [];
       alcanceEnvio = 'todos';
     }
@@ -15716,12 +15724,18 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
             } else if (enviarATipo === 'todo_personal') {
               // Solo cuentas de trabajo intranet (no alumnos ni apoderados). Un docente que también es apoderado
               // tiene usuario DOCENTE y recibe aquí; su usuario APODERADO no entra en esta lista.
-              const tiposPersonal = ['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA', 'PSICOLOGA', 'DOCENTE', 'ASISTENCIA'];
-              const ph = tiposPersonal.map(() => '?').join(',');
+              const ph = TIPOS_PERSONAL.map(() => '?').join(',');
               usuariosGlobales = await query(
                 `SELECT id AS usuario_id FROM usuarios
                  WHERE colegio_id = ? AND estado = 'ACTIVO' AND tipo IN (${ph})`,
-                [colegio_id, ...tiposPersonal]
+                [colegio_id, ...TIPOS_PERSONAL]
+              );
+            } else if (esEnviarACargoPersonal(enviarATipo)) {
+              const tipoCargo = tipoUsuarioDesdeEnviarA(enviarATipo);
+              usuariosGlobales = await query(
+                `SELECT id AS usuario_id FROM usuarios
+                 WHERE colegio_id = ? AND estado = 'ACTIVO' AND tipo = ?`,
+                [colegio_id, tipoCargo]
               );
             } else if (enviarATipo === 'apoderados_alumnos') {
               usuariosGlobales = await query(
@@ -15899,12 +15913,11 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
         // (los grupos solo enriquecen asunto/cuerpo; administración y demás roles no pertenecen a un aula).
         if (enviarATipo === 'todo_personal' && alcanceEnvio === 'grupos') {
           try {
-            const tiposPersonal = ['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA', 'PSICOLOGA', 'DOCENTE', 'ASISTENCIA'];
-            const ph = tiposPersonal.map(() => '?').join(',');
+            const ph = TIPOS_PERSONAL.map(() => '?').join(',');
             const staffRows = await query(
               `SELECT id AS usuario_id FROM usuarios
                WHERE colegio_id = ? AND estado = 'ACTIVO' AND tipo IN (${ph})`,
-              [colegio_id, ...tiposPersonal]
+              [colegio_id, ...TIPOS_PERSONAL]
             );
             (staffRows || []).forEach((u) => {
               if (!usuariosDestinatarios.includes(u.usuario_id)) {

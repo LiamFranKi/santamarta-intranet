@@ -8,6 +8,12 @@ import api from '../../services/api';
 import '../DocenteGrupos.css';
 import './AdminConexiones.css';
 import './AdminNotificacionesEnvio.css';
+import {
+  PERFILES_ENVIO_NOTIF_COMUNIDAD,
+  PERFILES_ENVIO_PERSONAL,
+  esPerfilStaffSinAulas,
+  labelPerfilDestinoEnvio
+} from '../herramientas/hexAudiencias';
 
 const swalSobreModal = {
   target: document.body,
@@ -18,13 +24,6 @@ const swalSobreModal = {
   },
 };
 
-const ETIQUETA_PERFIL_DESTINO = {
-  TODOS: 'Todos los perfiles',
-  ALUMNOS: 'Alumnos',
-  DOCENTES: 'Docentes',
-  APODERADOS: 'Apoderados',
-  TODO_PERSONAL: 'Todo el personal',
-};
 
 const ICONOS_PREDEFINIDOS = [
   { emoji: '', label: 'Sin icono' },
@@ -56,8 +55,7 @@ function formatFechaHora(value) {
 }
 
 function etiquetaPerfilDestino(codigo) {
-  const k = String(codigo || '').toUpperCase();
-  return ETIQUETA_PERFIL_DESTINO[k] || k || '—';
+  return labelPerfilDestinoEnvio(codigo);
 }
 
 function tituloPreview(icono, titulo) {
@@ -224,7 +222,11 @@ export default function AdminNotificacionesEnvio() {
       });
       return;
     }
-    const alcanceEfectivo = gruposSeleccionados.length > 0 ? 'grupos' : alcance;
+    const alcanceEfectivo = esPerfilStaffSinAulas(perfilDestino)
+      ? 'todos'
+      : gruposSeleccionados.length > 0
+        ? 'grupos'
+        : alcance;
     if (alcanceEfectivo === 'grupos' && gruposSeleccionados.length === 0) {
       Swal.fire({
         ...swalSobreModal,
@@ -518,33 +520,66 @@ export default function AdminNotificacionesEnvio() {
                 <div className="admin-conexiones-row">
                   <span className="admin-conexiones-label">Cobertura:</span>
                   <label>
-                    <input type="radio" checked={alcance === 'todos'} onChange={() => setAlcance('todos')} /> Todo el colegio
+                    <input
+                      type="radio"
+                      checked={alcance === 'todos' || esPerfilStaffSinAulas(perfilDestino)}
+                      onChange={() => {
+                        setAlcance('todos');
+                        setGruposSeleccionados([]);
+                      }}
+                    />{' '}
+                    Todo el colegio
                   </label>
-                  <label>
-                    <input type="radio" checked={alcance === 'grupos'} onChange={() => setAlcance('grupos')} /> Grupos
+                  <label title={esPerfilStaffSinAulas(perfilDestino) ? 'Ese perfil cubre el colegio completo; no se envía por aulas.' : undefined}>
+                    <input
+                      type="radio"
+                      checked={alcance === 'grupos' && !esPerfilStaffSinAulas(perfilDestino)}
+                      disabled={esPerfilStaffSinAulas(perfilDestino)}
+                      onChange={() => setAlcance('grupos')}
+                    />{' '}
+                    Grupos
                   </label>
                 </div>
 
-                <div className="admin-conexiones-row">
+                <div className="admin-conexiones-row admin-conexiones-perfiles">
                   <span className="admin-conexiones-label">Perfil destino:</span>
-                  <label>
-                    <input type="radio" checked={perfilDestino === 'todos'} onChange={() => setPerfilDestino('todos')} /> Todos
-                  </label>
-                  <label>
-                    <input type="radio" checked={perfilDestino === 'alumnos'} onChange={() => setPerfilDestino('alumnos')} /> Alumnos
-                  </label>
-                  <label>
-                    <input type="radio" checked={perfilDestino === 'docentes'} onChange={() => setPerfilDestino('docentes')} /> Docentes
-                  </label>
-                  <label>
-                    <input type="radio" checked={perfilDestino === 'apoderados'} onChange={() => setPerfilDestino('apoderados')} /> Apoderados
-                  </label>
-                  <label title="Administración, secretaría, promotoría, psicología, docentes, asistencia">
-                    <input type="radio" checked={perfilDestino === 'todo_personal'} onChange={() => setPerfilDestino('todo_personal')} /> Todo el personal
-                  </label>
+                  <div className="admin-conexiones-perfiles-grupos">
+                    <p className="admin-conexiones-perfiles-titulo">Comunidad</p>
+                    <div className="admin-conexiones-perfiles-chips">
+                      {PERFILES_ENVIO_NOTIF_COMUNIDAD.map((p) => (
+                        <label key={p.value}>
+                          <input
+                            type="radio"
+                            checked={perfilDestino === p.value}
+                            onChange={() => setPerfilDestino(p.value)}
+                          />{' '}
+                          {p.label}
+                        </label>
+                      ))}
+                    </div>
+                    <p className="admin-conexiones-perfiles-titulo">Personal</p>
+                    <div className="admin-conexiones-perfiles-chips">
+                      {PERFILES_ENVIO_PERSONAL.map((p) => (
+                        <label key={p.value} className={p.clave ? 'admin-conexiones-perfil-clave' : undefined}>
+                          <input
+                            type="radio"
+                            checked={perfilDestino === p.value}
+                            onChange={() => {
+                              setPerfilDestino(p.value);
+                              if (p.value === 'todo_personal' || esPerfilStaffSinAulas(p.value)) {
+                                setAlcance('todos');
+                                setGruposSeleccionados([]);
+                              }
+                            }}
+                          />{' '}
+                          {p.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
-                {alcance === 'grupos' && (
+                {alcance === 'grupos' && !esPerfilStaffSinAulas(perfilDestino) && (
                   <div className="admin-conexiones-grupos">
                     {grupos.map((g) => (
                       <label key={g.id} className="admin-conexiones-grupo-item">

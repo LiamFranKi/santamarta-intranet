@@ -23,6 +23,11 @@ const {
   notificarUsuarioExamenRevisadoCalificado,
   obtenerNombreMostrarUsuario
 } = require('../services/herramientasExamenesNotificacionService');
+const {
+  usuarioCoincideAudienciaHex,
+  personalOmiteFiltroAulas,
+  normalizarAudiencias
+} = require('../utils/hexAudiencias');
 
 /** Misma carpeta pública que mensajes / aula virtual (Static/Archivos). */
 const hexEditorImagenStorage = multer.diskStorage({
@@ -173,10 +178,7 @@ function uid(req) {
 }
 
 function usuarioCoincideAudiencia(user, audiencias) {
-  if (!audiencias || audiencias.length === 0) return false;
-  if (audiencias.some((a) => a.tipo === 'TODOS')) return true;
-  if (audiencias.some((a) => a.tipo === user.tipo)) return true;
-  return false;
+  return usuarioCoincideAudienciaHex(user, audiencias);
 }
 
 function examenVigente(ex) {
@@ -271,10 +273,10 @@ async function obtenerGruposUsuario(user, colegio_id, anio) {
   return { todos: false, ids: [] };
 }
 
-function usuarioCoincideAlcanceGrupos(user, examGrupoIds, ug) {
+function usuarioCoincideAlcanceGrupos(user, examGrupoIds, ug, audiencias) {
   if (!examGrupoIds || examGrupoIds.length === 0) return true;
   const tipo = String(user.tipo || '').toUpperCase();
-  if (tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA') return true;
+  if (personalOmiteFiltroAulas(tipo, audiencias)) return true;
   if (ug.todos) return true;
   const setE = new Set(examGrupoIds);
   return ug.ids.some((g) => setE.has(g));
@@ -286,7 +288,7 @@ async function puedeVerExamen(user, colegio_id, examenRow) {
   if (!usuarioCoincideAudiencia(user, aud)) return false;
   const gids = await cargarGruposIds(examenRow.id);
   const ug = await obtenerGruposUsuario(user, colegio_id, anio);
-  return usuarioCoincideAlcanceGrupos(user, gids, ug);
+  return usuarioCoincideAlcanceGrupos(user, gids, ug, aud);
 }
 
 function scheduleHexActivacionNotifs({ colegio_id, examenId, titulo, usuarioId }) {
@@ -904,7 +906,9 @@ async function guardarExamenCompleto(req, res, opts) {
   if (!titulo || !String(titulo).trim()) {
     return res.status(400).json({ error: 'El título es obligatorio' });
   }
-  const audLimpias = Array.isArray(audiencias) ? [...new Set(audiencias.map((a) => String(a).toUpperCase()))] : [];
+  const audLimpias = normalizarAudiencias(
+    Array.isArray(audiencias) ? audiencias.map((a) => String(a).toUpperCase()) : []
+  );
   if (audLimpias.length === 0) {
     return res.status(400).json({ error: 'Selecciona al menos una audiencia' });
   }

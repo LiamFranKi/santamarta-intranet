@@ -263,3 +263,45 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+.admin-conexiones-perfiles {
+  align-items: flex-start;
+}
+
+.admin-conexiones-perfiles-grupos {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-conexiones-perfiles-titulo {
+  margin: 8px 0 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.admin-conexiones-perfiles-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.admin-conexiones-perfiles-chips label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  font-size: 0.86rem;
+}
+
+.admin-conexiones-perfil-clave {
+  border-color: #c4b5fd !important;
+  background: #f5f3ff !important;
+  font-weight: 700;
+}

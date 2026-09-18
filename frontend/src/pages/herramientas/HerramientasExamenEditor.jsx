@@ -21,15 +21,7 @@ import {
   nuevaPreguntaLocal,
   textoPlano
 } from './hexExamenEditorHelpers';
-
-const AUDIENCIAS = [
-  { value: 'ALUMNO', label: 'Alumnos' },
-  { value: 'APODERADO', label: 'Apoderados' },
-  { value: 'DOCENTE', label: 'Docentes' },
-  { value: 'PROMOTORIA', label: 'Promotoría' },
-  { value: 'ADMINISTRADOR', label: 'Administradores' },
-  { value: 'TODOS', label: 'Todos los usuarios' }
-];
+import { HEX_AUDIENCIAS, HEX_AUD_PERSONAL, HEX_AUD_TODOS } from './hexAudiencias';
 
 function preguntaKey(p) {
   return p.id != null ? `id-${p.id}` : p._localKey;
@@ -1263,7 +1255,13 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
   }, [load]);
 
   const toggleAud = (v) => {
-    setAudiencias((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
+    setAudiencias((prev) => {
+      if (prev.includes(v)) return prev.filter((x) => x !== v);
+      if (v === HEX_AUD_TODOS) return [HEX_AUD_TODOS];
+      const next = prev.filter((x) => x !== HEX_AUD_TODOS);
+      if (v === HEX_AUD_PERSONAL) return [...next.filter((x) => x === 'ALUMNO' || x === 'APODERADO'), HEX_AUD_PERSONAL];
+      return [...next, v];
+    });
   };
 
   const toggleGrupo = (gid) => {
@@ -1436,9 +1434,26 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
 
         <div className="hex-exam-card" style={{ marginBottom: 20 }}>
           <h3 style={{ marginTop: 0, color: '#0f172a' }}>Audiencias</h3>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {AUDIENCIAS.map((a) => (
-              <label key={a.value} className="checkbox-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <p style={{ fontSize: '0.88rem', color: '#64748b', margin: '0 0 12px' }}>
+            «Todo el personal» cubre a todos los trabajadores (no alumnos ni apoderados). Los perfiles sueltos sirven
+            si el examen es solo para un cargo. «Todos los usuarios» incluye comunidad y personal.
+          </p>
+          <p className="hex-aud-heading">Comunidad</p>
+          <div className="hex-aud-chips">
+            {HEX_AUDIENCIAS.filter((a) => a.grupo === 'comunidad' || a.grupo === 'comunidad-extra').map((a) => (
+              <label key={a.value} className="checkbox-label hex-aud-chip">
+                <input type="checkbox" checked={audiencias.includes(a.value)} onChange={() => toggleAud(a.value)} />
+                {a.label}
+              </label>
+            ))}
+          </div>
+          <p className="hex-aud-heading">Personal</p>
+          <div className="hex-aud-chips">
+            {HEX_AUDIENCIAS.filter((a) => a.grupo === 'personal-clave' || a.grupo === 'personal').map((a) => (
+              <label
+                key={a.value}
+                className={`checkbox-label hex-aud-chip ${a.value === HEX_AUD_PERSONAL ? 'hex-aud-chip--clave' : ''}`}
+              >
                 <input type="checkbox" checked={audiencias.includes(a.value)} onChange={() => toggleAud(a.value)} />
                 {a.label}
               </label>
@@ -1449,7 +1464,8 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
         <div className="hex-exam-card">
           <h3 style={{ marginTop: 0, color: '#0f172a' }}>Alcance por aulas (opcional)</h3>
           <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: 12 }}>
-            Sin selección = toda la institución (según audiencia).
+            Sin selección = toda la institución (según audiencia). Si eliges aulas, el filtro aplica a alumnos,
+            apoderados y docentes; el resto del personal sigue viendo el examen.
           </p>
           <div style={{ maxHeight: 220, overflow: 'auto' }}>
             {gruposOpts.map((g) => {

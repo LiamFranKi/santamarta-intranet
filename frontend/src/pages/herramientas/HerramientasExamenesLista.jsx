@@ -20,6 +20,7 @@ import '../../pages/admin/AdminEncuestas.css';
 import './HerramientasExamenes.css';
 import HerramientasExamenesDisponiblesPanel from './HerramientasExamenesDisponiblesPanel';
 import { HEX_ADMIN_BASE } from './hexExamenesPaths';
+import { labelAudienciaHex } from './hexAudiencias';
 
 const MODO_LABEL = {
   PRACTICA: 'Práctica',
@@ -101,7 +102,7 @@ export default function HerramientasExamenesLista({ variant = 'admin' }) {
         <div className="hex-exam-hero">
           <h1>Exámenes de herramientas</h1>
           <p>
-            Crea evaluaciones con <strong>audiencias</strong> (alumnos, docentes, apoderados, todos…),{' '}
+            Crea evaluaciones con <strong>audiencias</strong> (alumnos, personal por cargo, todo el personal o todos),{' '}
             <strong>alcance por aulas</strong> (vacío = toda la institución), modo{' '}
             <strong>práctica, calificatorio o mixto</strong>, preguntas con puntaje y revisión manual en texto
             corto.
@@ -199,7 +200,7 @@ export default function HerramientasExamenesLista({ variant = 'admin' }) {
                             <div className="admin-enc-audiencias-chips">
                               {(e.audiencias || []).map((a) => (
                                 <span key={a} className="admin-usu-badge admin-usu-badge-muted">
-                                  {a}
+                                  {labelAudienciaHex(a)}
                                 </span>
                               ))}
                             </div>

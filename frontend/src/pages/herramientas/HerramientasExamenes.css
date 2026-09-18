@@ -835,3 +835,40 @@
   }
 }
 
+.hex-aud-heading {
+  margin: 10px 0 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.hex-aud-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.hex-aud-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  font-size: 0.88rem;
+  color: #334155;
+  cursor: pointer;
+}
+
+.hex-aud-chip--clave {
+  border-color: #c4b5fd;
+  background: #f5f3ff;
+  font-weight: 700;
+  color: #5b21b6;
+}
+

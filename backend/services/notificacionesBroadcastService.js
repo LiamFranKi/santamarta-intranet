@@ -14,8 +14,11 @@ const {
   perfilGrupoIncluyeApoderados,
   perfilGrupoIncluyeDocentesDelGrupo
 } = require('../utils/mensajesGrupoConexionesContexto');
-
-const TIPOS_PERSONAL = ['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA', 'PSICOLOGA', 'DOCENTE', 'ASISTENCIA'];
+const {
+  TIPOS_PERSONAL,
+  tipoUsuarioDesdeEnviarA,
+  esEnviarACargoPersonal
+} = require('../utils/hexAudiencias');
 
 const ICONOS_PERMITIDOS = new Set([
   '',
@@ -52,6 +55,9 @@ function normalizarPerfilDestino(raw) {
   if (k === 'docentes') return 'DOCENTES';
   if (k === 'apoderados') return 'APODERADOS';
   if (k === 'todo_personal') return 'TODO_PERSONAL';
+  if (k === 'todos' || k === 'apoderados_alumnos') return 'TODOS';
+  const cargo = tipoUsuarioDesdeEnviarA(k);
+  if (cargo && cargo !== 'TODO_PERSONAL') return cargo;
   return 'TODOS';
 }
 
@@ -114,6 +120,13 @@ async function resolverDestinatariosBroadcast(query, params) {
         `SELECT id AS usuario_id FROM usuarios
          WHERE colegio_id = ? AND estado = 'ACTIVO' AND tipo IN (${ph})`,
         [colegio_id, ...TIPOS_PERSONAL]
+      );
+    } else if (esEnviarACargoPersonal(enviarATipo)) {
+      const tipoCargo = tipoUsuarioDesdeEnviarA(enviarATipo);
+      usuariosGlobales = await query(
+        `SELECT id AS usuario_id FROM usuarios
+         WHERE colegio_id = ? AND estado = 'ACTIVO' AND tipo = ?`,
+        [colegio_id, tipoCargo]
       );
     } else if (enviarATipo === 'apoderados_alumnos') {
       usuariosGlobales = await query(
@@ -201,6 +214,18 @@ async function resolverDestinatariosBroadcast(query, params) {
         `SELECT id AS usuario_id FROM usuarios
          WHERE colegio_id = ? AND estado = 'ACTIVO' AND tipo IN (${ph})`,
         [colegio_id, ...TIPOS_PERSONAL]
+      );
+      (staffRows || []).forEach((u) => {
+        if (!usuariosDestinatarios.includes(u.usuario_id)) {
+          usuariosDestinatarios.push(u.usuario_id);
+        }
+      });
+    } else if (esEnviarACargoPersonal(enviarATipo)) {
+      const tipoCargo = tipoUsuarioDesdeEnviarA(enviarATipo);
+      const staffRows = await query(
+        `SELECT id AS usuario_id FROM usuarios
+         WHERE colegio_id = ? AND estado = 'ACTIVO' AND tipo = ?`,
+        [colegio_id, tipoCargo]
       );
       (staffRows || []).forEach((u) => {
         if (!usuariosDestinatarios.includes(u.usuario_id)) {

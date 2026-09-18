@@ -160,14 +160,25 @@ const uploadInstitucionalDocumento = multer({
 
 const ETIQUETAS_PERFIL_GESTION = {
   TODOS: 'Todos los perfiles',
-  ADMINISTRADOR: 'Administrador',
+  TODO_PERSONAL: 'Todo el personal',
+  ADMINISTRADOR: 'Administradores',
+  DIRECTOR: 'Directores',
+  COORDINADOR: 'Coordinadores',
+  CONTADOR: 'Contadores',
   PROMOTORIA: 'Promotoría',
-  DOCENTE: 'Docente',
-  ALUMNO: 'Alumno',
-  APODERADO: 'Apoderado',
+  DOCENTE: 'Docentes',
+  ALUMNO: 'Alumnos',
+  APODERADO: 'Apoderados',
   ASISTENCIA: 'Asistencia',
+  PSICOLOGA: 'Psicóloga',
   PSICOLOGIA: 'Psicología',
-  PSICOLOGO: 'Psicólogo'
+  PSICOLOGO: 'Psicólogo',
+  SECRETARIA: 'Secretaría',
+  AUXILIAR: 'Auxiliares',
+  CAJERO: 'Cajeros',
+  ENFERMERA: 'Enfermería',
+  TUTOR: 'Tutores',
+  MANTENIMIENTO: 'Mantenimiento'
 };
 function etiquetaPerfilGestion(codigo) {
   if (!codigo) return '';
@@ -2292,12 +2303,23 @@ router.get('/gestion-documentos/perfiles-tipos', async (req, res) => {
     const { colegio_id } = req.user;
     const base = [
       'TODOS',
+      'TODO_PERSONAL',
       'ADMINISTRADOR',
+      'DIRECTOR',
+      'COORDINADOR',
+      'CONTADOR',
       'PROMOTORIA',
       'DOCENTE',
       'ALUMNO',
       'APODERADO',
-      'ASISTENCIA'
+      'PSICOLOGA',
+      'SECRETARIA',
+      'AUXILIAR',
+      'CAJERO',
+      'ENFERMERA',
+      'ASISTENCIA',
+      'TUTOR',
+      'MANTENIMIENTO'
     ];
     const rows = await query(
       `SELECT DISTINCT TRIM(tipo) as tipo FROM usuarios 
