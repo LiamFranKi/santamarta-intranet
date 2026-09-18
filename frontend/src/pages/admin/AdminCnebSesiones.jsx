@@ -524,10 +524,8 @@ export default function AdminCnebSesiones({
       Swal.close();
       await Swal.fire({
         icon: 'success',
-        title: 'Borrador con IA',
-        text: data.modelo
-          ? `Modelo: ${data.modelo}. Revise tema, momentos y ficha antes de aprobar.`
-          : 'Revise y ajuste el texto.',
+        title: 'Borrador listo',
+        text: 'Revise tema, momentos y ficha antes de aprobar.',
       });
     } catch (e) {
       Swal.close();
