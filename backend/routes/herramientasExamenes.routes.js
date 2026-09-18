@@ -1654,6 +1654,8 @@ router.get('/mis-disponibles', authenticateToken, async (req, res) => {
         titulo: e.titulo,
         descripcion: e.descripcion,
         modo: e.modo,
+        tiempo_minutos: e.tiempo_minutos != null ? Number(e.tiempo_minutos) : null,
+        preguntas_max: e.preguntas_max != null ? Number(e.preguntas_max) : null,
         fecha_inicio: e.fecha_inicio || null,
         fecha_fin: e.fecha_fin || null,
         vigente_ahora: vigenteAhora,

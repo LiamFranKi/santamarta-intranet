@@ -1,15 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  CircularProgress,
-  Stack,
-  Typography
-} from '@mui/material';
-import AssignmentIcon from '@mui/icons-material/Assignment';
+import { Box, Button, Chip, CircularProgress, Stack, Typography } from '@mui/material';
+import QuizIcon from '@mui/icons-material/Quiz';
 import SchoolIcon from '@mui/icons-material/School';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
@@ -19,14 +10,14 @@ import { fmtPts } from './hexExamenesFormat';
 import { hexExamenesUrls } from './hexExamenesPaths';
 
 const MODO = { PRACTICA: 'Práctica', CALIFICADO: 'Calificatorio', MIXTO: 'Mixto' };
-const DOCENTE_PASTELS = [
-  { bg: '#eff6ff', border: '#bfdbfe' },
-  { bg: '#ecfdf5', border: '#a7f3d0' },
-  { bg: '#fffbeb', border: '#fde68a' },
-  { bg: '#fdf2f8', border: '#fbcfe8' },
-  { bg: '#f5f3ff', border: '#ddd6fe' },
-  { bg: '#fff7ed', border: '#fed7aa' }
-];
+const AUD_LABEL = {
+  ALUMNO: 'Alumnos',
+  APODERADO: 'Apoderados',
+  DOCENTE: 'Docentes',
+  PROMOTORIA: 'Promotoría',
+  ADMINISTRADOR: 'Administradores',
+  TODOS: 'Todos'
+};
 
 function chipResultadoExamen(e) {
   const u = e.ultimo_intento;
@@ -116,72 +107,72 @@ export default function HerramientasExamenesDisponiblesPanel({
           No hay exámenes disponibles en este momento.
         </Typography>
       ) : (
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))',
-            gap: 1.5
-          }}
-        >
-          {items.map((e, idx) => {
-            const pastel = DOCENTE_PASTELS[idx % DOCENTE_PASTELS.length];
+        <div className="hex-disp-grid">
+          {items.map((e) => {
+            const ch = chipResultadoExamen(e);
+            const chipClass =
+              ch?.color === 'success' ? 'hex-disp-chip-ok' : ch?.color === 'warning' ? 'hex-disp-chip-warn' : '';
             return (
-              <Card
-                key={e.id}
-                elevation={0}
-                sx={{
-                  borderRadius: 2.5,
-                  border: '1px solid',
-                  borderColor: pastel.border,
-                  overflow: 'visible',
-                  background: pastel.bg,
-                  height: '100%'
-                }}
-              >
-                <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1, height: '100%' }}>
-                  <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
-                    <AssignmentIcon color="primary" fontSize="small" />
-                    <Typography fontWeight={700} sx={{ fontSize: '0.96rem' }}>
-                      {e.titulo}
-                    </Typography>
-                  </Stack>
-                  {e.descripcion ? (
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.84rem', lineHeight: 1.45 }}>
-                      {e.descripcion}
-                    </Typography>
-                  ) : null}
-                  <Stack direction="row" gap={0.5} flexWrap="wrap" useFlexGap>
-                    <Chip size="small" label={MODO[e.modo] || e.modo} variant="outlined" color="secondary" />
+              <article key={e.id} className="hex-disp-card">
+                <div className="hex-disp-card-ribbon">
+                  <div className="hex-disp-card-ribbon-left">
+                    <span className="hex-disp-card-icon" aria-hidden>
+                      <QuizIcon />
+                    </span>
+                    <span className="hex-disp-card-kicker">Examen institucional</span>
+                  </div>
+                  <span className="hex-disp-card-modo">{MODO[e.modo] || e.modo}</span>
+                </div>
+                <div className="hex-disp-card-body">
+                  <h3 className="hex-disp-card-title">{e.titulo}</h3>
+                  {e.descripcion ? <p className="hex-disp-card-desc">{e.descripcion}</p> : null}
+                  <div className="hex-disp-kpis">
+                    <div className="hex-disp-kpi">
+                      <span>Intentos</span>
+                      <strong>
+                        {e.intentos_usados ?? 0} / {e.intentos_max ?? 1}
+                      </strong>
+                    </div>
+                    {e.tiempo_minutos ? (
+                      <div className="hex-disp-kpi">
+                        <span>Duración</span>
+                        <strong>{e.tiempo_minutos} min</strong>
+                      </div>
+                    ) : null}
+                    {e.preguntas_max && Number(e.preguntas_max) > 1 ? (
+                      <div className="hex-disp-kpi">
+                        <span>Preguntas</span>
+                        <strong>{e.preguntas_max}</strong>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="hex-disp-chips">
                     {(e.audiencias || []).map((a) => (
-                      <Chip key={a} size="small" label={a} variant="outlined" />
+                      <span key={a} className="hex-disp-chip">
+                        {AUD_LABEL[a] || a}
+                      </span>
                     ))}
-                  </Stack>
-                  {(() => {
-                    const ch = chipResultadoExamen(e);
-                    return ch ? (
-                      <Chip size="small" label={ch.label} color={ch.color} sx={{ width: 'fit-content', fontWeight: 700 }} />
-                    ) : null;
-                  })()}
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                    Intentos: {e.intentos_usados ?? 0} / {e.intentos_max ?? 1}
-                  </Typography>
-
-                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mt: 'auto' }}>
+                    {ch ? <span className={`hex-disp-chip ${chipClass}`}>{ch.label}</span> : null}
+                  </div>
+                  <div className="hex-disp-card-actions">
                     {e.ultimo_intento ? (
                       <Button
                         variant="outlined"
                         size="small"
+                        className="hex-disp-btn-ghost"
                         onClick={() => navigate(urls.resultado(e.id))}
-                        sx={{ textTransform: 'none', fontWeight: 700 }}
                       >
                         Ver mis respuestas
                       </Button>
-                    ) : <span />}
+                    ) : (
+                      <span />
+                    )}
                     {!e.puede_intentar ? (
-                      <Chip label="Sin intentos" color="default" />
+                      <Chip size="small" label="Sin intentos" className="hex-disp-chip-mute" />
                     ) : (
                       <Button
                         variant="contained"
+                        className="hex-disp-btn-go"
                         onClick={() =>
                           navigate(
                             urls.realizar(
@@ -190,23 +181,16 @@ export default function HerramientasExamenesDisponiblesPanel({
                             )
                           )
                         }
-                        sx={{
-                          textTransform: 'none',
-                          borderRadius: 2,
-                          fontWeight: 700,
-                          background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
-                          boxShadow: '0 8px 24px rgba(79, 70, 229, 0.35)'
-                        }}
                       >
                         {e.intentos_usados > 0 ? 'Nuevo intento' : 'Comenzar'}
                       </Button>
                     )}
-                  </Stack>
-                </CardContent>
-              </Card>
+                  </div>
+                </div>
+              </article>
             );
           })}
-        </Box>
+        </div>
       )}
     </div>
   );

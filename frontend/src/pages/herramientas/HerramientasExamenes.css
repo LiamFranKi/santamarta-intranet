@@ -628,3 +628,210 @@
   display: block;
   margin: 0.5em 0 0;
 }
+
+/* Card de examen disponible (listado docente / admin responder) */
+.hex-disp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+  gap: 1.15rem;
+}
+
+.hex-disp-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-radius: 20px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #e0e7ff;
+  box-shadow: 0 10px 28px rgba(67, 56, 202, 0.08);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.hex-disp-card:hover {
+  transform: translateY(-3px);
+  border-color: #c7d2fe;
+  box-shadow: 0 16px 40px rgba(79, 70, 229, 0.16);
+}
+
+.hex-disp-card-ribbon {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 55%, #a855f7 100%);
+  color: #fff;
+}
+
+.hex-disp-card-ribbon-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.hex-disp-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  flex-shrink: 0;
+}
+
+.hex-disp-card-icon svg {
+  font-size: 22px;
+}
+
+.hex-disp-card-kicker {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.92;
+}
+
+.hex-disp-card-modo {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.hex-disp-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 18px 16px;
+  flex: 1;
+}
+
+.hex-disp-card-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.hex-disp-card-desc {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #64748b;
+}
+
+.hex-disp-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 8px;
+}
+
+.hex-disp-kpi {
+  border-radius: 12px;
+  background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%);
+  border: 1px solid #e0e7ff;
+  padding: 9px 10px;
+}
+
+.hex-disp-kpi span {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6366f1;
+  margin-bottom: 2px;
+}
+
+.hex-disp-kpi strong {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #1e1b4b;
+}
+
+.hex-disp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hex-disp-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+}
+
+.hex-disp-chip-ok {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.hex-disp-chip-warn {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+.hex-disp-chip-mute {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+
+.hex-disp-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.hex-disp-btn-ghost {
+  text-transform: none !important;
+  font-weight: 700 !important;
+  border-radius: 10px !important;
+  border-color: #c7d2fe !important;
+  color: #4338ca !important;
+}
+
+.hex-disp-btn-go {
+  text-transform: none !important;
+  font-weight: 800 !important;
+  border-radius: 12px !important;
+  padding: 8px 18px !important;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+  box-shadow: 0 8px 20px rgba(79, 70, 229, 0.32) !important;
+}
+
+@media (max-width: 520px) {
+  .hex-disp-card-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .hex-disp-btn-go,
+  .hex-disp-btn-ghost {
+    width: 100%;
+  }
+}
+
