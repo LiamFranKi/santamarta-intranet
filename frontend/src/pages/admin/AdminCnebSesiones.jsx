@@ -589,7 +589,9 @@ export default function AdminCnebSesiones({
       const href = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
       const a = document.createElement('a');
       a.href = href;
-      a.download = parte === 'ficha' ? `ficha_cneb_${id}.pdf` : `sesion_cneb_${id}.pdf`;
+      a.download = parte === 'ficha'
+        ? (formato === 'minedu' ? `ficha_minedu_${id}.pdf` : `ficha_cneb_${id}.pdf`)
+        : `sesion_cneb_${id}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();

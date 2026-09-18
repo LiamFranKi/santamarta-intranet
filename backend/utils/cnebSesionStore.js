@@ -244,6 +244,16 @@ async function actualizarSesion(cid, id, body) {
 }
 
 async function eliminarSesion(cid, id) {
+  try {
+    await execute('UPDATE asignaturas_evidencias SET cneb_sesion_id = NULL WHERE cneb_sesion_id = ?', [id]);
+  } catch (e) {
+    if (e.code !== 'ER_BAD_FIELD_ERROR' && e.code !== 'ER_NO_SUCH_TABLE') throw e;
+  }
+  try {
+    await execute('UPDATE cneb_ia_trabajos SET sesion_id = NULL WHERE sesion_id = ?', [id]);
+  } catch (e) {
+    if (e.code !== 'ER_BAD_FIELD_ERROR' && e.code !== 'ER_NO_SUCH_TABLE') throw e;
+  }
   const r = await execute('DELETE FROM cneb_sesiones WHERE id = ? AND colegio_id = ?', [id, cid]);
   return Number(r.affectedRows || 0);
 }

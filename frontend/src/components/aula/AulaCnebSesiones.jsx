@@ -26,7 +26,11 @@ async function bajarPdf(apiBase, id, parte, formato = 'colegio') {
   const href = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
   const a = document.createElement('a');
   a.href = href;
-  a.download = parte === 'ficha' ? `ficha_cneb_${id}.pdf` : `sesion_cneb_${id}.pdf`;
+  if (parte === 'ficha') {
+    a.download = formato === 'minedu' ? `ficha_minedu_${id}.pdf` : `ficha_cneb_${id}.pdf`;
+  } else {
+    a.download = `sesion_cneb_${id}.pdf`;
+  }
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -224,6 +228,35 @@ export default function AulaCnebSesiones({
     }
   };
 
+  const eliminarSesion = async (id, titulo) => {
+    const ok = await Swal.fire({
+      icon: 'warning',
+      title: '¿Eliminar esta sesión?',
+      text: titulo
+        ? `"${titulo}" dejará de verse en el aula. No afecta notas ni temas.`
+        : 'No afecta notas ni temas del aula virtual.',
+      showCancelButton: true,
+      confirmButtonText: 'Eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b91c1c',
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      await api.delete(`${apiBase}/sesiones/${id}`);
+      setEditor(null);
+      setSesion(null);
+      setVista('lista');
+      setEvidencias([]);
+      await loadLista();
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo eliminar',
+        text: e.response?.data?.error || e.message,
+      });
+    }
+  };
+
   if (!loading && !meta?.es_inicial) return null;
 
   const sesiones = meta?.sesiones || [];
@@ -285,13 +318,22 @@ export default function AulaCnebSesiones({
             </>
           ) : null}
           {esDocente && !readOnly && sesion && !editor ? (
-            <button
-              type="button"
-              className="card-action-btn"
-              onClick={() => setEditor({ sesionId: sesion.id })}
-            >
-              Editar plan
-            </button>
+            <>
+              <button
+                type="button"
+                className="card-action-btn"
+                onClick={() => setEditor({ sesionId: sesion.id })}
+              >
+                Editar plan
+              </button>
+              <button
+                type="button"
+                className="card-action-btn card-action-btn-danger"
+                onClick={() => eliminarSesion(sesion.id, sesion.titulo)}
+              >
+                Eliminar
+              </button>
+            </>
           ) : null}
         </div>
       </div>
@@ -520,10 +562,19 @@ export default function AulaCnebSesiones({
                     {esDocente && s.proposito ? <div className="aula-cneb-row-sub">{s.proposito}</div> : null}
                   </td>
                   <td>{fechaCorta(s.fecha_sesion)}</td>
-                  <td className="text-center">
+                  <td className="text-center aula-cneb-acciones">
                     <button type="button" className="card-action-btn" onClick={() => abrir(s.id)}>
                       {esDocente ? 'Abrir' : 'Ver'}
                     </button>
+                    {esDocente && !readOnly ? (
+                      <button
+                        type="button"
+                        className="card-action-btn card-action-btn-danger"
+                        onClick={() => eliminarSesion(s.id, s.titulo)}
+                      >
+                        Eliminar
+                      </button>
+                    ) : null}
                   </td>
                 </tr>
               ))}

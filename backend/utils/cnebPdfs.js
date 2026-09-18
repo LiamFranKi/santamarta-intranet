@@ -187,8 +187,12 @@ function bimRoman(b) {
   return ['I', 'II', 'III', 'IV'][Math.max(1, Math.min(4, Number(b) || 4)) - 1];
 }
 
+function pageBottom(doc) {
+  return doc.page.height - 20;
+}
+
 function ensure(doc, y, need) {
-  if (y + need < doc.page.height - 42) return y;
+  if (y + Math.max(12, need) < pageBottom(doc)) return y;
   doc.addPage();
   return 36;
 }
@@ -324,17 +328,13 @@ async function cargarMarcoCompetencias(competencias, { nivel, corte }) {
 function dibujarTextoFluido(doc, texto, x, y, width, { fontSize = 8, color = COLOR.ink, bold = false } = {}) {
   const t = String(texto || '');
   if (!t) return y;
-  doc.fillColor(color).font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(fontSize);
-  const h = doc.heightOfString(t, { width, fontSize });
-  const remaining = doc.page.height - 42 - y;
-  if (h > remaining && remaining < 52) {
+  const remaining = pageBottom(doc) - y;
+  if (remaining < fontSize + 2) {
     doc.addPage();
     y = 36;
-  } else {
-    y = ensure(doc, y, Math.min(h + 6, 90));
   }
   doc.fillColor(color).font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(fontSize).text(t, x, y, { width });
-  return doc.y + 3;
+  return doc.y + 2;
 }
 
 function dibujarMarcoCneb(doc, y, inner, {
@@ -520,34 +520,40 @@ async function informePdfBuffer(cid, { anio, bimestre, grupoId, nivel, matricula
   };
 }
 
-function dibujarTextoRico(doc, html, x, y, width, { fontSize = 9 } = {}) {
+function dibujarTextoRico(doc, html, x, y, width, { fontSize = 9, maxY = null } = {}) {
   const bloques = htmlABloques(html);
+  const limite = maxY != null ? maxY : null;
+  const cabe = (yy) => limite == null || yy + fontSize + 1 < limite;
   if (!bloques.length) {
     const plano = htmlATextoPlano(html) || '—';
-    doc.fillColor(COLOR.ink).font('Helvetica').fontSize(fontSize).text(plano, x, y, { width });
-    return doc.y + 6;
+    const hOpt = limite != null ? { width, height: Math.max(12, limite - y) } : { width };
+    doc.fillColor(COLOR.ink).font('Helvetica').fontSize(fontSize).text(plano, x, y, hOpt);
+    return Math.min(doc.y + 4, limite || doc.y + 4);
   }
-  bloques.forEach((b, idx) => {
-    y = ensure(doc, y, fontSize + 8);
+  bloques.forEach((b) => {
+    if (!cabe(y)) return;
+    if (limite == null) y = ensure(doc, y, fontSize + 2);
     const indent = b.type === 'li' ? 12 : 0;
     const parts = b.parts.length ? b.parts : [{ text: ' ', bold: false }];
     if (b.type === 'li') {
       doc.fillColor(COLOR.ink).font('Helvetica').fontSize(fontSize).text('•', x, y, { width: 10 });
     }
+    const blockH = limite != null ? Math.max(10, limite - y) : undefined;
     parts.forEach((p, i) => {
       const last = i === parts.length - 1;
-      const prefix = b.type === 'h' || (b.type === 'p' && idx === 0 && p.bold && i === 0) ? '' : '';
       doc
         .fillColor(COLOR.ink)
         .font(p.bold || b.type === 'h' ? 'Helvetica-Bold' : 'Helvetica')
         .fontSize(b.type === 'h' ? fontSize + 1 : fontSize)
-        .text(`${prefix}${p.text}`, i === 0 ? x + indent : undefined, i === 0 ? y : undefined, {
+        .text(`${p.text}`, i === 0 ? x + indent : undefined, i === 0 ? y : undefined, {
           width: width - indent,
           continued: !last,
-          lineGap: 1.5,
+          lineGap: 1.2,
+          ...(blockH != null && i === 0 ? { height: blockH } : {}),
         });
     });
-    y = doc.y + (b.type === 'h' ? 6 : 4);
+    y = doc.y + (b.type === 'h' ? 4 : 3);
+    if (limite != null && y > limite) y = limite;
   });
   return y;
 }
@@ -575,6 +581,37 @@ function textoFichaSesion(ses) {
     .join('\n');
 }
 
+function dibujarFirmasFicha(doc, y, inner) {
+  const w = (inner - 24) / 2;
+  doc.moveTo(36, y + 18).lineTo(36 + w, y + 18).strokeColor(COLOR.line).stroke();
+  doc.moveTo(36 + w + 24, y + 18).lineTo(36 + inner, y + 18).strokeColor(COLOR.line).stroke();
+  doc.fillColor(COLOR.muted).font('Helvetica').fontSize(7).text('Estudiante / familia', 36, y + 22, {
+    width: w,
+    align: 'center',
+  });
+  doc.text('Docente', 36 + w + 24, y + 22, { width: w, align: 'center' });
+  return y + 36;
+}
+
+function dibujarCajaActividad(doc, { y, inner, texto, etiqueta }) {
+  const firmasH = 40;
+  const pieH = 12;
+  const room = pageBottom(doc) - y;
+  const extra = firmasH + pieH;
+  const cajaTop = y;
+  let cajaH = room - extra;
+  if (cajaH < 40) cajaH = Math.max(28, room - 34);
+  if (etiqueta) {
+    doc.fillColor(COLOR.teal).font('Helvetica-Bold').fontSize(8).text(etiqueta, 36, cajaTop - 12, { width: inner });
+  }
+  doc.rect(36, cajaTop, inner, cajaH).strokeColor(COLOR.line).stroke();
+  dibujarTextoRico(doc, texto, 44, cajaTop + 6, inner - 16, {
+    fontSize: 9,
+    maxY: cajaTop + cajaH - 6,
+  });
+  return cajaTop + cajaH + 8;
+}
+
 function dibujarFichaPagina(doc, { colegio, ses, grupo, fecha, formato }) {
   const minedu = String(formato || '').toLowerCase() === 'minedu';
   const inner = doc.page.width - 72;
@@ -584,36 +621,71 @@ function dibujarFichaPagina(doc, { colegio, ses, grupo, fecha, formato }) {
     tituloOficial: minedu ? 'FICHA DE APLICACIÓN · CNEB / MINEDU' : 'FICHA DE TRABAJO DEL ESTUDIANTE',
   });
   doc.fillColor(COLOR.ink).font('Helvetica-Bold').fontSize(12).text(ses.titulo || 'Sesión', 36, y, { width: inner });
-  y += 18;
+  y += 16;
   filaDato(doc, y, 'ÁREA', ses.area_nombre || 'Taller interno', 36, inner * 0.5);
   filaDato(doc, y, 'FECHA', fecha, 36 + inner * 0.5, inner * 0.5);
   y += 16;
-  filaDato(doc, y, 'COMPET.', ses.competencia_nombre || '—', 36, inner);
+  filaDato(doc, y, 'COMPET.', ses.competencia_nombre || '—', 36, minedu ? inner * 0.72 : inner);
+  if (minedu) {
+    const edad = etiquetaCorte(ses.nivel_cneb, ses.corte);
+    filaDato(doc, y, 'EDAD', edad || '—', 36 + inner * 0.72, inner * 0.28);
+  }
+  y += 16;
+  filaDato(doc, y, 'NOMBRE', ' ', 36, inner * 0.62);
+  filaDato(doc, y, 'FECHA', ' ', 36 + inner * 0.62, inner * 0.38);
   y += 22;
-  filaDato(doc, y, 'NOMBRE', ' ', 36, inner * 0.5);
-  filaDato(doc, y, 'FECHA', ' ', 36 + inner * 0.5, inner * 0.5);
-  y += 24;
   const texto = limpiarEncabezadoFicha(textoFichaSesion(ses));
-  const cajaTop = y;
-  const cajaH = Math.max(120, doc.page.height - y - 100);
-  doc.rect(36, cajaTop, inner, cajaH).strokeColor(COLOR.line).stroke();
-  y = dibujarTextoRico(doc, texto, 44, cajaTop + 8, inner - 16, { fontSize: 10 });
-  y = Math.max(y, cajaTop + cajaH) + 12;
-  y = ensure(doc, y, 70);
-  doc.fillColor(COLOR.muted).font('Helvetica').fontSize(7.5).text(
-    minedu
-      ? 'Evidencia física alineada al CNEB. No reemplaza el informe oficial de SIAGIE ni las notas 0–20.'
-      : 'Evidencia del colegio. El docente o el niño completa la ficha; se archiva en el portafolio.',
-    36,
+
+  if (minedu) {
+    const caps = nombresCapacidad(ses.capacidades).slice(0, 4);
+    doc.fillColor(COLOR.teal).font('Helvetica-Bold').fontSize(7.5).text('CAPACIDADES', 36, y);
+    y += 10;
+    if (!caps.length) {
+      doc.fillColor(COLOR.muted).font('Helvetica').fontSize(7).text('Sin capacidades en el catálogo.', 36, y);
+      y += 11;
+    } else {
+      caps.forEach((n) => {
+        doc.fillColor(COLOR.ink).font('Helvetica').fontSize(7).text(`•  ${n}`, 36, y, {
+          width: inner,
+          height: 10,
+          ellipsis: true,
+        });
+        y += 11;
+      });
+    }
+    y += 2;
+    const des = (ses.desempenos || []).slice(0, 5);
+    doc.fillColor(COLOR.teal).font('Helvetica-Bold').fontSize(7.5).text('DESEMPEÑOS A OBSERVAR', 36, y);
+    y += 11;
+    if (!des.length) {
+      doc.fillColor(COLOR.muted).font('Helvetica').fontSize(7).text('Sin desempeños para esta edad.', 36, y);
+      y += 12;
+    } else {
+      des.forEach((d, i) => {
+        doc.rect(36, y + 1, 7, 7).strokeColor(COLOR.line).stroke();
+        doc.fillColor(COLOR.ink).font('Helvetica').fontSize(7).text(`${i + 1}. ${d.texto || d}`, 48, y, {
+          width: inner - 16,
+          height: 16,
+          ellipsis: true,
+        });
+        y += 17;
+      });
+    }
+    y += 14;
+  }
+
+  y = dibujarCajaActividad(doc, {
     y,
-    { width: inner }
-  );
-  y += 28;
-  const w = (inner - 24) / 2;
-  doc.moveTo(36, y + 22).lineTo(36 + w, y + 22).strokeColor(COLOR.line).stroke();
-  doc.moveTo(36 + w + 24, y + 22).lineTo(36 + inner, y + 22).strokeColor(COLOR.line).stroke();
-  doc.fillColor(COLOR.muted).font('Helvetica').fontSize(7.5).text('Estudiante / familia', 36, y + 26, { width: w, align: 'center' });
-  doc.text('Docente', 36 + w + 24, y + 26, { width: w, align: 'center' });
+    inner,
+    texto,
+    etiqueta: minedu ? 'ACTIVIDAD DEL ESTUDIANTE' : null,
+  });
+  const pie = minedu
+    ? 'Ficha de aplicación alineada al CNEB. No reemplaza el informe oficial de SIAGIE ni las notas 0–20.'
+    : 'Ficha de trabajo del colegio. El niño dibuja o escribe; se archiva en el portafolio.';
+  doc.fillColor(COLOR.muted).font('Helvetica').fontSize(6.5).text(pie, 36, y, { width: inner });
+  y += 12;
+  dibujarFirmasFicha(doc, y, inner);
 }
 
 async function sesionPdfBuffer(cid, sesionId, { parte = 'sesion', formato = 'colegio' } = {}) {
@@ -630,7 +702,8 @@ async function sesionPdfBuffer(cid, sesionId, { parte = 'sesion', formato = 'col
     const buf = await pdfToBuffer(async (doc) => {
       dibujarFichaPagina(doc, { colegio, ses, grupo, fecha, formato });
     });
-    return { buffer: buf, filename: `ficha_cneb_${ses.id}_${slug}.pdf` };
+    const pref = String(formato || '').toLowerCase() === 'minedu' ? 'ficha_minedu' : 'ficha_cneb';
+    return { buffer: buf, filename: `${pref}_${ses.id}_${slug}.pdf` };
   }
   const subtitulo = `Sesión de aprendizaje · ${etiquetaNivel(ses.nivel_cneb)} · ${ses.duracion_min} min`;
   const buf = await pdfToBuffer(async (doc) => {
@@ -671,42 +744,40 @@ async function sesionPdfBuffer(cid, sesionId, { parte = 'sesion', formato = 'col
       edadLabel: etiquetaCorte(ses.nivel_cneb, ses.corte),
     });
     if (ses.proposito) {
+      y = ensure(doc, y, 20);
       doc.fillColor(COLOR.teal).font('Helvetica-Bold').fontSize(8).text('PROPÓSITO', 36, y);
       y += 12;
-      const ph = doc.heightOfString(ses.proposito, { width: inner, fontSize: 9 }) + 4;
-      doc.fillColor(COLOR.ink).font('Helvetica').fontSize(9).text(ses.proposito, 36, y, { width: inner });
-      y += ph + 8;
+      y = dibujarTextoFluido(doc, ses.proposito, 36, y, inner, { fontSize: 9 });
+      y += 6;
     }
     ['inicio', 'desarrollo', 'cierre'].forEach((tipo) => {
       const mins = ses.minutos?.[tipo] ?? 0;
       const texto = ses.momentos?.[tipo] || '—';
-      y = ensure(doc, y, 40);
+      y = ensure(doc, y, 20);
       doc.rect(36, y, inner, 16).fillAndStroke(COLOR.teal, COLOR.teal);
       doc.fillColor('#fff').font('Helvetica-Bold').fontSize(9).text(`${momentoTitulo(tipo)}  ·  ${mins} min`, 42, y + 4);
       y += 18;
       y = dibujarTextoRico(doc, texto, 40, y, inner - 8, { fontSize: 9 });
-      y += 8;
+      y += 6;
     });
     const cotejo = ses.cotejo || [];
     if (cotejo.length) {
-      y = ensure(doc, y, 24);
+      y = ensure(doc, y, 18);
       doc.fillColor(COLOR.teal).font('Helvetica-Bold').fontSize(9).text('Lista de cotejo', 36, y);
-      y += 14;
+      y += 12;
       cotejo.forEach((c, i) => {
-        y = ensure(doc, y, 16);
-        doc.fillColor(COLOR.ink).font('Helvetica').fontSize(8.5).text(`${i + 1}. ${c.item}`, 40, y, { width: inner - 8 });
-        y += 14;
+        y = dibujarTextoFluido(doc, `${i + 1}. ${c.item}`, 40, y, inner - 8, { fontSize: 8.5 });
       });
     }
     doc.fillColor(COLOR.muted).font('Helvetica').fontSize(6.5).text(
       'Para el docente titular o el suplente. No modifica el aula virtual ni las notas 0–20.',
       36,
-      doc.page.height - 28,
+      pageBottom(doc) - 8,
       { width: inner, align: 'center' }
     );
     if (String(ses.ficha_estudiante || '').trim()) {
       doc.addPage();
-      dibujarFichaPagina(doc, { colegio, ses, grupo, fecha, formato });
+      dibujarFichaPagina(doc, { colegio, ses, grupo, fecha, formato: 'colegio' });
     }
   });
   return { buffer: buf, filename: `sesion_cneb_${ses.id}_${slug}.pdf` };
