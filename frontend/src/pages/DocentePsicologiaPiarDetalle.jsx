@@ -141,7 +141,7 @@ export default function DocentePsicologiaPiarDetalle() {
           <p className="psi-doc-muted" style={{ color: '#b91c1c' }}>
             {err || 'No encontrado'}
           </p>
-          <button type="button" className="psi-doc-btn psi-doc-btn-secondary" onClick={() => navigate('/docente/psicologia/piar')}>
+          <button type="button" className="psi-doc-btn psi-doc-btn-secondary" onClick={() => navigate('/docente/psicologia?tab=piar')}>
             Volver al listado
           </button>
         </div>
@@ -176,7 +176,7 @@ export default function DocentePsicologiaPiarDetalle() {
           ) : null}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-          <button type="button" className="psi-doc-btn psi-doc-btn-secondary" onClick={() => navigate('/docente/psicologia/piar')}>
+          <button type="button" className="psi-doc-btn psi-doc-btn-secondary" onClick={() => navigate('/docente/psicologia?tab=piar')}>
             ← Volver al listado
           </button>
           <button type="button" className="psi-doc-btn psi-doc-btn-primary" onClick={descargarPdf}>

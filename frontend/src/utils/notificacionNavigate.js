@@ -226,7 +226,7 @@ export function normalizarUrlNotificacion(notif, user) {
     if (user?.tipo === 'DOCENTE' && piarId) return `/docente/psicologia/piar/${piarId}`;
     if (user?.tipo === 'APODERADO' && alumnoId) return `/apoderado/psicologia/${alumnoId}`;
     if (alumnoId) return `/admin/psicologia/alumno/${alumnoId}?tab=piar`;
-    if (user?.tipo === 'DOCENTE') return '/docente/psicologia/piar';
+    if (user?.tipo === 'DOCENTE') return '/docente/psicologia?tab=piar';
     return '/admin/psicologia';
   }
 

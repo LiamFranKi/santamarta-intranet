@@ -300,3 +300,150 @@
   display: flex;
   align-items: center;
 }
+
+.psi-doc-hero--hub {
+  background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 42%, #0f766e 120%);
+}
+
+.psi-doc-hero__kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.82;
+}
+
+.psi-doc-hub-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1.1rem;
+}
+
+.psi-doc-hub-search {
+  flex: 1 1 220px;
+  min-width: 180px;
+  max-width: 340px;
+  border: 1px solid #ddd6fe;
+  background: #fff;
+  border-radius: 12px;
+  padding: 0.62rem 0.85rem;
+  font: inherit;
+  color: #1e1b4b;
+}
+
+.psi-doc-hub-search:focus {
+  outline: 2px solid #c4b5fd;
+  border-color: #7c3aed;
+}
+
+.psi-doc-hub-panel {
+  animation: piarIn 0.22s ease;
+}
+
+.psi-doc-hub-lead {
+  margin: 0 0 1rem;
+  color: #57534e;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.psi-doc-hub-der-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.psi-doc-empty {
+  background: #fff;
+  border: 1px dashed #ddd6fe;
+  border-radius: 16px;
+  padding: 1.35rem 1.2rem;
+  text-align: center;
+  color: #57534e;
+}
+
+.psi-doc-empty strong {
+  display: block;
+  color: #5b21b6;
+  margin-bottom: 0.35rem;
+}
+
+.psi-doc-empty p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.psi-doc-der-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.psi-doc-der-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem;
+  border-radius: 16px;
+  background: linear-gradient(160deg, #fff, #fffbeb);
+  border: 1px solid #fde68a;
+  box-shadow: 0 4px 14px rgba(180, 83, 9, 0.07);
+}
+
+.psi-doc-der-card__name {
+  font-weight: 800;
+  color: #1e1b4b;
+  margin-bottom: 0.4rem;
+}
+
+.psi-doc-der-card__resumen {
+  margin: 0.45rem 0 0;
+  color: #57534e;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.psi-doc-der-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid #e7e5e4;
+  background: #f8fafc;
+  color: #44403c;
+}
+
+.psi-doc-der-chip--recibida {
+  background: #fef3c7;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.psi-doc-der-chip--eval {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.psi-doc-der-chip--cerrada {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+}
+
+@media (max-width: 700px) {
+  .psi-doc-hub-search {
+    max-width: none;
+  }
+}

@@ -128,7 +128,6 @@ export default function DashboardLayout({ children }) {
         (
           path.startsWith('/docente/herramientas')
           || path === '/docente/supervision'
-          || path.startsWith('/docente/psicologia')
           || path.startsWith('/elecciones-campana')
         ) && { docenteHerramientas: true }
       ),
@@ -628,6 +627,17 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Mis Asistencias</span>
                 </button>
               </div>
+              <div className="sidebar-item">
+                <NavLink
+                  className={() =>
+                    `sidebar-link ${location.pathname.startsWith('/docente/psicologia') ? 'active' : ''}`
+                  }
+                  to="/docente/psicologia"
+                >
+                  <span className="sidebar-icon">🧠</span>
+                  <span className="sidebar-label">Psicología</span>
+                </NavLink>
+              </div>
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -690,24 +700,6 @@ export default function DashboardLayout({ children }) {
                       ✨
                     </span>
                     <span className="sidebar-label">Fichas IA</span>
-                  </NavLink>
-                  <NavLink
-                    className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
-                    to="/docente/psicologia/derivaciones"
-                  >
-                    <span className="sidebar-icon" aria-hidden>
-                      🧠
-                    </span>
-                    <span className="sidebar-label">Derivaciones</span>
-                  </NavLink>
-                  <NavLink
-                    className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
-                    to="/docente/psicologia/piar"
-                  >
-                    <span className="sidebar-icon" aria-hidden>
-                      📋
-                    </span>
-                    <span className="sidebar-label">PIAR</span>
                   </NavLink>
                   {esSupervisorSupervision ? (
                     <NavLink

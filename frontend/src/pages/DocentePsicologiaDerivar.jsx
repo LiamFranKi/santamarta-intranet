@@ -141,7 +141,7 @@ export default function DocentePsicologiaDerivar() {
         await Swal.fire({ icon: 'success', title: 'Derivación enviada a psicología', timer: 1600, showConfirmButton: false });
       }
       if (grupoId) navigate('/docente/grupos');
-      else navigate('/docente/psicologia/derivaciones');
+      else navigate('/docente/psicologia?tab=derivaciones');
     } catch (e) {
       Swal.fire({ icon: 'error', title: e.response?.data?.error || 'Error' });
     } finally {
@@ -151,7 +151,7 @@ export default function DocentePsicologiaDerivar() {
 
   const volver = () => {
     if (grupoId) navigate('/docente/grupos');
-    else navigate('/docente/psicologia/derivaciones');
+    else navigate('/docente/psicologia?tab=derivaciones');
   };
 
   const titulo = Number.isFinite(derivacionId) ? 'Editar derivación psicológica' : 'Derivación psicológica';
