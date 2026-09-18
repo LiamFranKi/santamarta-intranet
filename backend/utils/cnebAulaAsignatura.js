@@ -155,13 +155,9 @@ function vistaAlumnoSesion(ses) {
   return {
     id: ses.id,
     titulo: ses.titulo,
-    proposito: ses.proposito,
-    duracion_min: ses.duracion_min,
     fecha_sesion: ses.fecha_sesion,
     area_nombre: ses.area_nombre,
     ficha_estudiante: ses.ficha_estudiante || '',
-    momentos: ses.momentos || { inicio: '', desarrollo: '', cierre: '' },
-    minutos: ses.minutos || { inicio: 0, desarrollo: 0, cierre: 0 },
   };
 }
 

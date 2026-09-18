@@ -59,6 +59,7 @@ const { fetchUsuariosTutoresGrupos } = require('../utils/grupoTutores');
 const { enriquecerMensajeDocenteParaDestinatario } = require('../utils/mensajesDocenteApoderadoContexto');
 const { mountSelfServiceCvRoutes } = require('../utils/personalCv');
 const { listarEvidenciasSafe, mapearEvidencia, tipoDesdeNombre } = require('../utils/aulaEvidencias');
+const { crearRouterCnebFamilia, colegioId, anioConsulta } = require('../utils/cnebVistaFamilia');
 const {
   esTemaPendiente,
   urlPublicaArchivoTema,
@@ -12722,13 +12723,28 @@ router.get('/hijos/:hijoId/aula-virtual/evidencias', soloLecturaProxy, async (re
       return res.status(403).json({ error: 'El alumno no tiene acceso a esta asignatura' });
     }
 
-    const evidencias = await listarEvidenciasSafe(asignatura_id, ciclo);
+    const evidencias = await listarEvidenciasSafe(asignatura_id, ciclo, {
+      sesionId: req.query.sesion_id || req.query.cneb_sesion_id,
+    });
     res.json({ evidencias });
   } catch (error) {
     console.error('Error obteniendo evidencias (docente hijo):', error);
     res.status(500).json({ error: error.message || 'Error al obtener evidencias' });
   }
 });
+
+router.use(
+  '/hijos/:hijoId/cneb',
+  crearRouterCnebFamilia({
+    logTag: 'docente/hijos/cneb',
+    resolverAlumno: async (req) => {
+      const { alumnoId } = await verificarHijoYUsuario(req, req.params.hijoId);
+      const cid = colegioId(req);
+      if (!cid || !alumnoId) throw new Error('No tienes acceso a este curso.');
+      return { alumnoId, cid, anio: await anioConsulta(req, cid) };
+    },
+  })
+);
 
 // Proxy para obtener resultado de examen del hijo (SOLO GET - solo lectura)
 // IMPORTANTE: Esta ruta debe estar ANTES de la ruta general /:asignaturaId

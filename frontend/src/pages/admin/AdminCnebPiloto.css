@@ -1236,15 +1236,19 @@
 
 .cneb-ficha-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 0.9rem;
-  margin: 0.4rem 0 0.35rem;
+  margin: 0.4rem 0 1.15rem;
+  align-items: start;
 }
 
-@media (max-width: 900px) {
-  .cneb-ficha-grid {
-    grid-template-columns: 1fr;
-  }
+.cneb-cotejo-bloque {
+  position: relative;
+  z-index: 2;
+  margin-top: 0.35rem;
+  padding-top: 0.95rem;
+  border-top: 1px solid var(--cneb-line);
+  clear: both;
 }
 
 .cneb-ficha-preview-wrap {

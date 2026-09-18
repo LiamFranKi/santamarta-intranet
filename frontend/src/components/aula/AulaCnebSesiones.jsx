@@ -41,6 +41,7 @@ export default function AulaCnebSesiones({
   onActivo,
 }) {
   const esDocente = rol === 'docente';
+  const esApoderado = !esDocente && readOnly;
   const apiBase = esDocente ? '/docente/cneb' : '/alumno/cneb';
   const onActivoRef = useRef(onActivo);
   onActivoRef.current = onActivo;
@@ -236,7 +237,7 @@ export default function AulaCnebSesiones({
       <div className="card-header">
         <div className="card-icon">📗</div>
         <div className="card-info">
-          <h3 className="card-title">Sesiones CNEB</h3>
+          <h3 className="card-title">{esDocente ? 'Sesiones CNEB' : 'Temas y fichas'}</h3>
           <p className="card-count">{sesiones.length}</p>
           <p className="card-subtitle">{areaLabel}</p>
         </div>
@@ -298,7 +299,7 @@ export default function AulaCnebSesiones({
       <div className="card-content-expanded">
         {loading ? (
           <div className="empty-state">
-            <p>Cargando sesiones…</p>
+            <p>{esDocente ? 'Cargando sesiones…' : 'Cargando temas…'}</p>
           </div>
         ) : editor ? (
           <AdminCnebSesiones
@@ -338,12 +339,13 @@ export default function AulaCnebSesiones({
           <div className="aula-cneb-detalle">
             <header className="aula-cneb-detalle-head">
               <p className="aula-cneb-kicker">
+                {esDocente ? '' : 'Tema · '}
                 {sesion.area_nombre || areaLabel}
-                {sesion.duracion_min ? ` · ${sesion.duracion_min} min` : ''}
+                {esDocente && sesion.duracion_min ? ` · ${sesion.duracion_min} min` : ''}
                 {` · ${fechaCorta(sesion.fecha_sesion)}`}
               </p>
               <h4>{sesion.titulo}</h4>
-              {sesion.proposito ? <p className="aula-cneb-proposito">{sesion.proposito}</p> : null}
+              {esDocente && sesion.proposito ? <p className="aula-cneb-proposito">{sesion.proposito}</p> : null}
             </header>
 
             {esDocente ? (
@@ -357,9 +359,9 @@ export default function AulaCnebSesiones({
               </div>
             ) : null}
 
-            {(!esDocente || vista === 'plan') && (
+            {esDocente && vista === 'plan' ? (
               <>
-                {esDocente && marcoSesion?.competenciaNombre ? (
+                {marcoSesion?.competenciaNombre ? (
                   <MarcoCnebVista
                     competenciaNombre={marcoSesion.competenciaNombre}
                     capacidades={marcoSesion.capacidades}
@@ -373,12 +375,11 @@ export default function AulaCnebSesiones({
                   const titulo = tipo === 'inicio' ? 'Inicio' : tipo === 'cierre' ? 'Cierre' : 'Desarrollo';
                   const texto = sesion.momentos?.[tipo] || '';
                   const mins = sesion.minutos?.[tipo];
-                  if (!esDocente && !texto) return null;
                   return (
                     <article key={tipo} className="aula-cneb-momento">
                       <h5>
                         {titulo}
-                        {esDocente && mins ? <span> {mins} min</span> : null}
+                        {mins ? <span> {mins} min</span> : null}
                       </h5>
                       <CnebHtmlVista html={texto} vacio="Aún no hay texto en este momento." />
                     </article>
@@ -398,7 +399,7 @@ export default function AulaCnebSesiones({
                     </div>
                   </article>
                 ) : null}
-                {esDocente && (sesion.cotejo || []).length > 0 && vista === 'plan' ? (
+                {(sesion.cotejo || []).length > 0 ? (
                   <article className="aula-cneb-momento">
                     <h5>Lista de cotejo</h5>
                     <ol>
@@ -409,39 +410,50 @@ export default function AulaCnebSesiones({
                   </article>
                 ) : null}
                 <div className="aula-cneb-pdfs">
-                  {esDocente ? (
-                    <>
-                      <button type="button" className="card-action-btn card-action-btn-secondary" onClick={() => pdf(sesion.id, 'sesion')}>
-                        PDF de la sesión
-                      </button>
-                      <button type="button" className="card-action-btn" onClick={() => pdf(sesion.id, 'ficha')}>
-                        Ficha del estudiante
-                      </button>
-                      <button
-                        type="button"
-                        className="card-action-btn card-action-btn-secondary"
-                        onClick={() => pdf(sesion.id, 'ficha', 'minedu')}
-                      >
-                        Ficha MINEDU
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <p className="aula-cneb-nota aula-cneb-nota--info">
-                        La <strong>ficha</strong> es tu hoja para dibujar o escribir. La <strong>guía</strong> es el
-                        plan de la clase (inicio, desarrollo y cierre). No ves las notas de tus compañeros.
-                      </p>
-                      <button type="button" className="card-action-btn" onClick={() => pdf(sesion.id, 'ficha')}>
-                        Mi ficha (PDF)
-                      </button>
-                      <button type="button" className="card-action-btn card-action-btn-secondary" onClick={() => pdf(sesion.id, 'sesion')}>
-                        Guía de la clase (PDF)
-                      </button>
-                    </>
-                  )}
+                  <button type="button" className="card-action-btn card-action-btn-secondary" onClick={() => pdf(sesion.id, 'sesion')}>
+                    PDF de la sesión
+                  </button>
+                  <button type="button" className="card-action-btn" onClick={() => pdf(sesion.id, 'ficha')}>
+                    Ficha del estudiante
+                  </button>
+                  <button
+                    type="button"
+                    className="card-action-btn card-action-btn-secondary"
+                    onClick={() => pdf(sesion.id, 'ficha', 'minedu')}
+                  >
+                    Ficha MINEDU
+                  </button>
                 </div>
               </>
-            )}
+            ) : null}
+
+            {!esDocente ? (
+              <>
+                {!htmlVacio(sesion.ficha_estudiante) ? (
+                  <article className="aula-cneb-momento aula-cneb-ficha-vista">
+                    <h5>{esApoderado ? 'Ficha del estudiante' : 'Tu ficha'}</h5>
+                    <p className="aula-cneb-row-sub">
+                      {esApoderado
+                        ? 'Hoja para dibujar o escribir. No es una nota.'
+                        : 'Esta es tu hoja para dibujar o escribir. No es una nota.'}
+                    </p>
+                    <div className="cneb-ficha-preview">
+                      <CnebHtmlVista html={sesion.ficha_estudiante} />
+                      <div className="cneb-ficha-dibujo" aria-hidden>
+                        Espacio para dibujar o escribir
+                      </div>
+                    </div>
+                  </article>
+                ) : (
+                  <p className="aula-cneb-row-sub">Aún no hay ficha en esta sesión.</p>
+                )}
+                <div className="aula-cneb-pdfs">
+                  <button type="button" className="card-action-btn" onClick={() => pdf(sesion.id, 'ficha')}>
+                    {esApoderado ? 'Descargar ficha (PDF)' : 'Descargar mi ficha (PDF)'}
+                  </button>
+                </div>
+              </>
+            ) : null}
 
             {esDocente && vista === 'cotejo' ? (
               <div className="aula-cneb-auxiliar">
@@ -452,8 +464,11 @@ export default function AulaCnebSesiones({
             <section className="aula-cneb-evidencias">
               <h5>Evidencias de esta sesión</h5>
               <p className="aula-cneb-row-sub">
-                Fotos o PDF de lo que hicieron (ficha llena, dibujo, trabajo). No es una nota: el
-                maestro las mira y luego marca el cotejo.
+                {esDocente
+                  ? 'Fotos o PDF de lo que hicieron (ficha llena, dibujo, trabajo). No es una nota: el maestro las mira y luego marca el cotejo.'
+                  : esApoderado
+                    ? 'Fotos o dibujos de lo que hizo en esta sesión.'
+                    : 'Fotos o dibujos de lo que hiciste en esta sesión.'}
               </p>
               {esDocente && !readOnly ? (
                 <label className="aula-cneb-upload">
@@ -485,14 +500,14 @@ export default function AulaCnebSesiones({
                 ? taller
                   ? 'Taller interno: cree una sesión en CNEB si desea evidencia. No va a SIAGIE.'
                   : 'Aún no hay sesiones de esta área. Créela con inicio, desarrollo y cierre.'
-                : 'Todavía no hay sesiones en este curso.'}
+                : 'Todavía no hay temas en este curso.'}
             </p>
           </div>
         ) : (
           <table className="tabla-aula-virtual">
             <thead>
               <tr>
-                <th>SESIÓN</th>
+                <th>{esDocente ? 'SESIÓN' : 'TEMA'}</th>
                 <th>FECHA</th>
                 <th className="text-center">ACCIONES</th>
               </tr>
@@ -502,7 +517,7 @@ export default function AulaCnebSesiones({
                 <tr key={s.id}>
                   <td>
                     <strong>{s.titulo}</strong>
-                    {s.proposito ? <div className="aula-cneb-row-sub">{s.proposito}</div> : null}
+                    {esDocente && s.proposito ? <div className="aula-cneb-row-sub">{s.proposito}</div> : null}
                   </td>
                   <td>{fechaCorta(s.fecha_sesion)}</td>
                   <td className="text-center">

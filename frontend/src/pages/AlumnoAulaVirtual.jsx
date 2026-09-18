@@ -989,6 +989,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
             <AulaCnebSesiones
               asignaturaId={asignaturaId}
               rol="alumno"
+              readOnly={modoSoloLectura}
               bimestre={bimestreGlobal}
               onActivo={(v) => setCnebEstado(v ? 'si' : 'no')}
             />

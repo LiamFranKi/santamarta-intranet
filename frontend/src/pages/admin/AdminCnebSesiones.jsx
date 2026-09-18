@@ -980,6 +980,7 @@ export default function AdminCnebSesiones({
         descargar la versión colegio o con membrete MINEDU.
       </p>
 
+      <div className="cneb-cotejo-bloque">
       <h3 className="cneb-uso-title">Lista de cotejo</h3>
       <p className="cneb-muted">Ítems que el docente marcará al observar. Puede editarlos o añadir más.</p>
       {(form.cotejo || []).map((c, i) => (
@@ -1009,6 +1010,7 @@ export default function AdminCnebSesiones({
       >
         Añadir ítem
       </button>
+      </div>
 
       <div className="cneb-map-actions" style={{ marginTop: '1.2rem' }}>
         <button type="button" className="cneb-btn ghost" onClick={() => guardar('borrador')} disabled={saving}>

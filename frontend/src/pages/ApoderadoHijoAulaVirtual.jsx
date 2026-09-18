@@ -33,6 +33,9 @@ function ApoderadoHijoAulaVirtual() {
         if (config.url && config.url.startsWith('/alumno/aula-virtual')) {
           config.url = config.url.replace('/alumno/aula-virtual', `/apoderado/hijos/${currentHijoId}/aula-virtual`);
         }
+        if (config.url && config.url.startsWith('/alumno/cneb')) {
+          config.url = config.url.replace('/alumno/cneb', `/apoderado/hijos/${currentHijoId}/cneb`);
+        }
         // Modificar URLs de cursos (para cargar datos del curso)
         if (config.url && config.url === '/alumno/cursos') {
           config.url = `/apoderado/hijos/${currentHijoId}/cursos`;

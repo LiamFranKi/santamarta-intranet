@@ -158,6 +158,26 @@ function etiquetaNivel(nivel) {
   return 'Inicial';
 }
 
+function fechaEs(v) {
+  if (!v) return 'Sin fecha';
+  const raw = String(v);
+  const iso = raw.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  const dt = new Date(v);
+  if (Number.isNaN(dt.getTime())) return 'Sin fecha';
+  const d = String(dt.getDate()).padStart(2, '0');
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  return `${d}/${m}/${dt.getFullYear()}`;
+}
+
+function limpiarEncabezadoFicha(html) {
+  return String(html || '')
+    .replace(/<p[^>]*>\s*(?:<strong>)?\s*Nombre\s*:?\s*(?:<\/strong>)?[\s_.\-–—]*<\/p>/gi, '')
+    .replace(/<p[^>]*>\s*(?:<strong>)?\s*Fecha\s*:?\s*(?:<\/strong>)?[\s_.\-–—]*<\/p>/gi, '')
+    .replace(/(?:<br\s*\/?>\s*)?(?:<strong>)?\s*Nombre\s*:?\s*(?:<\/strong>)?\s*[_—\-.]{3,}[^<]*/gi, '')
+    .replace(/(?:<br\s*\/?>\s*)?(?:<strong>)?\s*Fecha\s*:?\s*(?:<\/strong>)?\s*[_—\-.]{3,}[^<]*/gi, '');
+}
+
 function aulaLabel(grupo) {
   if (!grupo) return '';
   return [grupo.grado != null ? `${grupo.grado}` : '', grupo.seccion || ''].filter(Boolean).join(' ') || `Aula ${grupo.id}`;
@@ -544,7 +564,7 @@ function textoFichaSesion(ses) {
   const cotejo = (ses?.cotejo || []).map((c, i) => `${i + 1}. ${c.item}`).join('\n');
   return [
     `Ficha de trabajo — ${ses?.titulo || 'Sesión'}`,
-    'Nombre: ____________________    Fecha: __________',
+    '',
     '',
     '1. Dibuja o escribe lo que hicimos hoy.',
     '2. ¿Qué aprendiste?',
@@ -570,10 +590,10 @@ function dibujarFichaPagina(doc, { colegio, ses, grupo, fecha, formato }) {
   y += 16;
   filaDato(doc, y, 'COMPET.', ses.competencia_nombre || '—', 36, inner);
   y += 22;
-  filaDato(doc, y, 'NOMBRE', '________________________________', 36, inner * 0.62);
-  filaDato(doc, y, 'EDAD', '______', 36 + inner * 0.62, inner * 0.38);
+  filaDato(doc, y, 'NOMBRE', ' ', 36, inner * 0.5);
+  filaDato(doc, y, 'FECHA', ' ', 36 + inner * 0.5, inner * 0.5);
   y += 24;
-  const texto = textoFichaSesion(ses);
+  const texto = limpiarEncabezadoFicha(textoFichaSesion(ses));
   const cajaTop = y;
   const cajaH = Math.max(120, doc.page.height - y - 100);
   doc.rect(36, cajaTop, inner, cajaH).strokeColor(COLOR.line).stroke();
@@ -601,7 +621,7 @@ async function sesionPdfBuffer(cid, sesionId, { parte = 'sesion', formato = 'col
   if (!ses) return null;
   const colegio = await getColegioData(cid);
   const grupo = ses.grupo_id ? await metaGrupo(cid, ses.grupo_id) : null;
-  const fecha = ses.fecha_sesion ? String(ses.fecha_sesion).slice(0, 10) : 'Sin fecha';
+  const fecha = fechaEs(ses.fecha_sesion);
   const slug = String(ses.titulo || 'sesion')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')

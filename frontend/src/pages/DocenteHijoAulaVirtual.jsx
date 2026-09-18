@@ -35,6 +35,9 @@ function DocenteHijoAulaVirtual() {
         if (config.url && config.url.startsWith('/alumno/aula-virtual')) {
           config.url = config.url.replace('/alumno/aula-virtual', `/docente/hijos/${currentHijoId}/aula-virtual`);
         }
+        if (config.url && config.url.startsWith('/alumno/cneb')) {
+          config.url = config.url.replace('/alumno/cneb', `/docente/hijos/${currentHijoId}/cneb`);
+        }
         // Modificar URLs de mensajes
         if (config.url && config.url.startsWith('/alumno/mensajes')) {
           config.url = config.url.replace('/alumno/mensajes', `/docente/hijos/${currentHijoId}/mensajes`);

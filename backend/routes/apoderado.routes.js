@@ -20,6 +20,7 @@ const {
 } = require('../utils/mensajesHijoDocenteContexto');
 const { fechaHoraMySQLLima, fechaMySQLLima } = require('../utils/fechaHoraLima');
 const { listarEvidenciasSafe } = require('../utils/aulaEvidencias');
+const { crearRouterCnebFamilia, colegioId, anioConsulta } = require('../utils/cnebVistaFamilia');
 const { esTemaPendiente, urlPublicaArchivoTema } = require('../utils/aulaEstructuraTemas');
 const { ACTIVIDADES_SELECT_SQL, ACTIVIDADES_SELECT_CON_EVENTO_SQL } = require('../utils/actividadesFecha');
 const { mezclarReunionesEnActividades } = require('../utils/reunionesHelper');
@@ -4347,7 +4348,9 @@ router.get('/hijos/:hijoId/aula-virtual/evidencias', soloLecturaProxy, async (re
       return res.status(403).json({ error: 'El alumno no tiene acceso a esta asignatura' });
     }
 
-    const evidencias = await listarEvidenciasSafe(asignatura_id, ciclo);
+    const evidencias = await listarEvidenciasSafe(asignatura_id, ciclo, {
+      sesionId: req.query.sesion_id || req.query.cneb_sesion_id,
+    });
     res.json({ evidencias });
   } catch (error) {
     console.error('Error obteniendo evidencias (apoderado):', error);
@@ -4403,6 +4406,19 @@ router.get('/hijos/:hijoId/aula-virtual/enlaces', soloLecturaProxy, async (req, 
     res.status(500).json({ error: error.message || 'Error al obtener enlaces' });
   }
 });
+
+router.use(
+  '/hijos/:hijoId/cneb',
+  crearRouterCnebFamilia({
+    logTag: 'apoderado/hijos/cneb',
+    resolverAlumno: async (req) => {
+      const { alumnoId } = await verificarHijoYUsuarioApoderado(req, req.params.hijoId);
+      const cid = colegioId(req);
+      if (!cid || !alumnoId) throw new Error('No tienes acceso a este curso.');
+      return { alumnoId, cid, anio: await anioConsulta(req, cid) };
+    },
+  })
+);
 
 /**
  * GET /api/apoderado/hijos/:hijoId/aula-virtual/:asignaturaId
