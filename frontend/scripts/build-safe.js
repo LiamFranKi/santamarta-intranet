@@ -90,6 +90,18 @@ if (!fs.existsSync(indexHtml) || fs.statSync(indexHtml).size < 200) {
   process.exit(1);
 }
 
+const swPath = path.join(nextBuild, 'service-worker.js');
+if (fs.existsSync(swPath)) {
+  const swId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const swSrc = fs.readFileSync(swPath, 'utf8');
+  if (!swSrc.includes('__SW_BUILD_ID__')) {
+    console.warn('build-safe: service-worker.js no tiene __SW_BUILD_ID__; no se sella versión.');
+  } else {
+    fs.writeFileSync(swPath, swSrc.replace(/__SW_BUILD_ID__/g, swId));
+    console.log('build-safe: service-worker versión', swId);
+  }
+}
+
 try {
   if (fs.existsSync(liveBuild)) {
     fs.renameSync(liveBuild, oldBuild);

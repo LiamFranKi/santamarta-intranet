@@ -1,118 +1,61 @@
-import React, { useState, useEffect } from 'react';
-import Swal from 'sweetalert2';
+import React, { useCallback, useEffect, useState } from 'react';
 import './PWAUpdateNotification.css';
 
+/**
+ * Botón de respaldo si el service worker nuevo queda en waiting
+ * (el recarga automático está en index.js vía controllerchange).
+ */
 function PWAUpdateNotification() {
-  const [updateAvailable, setUpdateAvailable] = useState(false);
   const [registration, setRegistration] = useState(null);
+  const [waiting, setWaiting] = useState(false);
 
   useEffect(() => {
-    // Función global para que el Service Worker pueda notificar actualizaciones
-    window.showUpdateNotification = (message) => {
-      setUpdateAvailable(true);
-    };
+    if (!('serviceWorker' in navigator)) return undefined;
 
-    // Registrar listener para actualizaciones del Service Worker
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistration().then((reg) => {
-        if (reg) {
-          setRegistration(reg);
-          
-          // Escuchar cuando hay una nueva versión instalada
-          reg.addEventListener('updatefound', () => {
-            const newWorker = reg.installing;
-            
-            if (newWorker) {
-              newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // Hay una nueva versión disponible
-                  setUpdateAvailable(true);
-                }
-              });
-            }
-          });
-        }
+    let cancelled = false;
+    navigator.serviceWorker.getRegistration().then((reg) => {
+      if (cancelled || !reg) return;
+      setRegistration(reg);
+      if (reg.waiting) setWaiting(true);
+      reg.addEventListener('updatefound', () => {
+        const worker = reg.installing;
+        if (!worker) return;
+        worker.addEventListener('statechange', () => {
+          if (worker.state === 'installed' && navigator.serviceWorker.controller && reg.waiting) {
+            setWaiting(true);
+          }
+        });
       });
-    }
+    });
 
     return () => {
-      delete window.showUpdateNotification;
+      cancelled = true;
     };
   }, []);
 
-  const handleUpdate = async () => {
-    if (!registration || !registration.waiting) {
-      // Si no hay worker esperando, simplemente recargar
-      window.location.reload();
+  const handleUpdate = useCallback(() => {
+    if (registration?.waiting) {
+      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
       return;
     }
+    window.location.reload();
+  }, [registration]);
 
-    // Enviar mensaje al Service Worker para que se active
-    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-    
-    // Esperar un momento y luego recargar
-    setTimeout(() => {
-      window.location.reload();
-    }, 500);
-  };
+  if (!waiting) return null;
 
-  // Mostrar notificación cuando hay actualización disponible
-  useEffect(() => {
-    if (updateAvailable) {
-      Swal.fire({
-        icon: 'info',
-        title: 'Nueva versión disponible',
-        html: `
-          <p>Hay una nueva versión de la aplicación disponible.</p>
-          <p style="font-size: 0.9rem; color: #6b7280; margin-top: 0.5rem;">
-            ¿Deseas actualizar ahora?
-          </p>
-        `,
-        showCancelButton: true,
-        confirmButtonText: 'Actualizar ahora',
-        cancelButtonText: 'Más tarde',
-        confirmButtonColor: '#667eea',
-        cancelButtonColor: '#6b7280',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        didOpen: () => {
-          // Auto-cerrar después de 10 segundos si no hay interacción
-          setTimeout(() => {
-            if (Swal.isVisible()) {
-              Swal.close();
-            }
-          }, 10000);
-        }
-      }).then((result) => {
-        if (result.isConfirmed) {
-          handleUpdate();
-        } else {
-          // Si el usuario cancela, ocultar la notificación pero mantener el estado
-          // para que pueda actualizar manualmente más tarde
-          setUpdateAvailable(false);
-        }
-      });
-    }
-  }, [updateAvailable]);
-
-  // Botón flotante para actualizar manualmente (si hay actualización disponible)
-  if (updateAvailable && registration?.waiting) {
-    return (
-      <div className="pwa-update-notification">
-        <button 
-          className="pwa-update-btn"
-          onClick={handleUpdate}
-          aria-label="Actualizar aplicación"
-          title="Hay una nueva versión disponible. Haz clic para actualizar."
-        >
-          🔄 Actualizar
-        </button>
-      </div>
-    );
-  }
-
-  return null;
+  return (
+    <div className="pwa-update-notification">
+      <button
+        type="button"
+        className="pwa-update-btn"
+        onClick={handleUpdate}
+        aria-label="Actualizar aplicación"
+        title="Hay una nueva versión. Pulsa para actualizar."
+      >
+        Actualizar
+      </button>
+    </div>
+  );
 }
 
 export default PWAUpdateNotification;
-

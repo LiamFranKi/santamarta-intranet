@@ -1,0 +1,14 @@
+# HTML y service-worker siempre frescos. JS/CSS con hash del build sí se cachean.
+<IfModule mod_headers.c>
+  Header set Cache-Control "no-cache, must-revalidate"
+  <FilesMatch "\.[a-f0-9]{8,}\.(?:js|css)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  <FilesMatch "\.(?:woff2|png|jpe?g|gif|svg|ico|webp)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  <FilesMatch "^(service-worker\.js|manifest\.json|asset-manifest\.json)$">
+    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    Header set Pragma "no-cache"
+  </FilesMatch>
+</IfModule>

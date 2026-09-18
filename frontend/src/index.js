@@ -32,65 +32,34 @@ console.error = (...args) => {
   originalError.apply(console, args);
 };
 
-// Registrar Service Worker para PWA con detección de actualizaciones
+// Service Worker: push + recarga una vez si hay versión nueva (no cachea la app).
 if ('serviceWorker' in navigator) {
+  let recargarSiCambiaControl = Boolean(navigator.serviceWorker.controller);
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!recargarSiCambiaControl) {
+      recargarSiCambiaControl = true;
+      return;
+    }
+    window.location.reload();
+  });
+
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js')
+    navigator.serviceWorker
+      .register('/service-worker.js', { updateViaCache: 'none' })
       .then((registration) => {
-        console.log('✅ Service Worker registrado exitosamente:', registration.scope);
-        
-        // Verificar actualizaciones periódicamente
-        // Cada vez que el usuario visita la página, se verifica automáticamente
-        // También verificamos cada hora en segundo plano
-        setInterval(() => {
-          registration.update();
-        }, 3600000); // 1 hora
-        
-        // Escuchar cuando hay una nueva versión del Service Worker disponible
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // Hay una nueva versión disponible
-                console.log('🔄 Nueva versión del Service Worker disponible');
-                
-                // Notificar al usuario (opcional: puedes mostrar un toast o banner)
-                if (window.showUpdateNotification) {
-                  window.showUpdateNotification();
-                } else {
-                  // Notificación por defecto en consola
-                  console.log('💡 Hay una nueva versión disponible. Recarga la página para actualizar.');
-                }
-              }
-            });
-          }
+        const pedirUpdate = () => {
+          registration.update().catch(() => {});
+        };
+        pedirUpdate();
+        setInterval(pedirUpdate, 3600000);
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') pedirUpdate();
         });
-        
-        // Escuchar mensajes del Service Worker
-        navigator.serviceWorker.addEventListener('message', (event) => {
-          if (event.data && event.data.type === 'SW_UPDATED') {
-            console.log('🔄 Service Worker actualizado:', event.data.version);
-            // Opcional: mostrar notificación al usuario
-            if (window.showUpdateNotification) {
-              window.showUpdateNotification(event.data.message);
-            }
-          }
-        });
+        window.addEventListener('focus', pedirUpdate);
       })
       .catch((error) => {
         console.warn('⚠️ Service Worker no se pudo registrar:', error);
       });
-    
-    // Verificar actualizaciones cuando la página recupera el foco
-    window.addEventListener('focus', () => {
-      navigator.serviceWorker.getRegistration().then((registration) => {
-        if (registration) {
-          registration.update();
-        }
-      });
-    });
   });
 }
 
