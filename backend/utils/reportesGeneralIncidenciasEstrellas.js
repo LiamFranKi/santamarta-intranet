@@ -3,6 +3,16 @@
  */
 const ExcelJS = require('exceljs');
 const { query } = require('./mysql');
+const {
+  FILL_FILA_PAR,
+  FILL_FILA_IMPAR,
+  resolverAnioTrabajo,
+  escribirTitulo,
+  escribirKpisFila,
+  escribirCabecera,
+  estiloCuerpo,
+  finalizarHoja,
+} = require('./excelReporteGeneral');
 const { sqlMatriculaEstadoSoloRegular } = require('./matriculaEstados');
 const {
   columnExists,
@@ -21,13 +31,9 @@ const { fetchReglaConducta, formatDescuentoLabel } = require('./reglaConducta');
 
 const BIM_LABEL = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV' };
 const DOCENTE_INGRESO = 'ingreso';
-const FILL_TITULO = 'FF1E40AF';
-const FILL_CABECERA = 'FFDBEAFE';
-const FILL_FILA_PAR = 'FFF8FAFC';
 const FILL_INC = 'FFFEF2F2';
 const FILL_EST = 'FFECFDF5';
 const FILL_QR = 'FFFFF7ED';
-const BORDER_THIN = { style: 'thin', color: { argb: 'FFCBD5E1' } };
 
 function validarFechaISO(s) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(s || '').trim());
@@ -90,15 +96,28 @@ function minIso(a, b) {
   return xs.sort()[0];
 }
 
-function aplicarBordeFila(row, colCount) {
-  for (let c = 1; c <= colCount; c += 1) {
-    row.getCell(c).border = {
-      top: BORDER_THIN,
-      left: BORDER_THIN,
-      bottom: BORDER_THIN,
-      right: BORDER_THIN,
-    };
-  }
+function numeroPuntos(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return null;
+  return Math.round(v * 10) / 10;
+}
+
+function fmtPuntosSigned(n) {
+  const v = numeroPuntos(n);
+  if (v == null) return '—';
+  const abs = Math.abs(v);
+  const txt = Math.abs(abs - Math.round(abs)) < 1e-9 ? String(Math.round(abs)) : abs.toFixed(1);
+  if (v > 0) return `+${txt}`;
+  if (v < 0) return `−${txt}`;
+  return '0';
+}
+
+/** Incidencia/QR: en BD suele ir 0; se usa el descuento de la regla (negativo). */
+function puntosDescuento(raw, descuentoRegla) {
+  const stored = numeroPuntos(raw);
+  if (stored != null && stored !== 0) return stored > 0 ? -Math.abs(stored) : stored;
+  const d = numeroPuntos(descuentoRegla);
+  return d != null && d > 0 ? -d : null;
 }
 
 function sqlFiltroGrupo(aliasG, { hasSede, sedeId, nivelId, grado }) {
@@ -126,6 +145,12 @@ function parseBimestreOpcional(v) {
   return n;
 }
 
+function parseCategoria(v) {
+  const s = String(v || '').trim().toLowerCase();
+  if (s === 'incidencias' || s === 'estrellas') return s;
+  return 'todos';
+}
+
 async function resolverVentanaFechas(colegioId, anio, bimestre, desdeUser, hastaUser) {
   let bimDesde = null;
   let bimHasta = null;
@@ -143,20 +168,20 @@ async function resolverVentanaFechas(colegioId, anio, bimestre, desdeUser, hasta
 }
 
 async function obtenerIncidenciasEstrellas(colegioId, filtros) {
-  const anio = parseInt(filtros.anio, 10);
+  const anio = await resolverAnioTrabajo(colegioId, filtros.anio);
   const bimestre = parseBimestreOpcional(filtros.bimestre);
   const sedeId = filtros.sedeId != null ? parseInt(filtros.sedeId, 10) : NaN;
   const nivelId = filtros.nivelId != null ? parseInt(filtros.nivelId, 10) : NaN;
   const grado = filtros.grado != null ? parseInt(filtros.grado, 10) : NaN;
   const docenteRaw = filtros.docenteId;
+  const categoria = parseCategoria(filtros.categoria);
+  const quiereEstrellas = categoria !== 'incidencias';
+  const quiereIncidencias = categoria !== 'estrellas';
   const esIngreso = String(docenteRaw || '').toLowerCase() === DOCENTE_INGRESO;
   const docenteId = !esIngreso && docenteRaw != null ? parseInt(docenteRaw, 10) : NaN;
   const desdeUser = validarFechaISO(filtros.desde) ? String(filtros.desde).trim() : null;
   const hastaUser = validarFechaISO(filtros.hasta) ? String(filtros.hasta).trim() : null;
 
-  if (!Number.isFinite(anio) || anio < 2000) {
-    return { ok: false, status: 400, error: 'Indique un año válido.' };
-  }
   if (filtros.bimestre != null && String(filtros.bimestre).trim() !== '' && !Number.isFinite(bimestre)) {
     return { ok: false, status: 400, error: 'Seleccione un bimestre válido o Todos.' };
   }
@@ -176,7 +201,7 @@ async function obtenerIncidenciasEstrellas(colegioId, filtros) {
 
   const eventos = [];
 
-  if (!esIngreso) {
+  if (!esIngreso && (quiereEstrellas || quiereIncidencias)) {
     const paramsEi = [ASSIGNMENT_ID_TUTORIA, colegioId, anio, desde, hasta];
     let extraDoc = '';
     if (Number.isFinite(docenteId)) {
@@ -184,6 +209,23 @@ async function obtenerIncidenciasEstrellas(colegioId, filtros) {
       paramsEi.push(docenteId);
     }
     paramsEi.push(...gFiltro.params);
+    let filtroTipo = `
+         AND (
+           ei.type = 2
+           OR (
+             ei.type = 1
+             AND COALESCE(ei.assignment_id, 0) <> ${ASSIGNMENT_ID_VESTIMENTA}
+             AND COALESCE(ei.description, '') NOT LIKE '[VESTIMENTA]%'
+           )
+         )`;
+    if (!quiereEstrellas) {
+      filtroTipo = `
+         AND ei.type = 1
+         AND COALESCE(ei.assignment_id, 0) <> ${ASSIGNMENT_ID_VESTIMENTA}
+         AND COALESCE(ei.description, '') NOT LIKE '[VESTIMENTA]%'`;
+    } else if (!quiereIncidencias) {
+      filtroTipo = ' AND ei.type = 2 ';
+    }
     const rowsEi = await query(
       `SELECT ei.id, ei.type, ei.points, ei.description, ei.created_at, ei.assignment_id, ei.worker_id,
               m.id AS matricula_id, m.grupo_id,
@@ -207,14 +249,7 @@ async function obtenerIncidenciasEstrellas(colegioId, filtros) {
        LEFT JOIN asignaturas a ON a.id = ei.assignment_id AND ei.assignment_id > 0
        LEFT JOIN cursos c ON c.id = a.curso_id
        WHERE DATE(ei.created_at) BETWEEN ? AND ?
-         AND (
-           ei.type = 2
-           OR (
-             ei.type = 1
-             AND COALESCE(ei.assignment_id, 0) <> ${ASSIGNMENT_ID_VESTIMENTA}
-             AND COALESCE(ei.description, '') NOT LIKE '[VESTIMENTA]%'
-           )
-         )
+         ${filtroTipo}
          ${extraDoc}
          ${gFiltro.sql}
        ORDER BY ei.created_at DESC, ei.id DESC`,
@@ -222,6 +257,9 @@ async function obtenerIncidenciasEstrellas(colegioId, filtros) {
     );
     (rowsEi || []).forEach((r) => {
       const esEstrella = Number(r.type) === 2;
+      const puntos = esEstrella
+        ? numeroPuntos(r.points) || 0
+        : puntosDescuento(r.points, regla.incidencias?.descuento);
       eventos.push({
         id: esEstrella ? `est-${r.id}` : `inc-${r.id}`,
         tipo: esEstrella ? 'estrella' : 'incidencia',
@@ -233,7 +271,8 @@ async function obtenerIncidenciasEstrellas(colegioId, filtros) {
         registrado_por: nombrePersona(r.docente_apellidos, r.docente_nombres),
         origen: String(r.curso_nombre || '—').trim() || '—',
         descripcion: String(r.description || '').trim() || '—',
-        puntos: esEstrella ? (Number(r.points) || 0) : null,
+        puntos,
+        puntos_label: fmtPuntosSigned(puntos),
         grupo_id: Number(r.grupo_id),
         nivel_nombre: r.nivel_nombre,
         grado: r.grado,
@@ -244,7 +283,7 @@ async function obtenerIncidenciasEstrellas(colegioId, filtros) {
     });
   }
 
-  if (!Number.isFinite(docenteId)) {
+  if (quiereIncidencias && !Number.isFinite(docenteId)) {
     try {
       const paramsPed = [colegioId, anio, colegioId, anio, desde, hasta, ...gFiltro.params];
       const rowsPed = await query(
@@ -271,6 +310,10 @@ async function obtenerIncidenciasEstrellas(colegioId, filtros) {
         const qr = esOlvidoQr(r.motivo);
         const fechaIso = toFechaYmd(r.fecha);
         const hora = r.hora ? String(r.hora).slice(0, 5) : '—';
+        const puntos = puntosDescuento(
+          r.puntos,
+          qr ? regla.olvido_qr?.descuento : regla.presentacion?.descuento
+        );
         eventos.push({
           id: `ped-${r.id}`,
           tipo: qr ? 'olvido_qr' : 'vestimenta',
@@ -282,7 +325,8 @@ async function obtenerIncidenciasEstrellas(colegioId, filtros) {
           registrado_por: 'Ingreso',
           origen: qr ? 'Olvido de QR' : 'Vestimenta (QR)',
           descripcion: qr ? descQr : descVest,
-          puntos: r.puntos != null ? Number(r.puntos) : null,
+          puntos,
+          puntos_label: fmtPuntosSigned(puntos),
           grupo_id: Number(r.grupo_id),
           nivel_nombre: r.nivel_nombre,
           grado: r.grado,
@@ -308,6 +352,7 @@ async function obtenerIncidenciasEstrellas(colegioId, filtros) {
     olvido_qr: 0,
     estrellas: 0,
     puntos_estrellas: 0,
+    puntos_descontados: 0,
   };
 
   eventos.forEach((ev) => {
@@ -318,6 +363,9 @@ async function obtenerIncidenciasEstrellas(colegioId, filtros) {
     else if (ev.tipo === 'estrella') {
       kpis.estrellas += 1;
       kpis.puntos_estrellas += Number(ev.puntos) || 0;
+    }
+    if (Number(ev.puntos) < 0) {
+      kpis.puntos_descontados += Math.abs(Number(ev.puntos));
     }
     if (!gruposMap.has(ev.grupo_id)) {
       gruposMap.set(ev.grupo_id, {
@@ -336,6 +384,11 @@ async function obtenerIncidenciasEstrellas(colegioId, filtros) {
   const grupos = [...gruposMap.values()].sort(compararGrupos);
   kpis.alumnos = alumnosUnicos.size;
   kpis.total = eventos.length;
+  kpis.puntos_estrellas = numeroPuntos(kpis.puntos_estrellas) || 0;
+  kpis.puntos_descontados = numeroPuntos(kpis.puntos_descontados) || 0;
+  kpis.puntos_label = `${fmtPuntosSigned(kpis.puntos_estrellas)} / ${fmtPuntosSigned(
+    kpis.puntos_descontados ? -kpis.puntos_descontados : 0
+  )}`;
 
   const [colegioRow] = await query('SELECT nombre FROM colegios WHERE id = ? LIMIT 1', [colegioId]);
   const colegioNombre = String(colegioRow?.nombre || '').trim() || 'Colegio';
@@ -351,12 +404,21 @@ async function obtenerIncidenciasEstrellas(colegioId, filtros) {
     const [doc] = await query('SELECT apellidos, nombres FROM personal WHERE id = ? LIMIT 1', [docenteId]);
     if (doc) extraFiltro.push(nombrePersona(doc.apellidos, doc.nombres));
   }
+  if (categoria === 'incidencias') extraFiltro.push('Solo incidencias');
+  else if (categoria === 'estrellas') extraFiltro.push('Solo estrellas');
   const subtitulo = [`${fmtFechaUi(desde)} — ${fmtFechaUi(hasta)}`, ...extraFiltro].filter(Boolean).join('  ·  ');
+  const catTitulo =
+    categoria === 'incidencias'
+      ? 'INCIDENCIAS'
+      : categoria === 'estrellas'
+        ? 'ESTRELLAS'
+        : 'INCIDENCIAS Y ESTRELLAS';
 
   return {
     ok: true,
     colegio_nombre: colegioNombre,
-    titulo: `INCIDENCIAS Y ESTRELLAS — ${bimTxt} · ${anio}`,
+    titulo: `${catTitulo} — ${bimTxt} · ${anio}`,
+    categoria,
     subtitulo,
     anio,
     bimestre,
@@ -374,58 +436,53 @@ async function generarExcelIncidenciasEstrellas(colegioId, filtros) {
 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'VanguardNet';
-  const ws = wb.addWorksheet('Detalle', { views: [{ showGridLines: true }] });
+  wb.created = new Date();
+  const cols = 9;
+  const ws = wb.addWorksheet('Detalle', { views: [{ showGridLines: false }] });
   ws.columns = [
-    { width: 28 },
+    { width: 26 },
     { width: 12 },
-    { width: 10 },
-    { width: 14 },
-    { width: 32 },
+    { width: 9 },
+    { width: 13 },
+    { width: 30 },
     { width: 22 },
-    { width: 20 },
-    { width: 42 },
-    { width: 10 },
+    { width: 16 },
+    { width: 48 },
+    { width: 11 },
   ];
 
-  let r = 1;
-  ws.mergeCells(`A${r}:I${r}`);
-  const tCell = ws.getCell(`A${r}`);
-  tCell.value = data.titulo;
-  tCell.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
-  tCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_TITULO } };
-  tCell.alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.getRow(r).height = 22;
-  r += 1;
-  ws.mergeCells(`A${r}:I${r}`);
-  ws.getCell(`A${r}`).value = `${data.colegio_nombre}  ·  ${data.subtitulo}`;
-  ws.getCell(`A${r}`).font = { italic: true, size: 10, color: { argb: 'FF1E3A8A' } };
-  r += 2;
-
   const k = data.kpis || {};
-  [
-    ['Incidencias', k.incidencias],
-    ['Vestimenta', k.vestimenta],
-    ['Olvido QR', k.olvido_qr],
-    ['Estrellas', k.estrellas],
-    ['Puntos de estrellas', k.puntos_estrellas],
-    ['Alumnos', k.alumnos],
-  ].forEach(([label, val]) => {
-    ws.getCell(`A${r}`).value = label;
-    ws.getCell(`A${r}`).font = { bold: true };
-    ws.getCell(`B${r}`).value = val;
-    r += 1;
+  let r = escribirTitulo(ws, {
+    cols,
+    titulo: data.titulo,
+    subtitulo: `${data.colegio_nombre}  ·  ${data.subtitulo}`,
   });
-  r += 1;
+  r = escribirKpisFila(ws, {
+    startRow: r,
+    cols,
+    pares: [
+      ['Incidencias', k.incidencias ?? 0],
+      ['Vestimenta', k.vestimenta ?? 0],
+      ['Olvido QR', k.olvido_qr ?? 0],
+      ['Estrellas', k.estrellas ?? 0],
+      ['Pts. dados', k.puntos_estrellas ?? 0],
+      ['Pts. desc.', k.puntos_descontados ?? 0],
+      ['Alumnos', k.alumnos ?? 0],
+    ],
+  });
 
-  const head = ws.getRow(r);
-  head.values = ['Grupo', 'Fecha', 'Hora', 'Tipo', 'Alumno', 'Registró', 'Origen', 'Detalle', 'Puntos'];
-  for (let c = 1; c <= 9; c += 1) {
-    const cell = head.getCell(c);
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_CABECERA } };
-    cell.font = { bold: true, size: 9, color: { argb: 'FF1E3A8A' } };
-    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-  }
-  aplicarBordeFila(head, 9);
+  const headerRow = r;
+  escribirCabecera(ws.getRow(r), [
+    'Grupo',
+    'Fecha',
+    'Hora',
+    'Tipo',
+    'Alumno',
+    'Registró',
+    'Origen',
+    'Detalle',
+    'Puntos',
+  ]);
   r += 1;
 
   (data.grupos || []).forEach((g) => {
@@ -440,24 +497,31 @@ async function generarExcelIncidenciasEstrellas(colegioId, filtros) {
         ev.registrado_por,
         ev.origen,
         ev.descripcion,
-        ev.puntos != null ? ev.puntos : '',
+        ev.puntos_label || (ev.puntos != null ? ev.puntos : '—'),
       ];
-      let fill = FILL_FILA_PAR;
+      let fill = idx % 2 === 1 ? FILL_FILA_PAR : FILL_FILA_IMPAR;
       if (ev.tipo === 'incidencia') fill = FILL_INC;
       else if (ev.tipo === 'estrella') fill = FILL_EST;
       else if (ev.tipo === 'vestimenta' || ev.tipo === 'olvido_qr') fill = FILL_QR;
-      else if (idx % 2 === 1) fill = FILL_FILA_PAR;
-      else fill = 'FFFFFFFF';
-      for (let c = 1; c <= 9; c += 1) {
-        const cell = row.getCell(c);
-        cell.font = { size: 9 };
-        cell.alignment = { vertical: 'middle', horizontal: c <= 1 || c === 5 || c === 8 ? 'left' : 'center' };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
+      const desc = String(ev.descripcion || '');
+      const lineas = Math.min(6, Math.max(1, Math.ceil(desc.length / 55)));
+      row.height = Math.max(18, 12 + lineas * 12);
+      for (let c = 1; c <= cols; c += 1) {
+        const ptsColor =
+          c === 9 && Number(ev.puntos) < 0 ? 'FFBE123C' : c === 9 && Number(ev.puntos) > 0 ? 'FF047857' : null;
+        estiloCuerpo(row.getCell(c), {
+          fill,
+          align: c === 1 || c === 5 || c === 6 || c === 8 ? 'left' : 'center',
+          wrap: c === 1 || c === 5 || c === 8,
+          bold: c === 9,
+          color: ptsColor,
+        });
       }
-      aplicarBordeFila(row, 9);
       r += 1;
     });
   });
+
+  finalizarHoja(ws, { headerRow, cols, lastRow: Math.max(headerRow, r - 1) });
 
   const buffer = await wb.xlsx.writeBuffer();
   return {

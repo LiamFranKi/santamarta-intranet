@@ -206,7 +206,7 @@ const REPORT_CATALOG = [
         label: 'Exámenes virtuales',
         icon: '📝',
         ayuda:
-          'Exámenes del aula virtual del bimestre, agrupados por grupo, asignatura y docente, con notas de cada alumno. Filtros opcionales de nivel, grado, docente y fechas. Exportación PDF/Excel.',
+          'Exámenes del aula virtual del año en curso, agrupados por grupo, asignatura y docente, con notas de cada alumno. Bimestre, nivel, grado, docente y fechas son opcionales. Exportación PDF/Excel.',
         Component: ReporteExamenesVirtuales,
       },
       {
@@ -214,7 +214,7 @@ const REPORT_CATALOG = [
         label: 'Incidencias y estrellas',
         icon: '⭐',
         ayuda:
-          'Incidencias y estrellas registradas por el personal, más vestimenta y olvido de QR del ingreso. Filtros opcionales de bimestre, nivel, grado y docente (incluye Ingreso).',
+          'Incidencias y estrellas del personal, más vestimenta y olvido de QR del ingreso. Elija Todos, solo incidencias o solo estrellas. Bimestre, nivel, grado y docente son opcionales (Ingreso = huellero/QR).',
         Component: ReporteIncidenciasEstrellas,
       },
     ],

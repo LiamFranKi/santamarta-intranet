@@ -3,6 +3,16 @@
  */
 const ExcelJS = require('exceljs');
 const { query } = require('./mysql');
+const {
+  FILL_FILA_PAR,
+  FILL_FILA_IMPAR,
+  resolverAnioTrabajo,
+  escribirTitulo,
+  escribirKpisFila,
+  escribirCabecera,
+  estiloCuerpo,
+  finalizarHoja,
+} = require('./excelReporteGeneral');
 const { sqlMatriculaEstadoSoloRegular } = require('./matriculaEstados');
 const {
   columnExists,
@@ -11,11 +21,7 @@ const {
 } = require('./listaAlumnosMatriculadosReporte');
 
 const BIM_LABEL = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV' };
-const FILL_TITULO = 'FF1E40AF';
-const FILL_CABECERA = 'FFDBEAFE';
-const FILL_FILA_PAR = 'FFF8FAFC';
 const FILL_NO_RENDIO = 'FFFEF2F2';
-const BORDER_THIN = { style: 'thin', color: { argb: 'FFCBD5E1' } };
 
 function isoFecha(v) {
   if (v == null || v === '') return null;
@@ -103,19 +109,8 @@ function chunkIds(ids, size = 400) {
   return out;
 }
 
-function aplicarBordeFila(row, colCount) {
-  for (let c = 1; c <= colCount; c += 1) {
-    row.getCell(c).border = {
-      top: BORDER_THIN,
-      left: BORDER_THIN,
-      bottom: BORDER_THIN,
-      right: BORDER_THIN,
-    };
-  }
-}
-
 async function obtenerExamenesVirtuales(colegioId, filtros) {
-  const anio = parseInt(filtros.anio, 10);
+  const anio = await resolverAnioTrabajo(colegioId, filtros.anio);
   const bimestreRaw = filtros.bimestre;
   const bimestre = bimestreRaw !== undefined && bimestreRaw !== null && String(bimestreRaw).trim() !== ''
     ? parseInt(bimestreRaw, 10)
@@ -127,9 +122,6 @@ async function obtenerExamenesVirtuales(colegioId, filtros) {
   const desde = validarFechaISO(filtros.desde) ? String(filtros.desde).trim() : null;
   const hasta = validarFechaISO(filtros.hasta) ? String(filtros.hasta).trim() : null;
 
-  if (!Number.isFinite(anio) || anio < 2000) {
-    return { ok: false, status: 400, error: 'Indique un año válido.' };
-  }
   if (
     bimestreRaw !== undefined
     && bimestreRaw !== null
@@ -431,58 +423,59 @@ async function obtenerExamenesVirtuales(colegioId, filtros) {
   };
 }
 
+function pintarFilaExcel(row, cols, { fill, leftUntil = 4 }) {
+  for (let c = 1; c <= cols; c += 1) {
+    estiloCuerpo(row.getCell(c), {
+      fill,
+      align: c <= leftUntil ? 'left' : 'center',
+      wrap: c <= 4,
+    });
+  }
+}
+
 async function generarExcelExamenesVirtuales(colegioId, filtros) {
   const data = await obtenerExamenesVirtuales(colegioId, filtros);
   if (!data.ok) return data;
 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'VanguardNet';
-  const wsRes = wb.addWorksheet('Resumen', { views: [{ showGridLines: true }] });
-  wsRes.columns = [
-    { width: 28 },
-    { width: 22 },
-    { width: 28 },
-    { width: 36 },
-    { width: 12 },
-    { width: 16 },
-    { width: 16 },
-    { width: 12 },
-    { width: 12 },
-    { width: 12 },
-  ];
-
-  let r = 1;
-  wsRes.mergeCells(`A${r}:J${r}`);
-  const tCell = wsRes.getCell(`A${r}`);
-  tCell.value = data.titulo;
-  tCell.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
-  tCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_TITULO } };
-  tCell.alignment = { horizontal: 'center', vertical: 'middle' };
-  wsRes.getRow(r).height = 22;
-  r += 1;
-  wsRes.mergeCells(`A${r}:J${r}`);
-  wsRes.getCell(`A${r}`).value = `${data.colegio_nombre}  ·  ${data.subtitulo}`;
-  wsRes.getCell(`A${r}`).font = { italic: true, size: 10, color: { argb: 'FF1E3A8A' } };
-  r += 2;
-
+  wb.created = new Date();
+  const cols = 10;
   const k = data.kpis || {};
-  const kpiPairs = [
-    ['Exámenes publicados', k.total_examenes],
-    ['Con al menos un alumno que rindió', k.examenes_rendidos],
-    ['Sin rendir', k.examenes_sin_rendir],
-    ['Alumnos que rindieron', k.alumnos_rindieron],
-    ['Promedio general', k.promedio_general != null ? k.promedio_general : '—'],
-  ];
-  kpiPairs.forEach(([label, val]) => {
-    wsRes.getCell(`A${r}`).value = label;
-    wsRes.getCell(`A${r}`).font = { bold: true };
-    wsRes.getCell(`B${r}`).value = val;
-    r += 1;
-  });
-  r += 1;
 
-  const headRes = wsRes.getRow(r);
-  headRes.values = [
+  const wsRes = wb.addWorksheet('Resumen', { views: [{ showGridLines: false }] });
+  wsRes.columns = [
+    { width: 26 },
+    { width: 22 },
+    { width: 26 },
+    { width: 34 },
+    { width: 12 },
+    { width: 12 },
+    { width: 12 },
+    { width: 11 },
+    { width: 12 },
+    { width: 11 },
+  ];
+
+  let r = escribirTitulo(wsRes, {
+    cols,
+    titulo: data.titulo,
+    subtitulo: `${data.colegio_nombre}  ·  ${data.subtitulo}`,
+  });
+  r = escribirKpisFila(wsRes, {
+    startRow: r,
+    cols,
+    pares: [
+      ['Publicados', k.total_examenes ?? 0],
+      ['Con rendición', k.examenes_rendidos ?? 0],
+      ['Sin rendir', k.examenes_sin_rendir ?? 0],
+      ['Alumnos', k.alumnos_rindieron ?? 0],
+      ['Promedio', k.promedio_general != null ? k.promedio_general : '—'],
+    ],
+  });
+
+  const headerRes = r;
+  escribirCabecera(wsRes.getRow(r), [
     'Grupo',
     'Asignatura',
     'Docente',
@@ -493,19 +486,12 @@ async function generarExcelExamenesVirtuales(colegioId, filtros) {
     'Rendidos',
     'Pendientes',
     'Promedio',
-  ];
-  for (let c = 1; c <= 10; c += 1) {
-    const cell = headRes.getCell(c);
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_CABECERA } };
-    cell.font = { bold: true, size: 9, color: { argb: 'FF1E3A8A' } };
-    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-  }
-  aplicarBordeFila(headRes, 10);
+  ]);
   r += 1;
 
   (data.grupos || []).forEach((g) => {
     (g.asignaturas || []).forEach((asig) => {
-      (asig.examenes || []).forEach((ex) => {
+      (asig.examenes || []).forEach((ex, idx) => {
         const row = wsRes.getRow(r);
         row.values = [
           g.etiqueta,
@@ -519,45 +505,36 @@ async function generarExcelExamenesVirtuales(colegioId, filtros) {
           ex.pendientes,
           ex.promedio != null ? ex.promedio : '—',
         ];
-        for (let c = 1; c <= 10; c += 1) {
-          const cell = row.getCell(c);
-          cell.font = { size: 9 };
-          cell.alignment = { vertical: 'middle', horizontal: c <= 4 ? 'left' : 'center' };
-          if (ex.rendidos === 0) {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_NO_RENDIO } };
-          }
-        }
-        aplicarBordeFila(row, 10);
+        row.height = 20;
+        pintarFilaExcel(row, cols, {
+          fill: ex.rendidos === 0 ? FILL_NO_RENDIO : idx % 2 === 1 ? FILL_FILA_PAR : FILL_FILA_IMPAR,
+        });
         r += 1;
       });
     });
   });
+  finalizarHoja(wsRes, { headerRow: headerRes, cols, lastRow: Math.max(headerRes, r - 1) });
 
-  const wsNotas = wb.addWorksheet('Notas por alumno', { views: [{ showGridLines: true }] });
+  const wsNotas = wb.addWorksheet('Notas por alumno', { views: [{ showGridLines: false }] });
   wsNotas.columns = [
-    { width: 28 },
+    { width: 26 },
     { width: 22 },
-    { width: 28 },
-    { width: 36 },
-    { width: 36 },
-    { width: 14 },
+    { width: 26 },
+    { width: 34 },
+    { width: 32 },
     { width: 14 },
     { width: 12 },
+    { width: 11 },
+    { width: 11 },
     { width: 12 },
-    { width: 14 },
   ];
-  let rn = 1;
-  wsNotas.mergeCells(`A${rn}:J${rn}`);
-  const nt = wsNotas.getCell(`A${rn}`);
-  nt.value = `${data.titulo} — LISTA DE NOTAS`;
-  nt.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
-  nt.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_TITULO } };
-  nt.alignment = { horizontal: 'center', vertical: 'middle' };
-  wsNotas.getRow(rn).height = 22;
-  rn += 1;
-
-  const headN = wsNotas.getRow(rn);
-  headN.values = [
+  let rn = escribirTitulo(wsNotas, {
+    cols,
+    titulo: `${data.titulo} — LISTA DE NOTAS`,
+    subtitulo: `${data.colegio_nombre}  ·  ${data.subtitulo}`,
+  });
+  const headerNotas = rn;
+  escribirCabecera(wsNotas.getRow(rn), [
     'Grupo',
     'Asignatura',
     'Docente',
@@ -568,14 +545,7 @@ async function generarExcelExamenesVirtuales(colegioId, filtros) {
     'Puntaje',
     'Correctas',
     'Incorrectas',
-  ];
-  for (let c = 1; c <= 10; c += 1) {
-    const cell = headN.getCell(c);
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_CABECERA } };
-    cell.font = { bold: true, size: 9, color: { argb: 'FF1E3A8A' } };
-    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-  }
-  aplicarBordeFila(headN, 10);
+  ]);
   rn += 1;
 
   (data.grupos || []).forEach((g) => {
@@ -591,29 +561,24 @@ async function generarExcelExamenesVirtuales(colegioId, filtros) {
             al.alumno_nombre,
             al.estado,
             al.fecha,
-            al.puntaje != null ? al.puntaje : '',
-            al.correctas != null ? al.correctas : '',
-            al.incorrectas != null ? al.incorrectas : '',
+            al.puntaje != null ? al.puntaje : '—',
+            al.correctas != null ? al.correctas : '—',
+            al.incorrectas != null ? al.incorrectas : '—',
           ];
-          for (let c = 1; c <= 10; c += 1) {
-            const cell = row.getCell(c);
-            cell.font = { size: 9 };
-            cell.alignment = { vertical: 'middle', horizontal: c <= 5 ? 'left' : 'center' };
-            if (!al.rindio) {
-              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_NO_RENDIO } };
-            } else if (idx % 2 === 1) {
-              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_FILA_PAR } };
-            }
-          }
-          aplicarBordeFila(row, 10);
+          row.height = 18;
+          pintarFilaExcel(row, cols, {
+            fill: !al.rindio ? FILL_NO_RENDIO : idx % 2 === 1 ? FILL_FILA_PAR : FILL_FILA_IMPAR,
+            leftUntil: 5,
+          });
           rn += 1;
         });
       });
     });
   });
+  finalizarHoja(wsNotas, { headerRow: headerNotas, cols, lastRow: Math.max(headerNotas, rn - 1) });
 
   const buffer = await wb.xlsx.writeBuffer();
-  const bim = data.bimestre_label || data.bimestre;
+  const bim = data.bimestre_label || 'todos';
   return {
     ok: true,
     buffer,

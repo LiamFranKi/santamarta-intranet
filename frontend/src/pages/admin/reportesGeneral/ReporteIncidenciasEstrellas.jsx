@@ -4,7 +4,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import api from '../../../services/api';
 import Swal from 'sweetalert2';
 import ReporteGeneralPanel from '../ReporteGeneralPanel';
-import useReportesGeneralMeta, { aplicarDefaultsSedeAnio } from './useReportesGeneralMeta';
+import useReportesGeneralMeta, { aplicarDefaultsSedeAnio, anioTrabajoFiltro } from './useReportesGeneralMeta';
 import ModalIncidenciasEstrellas from './ModalIncidenciasEstrellas';
 
 const BIMESTRES = [
@@ -12,6 +12,12 @@ const BIMESTRES = [
   { value: 2, label: 'BIMESTRE 2' },
   { value: 3, label: 'BIMESTRE 3' },
   { value: 4, label: 'BIMESTRE 4' },
+];
+
+const CATEGORIAS = [
+  { value: '', label: 'Todos' },
+  { value: 'incidencias', label: 'Incidencias' },
+  { value: 'estrellas', label: 'Estrellas' },
 ];
 
 function gradosParaNivel(nivel) {
@@ -53,6 +59,7 @@ export default function ReporteIncidenciasEstrellas() {
   const [nivelId, setNivelId] = useState('');
   const [grado, setGrado] = useState('');
   const [docenteId, setDocenteId] = useState('');
+  const [categoria, setCategoria] = useState('');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
 
@@ -77,24 +84,20 @@ export default function ReporteIncidenciasEstrellas() {
   };
 
   const armarParams = () => {
-    const anioN = parseInt(anio, 10);
+    const anioN = anioTrabajoFiltro(anio, meta);
     const params = { anio: anioN };
     if (bimestre) params.bimestre = bimestre;
     if (sedeId) params.sede_id = sedeId;
     if (nivelId) params.nivel_id = nivelId;
     if (grado) params.grado = grado;
     if (docenteId) params.docente_id = docenteId;
+    if (categoria) params.categoria = categoria;
     if (desde) params.desde = desde;
     if (hasta) params.hasta = hasta;
     return params;
   };
 
   const verReporte = async () => {
-    const anioN = parseInt(anio, 10);
-    if (!Number.isFinite(anioN)) {
-      Swal.fire({ icon: 'warning', title: 'Año requerido', text: 'Indique un año válido.' });
-      return;
-    }
     if (bimestre) {
       const bimN = parseInt(bimestre, 10);
       if (!Number.isFinite(bimN) || bimN < 1 || bimN > 4) {
@@ -129,20 +132,10 @@ export default function ReporteIncidenciasEstrellas() {
     }
   };
 
-  const aniosOpciones = meta?.anio_activo
-    ? [meta.anio_activo, meta.anio_activo - 1, meta.anio_activo - 2].filter((y) => y > 2000)
-    : [new Date().getFullYear()];
-
   return (
     <>
-      <ReporteGeneralPanel
-        tone={2}
-        icon="⭐"
-        title="Incidencias y estrellas"
-        description="Incidencias y estrellas del personal, más vestimenta y olvido de QR del ingreso. Bimestre, nivel, grado y docente son opcionales. En docente, Ingreso son los registros del huellero/QR."
-        compact
-      >
-        <div className="rg-filtros-toolbar rg-filtros-toolbar--examenes">
+      <ReporteGeneralPanel tone={2} icon="⭐" title="Incidencias y estrellas" compact hideHeader>
+        <div className="rg-filtros-toolbar rg-filtros-toolbar--examenes rg-filtros-toolbar--incidencias">
           {loading ? (
             <div className="rg-alum-loading">
               <CircularProgress size={22} />
@@ -153,14 +146,14 @@ export default function ReporteIncidenciasEstrellas() {
               <TextField
                 select
                 size="small"
-                label="Año"
-                value={anio}
-                onChange={(e) => setAnio(e.target.value)}
-                className="rg-alum-field rg-alum-field--anio"
+                label="Categoría"
+                value={categoria}
+                onChange={(e) => setCategoria(e.target.value)}
+                className="rg-alum-field rg-alum-field--categoria"
               >
-                {aniosOpciones.map((y) => (
-                  <MenuItem key={y} value={String(y)}>
-                    {y}
+                {CATEGORIAS.map((c) => (
+                  <MenuItem key={c.value || 'todos'} value={c.value}>
+                    {c.label}
                   </MenuItem>
                 ))}
               </TextField>
@@ -262,12 +255,13 @@ export default function ReporteIncidenciasEstrellas() {
         onClose={() => setModalOpen(false)}
         loading={modalLoading}
         data={modalData}
-        anio={anio}
+        anio={anioTrabajoFiltro(anio, meta)}
         bimestre={bimestre}
         sedeId={sedeId}
         nivelId={nivelId}
         grado={grado}
         docenteId={docenteId}
+        categoria={categoria}
         desde={desde}
         hasta={hasta}
       />

@@ -93,10 +93,12 @@ export default function ModalExamenesVirtuales({
   };
 
   const exportExcel = async () => {
-    if (!anio || !bimestre) return;
+    const anioExport = data?.anio || anio;
+    if (!anioExport) return;
     setExporting(true);
     try {
-      const params = { anio, bimestre };
+      const params = { anio: anioExport };
+      if (bimestre) params.bimestre = bimestre;
       if (sedeId) params.sede_id = sedeId;
       if (nivelId) params.nivel_id = nivelId;
       if (grado) params.grado = grado;
@@ -116,7 +118,7 @@ export default function ModalExamenesVirtuales({
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement('a');
       a.href = url;
-      a.download = `examenes_virtuales_b${data?.bimestre_label || bimestre}_${anio}.xlsx`;
+      a.download = `examenes_virtuales_b${data?.bimestre_label || 'todos'}_${anioExport}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();

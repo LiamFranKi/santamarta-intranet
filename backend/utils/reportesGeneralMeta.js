@@ -84,7 +84,7 @@ async function cargarMetaReportesGeneral(colegioId) {
     defaults: {
       sede_id: sedeUno ? sedeUno.id : (sedes[0]?.id ?? 1),
       turno_id: turnoManana?.id ?? turnos[0]?.id ?? null,
-      anio: anioActivo,
+      anio: Math.max(anioActivo, new Date().getFullYear()),
       concepto: 'todos',
       mes_hasta: defaultMesHasta,
     },

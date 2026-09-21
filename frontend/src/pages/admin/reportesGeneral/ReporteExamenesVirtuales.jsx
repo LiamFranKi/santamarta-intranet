@@ -4,7 +4,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import api from '../../../services/api';
 import Swal from 'sweetalert2';
 import ReporteGeneralPanel from '../ReporteGeneralPanel';
-import useReportesGeneralMeta, { aplicarDefaultsSedeAnio } from './useReportesGeneralMeta';
+import useReportesGeneralMeta, { aplicarDefaultsSedeAnio, anioTrabajoFiltro } from './useReportesGeneralMeta';
 import ModalExamenesVirtuales from './ModalExamenesVirtuales';
 
 const BIMESTRES = [
@@ -48,7 +48,7 @@ function sedeSanMartinId(data) {
 
 export default function ReporteExamenesVirtuales() {
   const [anio, setAnio] = useState('');
-  const [bimestre, setBimestre] = useState('1');
+  const [bimestre, setBimestre] = useState('');
   const [sedeId, setSedeId] = useState('');
   const [nivelId, setNivelId] = useState('');
   const [grado, setGrado] = useState('');
@@ -59,7 +59,7 @@ export default function ReporteExamenesVirtuales() {
   const onDefaults = useCallback((data) => {
     aplicarDefaultsSedeAnio(data, { setAnio });
     setSedeId(sedeSanMartinId(data));
-    setBimestre('1');
+    setBimestre('');
   }, []);
 
   const { meta, loading } = useReportesGeneralMeta(onDefaults);
@@ -77,7 +77,7 @@ export default function ReporteExamenesVirtuales() {
   };
 
   const armarParams = () => {
-    const anioN = parseInt(anio, 10);
+    const anioN = anioTrabajoFiltro(anio, meta);
     const params = { anio: anioN };
     if (bimestre) params.bimestre = bimestre;
     if (sedeId) params.sede_id = sedeId;
@@ -90,11 +90,6 @@ export default function ReporteExamenesVirtuales() {
   };
 
   const verReporte = async () => {
-    const anioN = parseInt(anio, 10);
-    if (!Number.isFinite(anioN)) {
-      Swal.fire({ icon: 'warning', title: 'Año requerido', text: 'Indique un año válido.' });
-      return;
-    }
     if (bimestre) {
       const bimN = parseInt(bimestre, 10);
       if (!Number.isFinite(bimN) || bimN < 1 || bimN > 4) {
@@ -129,17 +124,13 @@ export default function ReporteExamenesVirtuales() {
     }
   };
 
-  const aniosOpciones = meta?.anio_activo
-    ? [meta.anio_activo, meta.anio_activo - 1, meta.anio_activo - 2].filter((y) => y > 2000)
-    : [new Date().getFullYear()];
-
   return (
     <>
       <ReporteGeneralPanel
         tone={2}
         icon="📝"
         title="Exámenes virtuales"
-        description="Exámenes en línea del aula virtual del bimestre, agrupados por grupo, asignatura y docente. Nivel, grado y docente son opcionales. Si indica fechas, incluye los programados o rendidos en ese rango."
+        description="Exámenes en línea del aula virtual, agrupados por grupo, asignatura y docente. Bimestre, nivel, grado y docente son opcionales. Si indica fechas, incluye los programados o rendidos en ese rango."
         compact
       >
         <div className="rg-filtros-toolbar rg-filtros-toolbar--examenes">
@@ -150,20 +141,6 @@ export default function ReporteExamenesVirtuales() {
             </div>
           ) : (
             <>
-              <TextField
-                select
-                size="small"
-                label="Año"
-                value={anio}
-                onChange={(e) => setAnio(e.target.value)}
-                className="rg-alum-field rg-alum-field--anio"
-              >
-                {aniosOpciones.map((y) => (
-                  <MenuItem key={y} value={String(y)}>
-                    {y}
-                  </MenuItem>
-                ))}
-              </TextField>
               <TextField
                 select
                 size="small"
@@ -263,7 +240,7 @@ export default function ReporteExamenesVirtuales() {
         onClose={() => setModalOpen(false)}
         loading={modalLoading}
         data={modalData}
-        anio={anio}
+        anio={anioTrabajoFiltro(anio, meta)}
         bimestre={bimestre}
         sedeId={sedeId}
         nivelId={nivelId}

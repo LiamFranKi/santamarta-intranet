@@ -765,6 +765,7 @@ function filtrosIncidenciasEstrellas(req) {
     nivelId: optInt(req.query.nivel_id),
     grado: optInt(req.query.grado),
     docenteId,
+    categoria: req.query.categoria,
     desde: req.query.desde,
     hasta: req.query.hasta,
   };

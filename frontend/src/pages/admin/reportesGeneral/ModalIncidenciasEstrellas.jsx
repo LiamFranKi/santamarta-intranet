@@ -30,6 +30,7 @@ export default function ModalIncidenciasEstrellas({
   nivelId,
   grado,
   docenteId,
+  categoria,
   desde,
   hasta,
 }) {
@@ -57,25 +58,37 @@ export default function ModalIncidenciasEstrellas({
     });
   };
 
-  const kpiCards = useMemo(
-    () => [
-      { label: 'Incidencias', value: kpis.incidencias ?? 0, tone: 'amber' },
-      { label: 'Vestimenta', value: kpis.vestimenta ?? 0, tone: 'indigo' },
-      { label: 'Olvido QR', value: kpis.olvido_qr ?? 0, tone: 'violet' },
-      { label: 'Estrellas', value: kpis.estrellas ?? 0, tone: 'teal' },
-      { label: 'Puntos', value: kpis.puntos_estrellas ?? 0, tone: 'blue' },
-      { label: 'Alumnos', value: kpis.alumnos ?? 0, tone: 'indigo' },
-    ],
-    [kpis]
-  );
+  const kpiCards = useMemo(() => {
+    const all = [
+      { id: 'incidencias', label: 'Incidencias', value: kpis.incidencias ?? 0, tone: 'amber' },
+      { id: 'vestimenta', label: 'Vestimenta', value: kpis.vestimenta ?? 0, tone: 'indigo' },
+      { id: 'olvido_qr', label: 'Olvido QR', value: kpis.olvido_qr ?? 0, tone: 'violet' },
+      { id: 'estrellas', label: 'Estrellas', value: kpis.estrellas ?? 0, tone: 'teal' },
+      {
+        id: 'puntos',
+        label: 'Pts. dados / desc.',
+        value: kpis.puntos_label || `${kpis.puntos_estrellas ?? 0} / −${kpis.puntos_descontados ?? 0}`,
+        tone: 'blue',
+      },
+      { id: 'alumnos', label: 'Alumnos', value: kpis.alumnos ?? 0, tone: 'indigo' },
+    ];
+    if (categoria === 'estrellas') {
+      return all.filter((c) => c.id === 'estrellas' || c.id === 'puntos' || c.id === 'alumnos');
+    }
+    if (categoria === 'incidencias') {
+      return all.filter((c) => c.id !== 'estrellas' && c.id !== 'puntos');
+    }
+    return all;
+  }, [kpis, categoria]);
 
   const armarParams = () => {
-    const params = { anio };
+    const params = { anio: data?.anio || anio };
     if (bimestre) params.bimestre = bimestre;
     if (sedeId) params.sede_id = sedeId;
     if (nivelId) params.nivel_id = nivelId;
     if (grado) params.grado = grado;
     if (docenteId) params.docente_id = docenteId;
+    if (categoria) params.categoria = categoria;
     if (desde) params.desde = desde;
     if (hasta) params.hasta = hasta;
     return params;
@@ -98,7 +111,7 @@ export default function ModalIncidenciasEstrellas({
   };
 
   const exportExcel = async () => {
-    if (!anio) return;
+    if (!(data?.anio || anio)) return;
     setExporting(true);
     try {
       const res = await api.get('/admin/reportes/general/incidencias-estrellas/excel', {
@@ -114,7 +127,7 @@ export default function ModalIncidenciasEstrellas({
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement('a');
       a.href = url;
-      a.download = `incidencias_estrellas_${data?.bimestre_label || 'todos'}_${anio}.xlsx`;
+      a.download = `incidencias_estrellas_${data?.bimestre_label || 'todos'}_${data?.anio || anio}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -193,7 +206,7 @@ export default function ModalIncidenciasEstrellas({
                       </button>
                       {abierto ? (
                         <div className="rg-alum-lista-table-wrap rg-exam-table-wrap">
-                          <table className="rg-alum-lista-table rg-exam-table">
+                          <table className="rg-alum-lista-table rg-exam-table rg-inc-table">
                             <thead>
                               <tr>
                                 <th>Fecha</th>
@@ -218,7 +231,17 @@ export default function ModalIncidenciasEstrellas({
                                   <td>{ev.registrado_por}</td>
                                   <td>{ev.origen}</td>
                                   <td className="rg-inc-detalle">{ev.descripcion}</td>
-                                  <td className="col-num">{ev.puntos != null ? ev.puntos : '—'}</td>
+                                  <td
+                                    className={`col-num rg-inc-pts${
+                                      Number(ev.puntos) < 0
+                                        ? ' rg-inc-pts--menos'
+                                        : Number(ev.puntos) > 0
+                                          ? ' rg-inc-pts--mas'
+                                          : ''
+                                    }`}
+                                  >
+                                    {ev.puntos_label || (ev.puntos != null ? ev.puntos : '—')}
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>

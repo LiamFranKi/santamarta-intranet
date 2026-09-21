@@ -45,9 +45,23 @@ export default function useReportesGeneralMeta(onDefaults) {
   return { meta, loading };
 }
 
+export function anioTrabajoFiltro(anio, meta) {
+  const n = parseInt(anio, 10);
+  if (Number.isFinite(n) && n >= 2000) return n;
+  const activo = parseInt(meta?.anio_activo ?? meta?.defaults?.anio, 10);
+  const cal = new Date().getFullYear();
+  if (Number.isFinite(activo) && activo >= 2000) return Math.max(activo, cal);
+  return cal;
+}
+
 export function aplicarDefaultsSedeAnio(data, setters) {
   const d = data?.defaults || {};
   if (d.sede_id != null && setters.setSedeId) setters.setSedeId(String(d.sede_id));
-  if (d.anio != null && setters.setAnio) setters.setAnio(String(d.anio));
+  if (setters.setAnio) {
+    const raw = d.anio != null ? parseInt(d.anio, 10) : parseInt(data?.anio_activo, 10);
+    const cal = new Date().getFullYear();
+    const y = Number.isFinite(raw) && raw >= 2000 ? Math.max(raw, cal) : cal;
+    setters.setAnio(String(y));
+  }
   if (d.turno_id != null && setters.setTurnoId) setters.setTurnoId(String(d.turno_id));
 }
