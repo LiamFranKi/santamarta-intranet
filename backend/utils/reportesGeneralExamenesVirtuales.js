@@ -116,7 +116,10 @@ function aplicarBordeFila(row, colCount) {
 
 async function obtenerExamenesVirtuales(colegioId, filtros) {
   const anio = parseInt(filtros.anio, 10);
-  const bimestre = parseInt(filtros.bimestre, 10);
+  const bimestreRaw = filtros.bimestre;
+  const bimestre = bimestreRaw !== undefined && bimestreRaw !== null && String(bimestreRaw).trim() !== ''
+    ? parseInt(bimestreRaw, 10)
+    : NaN;
   const sedeId = filtros.sedeId != null ? parseInt(filtros.sedeId, 10) : NaN;
   const nivelId = filtros.nivelId != null ? parseInt(filtros.nivelId, 10) : NaN;
   const grado = filtros.grado != null ? parseInt(filtros.grado, 10) : NaN;
@@ -127,8 +130,13 @@ async function obtenerExamenesVirtuales(colegioId, filtros) {
   if (!Number.isFinite(anio) || anio < 2000) {
     return { ok: false, status: 400, error: 'Indique un año válido.' };
   }
-  if (!Number.isFinite(bimestre) || bimestre < 1 || bimestre > 4) {
-    return { ok: false, status: 400, error: 'Seleccione un bimestre válido.' };
+  if (
+    bimestreRaw !== undefined
+    && bimestreRaw !== null
+    && String(bimestreRaw).trim() !== ''
+    && (!Number.isFinite(bimestre) || bimestre < 1 || bimestre > 4)
+  ) {
+    return { ok: false, status: 400, error: 'Seleccione un bimestre válido o Todos.' };
   }
   if (desde && hasta && desde > hasta) {
     return { ok: false, status: 400, error: 'La fecha «desde» no puede ser posterior a «hasta».' };
@@ -164,9 +172,12 @@ async function obtenerExamenesVirtuales(colegioId, filtros) {
     LEFT JOIN personal pa ON pa.id = a.personal_id
     WHERE a.colegio_id = ?
       AND g.anio = ?
-      AND ae.ciclo = ?
       AND (ae.tipo IS NULL OR ae.tipo <> 'PDF')`;
-  const params = [colegioId, colegioId, anio, bimestre];
+  const params = [colegioId, colegioId, anio];
+  if (Number.isFinite(bimestre)) {
+    sql += ' AND ae.ciclo = ?';
+    params.push(bimestre);
+  }
   if (hasSede && Number.isFinite(sedeId)) {
     sql += ' AND g.sede_id = ?';
     params.push(sedeId);
@@ -213,7 +224,7 @@ async function obtenerExamenesVirtuales(colegioId, filtros) {
     [colegioId]
   );
   const colegioNombre = String(colegioRow?.nombre || '').trim() || 'Colegio';
-  const bimLabel = BIM_LABEL[bimestre] || String(bimestre);
+  const bimLabel = Number.isFinite(bimestre) ? (BIM_LABEL[bimestre] || String(bimestre)) : 'todos';
   const extraFiltro = [];
   if (Number.isFinite(nivelId)) {
     const [nv] = await query('SELECT nombre FROM niveles WHERE id = ? LIMIT 1', [nivelId]);
@@ -228,7 +239,7 @@ async function obtenerExamenesVirtuales(colegioId, filtros) {
   }
   const rangoTxt = (() => {
     const partes = [];
-    if (!desde && !hasta) partes.push('Todo el bimestre');
+    if (!desde && !hasta) partes.push(Number.isFinite(bimestre) ? 'Todo el bimestre' : 'Todos los bimestres');
     else {
       const d = desde ? fmtFechaUi(desde) : 'inicio';
       const h = hasta ? fmtFechaUi(hasta) : 'fin';
@@ -238,7 +249,9 @@ async function obtenerExamenesVirtuales(colegioId, filtros) {
     return partes.join('  ·  ');
   })();
 
-  const titulo = `EXÁMENES VIRTUALES — BIMESTRE ${bimLabel} · ${anio}`;
+  const titulo = Number.isFinite(bimestre)
+    ? `EXÁMENES VIRTUALES — BIMESTRE ${bimLabel} · ${anio}`
+    : `EXÁMENES VIRTUALES — TODOS LOS BIMESTRES · ${anio}`;
   const subtitulo = rangoTxt;
 
   if (!examenes.length) {

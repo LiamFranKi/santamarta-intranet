@@ -44,6 +44,10 @@ const {
   obtenerExamenesVirtuales,
   generarExcelExamenesVirtuales,
 } = require('../utils/reportesGeneralExamenesVirtuales');
+const {
+  obtenerIncidenciasEstrellas,
+  generarExcelIncidenciasEstrellas,
+} = require('../utils/reportesGeneralIncidenciasEstrellas');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -743,6 +747,59 @@ router.get('/examenes-virtuales/excel', async (req, res) => {
   } catch (e) {
     console.error('[reportes/general/examenes-virtuales/excel]', e);
     res.status(500).json({ error: e.message || 'Error al exportar Excel de exámenes virtuales' });
+  }
+});
+
+function filtrosIncidenciasEstrellas(req) {
+  const optInt = (v) => {
+    if (v === undefined || v === null || v === '') return null;
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? n : null;
+  };
+  const docRaw = req.query.docente_id;
+  const docenteId = String(docRaw || '').toLowerCase() === 'ingreso' ? 'ingreso' : optInt(docRaw);
+  return {
+    anio: req.query.anio,
+    bimestre: req.query.bimestre,
+    sedeId: optInt(req.query.sede_id),
+    nivelId: optInt(req.query.nivel_id),
+    grado: optInt(req.query.grado),
+    docenteId,
+    desde: req.query.desde,
+    hasta: req.query.hasta,
+  };
+}
+
+/** GET /api/admin/reportes/general/incidencias-estrellas */
+router.get('/incidencias-estrellas', async (req, res) => {
+  try {
+    const result = await obtenerIncidenciasEstrellas(colegioId(req), filtrosIncidenciasEstrellas(req));
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (e) {
+    console.error('[reportes/general/incidencias-estrellas]', e);
+    res.status(500).json({ error: e.message || 'Error al generar el reporte de incidencias y estrellas' });
+  }
+});
+
+/** GET /api/admin/reportes/general/incidencias-estrellas/excel */
+router.get('/incidencias-estrellas/excel', async (req, res) => {
+  try {
+    const result = await generarExcelIncidenciasEstrellas(colegioId(req), filtrosIncidenciasEstrellas(req));
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(Buffer.from(result.buffer));
+  } catch (e) {
+    console.error('[reportes/general/incidencias-estrellas/excel]', e);
+    res.status(500).json({ error: e.message || 'Error al exportar Excel de incidencias y estrellas' });
   }
 });
 

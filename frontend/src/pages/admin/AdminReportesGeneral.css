@@ -2200,6 +2200,10 @@
   margin: 0.25rem 0 1.1rem;
 }
 
+.rg-exam-kpis--6 {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
 .rg-exam-kpi {
   background: #fff;
   border: 1px solid #dbeafe;
@@ -2381,8 +2385,90 @@
 }
 
 @media (max-width: 900px) {
-  .rg-exam-kpis {
+  .rg-exam-kpis,
+  .rg-exam-kpis--6 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.rg-inc-grupo-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: none;
+  background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%);
+  color: #fff;
+  padding: 0.55rem 0.9rem;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.rg-inc-grupo-toggle h3 {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 800;
+  flex: 1;
+}
+
+.rg-inc-grupo-toggle .rg-exam-chip {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.rg-inc-grupo-toggle .rg-exam-card__caret {
+  color: #fff;
+}
+
+.rg-inc-alumno {
+  text-align: left !important;
+  font-weight: 600;
+}
+
+.rg-inc-detalle {
+  text-align: left !important;
+}
+
+.rg-inc-tipo {
+  display: inline-flex;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.rg-inc-tipo--incidencia {
+  background: #ffe4e6;
+  color: #be123c;
+}
+
+.rg-inc-tipo--estrella {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.rg-inc-tipo--vestimenta {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.rg-inc-tipo--olvido_qr {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.rg-inc-row--incidencia {
+  background: #fff7f7;
+}
+
+.rg-inc-row--estrella {
+  background: #f0fdf4;
+}
+
+.rg-inc-row--vestimenta,
+.rg-inc-row--olvido_qr {
+  background: #fffbeb;
 }
 

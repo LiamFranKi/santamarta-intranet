@@ -78,8 +78,8 @@ export default function ReporteExamenesVirtuales() {
 
   const armarParams = () => {
     const anioN = parseInt(anio, 10);
-    const bimN = parseInt(bimestre, 10);
-    const params = { anio: anioN, bimestre: bimN };
+    const params = { anio: anioN };
+    if (bimestre) params.bimestre = bimestre;
     if (sedeId) params.sede_id = sedeId;
     if (nivelId) params.nivel_id = nivelId;
     if (grado) params.grado = grado;
@@ -91,14 +91,16 @@ export default function ReporteExamenesVirtuales() {
 
   const verReporte = async () => {
     const anioN = parseInt(anio, 10);
-    const bimN = parseInt(bimestre, 10);
     if (!Number.isFinite(anioN)) {
       Swal.fire({ icon: 'warning', title: 'Año requerido', text: 'Indique un año válido.' });
       return;
     }
-    if (!Number.isFinite(bimN) || bimN < 1 || bimN > 4) {
-      Swal.fire({ icon: 'warning', title: 'Bimestre', text: 'Seleccione un bimestre válido.' });
-      return;
+    if (bimestre) {
+      const bimN = parseInt(bimestre, 10);
+      if (!Number.isFinite(bimN) || bimN < 1 || bimN > 4) {
+        Swal.fire({ icon: 'warning', title: 'Bimestre', text: 'Seleccione un bimestre válido o Todos.' });
+        return;
+      }
     }
     if (desde && hasta && desde > hasta) {
       Swal.fire({
@@ -169,8 +171,8 @@ export default function ReporteExamenesVirtuales() {
                 value={bimestre}
                 onChange={(e) => setBimestre(e.target.value)}
                 className="rg-alum-field rg-alum-field--bimestre"
-                required
               >
+                <MenuItem value="">Todos</MenuItem>
                 {BIMESTRES.map((b) => (
                   <MenuItem key={b.value} value={String(b.value)}>
                     {b.label}

@@ -20,6 +20,7 @@ import ReporteHorariosPersonal from './reportesGeneral/ReporteHorariosPersonal';
 import ReporteConsolidadoPromedios from './reportesGeneral/ReporteConsolidadoPromedios';
 import ReporteConsolidadoPromediosDetallado from './reportesGeneral/ReporteConsolidadoPromediosDetallado';
 import ReporteExamenesVirtuales from './reportesGeneral/ReporteExamenesVirtuales';
+import ReporteIncidenciasEstrellas from './reportesGeneral/ReporteIncidenciasEstrellas';
 import ReporteNominasAlumnos from './reportesGeneral/ReporteNominasAlumnos';
 import './AdminEstadisticas.css';
 import './AdminReportesGeneral.css';
@@ -163,7 +164,7 @@ const REPORT_CATALOG = [
     titulo: 'Académico',
     icon: '📚',
     tone: 'academico',
-    resumen: 'Asistencia, rankings, consolidados y exámenes virtuales.',
+    resumen: 'Asistencia, rankings, consolidados, exámenes e incidencias.',
     items: [
       {
         id: 'asistencia-mensual',
@@ -207,6 +208,14 @@ const REPORT_CATALOG = [
         ayuda:
           'Exámenes del aula virtual del bimestre, agrupados por grupo, asignatura y docente, con notas de cada alumno. Filtros opcionales de nivel, grado, docente y fechas. Exportación PDF/Excel.',
         Component: ReporteExamenesVirtuales,
+      },
+      {
+        id: 'incidencias-estrellas',
+        label: 'Incidencias y estrellas',
+        icon: '⭐',
+        ayuda:
+          'Incidencias y estrellas registradas por el personal, más vestimenta y olvido de QR del ingreso. Filtros opcionales de bimestre, nivel, grado y docente (incluye Ingreso).',
+        Component: ReporteIncidenciasEstrellas,
       },
     ],
   },
