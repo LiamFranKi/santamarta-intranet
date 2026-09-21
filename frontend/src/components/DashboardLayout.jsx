@@ -1530,6 +1530,10 @@ export default function DashboardLayout({ children }) {
                   ref={(el) => { submenuRefs.current.coordinadorAcademico = el; }}
                   className={`sidebar-submenu ${expandedMenus.coordinadorAcademico ? 'expanded' : ''}`}
                 >
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/cneb">
+                    <span className="sidebar-icon" aria-hidden>📗</span>
+                    <span className="sidebar-label">CNEB</span>
+                  </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/academico/niveles">
                     <span className="sidebar-icon" aria-hidden>🏫</span>
                     <span className="sidebar-label">Niveles</span>
@@ -1549,10 +1553,6 @@ export default function DashboardLayout({ children }) {
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/academico/areas">
                     <span className="sidebar-icon" aria-hidden>🧩</span>
                     <span className="sidebar-label">Áreas</span>
-                  </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/cneb">
-                    <span className="sidebar-icon" aria-hidden>📗</span>
-                    <span className="sidebar-label">CNEB</span>
                   </NavLink>
                 </div>
               </div>
@@ -1822,6 +1822,10 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-menu-arrow">▶</span>
                 </button>
                 <div ref={(el) => { submenuRefs.current.academico = el; }} className={`sidebar-submenu ${expandedMenus.academico ? 'expanded' : ''}`}>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/cneb">
+                    <span className="sidebar-icon" aria-hidden>📗</span>
+                    <span className="sidebar-label">CNEB</span>
+                  </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/academico/niveles">
                     <span className="sidebar-icon" aria-hidden>🔢</span>
                     <span className="sidebar-label">Niveles</span>
@@ -1841,10 +1845,6 @@ export default function DashboardLayout({ children }) {
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/academico/areas">
                     <span className="sidebar-icon" aria-hidden>🗂️</span>
                     <span className="sidebar-label">Áreas</span>
-                  </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/cneb">
-                    <span className="sidebar-icon" aria-hidden>📗</span>
-                    <span className="sidebar-label">CNEB</span>
                   </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/horario-gen">
                     <span className="sidebar-icon" aria-hidden>🗓️</span>

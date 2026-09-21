@@ -920,7 +920,8 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
     );
   }
 
-  const esCnebInicial = cnebEstado === 'si';
+  const nivelInicialNombre = String(curso?.nivel_nombre || '').toUpperCase().includes('INICIAL');
+  const esCnebInicial = cnebEstado === 'si' || (cnebEstado === 'unknown' && nivelInicialNombre);
   const mostrarCneb = cnebEstado !== 'no';
 
   return (

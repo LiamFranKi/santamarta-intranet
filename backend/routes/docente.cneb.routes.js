@@ -31,12 +31,30 @@ const {
 const { informePdfBuffer, libretaPdfBuffer, sesionPdfBuffer } = require('../utils/cnebPdfs');
 const { contextoAulaCneb, listarSesionesAula } = require('../utils/cnebAulaAsignatura');
 const { piarActivosDelGrupo, varsGenerarSesionIa } = require('../utils/cnebPiarAula');
+const { esPaqueteCoordinador } = require('../utils/coordinadorAcceso');
+const { esTutoriaGeneralUsuario } = require('../utils/tutoriaGrupoAcceso');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
-  if (req.user?.tipo === 'DOCENTE') return next();
-  return res.status(403).json({ error: 'Solo el docente usa este módulo CNEB.' });
+  const tipo = req.user?.tipo;
+  if (tipo === 'DOCENTE' || esStaffCneb(tipo)) return next();
+  return res.status(403).json({ error: 'Sin permiso para CNEB del aula.' });
 });
+
+function esStaffCneb(tipo) {
+  const t = String(tipo || '').toUpperCase();
+  return t === 'ADMINISTRADOR' || t === 'PROMOTORIA' || esPaqueteCoordinador(t);
+}
+
+function esStaffReq(req) {
+  return esStaffCneb(req.user?.tipo);
+}
+
+function likeNivelSql(nivel) {
+  if (nivel === 'INICIAL') return '%INICIAL%';
+  if (nivel === 'PRIMARIA') return '%PRIMARIA%';
+  return '%SECUNDARIA%';
+}
 
 function colegio(req) {
   const n = Number(req.user?.colegio_id);
@@ -84,11 +102,64 @@ async function idsPermitidos(cid, pid, anio) {
   return new Set((grupos || []).map((g) => Number(g.id)));
 }
 
-async function sesionPermitida(cid, pid, anio, sesionId) {
+async function puedeVerGrupo(req, grupoId) {
+  if (!grupoId) return true;
+  if (esStaffReq(req)) return true;
+  const cid = colegio(req);
+  const pid = personalId(req);
+  const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
+  if (pid && (await idsPermitidos(cid, pid, anio)).has(Number(grupoId))) return true;
+  if (await esTutoriaGeneralUsuario(req)) {
+    const [g] = await query(
+      `SELECT id FROM grupos WHERE id = ? AND colegio_id = ? AND anio = ? LIMIT 1`,
+      [grupoId, cid, anio]
+    );
+    return Boolean(g);
+  }
+  return false;
+}
+
+async function puedeEscribirGrupo(req, grupoId) {
+  if (!grupoId) return true;
+  if (esStaffReq(req)) return true;
+  const cid = colegio(req);
+  const pid = personalId(req);
+  if (!pid) return false;
+  const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
+  return (await idsPermitidos(cid, pid, anio)).has(Number(grupoId));
+}
+
+async function gateGrupo(req, res, grupoId, { escribir = false } = {}) {
+  const ok = escribir ? await puedeEscribirGrupo(req, grupoId) : await puedeVerGrupo(req, grupoId);
+  if (!ok) {
+    res.status(403).json({
+      error: escribir ? 'Solo puede armar sesiones de sus aulas.' : 'Esa aula no es suya.',
+    });
+    return false;
+  }
+  return true;
+}
+
+function faltaPersonal(req) {
+  return !esStaffReq(req) && !personalId(req);
+}
+
+async function gruposNivelStaff(cid, anio, nivel) {
+  return query(
+    `SELECT g.id, g.grado, g.seccion, g.anio, n.nombre AS nivel_nombre
+     FROM grupos g
+     INNER JOIN niveles n ON n.id = g.nivel_id AND n.colegio_id = g.colegio_id
+     WHERE g.colegio_id = ? AND g.anio = ? AND UPPER(n.nombre) LIKE ?
+     ORDER BY g.grado ASC, g.seccion ASC`,
+    [cid, anio, likeNivelSql(nivel)]
+  );
+}
+
+async function sesionPermitida(req, sesionId) {
+  const cid = colegio(req);
   const ses = await cargarSesion(cid, sesionId);
   if (!ses) return null;
-  const ids = await idsPermitidos(cid, pid, anio);
-  if (ses.grupo_id && !ids.has(Number(ses.grupo_id))) return null;
+  if (ses.grupo_id && !(await puedeVerGrupo(req, ses.grupo_id))) return null;
   return ses;
 }
 
@@ -139,11 +210,16 @@ router.get('/sesiones/meta', async (req, res) => {
     const cid = colegio(req);
     const pid = personalId(req);
     const nivel = parseNivel(req.query.nivel);
-    if (!cid || !pid || !nivel) return res.status(400).json({ error: 'Faltan datos.' });
+    if (!cid || !nivel) return res.status(400).json({ error: 'Faltan datos.' });
+    if (faltaPersonal(req)) return res.status(400).json({ error: 'Faltan datos.' });
     const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
-    const grupos = (await gruposDelDocente(cid, pid, anio)).filter(
-      (g) => String(g.nivel_nombre || '').toUpperCase().includes(nivel === 'INICIAL' ? 'INICIAL' : nivel)
-    );
+    const grupos = esStaffReq(req)
+      ? await gruposNivelStaff(cid, anio, nivel)
+      : (await gruposDelDocente(cid, pid, anio)).filter((g) =>
+          String(g.nivel_nombre || '')
+            .toUpperCase()
+            .includes(nivel === 'INICIAL' ? 'INICIAL' : nivel)
+        );
     res.json({ anio, grupos });
   } catch (e) {
     console.error('[docente/cneb/sesiones/meta]', e);
@@ -154,12 +230,11 @@ router.get('/sesiones/meta', async (req, res) => {
 router.get('/aula-piar', async (req, res) => {
   try {
     const cid = colegio(req);
-    const pid = personalId(req);
     const grupoId = parseInt(req.query.grupo_id, 10);
-    if (!cid || !pid || !Number.isFinite(grupoId)) return res.status(400).json({ error: 'Indique el aula.' });
+    if (!cid || !Number.isFinite(grupoId)) return res.status(400).json({ error: 'Indique el aula.' });
+    if (faltaPersonal(req)) return res.status(400).json({ error: 'Indique el aula.' });
     const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
-    const ids = await idsPermitidos(cid, pid, anio);
-    if (!ids.has(grupoId)) return res.status(403).json({ error: 'Esa aula no es suya.' });
+    if (!(await gateGrupo(req, res, grupoId))) return;
     const estudiantes = await piarActivosDelGrupo(cid, anio, grupoId);
     res.json({ anio, grupo_id: grupoId, estudiantes });
   } catch (e) {
@@ -171,16 +246,12 @@ router.get('/aula-piar', async (req, res) => {
 router.get('/aula/:asignaturaId', async (req, res) => {
   try {
     const cid = colegio(req);
-    const pid = personalId(req);
     const asignaturaId = parseInt(req.params.asignaturaId, 10);
-    if (!cid || !pid || !asignaturaId) return res.status(400).json({ error: 'Faltan datos.' });
+    if (!cid || !asignaturaId) return res.status(400).json({ error: 'Faltan datos.' });
+    if (faltaPersonal(req)) return res.status(400).json({ error: 'Faltan datos.' });
     const ctx = await contextoAulaCneb(cid, asignaturaId);
     if (!ctx) return res.status(404).json({ error: 'Asignatura no encontrada.' });
-    const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
-    const ids = await idsPermitidos(cid, pid, anio);
-    if (!ids.has(Number(ctx.grupo_id))) {
-      return res.status(403).json({ error: 'Esa aula no es suya.' });
-    }
+    if (!(await gateGrupo(req, res, ctx.grupo_id))) return;
     const sesiones = ctx.es_inicial ? await listarSesionesAula(cid, ctx) : [];
     let areas = [];
     if (ctx.es_inicial) {
@@ -203,10 +274,13 @@ router.get('/sesiones', async (req, res) => {
     const cid = colegio(req);
     const pid = personalId(req);
     const nivel = parseNivel(req.query.nivel);
-    if (!cid || !pid || !nivel) return res.status(400).json({ error: 'Faltan datos.' });
+    if (!cid || !nivel) return res.status(400).json({ error: 'Faltan datos.' });
+    if (faltaPersonal(req)) return res.status(400).json({ error: 'Faltan datos.' });
     const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
-    const ids = [...(await idsPermitidos(cid, pid, anio))];
-    const rows = await listarSesiones(cid, { nivel, anio, grupoIds: ids });
+    const filtro = esStaffReq(req)
+      ? { nivel, anio }
+      : { nivel, anio, grupoIds: [...(await idsPermitidos(cid, pid, anio))] };
+    const rows = await listarSesiones(cid, filtro);
     res.json({ anio, sesiones: rows || [] });
   } catch (e) {
     console.error('[docente/cneb/sesiones]', e);
@@ -220,16 +294,9 @@ router.get('/sesiones', async (req, res) => {
 
 router.get('/sesiones/:id', async (req, res) => {
   try {
-    const cid = colegio(req);
-    const pid = personalId(req);
     const id = parseInt(req.params.id, 10);
-    const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
-    const ses = await sesionPermitida(cid, pid, anio, id);
+    const ses = await sesionPermitida(req, id);
     if (!ses) return res.status(404).json({ error: 'Sesión no encontrada.' });
-    const ids = await idsPermitidos(cid, pid, anio);
-    if (ses.grupo_id && !ids.has(Number(ses.grupo_id))) {
-      return res.status(403).json({ error: 'Esa sesión no es de sus aulas.' });
-    }
     res.json({ sesion: ses });
   } catch (e) {
     console.error('[docente/cneb/sesiones/:id]', e);
@@ -237,18 +304,12 @@ router.get('/sesiones/:id', async (req, res) => {
   }
 });
 
-async function validarGrupoPropio(cid, pid, anio, grupoId) {
-  if (!grupoId) return true;
-  const ids = await idsPermitidos(cid, pid, anio);
-  return ids.has(Number(grupoId));
-}
-
 router.post('/sesiones', async (req, res) => {
   try {
     const cid = colegio(req);
-    const pid = personalId(req);
     const nivel = parseNivel(req.body?.nivel || req.body?.nivel_cneb);
-    if (!cid || !pid || !nivel) return res.status(400).json({ error: 'Faltan datos.' });
+    if (!cid || !nivel) return res.status(400).json({ error: 'Faltan datos.' });
+    if (faltaPersonal(req)) return res.status(400).json({ error: 'Faltan datos.' });
     const body = leerCuerpoSesion(req.body, nivel);
     if (!body.titulo) return res.status(400).json({ error: 'El título de la sesión es obligatorio.' });
     if (body.suma !== body.duracion_min) {
@@ -256,10 +317,7 @@ router.post('/sesiones', async (req, res) => {
         error: `Los minutos de inicio, desarrollo y cierre deben sumar ${body.duracion_min} (ahora ${body.suma}).`,
       });
     }
-    const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
-    if (!(await validarGrupoPropio(cid, pid, anio, body.grupo_id))) {
-      return res.status(403).json({ error: 'Solo puede armar sesiones de sus aulas.' });
-    }
+    if (!(await gateGrupo(req, res, body.grupo_id, { escribir: true }))) return;
     const sesion = await insertarSesion(cid, req.user?.usuario_id || req.user?.id, body);
     res.json({ success: true, id: sesion.id, sesion });
   } catch (e) {
@@ -271,15 +329,10 @@ router.post('/sesiones', async (req, res) => {
 router.put('/sesiones/:id', async (req, res) => {
   try {
     const cid = colegio(req);
-    const pid = personalId(req);
     const id = parseInt(req.params.id, 10);
-    const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
     const ex = await cargarSesion(cid, id);
     if (!ex) return res.status(404).json({ error: 'Sesión no encontrada.' });
-    const ids = await idsPermitidos(cid, pid, anio);
-    if (ex.grupo_id && !ids.has(Number(ex.grupo_id))) {
-      return res.status(403).json({ error: 'Esa sesión no es de sus aulas.' });
-    }
+    if (!(await gateGrupo(req, res, ex.grupo_id, { escribir: true }))) return;
     const body = leerCuerpoSesion(req.body, ex.nivel_cneb);
     if (!body.titulo) return res.status(400).json({ error: 'El título de la sesión es obligatorio.' });
     if (body.suma !== body.duracion_min) {
@@ -287,9 +340,7 @@ router.put('/sesiones/:id', async (req, res) => {
         error: `Los minutos de inicio, desarrollo y cierre deben sumar ${body.duracion_min} (ahora ${body.suma}).`,
       });
     }
-    if (!(await validarGrupoPropio(cid, pid, anio, body.grupo_id))) {
-      return res.status(403).json({ error: 'Solo puede armar sesiones de sus aulas.' });
-    }
+    if (!(await gateGrupo(req, res, body.grupo_id, { escribir: true }))) return;
     const sesion = await actualizarSesion(cid, id, body);
     res.json({ success: true, sesion });
   } catch (e) {
@@ -301,15 +352,10 @@ router.put('/sesiones/:id', async (req, res) => {
 router.delete('/sesiones/:id', async (req, res) => {
   try {
     const cid = colegio(req);
-    const pid = personalId(req);
     const id = parseInt(req.params.id, 10);
-    const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
     const ex = await cargarSesion(cid, id);
     if (!ex) return res.status(404).json({ error: 'Sesión no encontrada.' });
-    const ids = await idsPermitidos(cid, pid, anio);
-    if (ex.grupo_id && !ids.has(Number(ex.grupo_id))) {
-      return res.status(403).json({ error: 'Esa sesión no es de sus aulas.' });
-    }
+    if (!(await gateGrupo(req, res, ex.grupo_id, { escribir: true }))) return;
     await eliminarSesion(cid, id);
     res.json({ success: true });
   } catch (e) {
@@ -383,15 +429,10 @@ router.post('/sesiones/generar-ia', async (req, res) => {
 router.get('/auxiliar/:sesionId', async (req, res) => {
   try {
     const cid = colegio(req);
-    const pid = personalId(req);
     const sesionId = parseInt(req.params.sesionId, 10);
-    const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
     const ses = await cargarSesion(cid, sesionId);
     if (!ses) return res.status(404).json({ error: 'Sesión no encontrada.' });
-    const ids = await idsPermitidos(cid, pid, anio);
-    if (ses.grupo_id && !ids.has(Number(ses.grupo_id))) {
-      return res.status(403).json({ error: 'Esa sesión no es de sus aulas.' });
-    }
+    if (!(await gateGrupo(req, res, ses.grupo_id))) return;
     const data = await cargarAuxiliar(cid, sesionId);
     res.json(data);
   } catch (e) {
@@ -403,15 +444,10 @@ router.get('/auxiliar/:sesionId', async (req, res) => {
 router.put('/auxiliar/:sesionId', async (req, res) => {
   try {
     const cid = colegio(req);
-    const pid = personalId(req);
     const sesionId = parseInt(req.params.sesionId, 10);
-    const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
     const ses = await cargarSesion(cid, sesionId);
     if (!ses) return res.status(404).json({ error: 'Sesión no encontrada.' });
-    const ids = await idsPermitidos(cid, pid, anio);
-    if (ses.grupo_id && !ids.has(Number(ses.grupo_id))) {
-      return res.status(403).json({ error: 'Esa sesión no es de sus aulas.' });
-    }
+    if (!(await gateGrupo(req, res, ses.grupo_id, { escribir: true }))) return;
     const out = await guardarAuxiliar(cid, sesionId, req.body?.filas || []);
     if (!out.ok) return res.status(404).json({ error: out.error });
     res.json({ success: true, guardados: out.guardados });
@@ -424,15 +460,13 @@ router.put('/auxiliar/:sesionId', async (req, res) => {
 router.get('/corte', async (req, res) => {
   try {
     const cid = colegio(req);
-    const pid = personalId(req);
     const nivel = parseNivel(req.query.nivel);
     const grupoId = parseInt(req.query.grupo_id, 10);
     const bimestre = Math.min(4, Math.max(1, parseInt(req.query.bimestre, 10) || 4));
-    if (!cid || !pid || !nivel || !grupoId) return res.status(400).json({ error: 'Indique nivel y aula.' });
+    if (!cid || !nivel || !grupoId) return res.status(400).json({ error: 'Indique nivel y aula.' });
+    if (faltaPersonal(req)) return res.status(400).json({ error: 'Indique nivel y aula.' });
+    if (!(await gateGrupo(req, res, grupoId))) return;
     const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
-    if (!(await validarGrupoPropio(cid, pid, anio, grupoId))) {
-      return res.status(403).json({ error: 'Solo puede ver el corte de sus aulas.' });
-    }
     const data = await cargarCorte(cid, {
       anio,
       bimestre,
@@ -451,13 +485,10 @@ router.get('/corte', async (req, res) => {
 router.put('/corte', async (req, res) => {
   try {
     const cid = colegio(req);
-    const pid = personalId(req);
     const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
     const bimestre = Math.min(4, Math.max(1, parseInt(req.body?.bimestre, 10) || 4));
     const grupoId = parseInt(req.body?.grupo_id, 10);
-    if (!(await validarGrupoPropio(cid, pid, anio, grupoId))) {
-      return res.status(403).json({ error: 'Solo puede guardar el corte de sus aulas.' });
-    }
+    if (!(await gateGrupo(req, res, grupoId, { escribir: true }))) return;
     const out = await guardarCorte(cid, { anio, bimestre, items: req.body?.items || [] });
     res.json({ success: true, ...out });
   } catch (e) {
@@ -469,15 +500,13 @@ router.put('/corte', async (req, res) => {
 router.get('/export/siagie.xlsx', async (req, res) => {
   try {
     const cid = colegio(req);
-    const pid = personalId(req);
     const nivel = parseNivel(req.query.nivel);
     const grupoId = parseInt(req.query.grupo_id, 10);
     const bimestre = Math.min(4, Math.max(1, parseInt(req.query.bimestre, 10) || 4));
-    if (!cid || !pid || !nivel || !grupoId) return res.status(400).json({ error: 'Indique nivel y aula.' });
+    if (!cid || !nivel || !grupoId) return res.status(400).json({ error: 'Indique nivel y aula.' });
+    if (faltaPersonal(req)) return res.status(400).json({ error: 'Indique nivel y aula.' });
     const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
-    if (!(await validarGrupoPropio(cid, pid, anio, grupoId))) {
-      return res.status(403).json({ error: 'Solo puede exportar el corte de sus aulas.' });
-    }
+    if (!(await gateGrupo(req, res, grupoId))) return;
     const { buffer, filename } = await excelSiagieBuffer(cid, {
       anio,
       bimestre,
@@ -497,15 +526,13 @@ router.get('/export/siagie.xlsx', async (req, res) => {
 router.get('/consolidado', async (req, res) => {
   try {
     const cid = colegio(req);
-    const pid = personalId(req);
     const nivel = parseNivel(req.query.nivel);
     const grupoId = parseInt(req.query.grupo_id, 10);
     const bimestre = Math.min(4, Math.max(1, parseInt(req.query.bimestre, 10) || 4));
-    if (!cid || !pid || !nivel || !grupoId) return res.status(400).json({ error: 'Indique nivel y aula.' });
+    if (!cid || !nivel || !grupoId) return res.status(400).json({ error: 'Indique nivel y aula.' });
+    if (faltaPersonal(req)) return res.status(400).json({ error: 'Indique nivel y aula.' });
     const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
-    if (!(await validarGrupoPropio(cid, pid, anio, grupoId))) {
-      return res.status(403).json({ error: 'Solo puede ver el consolidado de sus aulas.' });
-    }
+    if (!(await gateGrupo(req, res, grupoId))) return;
     const data = await cargarConsolidado(cid, { anio, bimestre, grupoId, nivel });
     res.json(data);
   } catch (e) {
@@ -517,13 +544,10 @@ router.get('/consolidado', async (req, res) => {
 router.put('/consolidado', async (req, res) => {
   try {
     const cid = colegio(req);
-    const pid = personalId(req);
     const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
     const bimestre = Math.min(4, Math.max(1, parseInt(req.body?.bimestre, 10) || 4));
     const grupoId = parseInt(req.body?.grupo_id, 10);
-    if (!(await validarGrupoPropio(cid, pid, anio, grupoId))) {
-      return res.status(403).json({ error: 'Solo puede guardar el consolidado de sus aulas.' });
-    }
+    if (!(await gateGrupo(req, res, grupoId, { escribir: true }))) return;
     const out = await guardarConsolidado(cid, {
       anio,
       bimestre,
@@ -540,15 +564,13 @@ router.put('/consolidado', async (req, res) => {
 router.get('/export/consolidado.xlsx', async (req, res) => {
   try {
     const cid = colegio(req);
-    const pid = personalId(req);
     const nivel = parseNivel(req.query.nivel);
     const grupoId = parseInt(req.query.grupo_id, 10);
     const bimestre = Math.min(4, Math.max(1, parseInt(req.query.bimestre, 10) || 4));
-    if (!cid || !pid || !nivel || !grupoId) return res.status(400).json({ error: 'Indique nivel y aula.' });
+    if (!cid || !nivel || !grupoId) return res.status(400).json({ error: 'Indique nivel y aula.' });
+    if (faltaPersonal(req)) return res.status(400).json({ error: 'Indique nivel y aula.' });
     const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
-    if (!(await validarGrupoPropio(cid, pid, anio, grupoId))) {
-      return res.status(403).json({ error: 'Solo puede exportar el consolidado de sus aulas.' });
-    }
+    if (!(await gateGrupo(req, res, grupoId))) return;
     const { buffer, filename } = await excelConsolidadoBuffer(cid, {
       anio,
       bimestre,
@@ -568,16 +590,14 @@ router.get('/export/consolidado.xlsx', async (req, res) => {
 router.get('/export/informe.pdf', async (req, res) => {
   try {
     const cid = colegio(req);
-    const pid = personalId(req);
     const nivel = parseNivel(req.query.nivel);
     const grupoId = parseInt(req.query.grupo_id, 10);
     const bimestre = Math.min(4, Math.max(1, parseInt(req.query.bimestre, 10) || 4));
     const matriculaId = parseIntOrNull(req.query.matricula_id);
-    if (!cid || !pid || !nivel || !grupoId) return res.status(400).json({ error: 'Indique nivel y aula.' });
+    if (!cid || !nivel || !grupoId) return res.status(400).json({ error: 'Indique nivel y aula.' });
+    if (faltaPersonal(req)) return res.status(400).json({ error: 'Indique nivel y aula.' });
     const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
-    if (!(await validarGrupoPropio(cid, pid, anio, grupoId))) {
-      return res.status(403).json({ error: 'Solo puede exportar el informe de sus aulas.' });
-    }
+    if (!(await gateGrupo(req, res, grupoId))) return;
     const { buffer, filename } = await informePdfBuffer(cid, {
       anio,
       bimestre,
@@ -597,16 +617,14 @@ router.get('/export/informe.pdf', async (req, res) => {
 router.get('/export/libreta.pdf', async (req, res) => {
   try {
     const cid = colegio(req);
-    const pid = personalId(req);
     const nivel = parseNivel(req.query.nivel);
     const grupoId = parseInt(req.query.grupo_id, 10);
     const bimestre = Math.min(4, Math.max(1, parseInt(req.query.bimestre, 10) || 4));
     const matriculaId = parseIntOrNull(req.query.matricula_id);
-    if (!cid || !pid || !nivel || !grupoId) return res.status(400).json({ error: 'Indique nivel y aula.' });
+    if (!cid || !nivel || !grupoId) return res.status(400).json({ error: 'Indique nivel y aula.' });
+    if (faltaPersonal(req)) return res.status(400).json({ error: 'Indique nivel y aula.' });
     const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
-    if (!(await validarGrupoPropio(cid, pid, anio, grupoId))) {
-      return res.status(403).json({ error: 'Solo puede exportar la libreta de sus aulas.' });
-    }
+    if (!(await gateGrupo(req, res, grupoId))) return;
     const { buffer, filename } = await libretaPdfBuffer(cid, {
       anio,
       bimestre,
@@ -626,15 +644,10 @@ router.get('/export/libreta.pdf', async (req, res) => {
 router.get('/sesiones/:id/pdf', async (req, res) => {
   try {
     const cid = colegio(req);
-    const pid = personalId(req);
     const id = parseInt(req.params.id, 10);
-    const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
     const ses = await cargarSesion(cid, id);
     if (!ses) return res.status(404).json({ error: 'Sesión no encontrada.' });
-    const ids = await idsPermitidos(cid, pid, anio);
-    if (ses.grupo_id && !ids.has(Number(ses.grupo_id))) {
-      return res.status(403).json({ error: 'Esa sesión no es de sus aulas.' });
-    }
+    if (!(await gateGrupo(req, res, ses.grupo_id))) return;
     const out = await sesionPdfBuffer(cid, id, {
       parte: req.query?.parte,
       formato: req.query?.formato,

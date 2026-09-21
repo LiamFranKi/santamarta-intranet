@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import AlumnoAulaVirtual from './AlumnoAulaVirtual';
 import api from '../services/api';
@@ -17,7 +17,7 @@ function DocenteHijoAulaVirtual() {
     hijoIdRef.current = hijoId;
   }, [hijoId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Agregar interceptor para modificar las URLs de las llamadas API
     // IMPORTANTE: Este interceptor se ejecuta DESPUÉS del interceptor principal que agrega el token
     // Por lo tanto, el token ya está en config.headers.Authorization
