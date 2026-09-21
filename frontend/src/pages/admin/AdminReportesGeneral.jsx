@@ -19,6 +19,7 @@ import ReporteAsistenciaPersonal from './reportesGeneral/ReporteAsistenciaPerson
 import ReporteHorariosPersonal from './reportesGeneral/ReporteHorariosPersonal';
 import ReporteConsolidadoPromedios from './reportesGeneral/ReporteConsolidadoPromedios';
 import ReporteConsolidadoPromediosDetallado from './reportesGeneral/ReporteConsolidadoPromediosDetallado';
+import ReporteExamenesVirtuales from './reportesGeneral/ReporteExamenesVirtuales';
 import ReporteNominasAlumnos from './reportesGeneral/ReporteNominasAlumnos';
 import './AdminEstadisticas.css';
 import './AdminReportesGeneral.css';
@@ -162,7 +163,7 @@ const REPORT_CATALOG = [
     titulo: 'Académico',
     icon: '📚',
     tone: 'academico',
-    resumen: 'Asistencia, rankings y consolidados.',
+    resumen: 'Asistencia, rankings, consolidados y exámenes virtuales.',
     items: [
       {
         id: 'asistencia-mensual',
@@ -198,6 +199,14 @@ const REPORT_CATALOG = [
         icon: '🧮',
         ayuda: 'Indicadores por curso y PROM de cada aula. Solo exportación Excel.',
         Component: ReporteConsolidadoPromediosDetallado,
+      },
+      {
+        id: 'examenes-virtuales',
+        label: 'Exámenes virtuales',
+        icon: '📝',
+        ayuda:
+          'Exámenes del aula virtual del bimestre, agrupados por grupo, asignatura y docente, con notas de cada alumno. Filtro opcional de fechas y exportación PDF/Excel.',
+        Component: ReporteExamenesVirtuales,
       },
     ],
   },

@@ -40,6 +40,10 @@ const {
 const {
   generarExcelConsolidadoPromediosDetallado,
 } = require('../utils/reportesGeneralConsolidadoPromediosDetallado');
+const {
+  obtenerExamenesVirtuales,
+  generarExcelExamenesVirtuales,
+} = require('../utils/reportesGeneralExamenesVirtuales');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -686,6 +690,57 @@ router.get('/consolidado-promedios-detallado/excel', async (req, res) => {
   } catch (e) {
     console.error('[reportes/general/consolidado-promedios-detallado/excel]', e);
     res.status(500).json({ error: e.message || 'Error al exportar Excel detallado' });
+  }
+});
+
+/** GET /api/admin/reportes/general/examenes-virtuales */
+router.get('/examenes-virtuales', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const sedeRaw = req.query.sede_id;
+    const sedeId = sedeRaw !== undefined && sedeRaw !== '' ? parseInt(sedeRaw, 10) : null;
+    const result = await obtenerExamenesVirtuales(cid, {
+      anio: req.query.anio,
+      bimestre: req.query.bimestre,
+      sedeId: Number.isFinite(sedeId) ? sedeId : null,
+      desde: req.query.desde,
+      hasta: req.query.hasta,
+    });
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (e) {
+    console.error('[reportes/general/examenes-virtuales]', e);
+    res.status(500).json({ error: e.message || 'Error al generar el reporte de exámenes virtuales' });
+  }
+});
+
+/** GET /api/admin/reportes/general/examenes-virtuales/excel */
+router.get('/examenes-virtuales/excel', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const sedeRaw = req.query.sede_id;
+    const sedeId = sedeRaw !== undefined && sedeRaw !== '' ? parseInt(sedeRaw, 10) : null;
+    const result = await generarExcelExamenesVirtuales(cid, {
+      anio: req.query.anio,
+      bimestre: req.query.bimestre,
+      sedeId: Number.isFinite(sedeId) ? sedeId : null,
+      desde: req.query.desde,
+      hasta: req.query.hasta,
+    });
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(Buffer.from(result.buffer));
+  } catch (e) {
+    console.error('[reportes/general/examenes-virtuales/excel]', e);
+    res.status(500).json({ error: e.message || 'Error al exportar Excel de exámenes virtuales' });
   }
 });
 
