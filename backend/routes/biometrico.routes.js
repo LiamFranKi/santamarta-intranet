@@ -108,10 +108,15 @@ router.post('/hikvision/eventos', (req, res) => {
   });
 });
 
+function esAdminOCoordinador(tipo) {
+  const t = String(tipo || '').toUpperCase();
+  return t === 'ADMINISTRADOR' || t === 'COORDINADOR';
+}
+
 /** Admin: estado del webhook + URL para pegar en el dispositivo */
 router.get('/admin/estado', authenticateToken, async (req, res) => {
   try {
-    if (req.user?.tipo !== 'ADMINISTRADOR') {
+    if (!esAdminOCoordinador(req.user?.tipo)) {
       return res.status(403).json({ error: 'Solo administrador' });
     }
     const tokenOk = !!webhookTokenConfigured();
@@ -256,7 +261,7 @@ router.post('/admin/probar-marcacion', authenticateToken, async (req, res) => {
 
 router.get('/admin/eventos', authenticateToken, async (req, res) => {
   try {
-    if (req.user?.tipo !== 'ADMINISTRADOR') {
+    if (!esAdminOCoordinador(req.user?.tipo)) {
       return res.status(403).json({ error: 'Solo administrador' });
     }
     const filters = eventFiltersFromQuery(req.query);

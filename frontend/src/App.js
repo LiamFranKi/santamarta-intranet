@@ -685,7 +685,7 @@ function AppRoutes() {
       <Route
         path="/admin/herramientas/tardanzas"
         element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR']}>
             <AdminTardanzas />
           </PrivateRoute>
         }
@@ -1653,7 +1653,7 @@ function AppRoutes() {
       <Route
         path="/admin/config"
         element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR']}>
             <Dashboard />
           </PrivateRoute>
         }

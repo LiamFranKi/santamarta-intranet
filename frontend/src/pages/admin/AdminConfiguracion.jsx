@@ -498,9 +498,12 @@ function AdminConfiguracion() {
   const quillModulesMatricula = useMemo(() => QUILL_MODULES_MATRICULA, []);
   const visibleTabs = useMemo(
     () =>
-      CONFIG_TABS.filter(
-        (tab) => !tab.oculto && (!tab.soloAdmin || user?.tipo === 'ADMINISTRADOR')
-      ),
+      CONFIG_TABS.filter((tab) => {
+        if (tab.oculto) return false;
+        if (user?.tipo === 'COORDINADOR') return tab.id === 'pagos';
+        if (tab.soloAdmin && user?.tipo !== 'ADMINISTRADOR') return false;
+        return true;
+      }),
     [user?.tipo]
   );
   const [config, setConfig] = useState({
@@ -601,6 +604,10 @@ function AdminConfiguracion() {
   useEffect(() => {
     cargarConfiguracion();
   }, []);
+
+  useEffect(() => {
+    if (user?.tipo === 'COORDINADOR') setActiveTab('pagos');
+  }, [user?.tipo]);
 
   const cargarConfiguracion = async () => {
     try {

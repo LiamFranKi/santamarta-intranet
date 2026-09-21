@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams, useParams, Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { esPaqueteCoordinador, esPaqueteAcademico } from '../../utils/coordinadorAcceso';
+import { esPaqueteCoordinador, esPaqueteAcademico, esCoordinador } from '../../utils/coordinadorAcceso';
 import DashboardLayout from '../../components/DashboardLayout';
 import BirthdayWidget from '../../components/BirthdayWidget';
 import EleccionesCampanaBanner from '../../components/EleccionesCampanaBanner';
@@ -58,6 +58,10 @@ function rutaAdminPermitidaCoordinador(pathname, tipo) {
     '/admin/mensajes',
     '/admin/gestion-operativa',
   ];
+  if (esCoordinador(tipo)) {
+    ok.push('/admin/herramientas/tardanzas');
+    if (p === '/admin/config' || p === '/admin/config/') return true;
+  }
   if (esPaqueteAcademico(tipo)) {
     ok.push(
       '/admin/academico/niveles',

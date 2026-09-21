@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { generarPdfTardanzasPersonal, generarPdfFaltasPersonal } from '../../utils/pdfTardanzasPersonal';
@@ -125,6 +126,8 @@ function buildFiltroEtiqueta({ personalId, personal, desde, hasta }) {
 }
 
 export default function AdminTardanzas() {
+  const { user } = useAuth();
+  const puedeMutarRegistros = user?.tipo === 'ADMINISTRADOR';
   const [meta, setMeta] = useState(null);
   const [archivo, setArchivo] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -1042,6 +1045,8 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                   >
                     Buscar
                   </button>
+                  {puedeMutarRegistros && (
+                  <>
                   <button
                     type="button"
                     className="admin-tardanzas-lock-btn"
@@ -1071,6 +1076,8 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                   >
                     +
                   </button>
+                  </>
+                  )}
                   <button
                     type="button"
                     className="admin-tardanzas-btn admin-tardanzas-btn--hoy"
@@ -1215,6 +1222,8 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
               >
                 {faltasLoading ? '…' : 'Buscar'}
               </button>
+              {puedeMutarRegistros && (
+              <>
               <button
                 type="button"
                 className="admin-tardanzas-lock-btn"
@@ -1244,6 +1253,8 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
               >
                 +
               </button>
+              </>
+              )}
               <button
                 type="button"
                 className="admin-tardanzas-btn admin-tardanzas-btn--hoy"
@@ -1432,6 +1443,8 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
               >
                 {listaLoading ? '…' : 'Buscar'}
               </button>
+              {puedeMutarRegistros && (
+              <>
               <button
                 type="button"
                 className="admin-tardanzas-lock-btn"
@@ -1461,6 +1474,8 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
               >
                 +
               </button>
+              </>
+              )}
               <button
                 type="button"
                 className="admin-tardanzas-btn admin-tardanzas-btn--hoy"

@@ -24,6 +24,13 @@ function pathMatch(path, prefixes) {
   return prefixes.some((pre) => p === pre || p.startsWith(`${pre}/`));
 }
 
+/** COORDINADOR: GET/PUT de Configuración General solo para el card Pagos. */
+function coordinadorPuedeConfigPagos(path, method) {
+  const p = String(path || '');
+  const m = String(method || '').toUpperCase();
+  return p === '/configuracion' && (m === 'GET' || m === 'HEAD' || m === 'OPTIONS' || m === 'PUT');
+}
+
 /** /api/admin (admin.routes.js): perfil, institucional (GET), documentos (GET), comunicaciones. */
 function coordinadorPuedeAdminCore(path, method) {
   const p = String(path || '');
@@ -86,6 +93,7 @@ module.exports = {
   esMetodoLectura,
   pathMatch,
   coordinadorPuedeAdminCore,
+  coordinadorPuedeConfigPagos,
   coordinadorPuedeDocente,
   coordinadorPuedeAcademico,
   requireAdminOCoordinadorGet,

@@ -224,8 +224,11 @@ router.use((req, res, next) => {
     }
   }
   if (req.user.tipo === 'DIRECTOR' || req.user.tipo === 'COORDINADOR' || req.user.tipo === 'CONTADOR') {
-    const { coordinadorPuedeAdminCore } = require('../utils/coordinadorAcceso');
+    const { coordinadorPuedeAdminCore, coordinadorPuedeConfigPagos } = require('../utils/coordinadorAcceso');
     if (coordinadorPuedeAdminCore(req.path || '', req.method)) {
+      return next();
+    }
+    if (req.user.tipo === 'COORDINADOR' && coordinadorPuedeConfigPagos(req.path || '', req.method)) {
       return next();
     }
   }
@@ -1693,7 +1696,27 @@ router.put('/configuracion', uploadConfig.fields([
 ]), async (req, res) => {
   try {
     const { colegio_id } = req.user;
-    const body = req.body;
+    const body = req.body || {};
+
+    if (req.user?.tipo === 'COORDINADOR') {
+      const permitidos = new Set([
+        'ciclo_pensiones',
+        'inicio_pensiones',
+        'total_pensiones',
+        'moneda',
+        'monto_adicional',
+        'bloquear_deudores',
+        'bloquear_deudores_hasta_mes',
+        'pensiones_vencimiento',
+        'dias_tolerancia',
+      ]);
+      Object.keys(body).forEach((k) => {
+        if (!permitidos.has(k)) delete body[k];
+      });
+      if (req.files) {
+        Object.keys(req.files).forEach((k) => { delete req.files[k]; });
+      }
+    }
 
     // Preparar datos para actualizar en colegios
     const updateFields = [];

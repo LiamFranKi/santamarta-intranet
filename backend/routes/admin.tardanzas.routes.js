@@ -34,9 +34,21 @@ const upload = multer({
   },
 });
 
+function esAdminOCoordinadorTardanzas(tipo) {
+  const t = String(tipo || '').toUpperCase();
+  return t === 'ADMINISTRADOR' || t === 'COORDINADOR';
+}
+
+function requireAdminTardanzasEscritura(req, res, next) {
+  if (req.user?.tipo === 'ADMINISTRADOR') return next();
+  return res.status(403).json({
+    error: 'Solo el administrador puede ajustar, quitar o agregar registros de tardanzas.',
+  });
+}
+
 router.use(authenticateToken);
 router.use((req, res, next) => {
-  if (req.user?.tipo === 'ADMINISTRADOR') return next();
+  if (esAdminOCoordinadorTardanzas(req.user?.tipo)) return next();
   return res.status(403).json({ error: 'Solo el administrador puede gestionar tardanzas del personal.' });
 });
 
@@ -170,7 +182,7 @@ router.post('/importar', upload.single('archivo'), async (req, res) => {
 });
 
 /** PATCH /api/admin/tardanzas/registro/:id — editar hora entrada (y opcionalmente salida) */
-router.patch('/registro/:id', async (req, res) => {
+router.patch('/registro/:id', requireAdminTardanzasEscritura, async (req, res) => {
   try {
     const registroId = parseInt(req.params.id, 10);
     if (!Number.isFinite(registroId)) {
@@ -222,7 +234,7 @@ router.patch('/registro/:id', async (req, res) => {
 });
 
 /** DELETE /api/admin/tardanzas/registro/:id */
-router.delete('/registro/:id', async (req, res) => {
+router.delete('/registro/:id', requireAdminTardanzasEscritura, async (req, res) => {
   try {
     const registroId = parseInt(req.params.id, 10);
     if (!Number.isFinite(registroId)) {
@@ -241,7 +253,7 @@ router.delete('/registro/:id', async (req, res) => {
  * POST /api/admin/tardanzas/registro
  * Alta manual por olvido de marcación: { personal_id, fecha, hora_entrada, hora_salida? }
  */
-router.post('/registro', async (req, res) => {
+router.post('/registro', requireAdminTardanzasEscritura, async (req, res) => {
   try {
     const body = req.body || {};
     const { query, execute } = require('../utils/mysql');
