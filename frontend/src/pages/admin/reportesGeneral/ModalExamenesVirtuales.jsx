@@ -34,6 +34,9 @@ export default function ModalExamenesVirtuales({
   anio,
   bimestre,
   sedeId,
+  nivelId,
+  grado,
+  docenteId,
   desde,
   hasta,
 }) {
@@ -95,6 +98,9 @@ export default function ModalExamenesVirtuales({
     try {
       const params = { anio, bimestre };
       if (sedeId) params.sede_id = sedeId;
+      if (nivelId) params.nivel_id = nivelId;
+      if (grado) params.grado = grado;
+      if (docenteId) params.docente_id = docenteId;
       if (desde) params.desde = desde;
       if (hasta) params.hasta = hasta;
       const res = await api.get('/admin/reportes/general/examenes-virtuales/excel', {

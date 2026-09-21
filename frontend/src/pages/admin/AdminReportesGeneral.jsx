@@ -205,7 +205,7 @@ const REPORT_CATALOG = [
         label: 'Exámenes virtuales',
         icon: '📝',
         ayuda:
-          'Exámenes del aula virtual del bimestre, agrupados por grupo, asignatura y docente, con notas de cada alumno. Filtro opcional de fechas y exportación PDF/Excel.',
+          'Exámenes del aula virtual del bimestre, agrupados por grupo, asignatura y docente, con notas de cada alumno. Filtros opcionales de nivel, grado, docente y fechas. Exportación PDF/Excel.',
         Component: ReporteExamenesVirtuales,
       },
     ],

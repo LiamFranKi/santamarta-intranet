@@ -20,14 +20,17 @@ const BORDER_THIN = { style: 'thin', color: { argb: 'FFCBD5E1' } };
 function isoFecha(v) {
   if (v == null || v === '') return null;
   if (v instanceof Date && !Number.isNaN(v.getTime())) {
-    const y = v.getFullYear();
-    const m = String(v.getMonth() + 1).padStart(2, '0');
-    const d = String(v.getDate()).padStart(2, '0');
-    if (y < 1000) return null;
+    // DATE de MySQL llega como UTC medianoche; UTC evita el desfase -5 (Lima).
+    const y = v.getUTCFullYear();
+    const m = String(v.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(v.getUTCDate()).padStart(2, '0');
+    if (y < 1990) return null;
     return `${y}-${m}-${d}`;
   }
   const s = String(v).trim().slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || s.startsWith('0000')) return null;
+  const y = parseInt(s.slice(0, 4), 10);
+  if (!Number.isFinite(y) || y < 1990) return null;
   return s;
 }
 
@@ -42,17 +45,9 @@ function validarFechaISO(s) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(s || '').trim());
 }
 
-function examenEnRango(ex, desde, hasta) {
-  if (!desde && !hasta) return true;
-  const fd = isoFecha(ex.fecha_desde);
-  const fh = isoFecha(ex.fecha_hasta);
-  if (!fd && !fh) return true;
-  const start = fd || '0001-01-01';
-  const end = fh || '9999-12-31';
-  if (desde && end < desde) return false;
-  if (hasta && start > hasta) return false;
-  return true;
-}
+/** Ventana programada real (ignora 0000-00-00, que mysql2 a veces vuelve 1899/1970). */
+const SQL_FECHA_EXAMEN_REAL = `(ae.fecha_desde IS NOT NULL AND CAST(ae.fecha_desde AS CHAR) >= '1990-01-01')`;
+const SQL_FECHA_HASTA_REAL = `(ae.fecha_hasta IS NOT NULL AND CAST(ae.fecha_hasta AS CHAR) >= '1990-01-01')`;
 
 function nombrePersona(apellidos, nombres) {
   const ap = String(apellidos || '').trim();
@@ -123,6 +118,9 @@ async function obtenerExamenesVirtuales(colegioId, filtros) {
   const anio = parseInt(filtros.anio, 10);
   const bimestre = parseInt(filtros.bimestre, 10);
   const sedeId = filtros.sedeId != null ? parseInt(filtros.sedeId, 10) : NaN;
+  const nivelId = filtros.nivelId != null ? parseInt(filtros.nivelId, 10) : NaN;
+  const grado = filtros.grado != null ? parseInt(filtros.grado, 10) : NaN;
+  const docenteId = filtros.docenteId != null ? parseInt(filtros.docenteId, 10) : NaN;
   const desde = validarFechaISO(filtros.desde) ? String(filtros.desde).trim() : null;
   const hasta = validarFechaISO(filtros.hasta) ? String(filtros.hasta).trim() : null;
 
@@ -143,8 +141,8 @@ async function obtenerExamenesVirtuales(colegioId, filtros) {
       ae.titulo,
       ae.estado,
       ae.ciclo,
-      ae.fecha_desde,
-      ae.fecha_hasta,
+      CASE WHEN CAST(ae.fecha_desde AS CHAR) LIKE '0000%' THEN NULL ELSE DATE_FORMAT(ae.fecha_desde, '%Y-%m-%d') END AS fecha_desde,
+      CASE WHEN CAST(ae.fecha_hasta AS CHAR) LIKE '0000%' THEN NULL ELSE DATE_FORMAT(ae.fecha_hasta, '%Y-%m-%d') END AS fecha_hasta,
       ae.tipo,
       a.id AS asignatura_id,
       c.nombre AS curso_nombre,
@@ -173,10 +171,42 @@ async function obtenerExamenesVirtuales(colegioId, filtros) {
     sql += ' AND g.sede_id = ?';
     params.push(sedeId);
   }
+  if (Number.isFinite(nivelId)) {
+    sql += ' AND g.nivel_id = ?';
+    params.push(nivelId);
+  }
+  if (Number.isFinite(grado)) {
+    sql += ' AND CAST(g.grado AS UNSIGNED) = ?';
+    params.push(grado);
+  }
+  if (Number.isFinite(docenteId)) {
+    sql += ' AND COALESCE(ae.trabajador_id, a.personal_id) = ?';
+    params.push(docenteId);
+  }
+  if (desde || hasta) {
+    const d = desde || '0001-01-01';
+    const h = hasta || '9999-12-31';
+    // Ventana programada que cruza el rango, O al menos un alumno rindió en esas fechas.
+    // Sin esto, los exámenes con 0000-00-00 (sin horario) desaparecían al filtrar por fechas.
+    sql += ` AND (
+      (${SQL_FECHA_EXAMEN_REAL} AND ${SQL_FECHA_HASTA_REAL}
+        AND DATE(ae.fecha_desde) <= ? AND DATE(ae.fecha_hasta) >= ?)
+      OR (${SQL_FECHA_EXAMEN_REAL} AND NOT ${SQL_FECHA_HASTA_REAL} AND DATE(ae.fecha_desde) <= ?)
+      OR (NOT ${SQL_FECHA_EXAMEN_REAL} AND ${SQL_FECHA_HASTA_REAL} AND DATE(ae.fecha_hasta) >= ?)
+      OR EXISTS (
+        SELECT 1 FROM asignaturas_examenes_pruebas p
+        WHERE p.examen_id = ae.id
+          AND p.fecha_hora IS NOT NULL
+          AND CAST(p.fecha_hora AS CHAR) >= '1990-01-01'
+          AND DATE(p.fecha_hora) >= ?
+          AND DATE(p.fecha_hora) <= ?
+      )
+    )`;
+    params.push(h, d, h, d, d, h);
+  }
   sql += ' ORDER BY n.nombre ASC, CAST(g.grado AS UNSIGNED) ASC, g.seccion ASC, c.nombre ASC, ae.id ASC';
 
-  const examenesRaw = await query(sql, params);
-  const examenes = (examenesRaw || []).filter((ex) => examenEnRango(ex, desde, hasta));
+  const examenes = (await query(sql, params)) || [];
 
   const [colegioRow] = await query(
     'SELECT nombre FROM colegios WHERE id = ? LIMIT 1',
@@ -184,11 +214,28 @@ async function obtenerExamenesVirtuales(colegioId, filtros) {
   );
   const colegioNombre = String(colegioRow?.nombre || '').trim() || 'Colegio';
   const bimLabel = BIM_LABEL[bimestre] || String(bimestre);
+  const extraFiltro = [];
+  if (Number.isFinite(nivelId)) {
+    const [nv] = await query('SELECT nombre FROM niveles WHERE id = ? LIMIT 1', [nivelId]);
+    if (nv?.nombre) extraFiltro.push(String(nv.nombre).trim());
+  }
+  if (Number.isFinite(grado)) {
+    extraFiltro.push(etiquetaGradoTitulo(extraFiltro[0] || '', grado));
+  }
+  if (Number.isFinite(docenteId)) {
+    const [doc] = await query('SELECT apellidos, nombres FROM personal WHERE id = ? LIMIT 1', [docenteId]);
+    if (doc) extraFiltro.push(nombrePersona(doc.apellidos, doc.nombres));
+  }
   const rangoTxt = (() => {
-    if (!desde && !hasta) return 'Todo el bimestre';
-    const d = desde ? fmtFechaUi(desde) : 'inicio';
-    const h = hasta ? fmtFechaUi(hasta) : 'fin';
-    return `${d} — ${h}`;
+    const partes = [];
+    if (!desde && !hasta) partes.push('Todo el bimestre');
+    else {
+      const d = desde ? fmtFechaUi(desde) : 'inicio';
+      const h = hasta ? fmtFechaUi(hasta) : 'fin';
+      partes.push(`${d} — ${h}`);
+    }
+    if (extraFiltro.length) partes.push(extraFiltro.filter(Boolean).join(' · '));
+    return partes.join('  ·  ');
   })();
 
   const titulo = `EXÁMENES VIRTUALES — BIMESTRE ${bimLabel} · ${anio}`;
@@ -224,7 +271,7 @@ async function obtenerExamenesVirtuales(colegioId, filtros) {
     const ph = chunk.map(() => '?').join(',');
     const rows = await query(
       `SELECT aep.id, aep.examen_id, aep.matricula_id, aep.puntaje, aep.correctas, aep.incorrectas,
-              aep.estado, aep.fecha_hora
+              aep.estado, DATE_FORMAT(aep.fecha_hora, '%Y-%m-%d') AS fecha_hora
        FROM asignaturas_examenes_pruebas aep
        WHERE aep.examen_id IN (${ph})
        ORDER BY aep.id ASC`,

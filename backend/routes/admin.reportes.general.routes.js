@@ -693,19 +693,29 @@ router.get('/consolidado-promedios-detallado/excel', async (req, res) => {
   }
 });
 
+function filtrosExamenesVirtuales(req) {
+  const optInt = (v) => {
+    if (v === undefined || v === null || v === '') return null;
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? n : null;
+  };
+  return {
+    anio: req.query.anio,
+    bimestre: req.query.bimestre,
+    sedeId: optInt(req.query.sede_id),
+    nivelId: optInt(req.query.nivel_id),
+    grado: optInt(req.query.grado),
+    docenteId: optInt(req.query.docente_id),
+    desde: req.query.desde,
+    hasta: req.query.hasta,
+  };
+}
+
 /** GET /api/admin/reportes/general/examenes-virtuales */
 router.get('/examenes-virtuales', async (req, res) => {
   try {
     const cid = colegioId(req);
-    const sedeRaw = req.query.sede_id;
-    const sedeId = sedeRaw !== undefined && sedeRaw !== '' ? parseInt(sedeRaw, 10) : null;
-    const result = await obtenerExamenesVirtuales(cid, {
-      anio: req.query.anio,
-      bimestre: req.query.bimestre,
-      sedeId: Number.isFinite(sedeId) ? sedeId : null,
-      desde: req.query.desde,
-      hasta: req.query.hasta,
-    });
+    const result = await obtenerExamenesVirtuales(cid, filtrosExamenesVirtuales(req));
     if (!result.ok) {
       return res.status(result.status || 500).json({ error: result.error });
     }
@@ -720,15 +730,7 @@ router.get('/examenes-virtuales', async (req, res) => {
 router.get('/examenes-virtuales/excel', async (req, res) => {
   try {
     const cid = colegioId(req);
-    const sedeRaw = req.query.sede_id;
-    const sedeId = sedeRaw !== undefined && sedeRaw !== '' ? parseInt(sedeRaw, 10) : null;
-    const result = await generarExcelExamenesVirtuales(cid, {
-      anio: req.query.anio,
-      bimestre: req.query.bimestre,
-      sedeId: Number.isFinite(sedeId) ? sedeId : null,
-      desde: req.query.desde,
-      hasta: req.query.hasta,
-    });
+    const result = await generarExcelExamenesVirtuales(cid, filtrosExamenesVirtuales(req));
     if (!result.ok) {
       return res.status(result.status || 500).json({ error: result.error });
     }

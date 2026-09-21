@@ -14,10 +14,35 @@ const BIMESTRES = [
   { value: 4, label: 'BIMESTRE 4' },
 ];
 
+function gradosParaNivel(nivel) {
+  if (!nivel) return [];
+  const gminRaw = nivel.grado_minimo;
+  const gmaxRaw = nivel.grado_maximo;
+  const gmin = gminRaw !== undefined && gminRaw !== null && gminRaw !== '' ? Number(gminRaw) : NaN;
+  const gmax = gmaxRaw !== undefined && gmaxRaw !== null && gmaxRaw !== '' ? Number(gmaxRaw) : NaN;
+  if (Number.isFinite(gmin) && Number.isFinite(gmax) && gmax >= gmin) {
+    return Array.from({ length: gmax - gmin + 1 }, (_, i) => gmin + i);
+  }
+  const name = String(nivel.nombre || '').toLowerCase();
+  if (name.includes('inicial')) return [1, 2, 3, 4, 5];
+  if (name.includes('primaria')) return [1, 2, 3, 4, 5, 6];
+  if (name.includes('secundaria')) return [1, 2, 3, 4, 5];
+  return [1, 2, 3, 4, 5, 6];
+}
+
+function etiquetaGradoOpcion(nivel, grado) {
+  const n = String(nivel?.nombre || '').toLowerCase();
+  if (n.includes('inicial')) return `${grado} Años`;
+  return `${grado}°`;
+}
+
 export default function ReporteExamenesVirtuales() {
   const [anio, setAnio] = useState('');
   const [bimestre, setBimestre] = useState('1');
   const [sedeId, setSedeId] = useState('');
+  const [nivelId, setNivelId] = useState('');
+  const [grado, setGrado] = useState('');
+  const [docenteId, setDocenteId] = useState('');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
 
@@ -31,6 +56,27 @@ export default function ReporteExamenesVirtuales() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalData, setModalData] = useState(null);
+
+  const nivelActual = (meta?.niveles || []).find((n) => String(n.id) === String(nivelId));
+  const gradosOpciones = nivelActual ? gradosParaNivel(nivelActual) : [];
+
+  const onNivelChange = (id) => {
+    setNivelId(id);
+    setGrado('');
+  };
+
+  const armarParams = () => {
+    const anioN = parseInt(anio, 10);
+    const bimN = parseInt(bimestre, 10);
+    const params = { anio: anioN, bimestre: bimN };
+    if (sedeId) params.sede_id = sedeId;
+    if (nivelId) params.nivel_id = nivelId;
+    if (grado) params.grado = grado;
+    if (docenteId) params.docente_id = docenteId;
+    if (desde) params.desde = desde;
+    if (hasta) params.hasta = hasta;
+    return params;
+  };
 
   const verReporte = async () => {
     const anioN = parseInt(anio, 10);
@@ -56,11 +102,7 @@ export default function ReporteExamenesVirtuales() {
     setModalLoading(true);
     setModalData(null);
     try {
-      const params = { anio: anioN, bimestre: bimN };
-      if (sedeId) params.sede_id = sedeId;
-      if (desde) params.desde = desde;
-      if (hasta) params.hasta = hasta;
-      const { data } = await api.get('/admin/reportes/general/examenes-virtuales', { params });
+      const { data } = await api.get('/admin/reportes/general/examenes-virtuales', { params: armarParams() });
       setModalData(data);
     } catch (e) {
       setModalOpen(false);
@@ -84,7 +126,7 @@ export default function ReporteExamenesVirtuales() {
         tone={2}
         icon="📝"
         title="Exámenes virtuales"
-        description="Exámenes en línea del aula virtual del bimestre, agrupados por grupo, asignatura y docente, con la lista de notas. Las fechas son opcionales."
+        description="Exámenes en línea del aula virtual del bimestre, agrupados por grupo, asignatura y docente. Nivel, grado y docente son opcionales. Si indica fechas, incluye los programados o rendidos en ese rango."
         compact
       >
         <div className="rg-filtros-toolbar rg-filtros-toolbar--fill">
@@ -142,6 +184,54 @@ export default function ReporteExamenesVirtuales() {
                 ))}
               </TextField>
               <TextField
+                select
+                size="small"
+                label="Nivel"
+                value={nivelId}
+                onChange={(e) => onNivelChange(e.target.value)}
+                className="rg-alum-field rg-alum-field--nivel"
+              >
+                <MenuItem value="">Todos</MenuItem>
+                {(meta?.niveles || []).map((n) => (
+                  <MenuItem key={n.id} value={String(n.id)}>
+                    {n.nombre}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                select
+                size="small"
+                label="Grado"
+                value={grado}
+                onChange={(e) => setGrado(e.target.value)}
+                className="rg-alum-field rg-alum-field--grado"
+                disabled={!nivelId || gradosOpciones.length === 0}
+              >
+                <MenuItem value="">Todos</MenuItem>
+                {gradosOpciones.map((g) => (
+                  <MenuItem key={g} value={String(g)}>
+                    {etiquetaGradoOpcion(nivelActual, g)}
+                  </MenuItem>
+                ))}
+              </TextField>
+              {(meta?.docentes || []).length > 0 && (
+                <TextField
+                  select
+                  size="small"
+                  label="Docente"
+                  value={docenteId}
+                  onChange={(e) => setDocenteId(e.target.value)}
+                  className="rg-alum-field rg-alum-field--docente"
+                >
+                  <MenuItem value="">Todos</MenuItem>
+                  {(meta.docentes || []).map((d) => (
+                    <MenuItem key={d.id} value={String(d.id)}>
+                      {d.nombre}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
+              <TextField
                 size="small"
                 type="date"
                 label="Desde"
@@ -178,6 +268,9 @@ export default function ReporteExamenesVirtuales() {
         anio={anio}
         bimestre={bimestre}
         sedeId={sedeId}
+        nivelId={nivelId}
+        grado={grado}
+        docenteId={docenteId}
         desde={desde}
         hasta={hasta}
       />

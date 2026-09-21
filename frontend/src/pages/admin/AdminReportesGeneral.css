@@ -759,6 +759,10 @@
   width: 10.75rem;
 }
 
+.rg-alum-field--docente {
+  width: 14.5rem;
+}
+
 .rg-alum-field .MuiSelect-select {
   overflow: hidden;
   text-overflow: ellipsis;

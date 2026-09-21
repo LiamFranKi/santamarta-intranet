@@ -2,6 +2,7 @@ const { query } = require('./mysql');
 const { ordenNivelEducativoNombre } = require('./listaAlumnosMatriculadosReporte');
 const { buildConceptosOpciones, buildMesesPensionOpciones, cargarConfigColegio } = require('./reportesGeneralDeudoresPagadores');
 const { nroPagoDesdeMesCalendario } = require('./deudaPensiones');
+const { sqlPersonalSinSuperadmin } = require('./superadminOculto');
 
 function mesHastaPensionPorDefecto(totalPensiones, inicioPensiones) {
   const mesActual = new Date().getMonth() + 1;
@@ -47,6 +48,23 @@ async function cargarMetaReportesGeneral(colegioId) {
 
   const turnoManana = (turnos || []).find((t) => /mañana|manana/i.test(String(t.nombre || '')));
   const sedeUno = (sedes || []).find((s) => Number(s.id) === 1);
+  const docentesRows = await query(
+    `SELECT DISTINCT p.id, p.apellidos, p.nombres
+     FROM personal p
+     WHERE p.colegio_id = ?
+       AND ${sqlPersonalSinSuperadmin('p')}
+       AND (
+         EXISTS (SELECT 1 FROM asignaturas a WHERE a.personal_id = p.id AND a.colegio_id = p.colegio_id)
+         OR EXISTS (SELECT 1 FROM asignaturas_examenes ae WHERE ae.trabajador_id = p.id)
+       )
+     ORDER BY p.apellidos ASC, p.nombres ASC`,
+    [colegioId]
+  ).catch(() => []);
+  const docentes = (docentesRows || []).map((p) => {
+    const ap = String(p.apellidos || '').trim();
+    const nom = String(p.nombres || '').trim();
+    return { id: p.id, nombre: ap && nom ? `${ap}, ${nom}` : ap || nom || `Docente ${p.id}` };
+  });
   const pagoCfg = await cargarConfigColegio(colegioId);
   const mesesPension = buildMesesPensionOpciones(pagoCfg.totalPensiones, pagoCfg.inicioPensiones);
   const defaultMesHasta = mesHastaPensionPorDefecto(pagoCfg.totalPensiones, pagoCfg.inicioPensiones);
@@ -57,6 +75,7 @@ async function cargarMetaReportesGeneral(colegioId) {
     niveles: niveles || [],
     turnos: turnos || [],
     sedes: sedes || [],
+    docentes,
     moneda: pagoCfg.moneda,
     total_pensiones: pagoCfg.totalPensiones,
     inicio_pensiones: pagoCfg.inicioPensiones,
