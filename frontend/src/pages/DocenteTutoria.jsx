@@ -26,6 +26,7 @@ import { useGrupoReportesConducta } from '../components/grupoReportes/useGrupoRe
 import { buildOpcionesTutoriaGrupo } from '../utils/opcionesMenuGrupo';
 import { abrirVerLibretasGrupo } from '../utils/exportLibretasGrupoPdf';
 import { promptYExportarLibretaAlumno } from '../utils/exportLibretaAlumnoPdf';
+import { esNivelInicial } from '../utils/esNivelInicial';
 
 /** Rango inicial (año calendario del año lectivo hasta hoy) para reportes tutor evidencias */
 function rangoFechasReporteGrupo(anioEscolar) {
@@ -816,7 +817,10 @@ function DocenteTutoria({
     setOpenDropdownAlumno(null);
     const alumnoId = alumno?.id;
     if (!alumnoId) return;
-    await promptYExportarLibretaAlumno(alumnoId, { anioDefault: grupoInfo?.anio });
+    await promptYExportarLibretaAlumno(alumnoId, {
+      anioDefault: grupoInfo?.anio,
+      grupoEsInicial: esNivelInicial(grupoInfo),
+    });
   };
 
   const handleVerIncidenciasTutoria = async (alumno) => {

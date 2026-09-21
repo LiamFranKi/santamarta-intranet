@@ -6,15 +6,31 @@ import './AdminWebFaqs.css';
 
 const API = '/admin/faqs';
 
-const PAGINA_NIVELES = [
-  { id: 'todos', label: 'Todos los niveles' },
-  { id: 'inicial', label: 'Inicial' },
-  { id: 'primaria', label: 'Primaria' },
-  { id: 'secundaria', label: 'Secundaria' },
+const PAGINA_DESTINOS = [
+  { id: 'web', label: 'Web', hint: 'Menú Preguntas frecuentes del sitio' },
+  { id: 'inicial', label: 'Inicial', hint: 'Página de Inicial' },
+  { id: 'primaria', label: 'Primaria', hint: 'Página de Primaria' },
+  { id: 'secundaria', label: 'Secundaria', hint: 'Página de Secundaria' },
 ];
 
-function etiquetaNivel(id) {
-  return PAGINA_NIVELES.find((n) => n.id === id)?.label || 'Todos los niveles';
+const FILTRO_DESTINOS = [{ id: '', label: 'Todas' }, ...PAGINA_DESTINOS];
+
+function parseDestinosItem(item) {
+  if (Array.isArray(item?.pagina_destinos) && item.pagina_destinos.length) {
+    return PAGINA_DESTINOS.map((d) => d.id).filter((id) => item.pagina_destinos.includes(id));
+  }
+  const s = String(item?.pagina_nivel || 'todos').toLowerCase();
+  if (s === 'todos' || !s) return PAGINA_DESTINOS.map((d) => d.id);
+  if (s === 'web') return ['web'];
+  if (s === 'inicial' || s === 'primaria' || s === 'secundaria') return ['web', s];
+  if (s.includes(',')) {
+    return PAGINA_DESTINOS.map((d) => d.id).filter((id) => s.split(',').map((x) => x.trim()).includes(id));
+  }
+  return PAGINA_DESTINOS.map((d) => d.id);
+}
+
+function etiquetaDestino(id) {
+  return PAGINA_DESTINOS.find((n) => n.id === id)?.label || id;
 }
 
 const swalOpts = {
@@ -61,6 +77,7 @@ export default function AdminWebFaqs({ soloLectura = false }) {
   const [categorias, setCategorias] = useState([]);
   const [preguntas, setPreguntas] = useState([]);
   const [preview, setPreview] = useState([]);
+  const [previewDestino, setPreviewDestino] = useState('web');
   const [catFiltro, setCatFiltro] = useState('');
   const [nivelFiltro, setNivelFiltro] = useState('');
   const [q, setQ] = useState('');
@@ -85,9 +102,11 @@ export default function AdminWebFaqs({ soloLectura = false }) {
   }, [catFiltro, nivelFiltro, q]);
 
   const cargarPreview = useCallback(async () => {
-    const { data } = await api.get(`${API}/preview`);
+    const params = {};
+    if (previewDestino) params.destino = previewDestino;
+    const { data } = await api.get(`${API}/preview`, { params });
     setPreview(data.grupos || []);
-  }, []);
+  }, [previewDestino]);
 
   const cargar = useCallback(async () => {
     try {
@@ -211,11 +230,10 @@ export default function AdminWebFaqs({ soloLectura = false }) {
               </select>
             </div>
             <div className="rs-field">
-              <label>Página de nivel</label>
+              <label>Visible en</label>
               <select value={nivelFiltro} onChange={(e) => setNivelFiltro(e.target.value)}>
-                <option value="">Todas</option>
-                {PAGINA_NIVELES.map((n) => (
-                  <option key={n.id} value={n.id}>
+                {FILTRO_DESTINOS.map((n) => (
+                  <option key={n.id || 'todas'} value={n.id}>
                     {n.label}
                   </option>
                 ))}
@@ -240,7 +258,7 @@ export default function AdminWebFaqs({ soloLectura = false }) {
                       categoria_id: catFiltro || categorias[0]?.id,
                       pregunta: '',
                       respuesta: '',
-                      pagina_nivel: nivelFiltro || 'todos',
+                      pagina_destinos: nivelFiltro ? [nivelFiltro] : ['web'],
                       orden: (preguntas[preguntas.length - 1]?.orden || 0) + 1,
                       activo: 1,
                     },
@@ -262,8 +280,12 @@ export default function AdminWebFaqs({ soloLectura = false }) {
                   {g.items.map((p) => (
                     <article key={p.id} className="wf-card">
                       <div className="wf-card__meta">
-                        <span className={`wf-chip wf-chip--${p.pagina_nivel || 'todos'}`}>
-                          {etiquetaNivel(p.pagina_nivel || 'todos')}
+                        <span className="wf-card__destinos">
+                          {parseDestinosItem(p).map((id) => (
+                            <span key={id} className={`wf-chip wf-chip--${id}`}>
+                              {etiquetaDestino(id)}
+                            </span>
+                          ))}
                         </span>
                         <span className={`rs-badge ${esActivo(p.activo) ? 'rs-badge--ok' : 'rs-badge--off'}`}>
                           {esActivo(p.activo) ? 'Activo' : 'Inactivo'}
@@ -375,8 +397,22 @@ export default function AdminWebFaqs({ soloLectura = false }) {
 
       {subTab === 'preview' && (
         <div>
+          <div className="rs-toolbar wf-toolbar-grid" style={{ marginTop: 0, marginBottom: '1rem' }}>
+            <div className="rs-field">
+              <label>Vista como en</label>
+              <select value={previewDestino} onChange={(e) => setPreviewDestino(e.target.value)}>
+                {PAGINA_DESTINOS.map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
           <p className="rs-muted" style={{ marginBottom: '1rem' }}>
-            Vista agrupada como en la web pública (solo activos).
+            {previewDestino === 'web'
+              ? 'Así se ve el menú Preguntas frecuentes de la web pública (solo las marcadas con Web).'
+              : `Así se ve el bloque de preguntas en la página de ${etiquetaDestino(previewDestino)}.`}
           </p>
           {preview.length === 0 ? (
             <p className="rs-empty">No hay categorías/preguntas activas.</p>
@@ -569,12 +605,41 @@ function FaqModal({ mode, item, categorias, saving, onClose, onSave }) {
     categoria_id: item?.categoria_id || categorias[0]?.id || '',
     pregunta: item?.pregunta || '',
     respuesta: item?.respuesta || '',
-    pagina_nivel: item?.pagina_nivel || 'todos',
+    pagina_destinos: parseDestinosItem(item),
     orden: item?.orden ?? 0,
     activo: esActivo(item?.activo ?? 1),
   }));
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const soloVer = mode === 'view';
+  const toggleDestino = (id) => {
+    setForm((f) => {
+      const has = f.pagina_destinos.includes(id);
+      return {
+        ...f,
+        pagina_destinos: has ? f.pagina_destinos.filter((x) => x !== id) : [...f.pagina_destinos, id],
+      };
+    });
+  };
+  const marcarTodas = () => set('pagina_destinos', PAGINA_DESTINOS.map((d) => d.id));
+  const guardar = () => {
+    if (!form.pagina_destinos.length) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Elija un destino',
+        text: 'Marque Web, Inicial, Primaria y/o Secundaria. Puede elegir más de uno.',
+        ...swalOpts,
+      });
+      return;
+    }
+    onSave({
+      categoria_id: Number(form.categoria_id),
+      pregunta: form.pregunta,
+      respuesta: form.respuesta,
+      pagina_destinos: form.pagina_destinos,
+      orden: Number(form.orden) || 0,
+      activo: form.activo ? 1 : 0,
+    });
+  };
 
   return (
     <Overlay
@@ -591,21 +656,7 @@ function FaqModal({ mode, item, categorias, saving, onClose, onSave }) {
             <button type="button" className="rs-btn rs-btn-ghost" onClick={onClose}>
               Cancelar
             </button>
-            <button
-              type="button"
-              className="rs-btn rs-btn-primary"
-              disabled={saving}
-              onClick={() =>
-                onSave({
-                  categoria_id: Number(form.categoria_id),
-                  pregunta: form.pregunta,
-                  respuesta: form.respuesta,
-                  pagina_nivel: form.pagina_nivel,
-                  orden: Number(form.orden) || 0,
-                  activo: form.activo ? 1 : 0,
-                })
-              }
-            >
+            <button type="button" className="rs-btn rs-btn-primary" disabled={saving} onClick={guardar}>
               {saving ? 'Guardando…' : '💾 Guardar'}
             </button>
           </>
@@ -624,18 +675,30 @@ function FaqModal({ mode, item, categorias, saving, onClose, onSave }) {
             ))}
           </select>
         </div>
-        <div className="rs-field">
-          <label>Página de nivel *</label>
-          <select value={form.pagina_nivel} onChange={(e) => set('pagina_nivel', e.target.value)}>
-            {PAGINA_NIVELES.map((n) => (
-              <option key={n.id} value={n.id}>
-                {n.label}
-              </option>
+        <div className="rs-field rs-field--full">
+          <label>Visible en *</label>
+          <div className="wf-destinos">
+            {PAGINA_DESTINOS.map((d) => (
+              <label key={d.id} className={`wf-destino${form.pagina_destinos.includes(d.id) ? ' is-on' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={form.pagina_destinos.includes(d.id)}
+                  onChange={() => toggleDestino(d.id)}
+                />
+                <span>
+                  <strong>{d.label}</strong>
+                  <small>{d.hint}</small>
+                </span>
+              </label>
             ))}
-          </select>
-          <p className="rs-muted" style={{ margin: '0.35rem 0 0' }}>
-            Todos los niveles: sale en Inicial, Primaria y Secundaria. Si elige uno, solo en esa página (también
-            aparece en Preguntas frecuentes).
+          </div>
+          {!soloVer && (
+            <button type="button" className="rs-btn rs-btn-ghost rs-btn-sm" style={{ marginTop: '0.45rem' }} onClick={marcarTodas}>
+              Marcar todas (Web + los tres niveles)
+            </button>
+          )}
+          <p className="rs-muted" style={{ margin: '0.4rem 0 0' }}>
+            Puede marcar varias. Web = menú Preguntas frecuentes. Inicial / Primaria / Secundaria = la página de ese nivel.
           </p>
         </div>
         <div className="rs-field rs-field--full">

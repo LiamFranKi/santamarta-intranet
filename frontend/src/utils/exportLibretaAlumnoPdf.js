@@ -31,9 +31,12 @@ export async function fetchYExportarLibretaAlumno(hijoId, ciclo = 1, anio = null
 
 /**
  * Selector año/bimestre + PDF de un solo alumno (Tutoría, Admin → Lista de alumnos, hijos).
- * En Inicial CNEB ofrece Libreta (resumen) e Informe de progreso (completo).
+ * Informe CNEB solo si el año elegido (o el aula actual) es Inicial, no si el niño estuvo en Inicial otro año.
  */
-export async function promptYExportarLibretaAlumno(alumnoId, { anioDefault, apiBase = '/docente/hijos' } = {}) {
+export async function promptYExportarLibretaAlumno(
+  alumnoId,
+  { anioDefault, apiBase = '/docente/hijos', grupoEsInicial } = {}
+) {
   const id = parseInt(alumnoId, 10);
   if (!Number.isFinite(id) || id <= 0) {
     await Swal.fire({ icon: 'error', title: 'Error', text: 'Alumno no válido.' });
@@ -56,12 +59,17 @@ export async function promptYExportarLibretaAlumno(alumnoId, { anioDefault, apiB
     const niveles = data?.niveles || {};
     const pref = parseInt(anioDefault, 10);
     const anioSel = anios.includes(pref) ? pref : anios[0];
-    const hayInicial = anios.some((y) => esInicialEnAnio(niveles, y));
+    const inicialDeAnio = (y) => {
+      if (grupoEsInicial === true) return true;
+      if (grupoEsInicial === false) return false;
+      return esInicialEnAnio(niveles, y);
+    };
+    const puedeCnebAlgunaVez = grupoEsInicial !== false && anios.some((y) => inicialDeAnio(y));
     const { isConfirmed, value } = await Swal.fire({
-      title: hayInicial ? 'Libreta e informe' : 'Ver Libreta',
+      title: inicialDeAnio(anioSel) ? 'Libreta e informe' : 'Ver Libreta',
       html: `
-        <p style="text-align:left;margin:0 0 12px;color:#475569;font-size:0.92rem">
-          ${hayInicial
+        <p id="swal-libreta-alumno-hint" style="text-align:left;margin:0 0 12px;color:#475569;font-size:0.92rem">
+          ${inicialDeAnio(anioSel)
             ? 'En Inicial puede descargar la <b>libreta</b> (resumen para la familia) o el <b>informe de progreso</b> (detalle CNEB).'
             : 'Se descargará la libreta de este alumno.'}
         </p>
@@ -76,8 +84,8 @@ export async function promptYExportarLibretaAlumno(alumnoId, { anioDefault, apiB
           <option value="3">III Bimestre</option>
           <option value="4">IV Bimestre</option>
         </select>
-        ${hayInicial
-          ? `<div style="text-align:left;margin-top:14px;padding:10px 12px;background:#f0fdfa;border-radius:10px;border:1px solid #99f6e4">
+        ${puedeCnebAlgunaVez
+          ? `<div id="swal-cneb-doc-box" style="text-align:left;margin-top:14px;padding:10px 12px;background:#f0fdfa;border-radius:10px;border:1px solid #99f6e4;${inicialDeAnio(anioSel) ? '' : 'display:none'}">
               <label style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;cursor:pointer;font-size:0.92rem">
                 <input type="radio" name="swal-cneb-doc" value="libreta" checked style="margin-top:3px">
                 <span><b>Libreta</b> — resumen con letras AD/A/B/C, para el hogar.</span>
@@ -93,6 +101,25 @@ export async function promptYExportarLibretaAlumno(alumnoId, { anioDefault, apiB
       confirmButtonText: 'Descargar',
       cancelButtonText: 'Cancelar',
       focusConfirm: false,
+      didOpen: () => {
+        const sel = document.getElementById('swal-libreta-alumno-anio');
+        const box = document.getElementById('swal-cneb-doc-box');
+        const hint = document.getElementById('swal-libreta-alumno-hint');
+        const sync = () => {
+          const y = parseInt(sel?.value, 10);
+          const ini = inicialDeAnio(y);
+          if (box) box.style.display = ini ? 'block' : 'none';
+          if (hint) {
+            hint.innerHTML = ini
+              ? 'En Inicial puede descargar la <b>libreta</b> (resumen para la familia) o el <b>informe de progreso</b> (detalle CNEB).'
+              : 'Se descargará la libreta de este alumno.';
+          }
+          const popup = document.querySelector('.swal2-title');
+          if (popup) popup.textContent = ini ? 'Libreta e informe' : 'Ver Libreta';
+        };
+        sel?.addEventListener('change', sync);
+        sync();
+      },
       preConfirm: () => ({
         anio: parseInt(document.getElementById('swal-libreta-alumno-anio')?.value, 10),
         ciclo: parseInt(document.getElementById('swal-libreta-alumno-ciclo')?.value, 10),
@@ -100,7 +127,7 @@ export async function promptYExportarLibretaAlumno(alumnoId, { anioDefault, apiB
       }),
     });
     if (!isConfirmed || !value) return false;
-    const usarCneb = esInicialEnAnio(niveles, value.anio);
+    const usarCneb = inicialDeAnio(value.anio);
     if (usarCneb) {
       return descargarCnebHijoConAviso({
         apiBase: base,

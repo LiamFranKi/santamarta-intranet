@@ -177,8 +177,11 @@ export function useGrupoAlumnoAccionesAcademicas({ grupoId, grupoInfo, puedeElim
   }, []);
 
   const abrirLibreta = useCallback(async (alumno) => {
-    await promptYExportarLibretaAlumno(alumno?.id, { anioDefault: grupoInfo?.anio });
-  }, [grupoInfo?.anio]);
+    await promptYExportarLibretaAlumno(alumno?.id, {
+      anioDefault: grupoInfo?.anio,
+      grupoEsInicial: esNivelInicial(grupoInfo),
+    });
+  }, [grupoInfo]);
 
   const ejecutarAccion = useCallback(
     async (accion, alumno) => {

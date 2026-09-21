@@ -13557,12 +13557,12 @@ router.get('/hijos/:hijoId/libreta-anios', async (req, res) => {
     const { hijoIdNum } = gate;
 
     const rows = await query(
-      `SELECT g.anio, n.nombre AS nivel_nombre, n.tipo_calificacion
+      `SELECT g.anio, n.nombre AS nivel_nombre, n.tipo_calificacion, m.id AS matricula_id
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        INNER JOIN niveles n ON n.id = g.nivel_id AND n.colegio_id = m.colegio_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0)
-       ORDER BY g.anio DESC`,
+       ORDER BY g.anio DESC, m.id DESC`,
       [hijoIdNum, colegio_id]
     );
     const anios = [];
@@ -13571,6 +13571,7 @@ router.get('/hijos/:hijoId/libreta-anios', async (req, res) => {
       const y = parseInt(r.anio, 10);
       if (!Number.isFinite(y) || y <= 0) return;
       if (!anios.includes(y)) anios.push(y);
+      if (niveles[String(y)]) return;
       const nom = String(r.nivel_nombre || '').toUpperCase();
       niveles[String(y)] = {
         nivel_nombre: r.nivel_nombre || '',

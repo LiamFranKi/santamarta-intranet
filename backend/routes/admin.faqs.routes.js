@@ -6,6 +6,12 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const { query, execute } = require('../utils/mysql');
+const {
+  parseDestinos,
+  destinosDesdeBody,
+  paginaNivelCompat,
+  faqSinDestinos,
+} = require('../utils/webFaqDestinos');
 
 router.use(authenticateToken);
 router.use(require('../utils/coordinadorAcceso').requireAdminOCoordinadorGet);
@@ -23,20 +29,19 @@ function toBool01(v, fallback = 1) {
   return fallback;
 }
 
-function parsePaginaNivel(raw) {
-  const s = String(raw || 'todos').trim().toLowerCase();
-  if (s === 'inicial' || s === 'primaria' || s === 'secundaria' || s === 'todos') return s;
-  return 'todos';
-}
-
 function faqSinNivel(e) {
-  return e && (e.code === 'ER_BAD_FIELD_ERROR' || String(e.message || '').includes('pagina_nivel'));
+  return faqSinDestinos(e);
 }
 
 function mapFaq(row) {
   const mapped = mapActivo(row);
   if (!mapped) return mapped;
-  return { ...mapped, pagina_nivel: parsePaginaNivel(mapped.pagina_nivel) };
+  const pagina_destinos = parseDestinos(mapped.pagina_destinos, mapped.pagina_nivel);
+  return {
+    ...mapped,
+    pagina_destinos,
+    pagina_nivel: paginaNivelCompat(pagina_destinos),
+  };
 }
 
 function mapActivo(row) {
@@ -158,7 +163,8 @@ router.get('/preguntas', async (req, res) => {
   try {
     const params = [];
     let sql = `
-      SELECT f.id, f.categoria_id, f.pregunta, f.respuesta, f.orden, f.activo, f.pagina_nivel,
+      SELECT f.id, f.categoria_id, f.pregunta, f.respuesta, f.orden, f.activo,
+             f.pagina_nivel, f.pagina_destinos,
              c.codigo AS categoria_codigo, c.etiqueta AS categoria_etiqueta, c.orden AS categoria_orden
       FROM web_faqs f
       INNER JOIN web_faq_categorias c ON c.id = f.categoria_id
@@ -177,9 +183,16 @@ router.get('/preguntas', async (req, res) => {
     }
     if (req.query.pagina_nivel) {
       const raw = String(req.query.pagina_nivel).trim().toLowerCase();
-      if (raw === 'inicial' || raw === 'primaria' || raw === 'secundaria' || raw === 'todos') {
-        sql += ' AND f.pagina_nivel = ?';
-        params.push(raw);
+      if (raw === 'web' || raw === 'inicial' || raw === 'primaria' || raw === 'secundaria') {
+        sql += ' AND JSON_CONTAINS(COALESCE(f.pagina_destinos, JSON_ARRAY()), CAST(? AS JSON))';
+        params.push(JSON.stringify(raw));
+      } else if (raw === 'todos') {
+        sql += ` AND (
+          JSON_CONTAINS(COALESCE(f.pagina_destinos, JSON_ARRAY()), CAST(? AS JSON))
+          AND JSON_CONTAINS(COALESCE(f.pagina_destinos, JSON_ARRAY()), CAST(? AS JSON))
+          AND JSON_CONTAINS(COALESCE(f.pagina_destinos, JSON_ARRAY()), CAST(? AS JSON))
+        )`;
+        params.push(JSON.stringify('inicial'), JSON.stringify('primaria'), JSON.stringify('secundaria'));
       }
     }
     if (req.query.q && String(req.query.q).trim()) {
@@ -193,7 +206,7 @@ router.get('/preguntas', async (req, res) => {
   } catch (e) {
     if (faqSinNivel(e)) {
       return res.status(503).json({
-        error: 'Falta ejecutar la migración 088 (nivel en preguntas frecuentes).',
+        error: 'Falta ejecutar las migraciones 088 y 102 (destinos de preguntas frecuentes).',
       });
     }
     res.status(500).json({ error: e.message || 'Error al listar preguntas.' });
@@ -233,17 +246,22 @@ router.post('/preguntas', async (req, res) => {
 
     const orden = Number.isFinite(Number(b.orden)) ? Number(b.orden) : 0;
     const activo = toBool01(b.activo, 1);
-    const pagina_nivel = parsePaginaNivel(b.pagina_nivel);
+    const destinos = destinosDesdeBody(b);
+    if (!destinos.length) {
+      return res.status(400).json({ error: 'Elija al menos un destino (Web, Inicial, Primaria o Secundaria).' });
+    }
+    const pagina_nivel = paginaNivelCompat(destinos);
     const r = await execute(
-      `INSERT INTO web_faqs (categoria_id, pregunta, respuesta, orden, activo, pagina_nivel) VALUES (?, ?, ?, ?, ?, ?)`,
-      [categoria_id, pregunta, respuesta, orden, activo, pagina_nivel]
+      `INSERT INTO web_faqs (categoria_id, pregunta, respuesta, orden, activo, pagina_nivel, pagina_destinos)
+       VALUES (?, ?, ?, ?, ?, ?, CAST(? AS JSON))`,
+      [categoria_id, pregunta, respuesta, orden, activo, pagina_nivel, JSON.stringify(destinos)]
     );
     const rows = await query(`SELECT * FROM web_faqs WHERE id = ?`, [r.insertId]);
     res.status(201).json({ pregunta: mapFaq(rows[0]) });
   } catch (e) {
     if (faqSinNivel(e)) {
       return res.status(503).json({
-        error: 'Falta ejecutar la migración 088 (nivel en preguntas frecuentes).',
+        error: 'Falta ejecutar las migraciones 088 y 102 (destinos de preguntas frecuentes).',
       });
     }
     res.status(500).json({ error: e.message || 'Error al crear pregunta.' });
@@ -265,15 +283,21 @@ router.put('/preguntas/:id', async (req, res) => {
     if (!pregunta) return res.status(400).json({ error: 'Pregunta obligatoria' });
     if (!respuesta) return res.status(400).json({ error: 'Respuesta obligatoria' });
 
+    const destinos = destinosDesdeBody(b);
+    if (!destinos.length) {
+      return res.status(400).json({ error: 'Elija al menos un destino (Web, Inicial, Primaria o Secundaria).' });
+    }
     await execute(
-      `UPDATE web_faqs SET categoria_id = ?, pregunta = ?, respuesta = ?, orden = ?, activo = ?, pagina_nivel = ? WHERE id = ?`,
+      `UPDATE web_faqs SET categoria_id = ?, pregunta = ?, respuesta = ?, orden = ?, activo = ?,
+          pagina_nivel = ?, pagina_destinos = CAST(? AS JSON) WHERE id = ?`,
       [
         categoria_id,
         pregunta,
         respuesta,
         Number.isFinite(Number(b.orden)) ? Number(b.orden) : 0,
         toBool01(b.activo, 1),
-        parsePaginaNivel(b.pagina_nivel),
+        paginaNivelCompat(destinos),
+        JSON.stringify(destinos),
         id,
       ]
     );
@@ -282,7 +306,7 @@ router.put('/preguntas/:id', async (req, res) => {
   } catch (e) {
     if (faqSinNivel(e)) {
       return res.status(503).json({
-        error: 'Falta ejecutar la migración 088 (nivel en preguntas frecuentes).',
+        error: 'Falta ejecutar las migraciones 088 y 102 (destinos de preguntas frecuentes).',
       });
     }
     res.status(500).json({ error: e.message || 'Error al actualizar pregunta.' });
@@ -302,18 +326,24 @@ router.delete('/preguntas/:id', async (req, res) => {
 });
 
 /** Vista agrupada como la web */
-router.get('/preview', async (_req, res) => {
+router.get('/preview', async (req, res) => {
   try {
     const cats = await query(
       `SELECT id, codigo, etiqueta, orden, activo FROM web_faq_categorias WHERE activo = 1 ORDER BY orden ASC, id ASC`
     );
     const faqs = await query(
-      `SELECT id, categoria_id, pregunta, respuesta, orden, activo, pagina_nivel
+      `SELECT id, categoria_id, pregunta, respuesta, orden, activo, pagina_nivel, pagina_destinos
        FROM web_faqs WHERE activo = 1 ORDER BY orden ASC, id ASC`
     );
+    const raw = String(req.query.destino || req.query.pagina_nivel || '').trim().toLowerCase();
+    const mapped = (faqs || []).map(mapFaq);
+    const filtradas =
+      raw === 'web' || raw === 'inicial' || raw === 'primaria' || raw === 'secundaria'
+        ? mapped.filter((f) => (f.pagina_destinos || []).includes(raw))
+        : mapped;
     const grupos = (cats || []).map((c) => ({
       ...mapActivo(c),
-      preguntas: (faqs || []).filter((f) => Number(f.categoria_id) === Number(c.id)).map(mapFaq),
+      preguntas: filtradas.filter((f) => Number(f.categoria_id) === Number(c.id)),
     }));
     res.json({ grupos });
   } catch (e) {
