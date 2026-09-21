@@ -1,6 +1,7 @@
 import api from '../services/api';
 import Swal from 'sweetalert2';
 import { renderLibretaAlumnoPdf } from './exportLibretaAlumnoPdf';
+import { esNivelInicial } from './esNivelInicial';
 
 function etiquetaGrupoArchivo(grupo) {
   const nivel = String(grupo?.nivel_nombre || 'Grupo').replace(/\s+/g, '_');
@@ -60,6 +61,7 @@ export async function exportLibretasGrupoPdf({
   anioEsperado,
   añosDisponibles,
   SwalInst = Swal,
+  cnebApiBase = '/admin/cneb',
 }) {
   const anioDef = anioEsperado ?? grupo?.anio ?? new Date().getFullYear();
   const params = await promptAnioCicloLibretas({
@@ -70,6 +72,47 @@ export async function exportLibretasGrupoPdf({
   if (!params) return false;
 
   const { anio, ciclo } = params;
+
+  if (esNivelInicial(grupo) && grupo?.id) {
+    SwalInst.fire({
+      title: 'Generando libretas CNEB…',
+      allowOutsideClick: false,
+      didOpen: () => SwalInst.showLoading(),
+    });
+    try {
+      const res = await api.get(`${String(cnebApiBase).replace(/\/$/, '')}/export/libreta.pdf`, {
+        params: { nivel: 'INICIAL', grupo_id: grupo.id, bimestre: ciclo },
+        responseType: 'blob',
+        timeout: 120000,
+      });
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = `libretas_cneb_${etiquetaGrupoArchivo(grupo)}_b${ciclo}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+      SwalInst.close();
+      await SwalInst.fire({ icon: 'success', title: 'Libretas listas', text: 'El PDF del aula se descargó.' });
+      return true;
+    } catch (e) {
+      SwalInst.close();
+      let msg = e.response?.data?.error || e.message || 'No se pudo generar la libreta CNEB.';
+      if (typeof Blob !== 'undefined' && e.response?.data instanceof Blob) {
+        try {
+          const t = await e.response.data.text();
+          const j = JSON.parse(t);
+          msg = j.error || msg;
+        } catch {
+          /* keep */
+        }
+      }
+      await SwalInst.fire({ icon: 'error', title: 'Error', text: msg });
+      return false;
+    }
+  }
 
   SwalInst.fire({
     title: 'Cargando alumnos…',
@@ -164,6 +207,7 @@ export async function abrirVerLibretasGrupo(grupo, {
   anioEsperado,
   añosDisponibles,
   SwalInst = Swal,
+  cnebApiBase = '/admin/cneb',
 }) {
   await exportLibretasGrupoPdf({
     grupo,
@@ -171,5 +215,6 @@ export async function abrirVerLibretasGrupo(grupo, {
     anioEsperado,
     añosDisponibles,
     SwalInst,
+    cnebApiBase,
   });
 }

@@ -10,6 +10,7 @@ import {
 } from './libretaCuantitativaPdf';
 import { normalizarRangosLetras } from './notaLetraConversion';
 import { formatearTutoresLibreta } from './tutoresGrupoTexto';
+import { descargarCnebHijoConAviso, esInicialEnAnio } from './cnebHijoPdfs';
 
 export async function fetchYExportarLibretaAlumno(hijoId, ciclo = 1, anio = null) {
   try {
@@ -25,6 +26,115 @@ export async function fetchYExportarLibretaAlumno(hijoId, ciclo = 1, anio = null
       text: error.response?.data?.error || 'No se pudo generar la libreta',
       confirmButtonText: 'Entendido',
     });
+  }
+}
+
+/**
+ * Selector año/bimestre + PDF de un solo alumno (Tutoría, Admin → Lista de alumnos, hijos).
+ * En Inicial CNEB ofrece Libreta (resumen) e Informe de progreso (completo).
+ */
+export async function promptYExportarLibretaAlumno(alumnoId, { anioDefault, apiBase = '/docente/hijos' } = {}) {
+  const id = parseInt(alumnoId, 10);
+  if (!Number.isFinite(id) || id <= 0) {
+    await Swal.fire({ icon: 'error', title: 'Error', text: 'Alumno no válido.' });
+    return false;
+  }
+  try {
+    const base = String(apiBase || '/docente/hijos').replace(/\/$/, '');
+    const { data } = await api.get(`${base}/${id}/libreta-anios`);
+    const anios = [...new Set((data?.anios || []).map((y) => parseInt(y, 10)).filter((y) => Number.isFinite(y) && y > 0))].sort(
+      (a, b) => b - a
+    );
+    if (!anios.length) {
+      await Swal.fire({
+        icon: 'info',
+        title: 'Sin datos',
+        text: 'No hay años con matrícula para este alumno.',
+      });
+      return false;
+    }
+    const niveles = data?.niveles || {};
+    const pref = parseInt(anioDefault, 10);
+    const anioSel = anios.includes(pref) ? pref : anios[0];
+    const hayInicial = anios.some((y) => esInicialEnAnio(niveles, y));
+    const { isConfirmed, value } = await Swal.fire({
+      title: hayInicial ? 'Libreta e informe' : 'Ver Libreta',
+      html: `
+        <p style="text-align:left;margin:0 0 12px;color:#475569;font-size:0.92rem">
+          ${hayInicial
+            ? 'En Inicial puede descargar la <b>libreta</b> (resumen para la familia) o el <b>informe de progreso</b> (detalle CNEB).'
+            : 'Se descargará la libreta de este alumno.'}
+        </p>
+        <label style="display:block;text-align:left;font-weight:600;margin-bottom:4px">Año</label>
+        <select id="swal-libreta-alumno-anio" class="swal2-input" style="width:100%;margin-bottom:12px">
+          ${anios.map((a) => `<option value="${a}"${a === anioSel ? ' selected' : ''}>${a}</option>`).join('')}
+        </select>
+        <label style="display:block;text-align:left;font-weight:600;margin-bottom:4px">Bimestre</label>
+        <select id="swal-libreta-alumno-ciclo" class="swal2-input" style="width:100%">
+          <option value="1">I Bimestre</option>
+          <option value="2">II Bimestre</option>
+          <option value="3">III Bimestre</option>
+          <option value="4">IV Bimestre</option>
+        </select>
+        ${hayInicial
+          ? `<div style="text-align:left;margin-top:14px;padding:10px 12px;background:#f0fdfa;border-radius:10px;border:1px solid #99f6e4">
+              <label style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;cursor:pointer;font-size:0.92rem">
+                <input type="radio" name="swal-cneb-doc" value="libreta" checked style="margin-top:3px">
+                <span><b>Libreta</b> — resumen con letras AD/A/B/C, para el hogar.</span>
+              </label>
+              <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;font-size:0.92rem">
+                <input type="radio" name="swal-cneb-doc" value="informe" style="margin-top:3px">
+                <span><b>Informe de progreso</b> — completo (capacidades, estándar y desempeños).</span>
+              </label>
+            </div>`
+          : ''}
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Descargar',
+      cancelButtonText: 'Cancelar',
+      focusConfirm: false,
+      preConfirm: () => ({
+        anio: parseInt(document.getElementById('swal-libreta-alumno-anio')?.value, 10),
+        ciclo: parseInt(document.getElementById('swal-libreta-alumno-ciclo')?.value, 10),
+        tipo: document.querySelector('input[name="swal-cneb-doc"]:checked')?.value || 'libreta',
+      }),
+    });
+    if (!isConfirmed || !value) return false;
+    const usarCneb = esInicialEnAnio(niveles, value.anio);
+    if (usarCneb) {
+      return descargarCnebHijoConAviso({
+        apiBase: base,
+        hijoId: id,
+        tipo: value.tipo === 'informe' ? 'informe' : 'libreta',
+        anio: value.anio,
+        bimestre: value.ciclo,
+      });
+    }
+    Swal.fire({ title: 'Generando libreta…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    try {
+      const params = { ciclo: value.ciclo };
+      if (value.anio > 0) params.anio = value.anio;
+      const response = await api.get(`${base}/${id}/libreta`, { params });
+      Swal.close();
+      await renderLibretaAlumnoPdf(response.data, value.ciclo);
+      return true;
+    } catch (error) {
+      Swal.close();
+      await Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudo generar la libreta',
+        confirmButtonText: 'Entendido',
+      });
+      return false;
+    }
+  } catch (e) {
+    await Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: e.response?.data?.error || 'No se pudo generar la libreta',
+    });
+    return false;
   }
 }
 
@@ -484,9 +594,14 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
       doc.setFont('helvetica', 'bold'); // Texto en negrita
       doc.text('Dirección Académica', firmaX + firmaWidth / 2, yPos, { align: 'center' });
 
+      // Libreta: por ahora solo la Boleta de Información Académica.
+      // Código conservado; poner en true para volver a incluir estas hojas.
+      const INCLUIR_HOJA_DETALLE_NOTAS_LIBRETA = false;
+      const INCLUIR_HOJA_ORDEN_MERITO_LIBRETA = false;
+
       // Sección Detalle de Notas (explicaciones del docente por curso) — antes del Reporte de Orden de Mérito
       let detalleNotasDoc = datosLibreta.detalle_notas || [];
-      if (detalleNotasDoc.length === 0 && datosLibreta.areas) {
+      if (INCLUIR_HOJA_DETALLE_NOTAS_LIBRETA && detalleNotasDoc.length === 0 && datosLibreta.areas) {
         // Fallback: construir desde areas/asignaturas_sin_area cuando no hay detalle_notas
         const items = [];
         (datosLibreta.areas || []).forEach(ar => {
@@ -501,7 +616,7 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
         });
         detalleNotasDoc = items;
       }
-      if (detalleNotasDoc.length > 0) {
+      if (INCLUIR_HOJA_DETALLE_NOTAS_LIBRETA && detalleNotasDoc.length > 0) {
         doc.addPage();
         let yDet = margin + 12;
         doc.setFont('helvetica', 'bold');
@@ -563,7 +678,7 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
 
       // Segunda hoja(s): lista de verificación orden de mérito por bimestre (solo libretas numéricas)
       const ordenMeritoDetalle = datosLibreta.resumen?.orden_merito_detalle;
-      if (ordenMeritoDetalle && cicloSel >= 1) {
+      if (INCLUIR_HOJA_ORDEN_MERITO_LIBRETA && ordenMeritoDetalle && cicloSel >= 1) {
         const bimestresLabel = ['I', 'II', 'III', 'IV'];
         const colPuesto = 18;
         const colPromedio = 28;

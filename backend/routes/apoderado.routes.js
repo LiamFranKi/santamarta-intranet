@@ -2513,14 +2513,27 @@ router.get('/hijos/:hijoId/libreta-anios', async (req, res) => {
     }
 
     const rows = await query(
-      `SELECT g.anio FROM matriculas m
+      `SELECT g.anio, n.nombre AS nivel_nombre, n.tipo_calificacion
+       FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id AND n.colegio_id = m.colegio_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0)
        ORDER BY g.anio DESC`,
       [hijoIdNum, colegio_id]
     );
-    const anios = (rows || []).map(r => r.anio).filter(Boolean);
-    return res.json({ anios });
+    const anios = [];
+    const niveles = {};
+    (rows || []).forEach((r) => {
+      const y = parseInt(r.anio, 10);
+      if (!Number.isFinite(y) || y <= 0) return;
+      if (!anios.includes(y)) anios.push(y);
+      const nom = String(r.nivel_nombre || '').toUpperCase();
+      niveles[String(y)] = {
+        nivel_nombre: r.nivel_nombre || '',
+        inicial: r.tipo_calificacion === 0 || r.tipo_calificacion === '0' || nom.includes('INICIAL'),
+      };
+    });
+    return res.json({ anios, niveles });
   } catch (error) {
     console.error('Error listando años libreta:', error);
     return res.status(500).json({ error: 'Error al obtener años' });

@@ -28,7 +28,7 @@ const {
   excelSiagieBuffer,
   excelConsolidadoBuffer,
 } = require('../utils/cnebAuxiliar');
-const { informePdfBuffer, sesionPdfBuffer } = require('../utils/cnebPdfs');
+const { informePdfBuffer, libretaPdfBuffer, sesionPdfBuffer } = require('../utils/cnebPdfs');
 const { contextoAulaCneb, listarSesionesAula } = require('../utils/cnebAulaAsignatura');
 const { piarActivosDelGrupo, varsGenerarSesionIa } = require('../utils/cnebPiarAula');
 
@@ -591,6 +591,35 @@ router.get('/export/informe.pdf', async (req, res) => {
   } catch (e) {
     console.error('[docente/cneb/informe]', e);
     res.status(500).json({ error: e.message || 'No se pudo generar el informe.' });
+  }
+});
+
+router.get('/export/libreta.pdf', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const pid = personalId(req);
+    const nivel = parseNivel(req.query.nivel);
+    const grupoId = parseInt(req.query.grupo_id, 10);
+    const bimestre = Math.min(4, Math.max(1, parseInt(req.query.bimestre, 10) || 4));
+    const matriculaId = parseIntOrNull(req.query.matricula_id);
+    if (!cid || !pid || !nivel || !grupoId) return res.status(400).json({ error: 'Indique nivel y aula.' });
+    const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
+    if (!(await validarGrupoPropio(cid, pid, anio, grupoId))) {
+      return res.status(403).json({ error: 'Solo puede exportar la libreta de sus aulas.' });
+    }
+    const { buffer, filename } = await libretaPdfBuffer(cid, {
+      anio,
+      bimestre,
+      grupoId,
+      nivel,
+      matriculaId,
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(Buffer.from(buffer));
+  } catch (e) {
+    console.error('[docente/cneb/libreta]', e);
+    res.status(500).json({ error: e.message || 'No se pudo generar la libreta.' });
   }
 });
 

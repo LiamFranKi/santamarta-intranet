@@ -18,6 +18,7 @@ import {
 import { normalizarRangosLetras } from '../utils/notaLetraConversion';
 import { esNivelInicial, debeMostrarNotasDetalladas } from '../utils/esNivelInicial';
 import { formatearTutoresLibreta } from '../utils/tutoresGrupoTexto';
+import { promptYExportarLibretaAlumno } from '../utils/exportLibretaAlumnoPdf';
 import { generarPDFBoletaDesdeDatos, MSG_NO_IMPRESION_BOLETA } from '../utils/generarPDFBoletaPago';
 import AlumnoSaludFields from '../components/AlumnoSaludFields';
 import AlumnoPerfilExtra from '../components/AlumnoPerfilExtra';
@@ -1727,47 +1728,7 @@ function DocenteHijos() {
 
   const handleVerLibreta = async (hijo) => {
     try {
-      const resAnios = await api.get(`/docente/hijos/${hijo.id}/libreta-anios`);
-      const anios = resAnios.data?.anios || [];
-      if (anios.length === 0) {
-        Swal.fire({
-          icon: 'info',
-          title: 'Sin datos',
-          text: 'No hay años con matrícula para este alumno',
-          confirmButtonText: 'Entendido'
-        });
-        return;
-      }
-      const anioDefault = anios[0];
-      const { value: result } = await Swal.fire({
-        title: 'Exportar Libreta',
-        html: `
-          <p style="margin-bottom: 1rem;">Seleccione el año y el bimestre hasta el cual desea ver datos.</p>
-          <label style="display:block; text-align:left; margin-bottom: 0.25rem; font-weight: 600;">Año</label>
-          <select id="swal-anio" class="swal2-input" style="width: 100%; margin-bottom: 1rem;">
-            ${anios.map((a) => `<option value="${a}" ${a === anioDefault ? 'selected' : ''}>${a}</option>`).join('')}
-          </select>
-          <label style="display:block; text-align:left; margin-bottom: 0.25rem; font-weight: 600;">Bimestre</label>
-          <select id="swal-ciclo" class="swal2-input" style="width: 100%;">
-            <option value="1">Bimestre 1</option>
-            <option value="2">Bimestre 2</option>
-            <option value="3">Bimestre 3</option>
-            <option value="4">Bimestre 4</option>
-          </select>
-        `,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Descargar',
-        cancelButtonText: 'Cancelar',
-        preConfirm: () => {
-          const anio = parseInt(document.getElementById('swal-anio').value, 10);
-          const ciclo = parseInt(document.getElementById('swal-ciclo').value, 10);
-          return { anio, ciclo };
-        }
-      });
-      if (!result) return;
-      setHijoSeleccionado(hijo);
-      await generarPDFLibreta(hijo.id, result.ciclo, result.anio);
+      await promptYExportarLibretaAlumno(hijo.id, { apiBase: '/docente/hijos' });
     } catch (error) {
       console.error('Error generando libreta:', error);
       Swal.fire({
@@ -2379,8 +2340,8 @@ function DocenteHijos() {
 
       // Hijos a Cargo → Ver Libreta: por ahora solo la Boleta de Información Académica.
       // Código conservado; poner en true para volver a incluir estas hojas.
-      const INCLUIR_HOJA_DETALLE_NOTAS_LIBRETA = true;
-      const INCLUIR_HOJA_ORDEN_MERITO_LIBRETA = true;
+      const INCLUIR_HOJA_DETALLE_NOTAS_LIBRETA = false;
+      const INCLUIR_HOJA_ORDEN_MERITO_LIBRETA = false;
 
       // Sección Detalle de Notas (explicaciones del docente por curso) — antes del Reporte de Orden de Mérito
       let detalleNotasDoc = datosLibreta.detalle_notas || [];

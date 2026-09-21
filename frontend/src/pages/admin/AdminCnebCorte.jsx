@@ -184,6 +184,24 @@ export default function AdminCnebCorte({
     }
   };
 
+  const exportarLibreta = async () => {
+    try {
+      const g = grupos.find((x) => String(x.id) === String(grupoId));
+      await descargarBlob(
+        apiBase,
+        '/export/libreta.pdf',
+        { nivel, grupo_id: grupoId, bimestre, grupo_label: etiquetaAula(g) },
+        `libreta_cneb_${nivel}_b${bimestre}.pdf`
+      );
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo descargar la libreta',
+        text: e.response?.data?.error || e.message,
+      });
+    }
+  };
+
   const exportar = async () => {
     try {
       const g = grupos.find((x) => String(x.id) === String(grupoId));
@@ -216,6 +234,9 @@ export default function AdminCnebCorte({
         <div className="cneb-map-actions">
           <button type="button" className="cneb-btn ghost" onClick={exportar} disabled={!grupoId || !haySesiones}>
             Descargar Excel
+          </button>
+          <button type="button" className="cneb-btn ghost" onClick={exportarLibreta} disabled={!grupoId || !haySesiones}>
+            Libreta PDF
           </button>
           <button type="button" className="cneb-btn ghost" onClick={exportarInforme} disabled={!grupoId || !haySesiones}>
             Informe PDF

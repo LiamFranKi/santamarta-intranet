@@ -67,6 +67,7 @@ const { enriquecerMensajeDocenteParaDestinatario } = require('../utils/mensajesD
 const { mountSelfServiceCvRoutes } = require('../utils/personalCv');
 const { listarEvidenciasSafe, mapearEvidencia, tipoDesdeNombre } = require('../utils/aulaEvidencias');
 const { crearRouterCnebFamilia, colegioId, anioConsulta } = require('../utils/cnebVistaFamilia');
+const { parseBimestre, responderPdfCnebAlumno } = require('../utils/cnebAlumnoPdf');
 const {
   esTemaPendiente,
   urlPublicaArchivoTema,
@@ -13556,17 +13557,57 @@ router.get('/hijos/:hijoId/libreta-anios', async (req, res) => {
     const { hijoIdNum } = gate;
 
     const rows = await query(
-      `SELECT g.anio FROM matriculas m
+      `SELECT g.anio, n.nombre AS nivel_nombre, n.tipo_calificacion
+       FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id AND n.colegio_id = m.colegio_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0)
        ORDER BY g.anio DESC`,
       [hijoIdNum, colegio_id]
     );
-    const anios = (rows || []).map(r => r.anio).filter(Boolean);
-    return res.json({ anios });
+    const anios = [];
+    const niveles = {};
+    (rows || []).forEach((r) => {
+      const y = parseInt(r.anio, 10);
+      if (!Number.isFinite(y) || y <= 0) return;
+      if (!anios.includes(y)) anios.push(y);
+      const nom = String(r.nivel_nombre || '').toUpperCase();
+      niveles[String(y)] = {
+        nivel_nombre: r.nivel_nombre || '',
+        inicial: r.tipo_calificacion === 0 || r.tipo_calificacion === '0' || nom.includes('INICIAL'),
+      };
+    });
+    return res.json({ anios, niveles });
   } catch (error) {
     console.error('Error listando años libreta:', error);
     return res.status(500).json({ error: 'Error al obtener años' });
+  }
+});
+
+/**
+ * GET /api/docente/hijos/:hijoId/cneb-pdf/:tipo
+ * PDF CNEB del alumno (libreta resumen o informe completo). Tutor, docente-apoderado o staff.
+ */
+router.get('/hijos/:hijoId/cneb-pdf/:tipo', async (req, res) => {
+  try {
+    const tipo = String(req.params.tipo || '').toLowerCase().replace(/\.pdf$/, '');
+    if (tipo !== 'libreta' && tipo !== 'informe') {
+      return res.status(400).json({ error: 'Indique libreta o informe.' });
+    }
+    const gate = await gateAlumnoHijoDocente(req, res, req.params.hijoId);
+    if (!gate) return;
+    const cid = colegioId(req);
+    const anioQ = parseInt(req.query.anio, 10);
+    const anio = Number.isFinite(anioQ) && anioQ > 0 ? anioQ : (req.user?.anio_activo || (await getAnioActivo(cid)));
+    await responderPdfCnebAlumno(res, cid, {
+      alumnoId: gate.hijoIdNum,
+      anio,
+      bimestre: parseBimestre(req.query.bimestre || req.query.ciclo),
+      tipo,
+    });
+  } catch (error) {
+    console.error('[docente/hijos/cneb-pdf]', error);
+    res.status(500).json({ error: error.message || 'No se pudo generar el PDF.' });
   }
 });
 

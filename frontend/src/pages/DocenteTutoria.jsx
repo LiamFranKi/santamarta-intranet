@@ -25,6 +25,7 @@ import TutoriaModalDeudores from '../components/tutoria/TutoriaModalDeudores';
 import { useGrupoReportesConducta } from '../components/grupoReportes/useGrupoReportesConducta';
 import { buildOpcionesTutoriaGrupo } from '../utils/opcionesMenuGrupo';
 import { abrirVerLibretasGrupo } from '../utils/exportLibretasGrupoPdf';
+import { promptYExportarLibretaAlumno } from '../utils/exportLibretaAlumnoPdf';
 
 /** Rango inicial (año calendario del año lectivo hasta hoy) para reportes tutor evidencias */
 function rangoFechasReporteGrupo(anioEscolar) {
@@ -646,7 +647,7 @@ function DocenteTutoria({
     }
 
     const dropdownWidth = Math.min(280, window.innerWidth - 24);
-    const menuApproxHeight = 300;
+    const menuApproxHeight = 360;
     const { top, left } = calcularPosicionMenuAnclado(rect, dropdownWidth, menuApproxHeight);
     setOpenDropdownAlumno({
       id: alumno.id,
@@ -707,6 +708,7 @@ function DocenteTutoria({
         await abrirVerLibretasGrupo(grupo, {
           alumnosApiUrl: `${apiPrefix}/grupos/${grupo.id}/alumnos`,
           anioEsperado: grupo.anio != null ? parseInt(grupo.anio, 10) : undefined,
+          cnebApiBase: '/docente/cneb',
         });
         break;
       case 'conexiones-familiares':
@@ -810,13 +812,14 @@ function DocenteTutoria({
     setFormEstrellasTutoria({ points: '', description: '' });
   };
 
+  const handleVerLibretaAlumno = async (alumno) => {
+    setOpenDropdownAlumno(null);
+    const alumnoId = alumno?.id;
+    if (!alumnoId) return;
+    await promptYExportarLibretaAlumno(alumnoId, { anioDefault: grupoInfo?.anio });
+  };
+
   const handleVerIncidenciasTutoria = async (alumno) => {
-    const gid = getGrupoIdTutoria();
-    if (!gid) return;
-    setAlumnoSeleccionadoTutoria(alumno);
-    setFormIncidenciasTutoria({ description: '' });
-    setLoadingIncidenciasTutoria(true);
-    setShowModalIncidenciasTutoria(true);
     try {
       const res = await api.get(`${apiPrefix}/grupos/${gid}/alumnos/${alumno.id}/incidencias`);
       setIncidenciasTutoria(res.data.incidencias || []);
@@ -4185,6 +4188,18 @@ function DocenteTutoria({
                                       >
                                         <span className="dropdown-icon">ℹ️</span>
                                         <span>Ver Información</span>
+                                      </button>
+                                      <button
+                                        className="dropdown-item"
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          e.preventDefault();
+                                          handleVerLibretaAlumno(alumno);
+                                        }}
+                                      >
+                                        <span className="dropdown-icon">📄</span>
+                                        <span>Ver Libreta</span>
                                       </button>
                                       <button
                                         className="dropdown-item"

@@ -4,7 +4,7 @@ import { esNivelInicial } from '../../utils/esNivelInicial';
 import Swal from 'sweetalert2';
 import { SwalSobreModal } from '../../utils/swalSobreModal';
 import { exportGrupoCarnetsPdfA4 } from '../../utils/carnetQrPdf';
-import { fetchYExportarLibretaAlumno } from '../../utils/exportLibretaAlumnoPdf';
+import { promptYExportarLibretaAlumno } from '../../utils/exportLibretaAlumnoPdf';
 import { idNumericoIncidenciaEliminable } from '../../utils/incidenciasAlumnoUi';
 
 function nombreAlumno(a) {
@@ -177,42 +177,7 @@ export function useGrupoAlumnoAccionesAcademicas({ grupoId, grupoInfo, puedeElim
   }, []);
 
   const abrirLibreta = useCallback(async (alumno) => {
-    try {
-      const { data } = await api.get(`/docente/hijos/${alumno.id}/libreta-anios`);
-      const anios = data?.anios || [];
-      if (!anios.length) {
-        Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay años con matrícula para este alumno.' });
-        return;
-      }
-      const anioDefault = grupoInfo?.anio && anios.includes(grupoInfo.anio) ? grupoInfo.anio : anios[0];
-      const { value: result } = await Swal.fire({
-        title: 'Exportar libreta',
-        html: `
-          <label style="display:block;text-align:left;font-weight:600;margin-bottom:4px">Año</label>
-          <select id="swal-anio" class="swal2-input" style="width:100%;margin-bottom:12px">
-            ${anios.map((a) => `<option value="${a}" ${a === anioDefault ? 'selected' : ''}>${a}</option>`).join('')}
-          </select>
-          <label style="display:block;text-align:left;font-weight:600;margin-bottom:4px">Bimestre</label>
-          <select id="swal-ciclo" class="swal2-input" style="width:100%">
-            <option value="1">Bimestre 1</option><option value="2">Bimestre 2</option>
-            <option value="3">Bimestre 3</option><option value="4">Bimestre 4</option>
-          </select>`,
-        showCancelButton: true,
-        confirmButtonText: 'Descargar',
-        cancelButtonText: 'Cancelar',
-        preConfirm: () => ({
-          anio: parseInt(document.getElementById('swal-anio').value, 10),
-          ciclo: parseInt(document.getElementById('swal-ciclo').value, 10),
-        }),
-      });
-      if (!result) return;
-      Swal.fire({ title: 'Generando libreta…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-      await fetchYExportarLibretaAlumno(alumno.id, result.ciclo, result.anio);
-      Swal.close();
-    } catch (e) {
-      Swal.close();
-      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo generar la libreta' });
-    }
+    await promptYExportarLibretaAlumno(alumno?.id, { anioDefault: grupoInfo?.anio });
   }, [grupoInfo?.anio]);
 
   const ejecutarAccion = useCallback(

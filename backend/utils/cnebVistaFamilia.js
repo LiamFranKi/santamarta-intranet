@@ -7,6 +7,7 @@ const { query, getAnioActivo } = require('./mysql');
 const { cargarSesion } = require('./cnebSesionStore');
 const { sesionPdfBuffer } = require('./cnebPdfs');
 const { contextoAulaCneb, listarSesionesAula, vistaAlumnoSesion } = require('./cnebAulaAsignatura');
+const { parseBimestre, responderPdfCnebAlumno } = require('./cnebAlumnoPdf');
 
 function colegioId(req) {
   const n = Number(req.user?.colegio_id);
@@ -124,6 +125,42 @@ function crearRouterCnebFamilia({ resolverAlumno, logTag = 'cneb-familia' }) {
     } catch (e) {
       console.error(`[${logTag}/pdf]`, e);
       res.status(500).json({ error: e.message || 'No se pudo descargar el PDF.' });
+    }
+  });
+
+  router.get('/libreta.pdf', async (req, res) => {
+    try {
+      const ctxUser = await contextoAlumno(req, res);
+      if (!ctxUser) return;
+      const { alumnoId, cid, anio } = ctxUser;
+      const anioQ = parseInt(req.query.anio, 10);
+      await responderPdfCnebAlumno(res, cid, {
+        alumnoId,
+        anio: Number.isFinite(anioQ) && anioQ > 0 ? anioQ : anio,
+        bimestre: parseBimestre(req.query.bimestre || req.query.ciclo),
+        tipo: 'libreta',
+      });
+    } catch (e) {
+      console.error(`[${logTag}/libreta.pdf]`, e);
+      res.status(500).json({ error: e.message || 'No se pudo generar la libreta.' });
+    }
+  });
+
+  router.get('/informe.pdf', async (req, res) => {
+    try {
+      const ctxUser = await contextoAlumno(req, res);
+      if (!ctxUser) return;
+      const { alumnoId, cid, anio } = ctxUser;
+      const anioQ = parseInt(req.query.anio, 10);
+      await responderPdfCnebAlumno(res, cid, {
+        alumnoId,
+        anio: Number.isFinite(anioQ) && anioQ > 0 ? anioQ : anio,
+        bimestre: parseBimestre(req.query.bimestre || req.query.ciclo),
+        tipo: 'informe',
+      });
+    } catch (e) {
+      console.error(`[${logTag}/informe.pdf]`, e);
+      res.status(500).json({ error: e.message || 'No se pudo generar el informe.' });
     }
   });
 
