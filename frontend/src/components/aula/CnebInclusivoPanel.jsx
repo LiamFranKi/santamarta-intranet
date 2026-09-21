@@ -62,8 +62,7 @@ export default function CnebInclusivoPanel({ apiBase, grupoId, dua, onChangeDua 
         <p>
           El DUA es para <strong>todo el aula</strong>. Si hay un niño con PIAR, escriba aquí el{' '}
           <strong>procedimiento de hoy</strong> (qué hará con él en esta clase). Misma competencia y mismo
-          cotejo. Al generar con IA, esto va en el prompt y queda en el PDF de la sesión. No cambia SIAGIE
-          ni la ficha de la familia.
+          cotejo. Queda en el PDF de la sesión. No cambia SIAGIE ni la ficha de la familia.
         </p>
       </header>
 

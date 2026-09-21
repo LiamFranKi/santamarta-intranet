@@ -19,6 +19,9 @@ const QUILL_CNEB = {
 
 const QUILL_FORMATS = ['bold', 'italic', 'underline', 'header', 'list', 'bullet'];
 
+/** Oculto: botón y mensajes de IA / Vanguarcito en sesiones CNEB. No borrar el flujo. */
+const MOSTRAR_IA_SESIONES_CNEB = false;
+
 function urlVanguarcito() {
   const base = String(api.defaults?.baseURL || '').replace(/\/api\/?$/i, '');
   if (base) return `${base}/assets/fichas-ia/vanguarcito.png`;
@@ -880,7 +883,7 @@ export default function AdminCnebSesiones({
           type="text"
           className="cneb-search cneb-input-wide"
           maxLength={220}
-          placeholder="Puede dejarlo vacío: la IA propone el tema según la competencia"
+          placeholder="Escriba el tema de la sesión"
           value={form.titulo}
           onChange={(e) => patch({ titulo: e.target.value })}
         />
@@ -905,14 +908,16 @@ export default function AdminCnebSesiones({
         <button type="button" className="cneb-btn ghost" onClick={armarBorrador}>
           Armar borrador
         </button>
-        <button
-          type="button"
-          className="cneb-btn primary"
-          onClick={generarConIa}
-          disabled={generating}
-        >
-          {generating ? 'Generando con IA…' : 'Generar con IA'}
-        </button>
+        {MOSTRAR_IA_SESIONES_CNEB && (
+          <button
+            type="button"
+            className="cneb-btn primary"
+            onClick={generarConIa}
+            disabled={generating}
+          >
+            {generating ? 'Generando con IA…' : 'Generar con IA'}
+          </button>
+        )}
         <span className={`cneb-suma${sumaOk ? ' is-ok' : ' is-bad'}`}>
           Minutos: {suma} / {form.duracion_min}
         </span>
@@ -980,8 +985,7 @@ export default function AdminCnebSesiones({
           <div className="cneb-ficha-preview">
             {htmlVacio(form.ficha_estudiante) ? (
               <p className="cneb-muted">
-                Genere con IA o escriba consignas. Aquí verá negritas, listas y espacios como en
-                el PDF.
+                Escriba consignas. Aquí verá negritas, listas y espacios como en el PDF.
               </p>
             ) : (
               <CnebHtmlVista html={form.ficha_estudiante} />
