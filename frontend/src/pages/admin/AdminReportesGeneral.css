@@ -763,6 +763,45 @@
   width: 14.5rem;
 }
 
+.rg-filtros-toolbar--examenes {
+  width: 100%;
+  align-items: flex-end;
+}
+
+.rg-filtros-toolbar--examenes .rg-alum-field--anio {
+  width: 5.5rem;
+}
+
+.rg-filtros-toolbar--examenes .rg-alum-field--bimestre {
+  width: 9rem;
+}
+
+.rg-filtros-toolbar--examenes .rg-alum-field--nivel {
+  width: 8.75rem;
+}
+
+.rg-filtros-toolbar--examenes .rg-alum-field--grado {
+  width: 6.75rem;
+}
+
+.rg-filtros-toolbar--examenes .rg-alum-field--docente {
+  flex: 1 1 16rem;
+  width: auto;
+  min-width: 14rem;
+}
+
+.rg-exam-filtros-fechas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.7rem 0.85rem;
+  flex: 1 1 100%;
+}
+
+.rg-exam-filtros-fechas .rg-filtros-toolbar__actions {
+  margin-left: auto;
+}
+
 .rg-alum-field .MuiSelect-select {
   overflow: hidden;
   text-overflow: ellipsis;

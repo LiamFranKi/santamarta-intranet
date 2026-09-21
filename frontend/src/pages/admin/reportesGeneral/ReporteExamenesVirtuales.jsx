@@ -36,6 +36,16 @@ function etiquetaGradoOpcion(nivel, grado) {
   return `${grado}°`;
 }
 
+function sedeSanMartinId(data) {
+  const sedes = data?.sedes || [];
+  const sm = sedes.find((s) => /san\s*mart[ií]n/i.test(String(s.nombre || '')));
+  if (sm) return String(sm.id);
+  if (data?.defaults?.sede_id != null) return String(data.defaults.sede_id);
+  const idUno = sedes.find((s) => Number(s.id) === 1);
+  if (idUno) return String(idUno.id);
+  return sedes[0] ? String(sedes[0].id) : '';
+}
+
 export default function ReporteExamenesVirtuales() {
   const [anio, setAnio] = useState('');
   const [bimestre, setBimestre] = useState('1');
@@ -48,6 +58,7 @@ export default function ReporteExamenesVirtuales() {
 
   const onDefaults = useCallback((data) => {
     aplicarDefaultsSedeAnio(data, { setAnio });
+    setSedeId(sedeSanMartinId(data));
     setBimestre('1');
   }, []);
 
@@ -129,7 +140,7 @@ export default function ReporteExamenesVirtuales() {
         description="Exámenes en línea del aula virtual del bimestre, agrupados por grupo, asignatura y docente. Nivel, grado y docente son opcionales. Si indica fechas, incluye los programados o rendidos en ese rango."
         compact
       >
-        <div className="rg-filtros-toolbar rg-filtros-toolbar--fill">
+        <div className="rg-filtros-toolbar rg-filtros-toolbar--examenes">
           {loading ? (
             <div className="rg-alum-loading">
               <CircularProgress size={22} />
@@ -137,23 +148,6 @@ export default function ReporteExamenesVirtuales() {
             </div>
           ) : (
             <>
-              {(meta?.sedes || []).length > 0 && (
-                <TextField
-                  select
-                  size="small"
-                  label="Sede"
-                  value={sedeId}
-                  onChange={(e) => setSedeId(e.target.value)}
-                  className="rg-alum-field rg-alum-field--sede"
-                >
-                  <MenuItem value="">Todas</MenuItem>
-                  {(meta.sedes || []).map((s) => (
-                    <MenuItem key={s.id} value={String(s.id)}>
-                      {s.nombre}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              )}
               <TextField
                 select
                 size="small"
@@ -231,29 +225,31 @@ export default function ReporteExamenesVirtuales() {
                   ))}
                 </TextField>
               )}
-              <TextField
-                size="small"
-                type="date"
-                label="Desde"
-                value={desde}
-                onChange={(e) => setDesde(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                className="rg-alum-field rg-alum-field--fecha"
-              />
-              <TextField
-                size="small"
-                type="date"
-                label="Hasta"
-                value={hasta}
-                onChange={(e) => setHasta(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                className="rg-alum-field rg-alum-field--fecha"
-              />
-              <div className="rg-filtros-toolbar__actions">
-                <button type="button" className="rg-alum-btn rg-alum-btn--primary" onClick={verReporte}>
-                  <VisibilityIcon fontSize="small" aria-hidden />
-                  Ver Reporte
-                </button>
+              <div className="rg-exam-filtros-fechas">
+                <TextField
+                  size="small"
+                  type="date"
+                  label="Desde"
+                  value={desde}
+                  onChange={(e) => setDesde(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  className="rg-alum-field rg-alum-field--fecha"
+                />
+                <TextField
+                  size="small"
+                  type="date"
+                  label="Hasta"
+                  value={hasta}
+                  onChange={(e) => setHasta(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  className="rg-alum-field rg-alum-field--fecha"
+                />
+                <div className="rg-filtros-toolbar__actions">
+                  <button type="button" className="rg-alum-btn rg-alum-btn--primary" onClick={verReporte}>
+                    <VisibilityIcon fontSize="small" aria-hidden />
+                    Ver Reporte
+                  </button>
+                </div>
               </div>
             </>
           )}
