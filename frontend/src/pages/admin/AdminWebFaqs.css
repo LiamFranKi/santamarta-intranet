@@ -144,10 +144,11 @@
 
 .wf-group h3 {
   text-align: left;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   margin: 0 0 0.65rem;
-  font-size: 0.82rem;
-  color: #64748b;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
 }
 
 @media (max-width: 860px) {

@@ -177,20 +177,29 @@ export default function AdminWebFaqs({ soloLectura = false }) {
   };
 
   const agrupadas = useMemo(() => {
+    const order = ['web', 'inicial', 'primaria', 'secundaria'];
     const map = {};
     for (const p of preguntas) {
-      const key = p.categoria_id;
-      if (!map[key]) {
-        map[key] = {
-          id: key,
-          etiqueta: p.categoria_etiqueta,
-          orden: p.categoria_orden,
-          items: [],
-        };
+      const destinos = parseDestinosItem(p);
+      const keys = destinos.length ? destinos : ['web'];
+      for (const key of keys) {
+        if (!map[key]) {
+          map[key] = {
+            id: key,
+            etiqueta: etiquetaDestino(key),
+            orden: order.indexOf(key),
+            items: [],
+          };
+        }
+        map[key].items.push(p);
       }
-      map[key].items.push(p);
     }
-    return Object.values(map).sort((a, b) => (a.orden || 0) - (b.orden || 0));
+    return Object.values(map)
+      .sort((a, b) => (a.orden ?? 99) - (b.orden ?? 99))
+      .map((g) => ({
+        ...g,
+        items: [...g.items].sort((a, b) => (Number(a.orden) || 0) - (Number(b.orden) || 0)),
+      }));
   }, [preguntas]);
 
   if (loading && !categorias.length) return <p className="rs-loading">Cargando preguntas frecuentes…</p>;
@@ -414,38 +423,34 @@ export default function AdminWebFaqs({ soloLectura = false }) {
               ? 'Así se ve el menú Preguntas frecuentes de la web pública (solo las marcadas con Web).'
               : `Así se ve el bloque de preguntas en la página de ${etiquetaDestino(previewDestino)}.`}
           </p>
-          {preview.length === 0 ? (
-            <p className="rs-empty">No hay categorías/preguntas activas.</p>
-          ) : (
-            preview.map((g) => (
-              <div key={g.id} className="rs-detail-block" style={{ marginBottom: '1.25rem' }}>
-                <h3 style={{ textAlign: 'center', letterSpacing: '0.06em', marginBottom: '0.85rem' }}>{g.etiqueta}</h3>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                    gap: '0.75rem',
-                  }}
-                >
-                  {(g.preguntas || []).map((p) => (
-                    <details
-                      key={p.id}
-                      style={{
-                        border: '1px solid #e2e8f0',
-                        borderRadius: 10,
-                        padding: '0.65rem 0.85rem',
-                        background: '#fff',
-                      }}
-                    >
-                      <summary style={{ fontWeight: 700, cursor: 'pointer' }}>{p.pregunta}</summary>
-                      <p style={{ whiteSpace: 'pre-line', margin: '0.65rem 0 0', color: '#334155' }}>{p.respuesta}</p>
-                    </details>
-                  ))}
-                </div>
-                {!g.preguntas?.length && <p className="rs-muted">Sin preguntas activas en esta categoría.</p>}
+          {(() => {
+            const previewFaqs = preview
+              .flatMap((g) => g.preguntas || [])
+              .sort((a, b) => (Number(a.orden) || 0) - (Number(b.orden) || 0));
+            if (!previewFaqs.length) {
+              return <p className="rs-empty">No hay preguntas activas en esta vista.</p>;
+            }
+            return (
+              <div style={{ display: 'grid', gap: '0.65rem', maxWidth: 720 }}>
+                {previewFaqs.map((p, i) => (
+                  <details
+                    key={p.id}
+                    style={{
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 16,
+                      padding: '0.75rem 0.95rem',
+                      background: '#fff',
+                    }}
+                  >
+                    <summary style={{ fontWeight: 700, cursor: 'pointer' }}>
+                      {String(i + 1).padStart(2, '0')}. {p.pregunta}
+                    </summary>
+                    <p style={{ whiteSpace: 'pre-line', margin: '0.65rem 0 0', color: '#334155' }}>{p.respuesta}</p>
+                  </details>
+                ))}
               </div>
-            ))
-          )}
+            );
+          })()}
         </div>
       )}
 

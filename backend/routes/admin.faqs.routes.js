@@ -200,7 +200,8 @@ router.get('/preguntas', async (req, res) => {
       sql += ' AND (f.pregunta LIKE ? OR f.respuesta LIKE ?)';
       params.push(like, like);
     }
-    sql += ' ORDER BY c.orden ASC, f.orden ASC, f.id ASC';
+    sql += ` ORDER BY FIELD(COALESCE(f.pagina_nivel, 'todos'), 'web', 'inicial', 'primaria', 'secundaria', 'todos'),
+             f.orden ASC, f.id ASC`;
     const rows = await query(sql, params);
     res.json({ preguntas: (rows || []).map(mapFaq) });
   } catch (e) {
