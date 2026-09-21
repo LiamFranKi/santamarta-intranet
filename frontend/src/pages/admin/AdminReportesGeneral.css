@@ -2449,24 +2449,30 @@
   width: 100%;
 }
 
+.rg-inc-aula {
+  text-align: left !important;
+  font-weight: 600;
+  white-space: normal !important;
+}
+
 .rg-inc-table th:nth-child(1),
 .rg-inc-table td:nth-child(1) {
-  width: 7.5%;
+  width: 12%;
 }
 
 .rg-inc-table th:nth-child(2),
 .rg-inc-table td:nth-child(2) {
-  width: 5.5%;
+  width: 7%;
 }
 
 .rg-inc-table th:nth-child(3),
 .rg-inc-table td:nth-child(3) {
-  width: 9%;
+  width: 5%;
 }
 
 .rg-inc-table th:nth-child(4),
 .rg-inc-table td:nth-child(4) {
-  width: 16%;
+  width: 8.5%;
 }
 
 .rg-inc-table th:nth-child(5),
@@ -2476,17 +2482,22 @@
 
 .rg-inc-table th:nth-child(6),
 .rg-inc-table td:nth-child(6) {
-  width: 10%;
+  width: 13%;
 }
 
 .rg-inc-table th:nth-child(7),
 .rg-inc-table td:nth-child(7) {
-  width: 28%;
+  width: 9%;
 }
 
 .rg-inc-table th:nth-child(8),
 .rg-inc-table td:nth-child(8) {
-  width: 10%;
+  width: 23%;
+}
+
+.rg-inc-table th:nth-child(9),
+.rg-inc-table td:nth-child(9) {
+  width: 8.5%;
 }
 
 .rg-inc-detalle {
@@ -2550,5 +2561,125 @@
 .rg-inc-row--vestimenta,
 .rg-inc-row--olvido_qr {
   background: #fffbeb;
+}
+
+.rg-av-bloque {
+  margin-top: 1.15rem;
+}
+
+.rg-av-bloque__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.55rem;
+}
+
+.rg-av-bloque__head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #1e3a8a;
+}
+
+.rg-av-empty {
+  margin: 0.4rem 0 0;
+  color: #64748b;
+  font-size: 0.88rem;
+}
+
+.rg-av-table th:nth-child(1),
+.rg-av-table td:nth-child(1) {
+  width: 9%;
+}
+
+.rg-av-table th:nth-child(2),
+.rg-av-table td:nth-child(2) {
+  width: 18%;
+}
+
+.rg-av-table th:nth-child(3),
+.rg-av-table td:nth-child(3) {
+  width: 41%;
+}
+
+.rg-av-table th:nth-child(4),
+.rg-av-table td:nth-child(4) {
+  width: 16%;
+}
+
+.rg-av-table th:nth-child(5),
+.rg-av-table td:nth-child(5) {
+  width: 16%;
+}
+
+.rg-av-table--canjes th:nth-child(1),
+.rg-av-table--canjes td:nth-child(1) {
+  width: 14%;
+}
+
+.rg-av-table--canjes th:nth-child(2),
+.rg-av-table--canjes td:nth-child(2) {
+  width: 9%;
+}
+
+.rg-av-table--canjes th:nth-child(3),
+.rg-av-table--canjes td:nth-child(3) {
+  width: 20%;
+}
+
+.rg-av-table--canjes th:nth-child(4),
+.rg-av-table--canjes td:nth-child(4) {
+  width: 10%;
+}
+
+.rg-av-table--canjes th:nth-child(5),
+.rg-av-table--canjes td:nth-child(5) {
+  width: 20%;
+}
+
+.rg-av-table--canjes th:nth-child(6),
+.rg-av-table--canjes td:nth-child(6) {
+  width: 17%;
+}
+
+.rg-av-table--canjes th:nth-child(7),
+.rg-av-table--canjes td:nth-child(7) {
+  width: 10%;
+}
+
+.rg-av-puesto {
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.rg-av-rank--1 {
+  background: #fef9c3;
+}
+
+.rg-av-rank--2 {
+  background: #f1f5f9;
+}
+
+.rg-av-rank--3 {
+  background: #ffedd5;
+}
+
+.rg-av-canje--accesorio {
+  background: #f0fdf4;
+}
+
+.rg-av-canje--tienda {
+  background: #eff6ff;
+}
+
+.rg-av-tipo--accesorio {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.rg-av-tipo--tienda {
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 

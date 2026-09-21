@@ -71,6 +71,30 @@ function etiquetaGrupo(g) {
   return [nivel, [gl, sec].filter(Boolean).join(' '), turno].filter(Boolean).join(' · ');
 }
 
+/** Nivel + grado + sección, p. ej. «Inicial 5 Años A». */
+function etiquetaAula(g) {
+  const nivel = String(g.nivel_nombre || '').trim();
+  const n = nivel.toLowerCase();
+  const gnum = g.grado != null && g.grado !== '' ? String(g.grado).trim() : '';
+  const gl = n.includes('inicial') && gnum ? `${gnum} Años` : gnum ? `${gnum}°` : '';
+  const sec = String(g.seccion || '').trim();
+  return [nivel, [gl, sec].filter(Boolean).join(' ')].filter(Boolean).join(' ');
+}
+
+function nombreSiExiste(apellidos, nombres) {
+  const nom = nombrePersona(apellidos, nombres);
+  return nom && nom !== '—' ? nom : '';
+}
+
+function nombreRegistrante(row) {
+  return (
+    nombreSiExiste(row.docente_apellidos, row.docente_nombres) ||
+    nombreSiExiste(row.tutor_apellidos, row.tutor_nombres) ||
+    nombreSiExiste(row.tutor2_apellidos, row.tutor2_nombres) ||
+    '—'
+  );
+}
+
 function compararGrupos(a, b) {
   const oa = ordenNivelEducativoNombre(a.nivel_nombre);
   const ob = ordenNivelEducativoNombre(b.nivel_nombre);
@@ -235,6 +259,10 @@ async function obtenerIncidenciasEstrellas(colegioId, filtros) {
               t.nombre AS turno_nombre,
               pe.apellidos AS docente_apellidos,
               pe.nombres AS docente_nombres,
+              pt.apellidos AS tutor_apellidos,
+              pt.nombres AS tutor_nombres,
+              pt2.apellidos AS tutor2_apellidos,
+              pt2.nombres AS tutor2_nombres,
               CASE
                 WHEN ei.assignment_id = ? THEN 'Tutoría'
                 ELSE COALESCE(c.nombre, '—')
@@ -245,7 +273,9 @@ async function obtenerIncidenciasEstrellas(colegioId, filtros) {
        INNER JOIN alumnos al ON al.id = m.alumno_id AND al.colegio_id = m.colegio_id
        INNER JOIN niveles n ON n.id = g.nivel_id
        LEFT JOIN turnos t ON t.id = g.turno_id
-       LEFT JOIN personal pe ON pe.id = ei.worker_id
+       LEFT JOIN personal pe ON pe.id = ei.worker_id AND COALESCE(ei.worker_id, 0) > 0
+       LEFT JOIN personal pt ON pt.id = g.tutor_id AND COALESCE(g.tutor_id, 0) > 0
+       LEFT JOIN personal pt2 ON pt2.id = g.tutor_id_2 AND COALESCE(g.tutor_id_2, 0) > 0
        LEFT JOIN asignaturas a ON a.id = ei.assignment_id AND ei.assignment_id > 0
        LEFT JOIN cursos c ON c.id = a.curso_id
        WHERE DATE(ei.created_at) BETWEEN ? AND ?
@@ -268,7 +298,8 @@ async function obtenerIncidenciasEstrellas(colegioId, filtros) {
         fecha: fmtFechaUi(r.created_at),
         hora: String(toFechaHoraSql(r.created_at) || '').slice(11, 16) || '—',
         alumno_nombre: nombreAlumno(r),
-        registrado_por: nombrePersona(r.docente_apellidos, r.docente_nombres),
+        registrado_por: nombreRegistrante(r),
+        aula: etiquetaAula(r),
         origen: String(r.curso_nombre || '—').trim() || '—',
         descripcion: String(r.description || '').trim() || '—',
         puntos,
@@ -292,7 +323,9 @@ async function obtenerIncidenciasEstrellas(colegioId, filtros) {
                 al.nombres, al.apellido_paterno, al.apellido_materno,
                 g.grado, g.seccion, g.nivel_id,
                 n.nombre AS nivel_nombre,
-                t.nombre AS turno_nombre
+                t.nombre AS turno_nombre,
+                pt.apellidos AS tutor_apellidos,
+                pt.nombres AS tutor_nombres
          FROM presentacion_escolar_descuentos ped
          INNER JOIN usuarios ua ON ua.id = ped.alumno_usuario_id AND ua.colegio_id = ped.colegio_id
          INNER JOIN alumnos al ON al.id = ua.alumno_id AND al.colegio_id = ua.colegio_id
@@ -300,6 +333,7 @@ async function obtenerIncidenciasEstrellas(colegioId, filtros) {
          INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id AND g.anio = ?
          INNER JOIN niveles n ON n.id = g.nivel_id
          LEFT JOIN turnos t ON t.id = g.turno_id
+         LEFT JOIN personal pt ON pt.id = g.tutor_id AND COALESCE(g.tutor_id, 0) > 0
          WHERE ped.colegio_id = ? AND ped.anio = ?
            AND DATE(ped.fecha) BETWEEN ? AND ?
            ${gFiltro.sql}
@@ -323,6 +357,7 @@ async function obtenerIncidenciasEstrellas(colegioId, filtros) {
           hora,
           alumno_nombre: nombreAlumno(r),
           registrado_por: 'Ingreso',
+          aula: etiquetaAula(r),
           origen: qr ? 'Olvido de QR' : 'Vestimenta (QR)',
           descripcion: qr ? descQr : descVest,
           puntos,
@@ -375,6 +410,7 @@ async function obtenerIncidenciasEstrellas(colegioId, filtros) {
         seccion: ev.seccion,
         turno_nombre: ev.turno_nombre,
         etiqueta: etiquetaGrupo(ev),
+        aula: ev.aula || etiquetaAula(ev),
         registros: [],
       });
     }
@@ -440,14 +476,14 @@ async function generarExcelIncidenciasEstrellas(colegioId, filtros) {
   const cols = 9;
   const ws = wb.addWorksheet('Detalle', { views: [{ showGridLines: false }] });
   ws.columns = [
-    { width: 26 },
+    { width: 22 },
     { width: 12 },
     { width: 9 },
     { width: 13 },
     { width: 30 },
-    { width: 22 },
+    { width: 24 },
     { width: 16 },
-    { width: 48 },
+    { width: 46 },
     { width: 11 },
   ];
 
@@ -473,7 +509,7 @@ async function generarExcelIncidenciasEstrellas(colegioId, filtros) {
 
   const headerRow = r;
   escribirCabecera(ws.getRow(r), [
-    'Grupo',
+    'Aula',
     'Fecha',
     'Hora',
     'Tipo',
@@ -489,7 +525,7 @@ async function generarExcelIncidenciasEstrellas(colegioId, filtros) {
     (g.registros || []).forEach((ev, idx) => {
       const row = ws.getRow(r);
       row.values = [
-        g.etiqueta,
+        ev.aula || g.aula || g.etiqueta,
         ev.fecha,
         ev.hora,
         ev.tipo_label,

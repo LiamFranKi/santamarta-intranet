@@ -71,10 +71,11 @@ export async function generarPdfIncidenciasEstrellas({ data }) {
   });
   y += kpiH + 5;
 
-  const ratios = [0.09, 0.06, 0.1, 0.16, 0.14, 0.1, 0.27, 0.08];
+  const ratios = [0.13, 0.08, 0.055, 0.09, 0.14, 0.13, 0.09, 0.22, 0.065];
   const widths = ratios.map((r) => tableW * r);
-  const labels = ['FECHA', 'HORA', 'TIPO', 'ALUMNO', 'REGISTRÓ', 'ORIGEN', 'DETALLE', 'PTS'];
-  const wrapCols = new Set([3, 4, 5, 6]);
+  const labels = ['AULA', 'FECHA', 'HORA', 'TIPO', 'ALUMNO', 'REGISTRÓ', 'ORIGEN', 'DETALLE', 'PTS'];
+  const wrapCols = new Set([0, 4, 5, 6, 7]);
+  const ptsIdx = 8;
 
   const ensureSpace = (need) => {
     if (y + need <= pageH - MARGIN - 6) return false;
@@ -118,6 +119,7 @@ export async function generarPdfIncidenciasEstrellas({ data }) {
 
     (g.registros || []).forEach((ev, idx) => {
       const vals = [
+        ev.aula || g.aula || g.etiqueta,
         ev.fecha,
         ev.hora,
         ev.tipo_label,
@@ -128,7 +130,7 @@ export async function generarPdfIncidenciasEstrellas({ data }) {
         ev.puntos_label || (ev.puntos != null ? String(ev.puntos) : '—'),
       ];
       const wrapped = vals.map((v, i) =>
-        wrapCols.has(i) ? lineasCelda(doc, v, widths[i], i === 6 ? MAX_LINES : 2) : [safeTxt(v) || '—']
+        wrapCols.has(i) ? lineasCelda(doc, v, widths[i], i === 7 ? MAX_LINES : 2) : [safeTxt(v) || '—']
       );
       const rowH = alturaFila(wrapped.map((ls) => ls.length));
       if (ensureSpace(rowH + 1)) drawTableHead();
@@ -146,7 +148,7 @@ export async function generarPdfIncidenciasEstrellas({ data }) {
       wrapped.forEach((lines, i) => {
         const blockH = lines.length * LINE_H;
         let ty = y + (rowH - blockH) / 2 + 2.5;
-        if (i === 7) {
+        if (i === ptsIdx) {
           const n = Number(ev.puntos);
           if (n < 0) doc.setTextColor(190, 18, 60);
           else if (n > 0) doc.setTextColor(4, 120, 87);

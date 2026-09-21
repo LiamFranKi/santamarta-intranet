@@ -209,6 +209,7 @@ export default function ModalIncidenciasEstrellas({
                           <table className="rg-alum-lista-table rg-exam-table rg-inc-table">
                             <thead>
                               <tr>
+                                <th>Aula</th>
                                 <th>Fecha</th>
                                 <th>Hora</th>
                                 <th>Tipo</th>
@@ -222,6 +223,7 @@ export default function ModalIncidenciasEstrellas({
                             <tbody>
                               {(g.registros || []).map((ev) => (
                                 <tr key={ev.id} className={`rg-inc-row rg-inc-row--${ev.tipo}`}>
+                                  <td className="rg-inc-aula">{ev.aula || g.aula || g.etiqueta}</td>
                                   <td>{ev.fecha}</td>
                                   <td>{ev.hora}</td>
                                   <td>

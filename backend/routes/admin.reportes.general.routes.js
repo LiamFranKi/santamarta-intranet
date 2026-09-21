@@ -48,6 +48,7 @@ const {
   obtenerIncidenciasEstrellas,
   generarExcelIncidenciasEstrellas,
 } = require('../utils/reportesGeneralIncidenciasEstrellas');
+const { obtenerAvatar, generarExcelAvatar } = require('../utils/reportesGeneralAvatar');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -801,6 +802,57 @@ router.get('/incidencias-estrellas/excel', async (req, res) => {
   } catch (e) {
     console.error('[reportes/general/incidencias-estrellas/excel]', e);
     res.status(500).json({ error: e.message || 'Error al exportar Excel de incidencias y estrellas' });
+  }
+});
+
+function filtrosAvatar(req) {
+  const optInt = (v) => {
+    if (v === undefined || v === null || v === '') return null;
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? n : null;
+  };
+  return {
+    anio: req.query.anio,
+    bimestre: req.query.bimestre,
+    sedeId: optInt(req.query.sede_id),
+    nivelId: optInt(req.query.nivel_id),
+    grado: optInt(req.query.grado),
+    docenteId: optInt(req.query.docente_id),
+    desde: req.query.desde,
+    hasta: req.query.hasta,
+  };
+}
+
+/** GET /api/admin/reportes/general/avatar */
+router.get('/avatar', async (req, res) => {
+  try {
+    const result = await obtenerAvatar(colegioId(req), filtrosAvatar(req));
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (e) {
+    console.error('[reportes/general/avatar]', e);
+    res.status(500).json({ error: e.message || 'Error al generar el reporte de avatar' });
+  }
+});
+
+/** GET /api/admin/reportes/general/avatar/excel */
+router.get('/avatar/excel', async (req, res) => {
+  try {
+    const result = await generarExcelAvatar(colegioId(req), filtrosAvatar(req));
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(Buffer.from(result.buffer));
+  } catch (e) {
+    console.error('[reportes/general/avatar/excel]', e);
+    res.status(500).json({ error: e.message || 'Error al exportar Excel de avatar' });
   }
 });
 

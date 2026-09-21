@@ -21,6 +21,7 @@ import ReporteConsolidadoPromedios from './reportesGeneral/ReporteConsolidadoPro
 import ReporteConsolidadoPromediosDetallado from './reportesGeneral/ReporteConsolidadoPromediosDetallado';
 import ReporteExamenesVirtuales from './reportesGeneral/ReporteExamenesVirtuales';
 import ReporteIncidenciasEstrellas from './reportesGeneral/ReporteIncidenciasEstrellas';
+import ReporteAvatar from './reportesGeneral/ReporteAvatar';
 import ReporteNominasAlumnos from './reportesGeneral/ReporteNominasAlumnos';
 import './AdminEstadisticas.css';
 import './AdminReportesGeneral.css';
@@ -164,7 +165,7 @@ const REPORT_CATALOG = [
     titulo: 'Académico',
     icon: '📚',
     tone: 'academico',
-    resumen: 'Asistencia, rankings, consolidados, exámenes e incidencias.',
+    resumen: 'Asistencia, rankings, consolidados, exámenes, incidencias y avatar.',
     items: [
       {
         id: 'asistencia-mensual',
@@ -216,6 +217,14 @@ const REPORT_CATALOG = [
         ayuda:
           'Incidencias y estrellas del personal, más vestimenta y olvido de QR del ingreso. Elija Todos, solo incidencias o solo estrellas. Bimestre, nivel, grado y docente son opcionales (Ingreso = huellero/QR).',
         Component: ReporteIncidenciasEstrellas,
+      },
+      {
+        id: 'avatar',
+        label: 'Avatar',
+        icon: '🎭',
+        ayuda:
+          'Canjes y desbloqueos de avatar, más ranking de estrellas. Sin filtro es ranking general; con nivel o grado, el alcance se ajusta. Bimestre, docente (tutor) y fechas son opcionales.',
+        Component: ReporteAvatar,
       },
     ],
   },
