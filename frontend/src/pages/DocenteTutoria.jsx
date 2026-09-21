@@ -820,6 +820,8 @@ function DocenteTutoria({
   };
 
   const handleVerIncidenciasTutoria = async (alumno) => {
+    const gid = getGrupoIdTutoria();
+    if (!gid) return;
     try {
       const res = await api.get(`${apiPrefix}/grupos/${gid}/alumnos/${alumno.id}/incidencias`);
       setIncidenciasTutoria(res.data.incidencias || []);
