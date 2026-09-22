@@ -524,7 +524,7 @@ router.get('/visitas', async (req, res) => {
     const { estado, q, fecha, horario } = req.query;
     const params = [];
     let sql = `
-      SELECT id, fecha_registro, nombre, email, telefono, nivel_interes, fecha_preferida,
+      SELECT id, fecha_registro, nombre, email, telefono, nivel_interes, grado_interes, fecha_preferida,
              horario_preferido, numero_estudiantes, mensaje, estado, ip
       FROM web_visitas_guiadas WHERE 1=1
     `;
@@ -542,8 +542,8 @@ router.get('/visitas', async (req, res) => {
     }
     if (q && String(q).trim()) {
       const like = `%${String(q).trim()}%`;
-      sql += ' AND (nombre LIKE ? OR email LIKE ? OR nivel_interes LIKE ? OR mensaje LIKE ? OR horario_preferido LIKE ?)';
-      params.push(like, like, like, like, like);
+      sql += ' AND (nombre LIKE ? OR email LIKE ? OR nivel_interes LIKE ? OR grado_interes LIKE ? OR mensaje LIKE ? OR horario_preferido LIKE ?)';
+      params.push(like, like, like, like, like, like);
     }
     if (fecha && /^\d{4}-\d{2}-\d{2}$/.test(String(fecha))) {
       sql += ' ORDER BY horario_preferido ASC, nombre ASC, id ASC LIMIT 500';
@@ -593,7 +593,7 @@ router.put('/visitas/:id', async (req, res) => {
     }
     await execute(
       `UPDATE web_visitas_guiadas SET
-        nombre = ?, email = ?, telefono = ?, nivel_interes = ?, fecha_preferida = ?,
+        nombre = ?, email = ?, telefono = ?, nivel_interes = ?, grado_interes = ?, fecha_preferida = ?,
         horario_preferido = ?, numero_estudiantes = ?, mensaje = ?, estado = COALESCE(?, estado)
       WHERE id = ?`,
       [
@@ -601,6 +601,7 @@ router.put('/visitas/:id', async (req, res) => {
         String(b.email || '').trim(),
         b.telefono != null ? String(b.telefono).trim() || null : null,
         b.nivel_interes != null ? String(b.nivel_interes).trim() || null : null,
+        b.grado_interes != null ? String(b.grado_interes).trim() || null : null,
         b.fecha_preferida || null,
         String(b.horario_preferido || '').trim(),
         b.numero_estudiantes != null ? String(b.numero_estudiantes).trim() || null : null,

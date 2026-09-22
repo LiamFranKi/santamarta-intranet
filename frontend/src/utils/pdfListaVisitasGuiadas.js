@@ -54,15 +54,16 @@ export async function generarPdfListaVisitasGuiadas({
 
   const tableW = pageW - MARGIN * 2;
   const widths = [
-    tableW * 0.06,
-    tableW * 0.22,
-    tableW * 0.14,
-    tableW * 0.22,
+    tableW * 0.05,
+    tableW * 0.18,
     tableW * 0.12,
-    tableW * 0.16,
+    tableW * 0.18,
+    tableW * 0.1,
+    tableW * 0.14,
+    tableW * 0.15,
     tableW * 0.08,
   ];
-  const labels = ['N°', 'NOMBRE', 'TELÉFONO', 'EMAIL', 'NIVEL', 'HORARIO', 'N° EST.'];
+  const labels = ['N°', 'NOMBRE', 'TELÉFONO', 'EMAIL', 'NIVEL', 'GRADO', 'HORARIO', 'N° EST.'];
 
   const drawHead = () => {
     doc.setFillColor(...PDF_HEADER_BLUE);
@@ -107,6 +108,7 @@ export async function generarPdfListaVisitasGuiadas({
       f.telefono,
       f.email,
       f.nivel_interes,
+      f.grado_interes,
       f.horario_preferido,
       f.numero_estudiantes != null && f.numero_estudiantes !== '' ? String(f.numero_estudiantes) : '—',
     ];

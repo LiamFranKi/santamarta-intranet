@@ -1730,6 +1730,10 @@ function ModalVisita({ open, mode, item, onClose, onSaved }) {
                 <strong>{form.nivel_interes || '—'}</strong>
               </div>
               <div className="rs-detail-item">
+                <span>Grado</span>
+                <strong>{form.grado_interes || '—'}</strong>
+              </div>
+              <div className="rs-detail-item">
                 <span>Fecha preferida</span>
                 <strong>{form.fecha_preferida || '—'}</strong>
               </div>
@@ -1777,6 +1781,10 @@ function ModalVisita({ open, mode, item, onClose, onSaved }) {
           <div className="rs-field">
             <label>Nivel de interés</label>
             <input value={form.nivel_interes || ''} onChange={(e) => set('nivel_interes', e.target.value)} />
+          </div>
+          <div className="rs-field">
+            <label>Grado</label>
+            <input value={form.grado_interes || ''} onChange={(e) => set('grado_interes', e.target.value)} />
           </div>
           <div className="rs-field">
             <label>Fecha preferida</label>
@@ -2351,7 +2359,7 @@ export default function AdminReclamosSugerencias() {
     reclamos: 'Nombre, N°, email, detalle…',
     sugerencias: 'Nombre, email, mensaje…',
     contacto: 'Nombre, email, asunto…',
-    visitas: 'Nombre, email, nivel, horario…',
+    visitas: 'Nombre, email, nivel, grado, horario…',
     trabaja: 'Nombre, email, puesto…',
     admision: 'Estudiante, apoderado, DNI, grado…',
   }[tab];
@@ -2741,7 +2749,7 @@ export default function AdminReclamosSugerencias() {
                     <th>Fecha</th>
                     <th>Nombre</th>
                     <th>Preferencia</th>
-                    <th>Nivel</th>
+                    <th>Nivel / Grado</th>
                     <th>Estado</th>
                     <th>Acciones</th>
                   </tr>
@@ -2758,7 +2766,10 @@ export default function AdminReclamosSugerencias() {
                         <div>{fmtFechaPreferida(row.fecha_preferida)}</div>
                         <div className="rs-muted">{row.horario_preferido || ''}</div>
                       </td>
-                      <td>{row.nivel_interes || '—'}</td>
+                      <td>
+                        <div>{row.nivel_interes || '—'}</div>
+                        {row.grado_interes ? <div className="rs-muted">{row.grado_interes}</div> : null}
+                      </td>
                       <td>
                         <BadgeEstado estado={row.estado} />
                       </td>
