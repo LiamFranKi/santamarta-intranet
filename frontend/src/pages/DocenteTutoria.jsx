@@ -826,6 +826,11 @@ function DocenteTutoria({
   const handleVerIncidenciasTutoria = async (alumno) => {
     const gid = getGrupoIdTutoria();
     if (!gid) return;
+    setAlumnoSeleccionadoTutoria(alumno);
+    setFormIncidenciasTutoria({ description: '' });
+    setLoadingIncidenciasTutoria(true);
+    setShowModalIncidenciasTutoria(true);
+    setOpenDropdownAlumno(null);
     try {
       const res = await api.get(`${apiPrefix}/grupos/${gid}/alumnos/${alumno.id}/incidencias`);
       setIncidenciasTutoria(res.data.incidencias || []);
@@ -850,7 +855,6 @@ function DocenteTutoria({
     } finally {
       setLoadingIncidenciasTutoria(false);
     }
-    setOpenDropdownAlumno(null);
   };
 
   const handleVerEstrellasTutoria = async (alumno) => {
