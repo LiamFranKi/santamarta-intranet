@@ -522,35 +522,52 @@ router.get('/visitas/opciones-filtro', async (req, res) => {
 router.get('/visitas', async (req, res) => {
   try {
     const { estado, q, fecha, horario } = req.query;
-    const params = [];
-    let sql = `
-      SELECT id, fecha_registro, nombre, email, telefono, nivel_interes, grado_interes, fecha_preferida,
+    const armarSql = (conGrado) => {
+      const params = [];
+      let sql = `
+      SELECT id, fecha_registro, nombre, email, telefono, nivel_interes${conGrado ? ', grado_interes' : ''}, fecha_preferida,
              horario_preferido, numero_estudiantes, mensaje, estado, ip
       FROM web_visitas_guiadas WHERE 1=1
     `;
-    if (estado) {
-      sql += ' AND estado = ?';
-      params.push(String(estado));
+      if (estado) {
+        sql += ' AND estado = ?';
+        params.push(String(estado));
+      }
+      if (fecha && /^\d{4}-\d{2}-\d{2}$/.test(String(fecha))) {
+        sql += ' AND DATE(fecha_preferida) = ?';
+        params.push(String(fecha));
+      }
+      if (horario && String(horario).trim()) {
+        sql += ' AND horario_preferido = ?';
+        params.push(String(horario).trim());
+      }
+      if (q && String(q).trim()) {
+        const like = `%${String(q).trim()}%`;
+        sql += conGrado
+          ? ' AND (nombre LIKE ? OR email LIKE ? OR nivel_interes LIKE ? OR grado_interes LIKE ? OR mensaje LIKE ? OR horario_preferido LIKE ?)'
+          : ' AND (nombre LIKE ? OR email LIKE ? OR nivel_interes LIKE ? OR mensaje LIKE ? OR horario_preferido LIKE ?)';
+        if (conGrado) params.push(like, like, like, like, like, like);
+        else params.push(like, like, like, like, like);
+      }
+      if (fecha && /^\d{4}-\d{2}-\d{2}$/.test(String(fecha))) {
+        sql += ' ORDER BY horario_preferido ASC, nombre ASC, id ASC LIMIT 500';
+      } else {
+        sql += ' ORDER BY fecha_preferida ASC, fecha_registro DESC, id DESC LIMIT 500';
+      }
+      return { sql, params };
+    };
+    let visitas;
+    try {
+      const q1 = armarSql(true);
+      visitas = (await query(q1.sql, q1.params)) || [];
+    } catch (e) {
+      if (!String(e.message || '').includes('grado_interes')) throw e;
+      const q2 = armarSql(false);
+      visitas = (await query(q2.sql, q2.params)) || [];
     }
-    if (fecha && /^\d{4}-\d{2}-\d{2}$/.test(String(fecha))) {
-      sql += ' AND DATE(fecha_preferida) = ?';
-      params.push(String(fecha));
-    }
-    if (horario && String(horario).trim()) {
-      sql += ' AND horario_preferido = ?';
-      params.push(String(horario).trim());
-    }
-    if (q && String(q).trim()) {
-      const like = `%${String(q).trim()}%`;
-      sql += ' AND (nombre LIKE ? OR email LIKE ? OR nivel_interes LIKE ? OR grado_interes LIKE ? OR mensaje LIKE ? OR horario_preferido LIKE ?)';
-      params.push(like, like, like, like, like, like);
-    }
-    if (fecha && /^\d{4}-\d{2}-\d{2}$/.test(String(fecha))) {
-      sql += ' ORDER BY horario_preferido ASC, nombre ASC, id ASC LIMIT 500';
-    } else {
-      sql += ' ORDER BY fecha_preferida ASC, fecha_registro DESC, id DESC LIMIT 500';
-    }
-    res.json({ visitas: (await query(sql, params)) || [] });
+    res.json({
+      visitas: (visitas || []).map((v) => ({ ...v, grado_interes: v.grado_interes ?? null })),
+    });
   } catch (e) {
     res.status(500).json({ error: e.message || 'Error al listar visitas.' });
   }
@@ -591,25 +608,42 @@ router.put('/visitas/:id', async (req, res) => {
     if (estado && !ESTADOS.includes(estado)) {
       return res.status(400).json({ error: `Estado inválido. Use: ${ESTADOS.join(', ')}` });
     }
-    await execute(
-      `UPDATE web_visitas_guiadas SET
-        nombre = ?, email = ?, telefono = ?, nivel_interes = ?, grado_interes = ?, fecha_preferida = ?,
-        horario_preferido = ?, numero_estudiantes = ?, mensaje = ?, estado = COALESCE(?, estado)
-      WHERE id = ?`,
-      [
-        String(b.nombre || '').trim(),
-        String(b.email || '').trim(),
-        b.telefono != null ? String(b.telefono).trim() || null : null,
-        b.nivel_interes != null ? String(b.nivel_interes).trim() || null : null,
-        b.grado_interes != null ? String(b.grado_interes).trim() || null : null,
-        b.fecha_preferida || null,
-        String(b.horario_preferido || '').trim(),
-        b.numero_estudiantes != null ? String(b.numero_estudiantes).trim() || null : null,
-        b.mensaje != null ? String(b.mensaje).trim() || null : null,
-        estado,
-        id,
-      ]
-    );
+    const valsComunes = [
+      String(b.nombre || '').trim(),
+      String(b.email || '').trim(),
+      b.telefono != null ? String(b.telefono).trim() || null : null,
+      b.nivel_interes != null ? String(b.nivel_interes).trim() || null : null,
+    ];
+    const valsCola = [
+      b.fecha_preferida || null,
+      String(b.horario_preferido || '').trim(),
+      b.numero_estudiantes != null ? String(b.numero_estudiantes).trim() || null : null,
+      b.mensaje != null ? String(b.mensaje).trim() || null : null,
+      estado,
+      id,
+    ];
+    try {
+      await execute(
+        `UPDATE web_visitas_guiadas SET
+          nombre = ?, email = ?, telefono = ?, nivel_interes = ?, grado_interes = ?, fecha_preferida = ?,
+          horario_preferido = ?, numero_estudiantes = ?, mensaje = ?, estado = COALESCE(?, estado)
+        WHERE id = ?`,
+        [
+          ...valsComunes,
+          b.grado_interes != null ? String(b.grado_interes).trim() || null : null,
+          ...valsCola,
+        ]
+      );
+    } catch (e) {
+      if (!String(e.message || '').includes('grado_interes')) throw e;
+      await execute(
+        `UPDATE web_visitas_guiadas SET
+          nombre = ?, email = ?, telefono = ?, nivel_interes = ?, fecha_preferida = ?,
+          horario_preferido = ?, numero_estudiantes = ?, mensaje = ?, estado = COALESCE(?, estado)
+        WHERE id = ?`,
+        [...valsComunes, ...valsCola]
+      );
+    }
     const updated = await query('SELECT * FROM web_visitas_guiadas WHERE id = ? LIMIT 1', [id]);
     res.json({ visita: updated[0], message: 'Visita actualizada' });
   } catch (e) {

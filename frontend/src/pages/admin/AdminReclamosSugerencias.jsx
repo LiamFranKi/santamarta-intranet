@@ -2270,6 +2270,14 @@ export default function AdminReclamosSugerencias() {
         console.warn('No se pudo marcar como visto:', e);
       }
     }
+    if (tipo === 'visitas' && row?.id) {
+      try {
+        const { data } = await api.get(`${API}/visitas/${row.id}`);
+        if (data?.visita) item = { ...item, ...data.visita };
+      } catch {
+        /* se usa la fila de la grilla */
+      }
+    }
     setModal({ tipo, open: true, mode, item });
   };
 
@@ -2749,7 +2757,8 @@ export default function AdminReclamosSugerencias() {
                     <th>Fecha</th>
                     <th>Nombre</th>
                     <th>Preferencia</th>
-                    <th>Nivel / Grado</th>
+                    <th>Nivel</th>
+                    <th>Grado</th>
                     <th>Estado</th>
                     <th>Acciones</th>
                   </tr>
@@ -2766,10 +2775,8 @@ export default function AdminReclamosSugerencias() {
                         <div>{fmtFechaPreferida(row.fecha_preferida)}</div>
                         <div className="rs-muted">{row.horario_preferido || ''}</div>
                       </td>
-                      <td>
-                        <div>{row.nivel_interes || '—'}</div>
-                        {row.grado_interes ? <div className="rs-muted">{row.grado_interes}</div> : null}
-                      </td>
+                      <td>{row.nivel_interes || '—'}</td>
+                      <td>{row.grado_interes || '—'}</td>
                       <td>
                         <BadgeEstado estado={row.estado} />
                       </td>
