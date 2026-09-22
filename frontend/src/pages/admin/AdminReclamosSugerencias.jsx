@@ -2346,7 +2346,6 @@ export default function AdminReclamosSugerencias() {
     try {
       setExportandoPdf(true);
       await generarPdfListaVisitasGuiadas({
-        colegioNombre: 'Vanguard Schools',
         fechaYmd: fechaVisita,
         horario: horarioVisita || (horariosDeFecha.length === 1 ? horariosDeFecha[0] : ''),
         filas: itemsActivos,

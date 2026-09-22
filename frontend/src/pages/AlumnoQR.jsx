@@ -136,7 +136,8 @@ function AlumnoQR() {
       const logoSize = 10;
       const logoX = 3;
       const logoY = 2;
-      const logoUrlLocal = typeof window !== 'undefined' ? `${window.location.origin}/icons/logoboleta.png` : '';
+      const { urlLogoConRespaldo } = await import('../utils/pdfReporteColegioLogo');
+      const logoUrlLocal = await urlLogoConRespaldo('/icons/logoboleta.png');
       let logoData = logoUrlLocal ? await loadImageAsDataUrl(logoUrlLocal) : null;
       if (!logoData) logoData = qrData.logo_base64 || null;
       if (!logoData && qrData.logo_url) logoData = await loadImageAsDataUrl(qrData.logo_url);

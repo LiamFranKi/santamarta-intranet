@@ -8,6 +8,7 @@ const {
   guiaPracticaALegacy,
 } = require('./normalizarGuiaPractica');
 const { renderFichaHtml } = require('./renderFichaHtml');
+const { leerIdentidadColegio } = require('../../utils/identidadColegio');
 
 /**
  * Diseño LIBRE híbrido:
@@ -461,6 +462,7 @@ async function generarHtmlDisenoLibre(params) {
       usoVanguarcito: true,
       inlineAssets: true,
       esMatematica: false,
+      colegioNombre: (await leerIdentidadColegio(1).catch(() => null))?.titulo || 'Vanguard Schools',
     },
     'plantilla-vanguard-guia-practica.hbs'
   );

@@ -31,33 +31,10 @@ function leerFotoBase64(fotoPath, alumnoFoto) {
   }
 }
 
-async function leerLogoBoletaBase64(query) {
-  const configLogo = await query(`SELECT valor FROM config WHERE clave = 'boleta_logo' LIMIT 1`);
-  if (!configLogo || !configLogo.length || !configLogo[0].valor) {
-    return { logo_url: null, logo_base64: null };
-  }
-  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
-  const isProduction = process.env.NODE_ENV === 'production';
-  const logo_url = isProduction
-    ? `${phpSystemUrl}/Static/Archivos/${configLogo[0].valor}`
-    : `http://localhost:5000/Static/Archivos/${configLogo[0].valor}`;
-  const baseArchivosPath = process.env.STATIC_ARCHIVOS_PATH || path.join(__dirname, '..', 'Static', 'Archivos');
-  let logoPath = path.join(baseArchivosPath, path.basename(configLogo[0].valor));
-  if (!fs.existsSync(logoPath) && isProduction) {
-    logoPath = path.join('/home/vanguard/intranet2026/backend/Static/Archivos', path.basename(configLogo[0].valor));
-  }
-  let logo_base64 = null;
-  try {
-    if (fs.existsSync(logoPath)) {
-      const buf = fs.readFileSync(logoPath);
-      const ext = (path.extname(configLogo[0].valor) || '').toLowerCase();
-      const mime = ext === '.png' ? 'image/png' : 'image/jpeg';
-      logo_base64 = `data:${mime};base64,${buf.toString('base64')}`;
-    }
-  } catch (e) {
-    /* ignorar */
-  }
-  return { logo_url, logo_base64 };
+async function leerLogoBoletaBase64() {
+  const { leerLogoParaCliente } = require('./logoColegio');
+  const logo = await leerLogoParaCliente();
+  return { logo_url: logo.logo_url, logo_base64: logo.logo_base64 };
 }
 
 /**

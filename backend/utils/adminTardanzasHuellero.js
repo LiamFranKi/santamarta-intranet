@@ -2,6 +2,7 @@
  * Importación Excel huellero y listado de tardanzas del personal.
  */
 const XLSX = require('xlsx');
+const { marcaCreadorExcel } = require('./identidadColegio');
 const { sqlPersonalSinSuperadmin } = require('./superadminOculto');
 
 /** @deprecated La tarifa real es por persona: sueldo / 30 / 8 / 60. Se deja en 0 para no reutilizar S/ 1. */
@@ -1533,7 +1534,7 @@ function fmtFechaExcel(iso) {
 async function buildExportWorkbook(lista) {
   const ExcelJS = require('exceljs');
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'Intranet Vanguard';
+  wb.creator = await marcaCreadorExcel();
   const ws = wb.addWorksheet('Tardanzas', {
     views: [{ state: 'frozen', ySplit: 3, showGridLines: false }],
   });

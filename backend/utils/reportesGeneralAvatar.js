@@ -2,6 +2,7 @@
  * Reporte «Avatar» — canjes/desbloqueos y ranking de estrellas.
  */
 const ExcelJS = require('exceljs');
+const { marcaCreadorExcel } = require('./identidadColegio');
 const { query } = require('./mysql');
 const {
   FILL_FILA_PAR,
@@ -432,7 +433,7 @@ async function generarExcelAvatar(colegioId, filtros) {
   if (!data.ok) return data;
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'VanguardNet';
+  wb.creator = await marcaCreadorExcel(colegioId);
   wb.created = new Date();
   const k = data.kpis || {};
 

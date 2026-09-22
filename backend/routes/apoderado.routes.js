@@ -1794,29 +1794,10 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
       } catch (e) { /* ignorar */ }
     }
 
-    let logo_url = null;
-    let logo_base64 = null;
-    const configLogo = await query(`SELECT valor FROM config WHERE clave = 'boleta_logo' LIMIT 1`);
-    if (configLogo && configLogo.length > 0 && configLogo[0].valor) {
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
-      const isProduction = process.env.NODE_ENV === 'production';
-      logo_url = isProduction
-        ? `${phpSystemUrl}/Static/Archivos/${configLogo[0].valor}`
-        : `http://localhost:5000/Static/Archivos/${configLogo[0].valor}`;
-      const baseArchivosPath = process.env.STATIC_ARCHIVOS_PATH || path.join(__dirname, '..', 'Static', 'Archivos');
-      let logoPath = path.join(baseArchivosPath, path.basename(configLogo[0].valor));
-      if (!fs.existsSync(logoPath) && process.env.NODE_ENV === 'production') {
-        logoPath = path.join('/home/vanguard/intranet2026/backend/Static/Archivos', path.basename(configLogo[0].valor));
-      }
-      try {
-        if (fs.existsSync(logoPath)) {
-          const buf = fs.readFileSync(logoPath);
-          const ext = (path.extname(configLogo[0].valor) || '').toLowerCase();
-          const mime = ext === '.png' ? 'image/png' : 'image/jpeg';
-          logo_base64 = `data:${mime};base64,${buf.toString('base64')}`;
-        }
-      } catch (e) { /* ignorar */ }
-    }
+    const { leerLogoParaCliente } = require('../utils/logoColegio');
+    const logoCliente = await leerLogoParaCliente();
+    const logo_url = logoCliente.logo_url;
+    const logo_base64 = logoCliente.logo_base64;
 
     res.json({
       nombres: alumnoData.nombres || '',

@@ -33,6 +33,7 @@ const {
   guardarConfigEstructura,
   aplicarEstructuraColegio,
 } = require('../utils/aulaEstructuraTemas');
+const { resolverLogoVariante, guardarArchivoLogo, upsertClave } = require('../utils/logoColegio');
 
 const { memoKeyed, withTimeout } = require('../utils/ttlCache');
 const dashMemo = memoKeyed(45 * 1000);
@@ -1573,6 +1574,9 @@ router.get('/configuracion', async (req, res) => {
     
     // Separar colegioData para evitar sobrescribir valores
     const { inicio_pensiones: _, inicio_notas: __, ...restColegioData } = colegioData;
+    const logoColegioRes = await resolverLogoVariante('logo_colegio');
+    const logoBlancoRes = await resolverLogoVariante('logo_blanco');
+    const logoMineduRes = await resolverLogoVariante('logo_minedu');
     
     res.json({
       ...restColegioData,
@@ -1583,6 +1587,9 @@ router.get('/configuracion', async (req, res) => {
       rangos_ciclos_notas: rangosCiclosNotas,
       pensiones_vencimiento: pensionesVencimiento,
       texto_intranet: configMap['texto_intranet'] || '',
+      telefono_colegio: configMap['telefono_colegio'] || '',
+      correo_contacto: configMap['correo_contacto'] || '',
+      direccion_contacto: configMap['direccion_contacto'] || '',
       titulo_formulario_matricula: configMap['titulo_formulario_matricula'] || '',
       recaudo_nro_sucursal: configMap['recaudo_nro_sucursal'] || '',
       recaudo_nro_cuenta: configMap['recaudo_nro_cuenta'] || '',
@@ -1604,6 +1611,9 @@ router.get('/configuracion', async (req, res) => {
       libreta_logo: configMap['libreta_logo'] ? `${baseUrl}/Static/Image/Fondos/${configMap['libreta_logo']}` : null,
       libreta_fondo: configMap['libreta_fondo'] ? `${baseUrl}/Static/Image/Fondos/${configMap['libreta_fondo']}` : null,
       boleta_logo: configMap['boleta_logo'] ? `${baseUrl}/Static/Archivos/${configMap['boleta_logo']}` : null,
+      logo_colegio: logoColegioRes.urlAbsoluta,
+      logo_blanco: logoBlancoRes.urlAbsoluta,
+      logo_minedu: logoMineduRes.urlAbsoluta,
       regla_conducta: (() => {
         try {
           if (configMap.regla_conducta) {
@@ -1692,7 +1702,10 @@ router.put('/configuracion', uploadConfig.fields([
   { name: 'login_fondo', maxCount: 1 },
   { name: 'libreta_logo', maxCount: 1 },
   { name: 'libreta_fondo', maxCount: 1 },
-  { name: 'boleta_logo', maxCount: 1 }
+  { name: 'boleta_logo', maxCount: 1 },
+  { name: 'logo_colegio', maxCount: 1 },
+  { name: 'logo_blanco', maxCount: 1 },
+  { name: 'logo_minedu', maxCount: 1 },
 ]), async (req, res) => {
   try {
     const { colegio_id } = req.user;
@@ -1871,7 +1884,8 @@ router.put('/configuracion', uploadConfig.fields([
 
     // Actualizar tabla config
     const configFields = [
-      'texto_intranet', 'titulo_formulario_matricula', 'recaudo_nro_sucursal',
+      'texto_intranet', 'telefono_colegio', 'correo_contacto', 'direccion_contacto',
+      'titulo_formulario_matricula', 'recaudo_nro_sucursal',
       'recaudo_nro_cuenta', 'recaudo_razon_social', 'email_notificacion_matricula_online',
       'remitente_emails', 'email_matricula_apoderado', 'email_matricula_interno', 'email_matricula_interno_asunto', 'link_consulta_facturas',
       'show_birthday_window',
@@ -1930,6 +1944,13 @@ router.put('/configuracion', uploadConfig.fields([
         } else {
           await execute(`INSERT INTO config (clave, valor) VALUES ('libreta_fondo', ?)`, [req.files.libreta_fondo[0].filename]);
         }
+      }
+
+      for (const clave of ['logo_colegio', 'logo_blanco', 'logo_minedu']) {
+        const subido = req.files[clave] && req.files[clave][0];
+        if (!subido) continue;
+        const filename = guardarArchivoLogo(subido.path, subido.originalname, clave);
+        await upsertClave(clave, filename);
       }
 
       if (req.files.boleta_logo && req.files.boleta_logo[0]) {

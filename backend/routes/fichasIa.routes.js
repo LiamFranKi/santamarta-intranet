@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const { query, execute } = require('../utils/mysql');
+const { leerIdentidadColegio } = require('../utils/identidadColegio');
 const { authenticateToken } = require('../middleware/auth');
 const { ensureFichasIaDirs, dirs, urlUploads } = require('../utils/fichasIaPaths');
 const { extractPdfText } = require('../services/fichasIa/extractPdfText');
@@ -745,6 +746,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
       contenido,
       usoVanguarcito: ia_proveedor === 'google',
       inlineAssets: true,
+      colegioNombre: (await leerIdentidadColegio(1).catch(() => null))?.titulo || 'Vanguard Schools',
     };
 
     try {
@@ -890,6 +892,7 @@ router.get('/trabajos/:id/preview-html', async (req, res) => {
         contenido,
         usoVanguarcito: trabajo.ia_proveedor === 'google',
         inlineAssets: true,
+        colegioNombre: (await leerIdentidadColegio(1).catch(() => null))?.titulo || 'Vanguard Schools',
       },
       esMat
         ? plantillaRows[0]?.archivo_plantilla || metaEstilo('matematica').archivo

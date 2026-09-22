@@ -59,21 +59,13 @@ const PIE_FICHA_MINEDU =
 const PIE_FICHA_COLEGIO = 'Ficha de trabajo del colegio. El niño dibuja o escribe; se archiva en el portafolio.';
 
 function logoColegioPath() {
-  const dir = path.join(__dirname, '..', 'public', 'assets', 'logos');
-  for (const name of ['logo.png', 'logo-default.png']) {
-    const p = path.join(dir, name);
-    if (fs.existsSync(p)) return p;
-  }
-  return null;
+  const { rutaLogoColegioSync } = require('./logoColegio');
+  return rutaLogoColegioSync();
 }
 
 function logoMineduPath() {
-  const dir = path.join(__dirname, '..', 'public', 'assets', 'logos');
-  for (const name of ['minedu.png', 'minedu.jpg', 'minedu.jpeg']) {
-    const p = path.join(dir, name);
-    if (fs.existsSync(p)) return p;
-  }
-  return null;
+  const { rutaLogoVarianteSync } = require('./logoColegio');
+  return rutaLogoVarianteSync('logo_minedu');
 }
 
 function dibujarLogoMinedu(doc, x, y, w, h) {

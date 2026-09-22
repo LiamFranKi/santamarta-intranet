@@ -274,7 +274,7 @@ function generarTemplateAsistencia(datos) {
                 © ${new Date().getFullYear()} ${colegioNombre}. Todos los derechos reservados.
               </p>
               <p style="margin: 10px 0 0 0; font-size: 12px; color: #9ca3af;">
-                Sistema de Gestión Escolar - Vanguard Schools
+                Sistema de Gestión Escolar - ${colegioNombre}
               </p>
             </td>
           </tr>
@@ -405,7 +405,7 @@ function generarTemplateNotificacion(datos) {
                 © ${new Date().getFullYear()} ${colegioNombre}. Todos los derechos reservados.
               </p>
               <p style="margin: 10px 0 0 0; font-size: 12px; color: #9ca3af;">
-                Sistema de Gestión Escolar - Vanguard Schools
+                Sistema de Gestión Escolar - ${colegioNombre}
               </p>
             </td>
           </tr>

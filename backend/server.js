@@ -256,6 +256,9 @@ app.get('/api/static/avatars/:filename', (req, res) => {
 const colegioRoutes = require('./routes/colegio.routes');
 app.use('/api/colegio', colegioRoutes);
 
+const pwaRoutes = require('./routes/pwa.routes');
+app.use('/api/pwa', pwaRoutes);
+
 // Rutas de autenticación
 const authRoutes = require('./routes/auth.routes');
 app.use('/api/auth', authRoutes);

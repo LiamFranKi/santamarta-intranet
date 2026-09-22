@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const { query } = require('../utils/mysql');
 const { getColegioData } = require('../utils/colegio');
-const path = require('path');
-const fs = require('fs');
+const { resolverLogoVariante } = require('../utils/logoColegio');
 
 /**
  * GET /api/colegio/:colegioId
@@ -17,38 +17,23 @@ router.get('/:colegioId', async (req, res) => {
       return res.status(404).json({ error: 'Colegio no encontrado' });
     }
 
-    // Si hay logo en MySQL, verificar si existe en la carpeta local
-    let logoPath = null;
-    if (colegioData.logo) {
-      // El logo puede venir como ruta relativa o nombre de archivo
-      const logoFileName = colegioData.logo.split('/').pop() || colegioData.logo;
-      const logoLocalPath = path.join(__dirname, '..', 'public', 'assets', 'logos', logoFileName);
-      
-      if (fs.existsSync(logoLocalPath)) {
-        logoPath = `/assets/logos/${logoFileName}`;
-      } else {
-        // Si no existe localmente, usar el path de MySQL (puede ser URL remota)
-        logoPath = colegioData.logo;
-      }
-    }
-    
-    // Si no hay logo o no se encontró, buscar logo.png por defecto
-    if (!logoPath) {
-      const defaultLogoPath = path.join(__dirname, '..', 'public', 'assets', 'logos', 'logo.png');
-      if (fs.existsSync(defaultLogoPath)) {
-        logoPath = '/assets/logos/logo.png';
-      } else {
-        // Intentar con logo-default.png
-        const fallbackLogoPath = path.join(__dirname, '..', 'public', 'assets', 'logos', 'logo-default.png');
-        if (fs.existsSync(fallbackLogoPath)) {
-          logoPath = '/assets/logos/logo-default.png';
-        }
-      }
+    const logo = await resolverLogoVariante('logo_colegio');
+    const logoBlanco = await resolverLogoVariante('logo_blanco');
+    let textoIntranet = '';
+    try {
+      const rows = await query(`SELECT valor FROM config WHERE clave = 'texto_intranet' LIMIT 1`);
+      textoIntranet = rows?.[0]?.valor != null ? String(rows[0].valor) : '';
+    } catch (_) {
+      textoIntranet = '';
     }
 
     res.json({
       ...colegioData,
-      logo: logoPath,
+      logo: logo.urlPath,
+      logo_desde_config: logo.desdeConfig,
+      logo_blanco: logoBlanco.urlPath,
+      logo_blanco_desde_config: logoBlanco.desdeConfig,
+      texto_intranet: textoIntranet,
     });
   } catch (error) {
     console.error('Error obteniendo datos del colegio:', error);

@@ -18,11 +18,17 @@ function DocenteCursos() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const logoNominaUrl = useMemo(() => {
-    const base = process.env.REACT_APP_API_URL
-      ? process.env.REACT_APP_API_URL.replace(/\/api\/?$/, '')
-      : window.location.origin;
-    return `${base}/assets/logos/logo.png`;
+  const [logoNominaUrl, setLogoNominaUrl] = useState('');
+  useEffect(() => {
+    let vivo = true;
+    import('../utils/pdfReporteColegioLogo').then(({ urlLogoConRespaldo }) =>
+      urlLogoConRespaldo('/assets/logos/logo.png').then((url) => {
+        if (vivo && url) setLogoNominaUrl(url);
+      })
+    );
+    return () => {
+      vivo = false;
+    };
   }, []);
   const [loading, setLoading] = useState(true);
   const [cursos, setCursos] = useState([]);
@@ -498,7 +504,8 @@ function DocenteCursos() {
     const docenteNombre = user?.apellidos ? `${user.apellidos}, ${user.nombres}` : `${[user?.apellido_paterno, user?.apellido_materno].filter(Boolean).join(' ')}, ${user?.nombres || ''}`.trim();
 
     // Logo en esquina superior derecha
-    const logoUrl = logoNominaUrl || (process.env.REACT_APP_API_URL ? `${process.env.REACT_APP_API_URL.replace(/\/api\/?$/, '')}/assets/logos/logo.png` : `${window.location.origin}/assets/logos/logo.png`);
+    const { urlLogoConRespaldo } = await import('../utils/pdfReporteColegioLogo');
+    const logoUrl = logoNominaUrl || (await urlLogoConRespaldo('/assets/logos/logo.png'));
     try {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
@@ -2120,9 +2127,8 @@ function DocenteCursos() {
     const leftOffset = margin;
 
     // Logo en esquina superior derecha, más arriba (y=4)
-    const logoUrl = process.env.REACT_APP_API_URL
-      ? `${process.env.REACT_APP_API_URL.replace(/\/api\/?$/, '')}/assets/logos/logo.png`
-      : `${window.location.origin}/assets/logos/logo.png`;
+    const { urlLogoConRespaldo } = await import('../utils/pdfReporteColegioLogo');
+    const logoUrl = await urlLogoConRespaldo('/assets/logos/logo.png');
     try {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');

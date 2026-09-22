@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import { obtenerMarcaIntranet } from './identidadColegio';
 import { etiquetaTipoTrabajo } from './sgoiFormat';
 
 const DIAS = [
@@ -33,7 +34,7 @@ function wrapText(doc, text, maxWidth) {
 /**
  * PDF del horario semanal. Incluye domingo si tiene franjas.
  */
-export function exportarHorarioSgoiPdf(dias, { nombre } = {}) {
+export async function exportarHorarioSgoiPdf(dias, { nombre } = {}) {
   const conContenido = DIAS.map(([wd, nombre]) => {
     const bloques = (dias.find((d) => Number(d.weekday) === wd)?.bloques || []).filter(
       (b) => String(b.titulo || '').trim()
@@ -51,6 +52,7 @@ export function exportarHorarioSgoiPdf(dias, { nombre } = {}) {
     )
   ).sort();
 
+  const marca = await obtenerMarcaIntranet();
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
@@ -71,7 +73,7 @@ export function exportarHorarioSgoiPdf(dias, { nombre } = {}) {
   doc.setFontSize(9);
   doc.setTextColor(191, 219, 254);
   const persona = String(nombre || '').trim();
-  doc.text(persona ? `Emitido para: ${persona}` : 'VanguardNet · Gestión operativa', margin, 18);
+  doc.text(persona ? `Emitido para: ${persona}` : `${marca} · Gestión operativa`, margin, 18);
   const generado = new Date().toLocaleString('es-PE', {
     dateStyle: 'medium',
     timeStyle: 'short',

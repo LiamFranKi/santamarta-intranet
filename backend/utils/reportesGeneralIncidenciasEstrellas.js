@@ -2,6 +2,7 @@
  * Reporte «Incidencias y estrellas» — aula + ingreso (vestimenta / olvido QR).
  */
 const ExcelJS = require('exceljs');
+const { marcaCreadorExcel } = require('./identidadColegio');
 const { query } = require('./mysql');
 const {
   FILL_FILA_PAR,
@@ -471,7 +472,7 @@ async function generarExcelIncidenciasEstrellas(colegioId, filtros) {
   if (!data.ok) return data;
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'VanguardNet';
+  wb.creator = await marcaCreadorExcel(colegioId);
   wb.created = new Date();
   const cols = 9;
   const ws = wb.addWorksheet('Detalle', { views: [{ showGridLines: false }] });

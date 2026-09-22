@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { obtenerLogoColegioParaPdf, dibujarLogoEsquina } from './pdfReporteColegioLogo';
+import { obtenerTituloColegio } from './identidadColegio';
 
 const MESES = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -133,7 +134,7 @@ export function rangoAgendaPdf(modo, { anio, mes, hoyYmd }) {
 }
 
 function dibujarSemana(doc, week, eventos, opts) {
-  const { hoyYmd, tituloRango, filtrosLabel, logo, page, pages } = opts;
+  const { hoyYmd, tituloRango, filtrosLabel, logo, page, pages, colegioNombre } = opts;
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const margin = 8;
@@ -158,7 +159,7 @@ function dibujarSemana(doc, week, eventos, opts) {
   doc.text('Agenda interna', margin + 26, 11);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text('Vanguard Schools  ·  uso interno, no se publica en la web', margin + 26, 16.5);
+  doc.text(`${colegioNombre || 'Vanguard Schools'}  ·  uso interno, no se publica en la web`, margin + 26, 16.5);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
@@ -321,6 +322,7 @@ export async function exportarAgendaInternaPdf({
   if (!weeks.length) return;
 
   const logo = await obtenerLogoColegioParaPdf();
+  const colegioNombre = await obtenerTituloColegio();
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const hoy = hoyYmd || ymdLocal(new Date());
 
@@ -331,6 +333,7 @@ export async function exportarAgendaInternaPdf({
       tituloRango,
       filtrosLabel,
       logo,
+      colegioNombre,
       page: i + 1,
       pages: weeks.length,
     });

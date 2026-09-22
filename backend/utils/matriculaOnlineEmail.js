@@ -3,6 +3,7 @@ const { enviarCorreoHtml } = require('../services/emailService');
 const { etiquetaSeguro } = require('./seguroOpciones');
 const { buildStaticArchivoUrl, joinStaticFs, getPublicStaticBaseUrl } = require('./staticStorage');
 const { query } = require('./mysql');
+const { leerIdentidadColegio } = require('./identidadColegio');
 const { sincronizarDestinatariosMatriculaLegacy } = require('./matriculaOnlineCorreosSync');
 
 const PLACEHOLDERS_AYUDA = [
@@ -75,7 +76,10 @@ function introAHtml(raw) {
     .join('');
 }
 
-function logoEmailUrl() {
+async function logoEmailUrl() {
+  const { resolverLogoColegio } = require('./logoColegio');
+  const logo = await resolverLogoColegio();
+  if (logo.desdeConfig && logo.urlAbsoluta) return logo.urlAbsoluta;
   return `${getPublicStaticBaseUrl()}/assets/logos/logo.png`;
 }
 
@@ -103,8 +107,10 @@ function marcoEmailHtml({
   notaPie = '',
   colegioNombre = 'Vanguard Schools',
   anioCopyright = new Date().getFullYear(),
+  logoUrl = '',
+  footer,
 } = {}) {
-  const logo = logoEmailUrl();
+  const logo = logoUrl || `${getPublicStaticBaseUrl()}/assets/logos/logo.png`;
   const nombrePie = escapeHtml(colegioNombre || 'Vanguard Schools');
   const sub = String(subtitulo || '').trim();
   const nota = String(notaPie || '').trim();
@@ -136,10 +142,10 @@ function marcoEmailHtml({
               <tr>
                 <td style="padding:18px 20px;text-align:center;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
                   <div style="font-size:15px;font-weight:700;color:#1a56db;margin:0 0 6px;">${nombrePie}</div>
-                  <div style="font-size:12px;color:#4b5563;line-height:1.55;margin:0 0 4px;">${escapeHtml(FOOTER_COLEGIO.direccion)}</div>
+                  <div style="font-size:12px;color:#4b5563;line-height:1.55;margin:0 0 4px;">${escapeHtml((footer || FOOTER_COLEGIO).direccion)}</div>
                   <div style="font-size:12px;color:#4b5563;line-height:1.55;margin:0 0 8px;">
-                    ${escapeHtml(FOOTER_COLEGIO.telefonos)} —
-                    <a href="mailto:${FOOTER_COLEGIO.email}" style="color:#1a56db;text-decoration:none;">${FOOTER_COLEGIO.email}</a>
+                    ${escapeHtml((footer || FOOTER_COLEGIO).telefonos)} —
+                    <a href="mailto:${(footer || FOOTER_COLEGIO).email}" style="color:#1a56db;text-decoration:none;">${escapeHtml((footer || FOOTER_COLEGIO).email)}</a>
                   </div>
                   <div style="font-size:11px;color:#9ca3af;margin:0;">© ${anioCopyright} ${nombrePie} — Mensaje automático de matrícula online</div>
                 </td>
@@ -326,6 +332,13 @@ async function enviarEmailsMatriculaOnline({
   const colegioNombre = config.remitente_emails || vars.colegio || 'Vanguard Schools';
   const subtitulo = vars.nivel_grado_subtitulo || vars.nivel_grado;
   const resultados = { apoderado: null, internos: [] };
+  const logoUrl = await logoEmailUrl();
+  const identidad = await leerIdentidadColegio(1);
+  const footerContacto = {
+    direccion: identidad.direccionContacto,
+    telefonos: identidad.telefono,
+    email: identidad.correo,
+  };
 
   // Intro opcional. Vacío → texto corto del sistema. Marco + campos siempre los arma el backend.
   const introApoderadoSrc = (config.email_matricula_apoderado || '').trim() || plantillaApoderadoDefault();
@@ -339,6 +352,8 @@ async function enviarEmailsMatriculaOnline({
     camposHtml: camposResumenApoderado(vars),
     notaPie: 'Este es un mensaje automático. Si tiene consultas, responda a este correo o comuníquese con el colegio.',
     colegioNombre,
+    logoUrl,
+    footer: footerContacto,
   });
 
   if (ctx.apoderado.email) {
@@ -384,6 +399,8 @@ async function enviarEmailsMatriculaOnline({
         ? 'Puede responder directamente a este correo (Reply-To del apoderado).'
         : '',
       colegioNombre,
+      logoUrl,
+      footer: footerContacto,
     });
 
     const attachments = adjuntosDesdeArchivos({ fotoDniFilename, firmaFilename });

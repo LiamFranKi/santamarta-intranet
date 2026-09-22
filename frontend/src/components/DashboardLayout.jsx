@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useColegio } from '../context/ColegioContext';
 import useIsMobileViewport from '../hooks/useIsMobileViewport';
 import api from '../services/api';
 import CalendarioWidget from './CalendarioWidget';
@@ -439,8 +440,16 @@ export default function DashboardLayout({ children }) {
     return `${protocol}//${hostname}`;
   }, []); // Solo calcular una vez al montar el componente
 
-  // Logo blanco para el sidebar
-  const logoUrl = useMemo(() => `${apiBaseUrl}/assets/logos/logoblanco.png`, [apiBaseUrl]);
+  const { logoBlanco, textoIntranet } = useColegio();
+  const marcaIntranet = (textoIntranet || '').trim() || 'VanguardNet';
+  const logoUrl = useMemo(() => {
+    if (logoBlanco) {
+      const raw = String(logoBlanco);
+      if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+      return `${apiBaseUrl}${raw.startsWith('/') ? raw : `/${raw}`}`;
+    }
+    return `${apiBaseUrl}/assets/logos/logoblanco.png`;
+  }, [apiBaseUrl, logoBlanco]);
 
   // Manejar nombres para alumnos y apoderados (tienen apellido_paterno y apellido_materno separados)
   let displayName = '';
@@ -560,7 +569,7 @@ export default function DashboardLayout({ children }) {
             ) : (
               <div className="sidebar-logo-fallback">🏫</div>
             )}
-            <div className="logo-text">VanguardNet</div>
+            <div className="logo-text">{marcaIntranet}</div>
           </div>
 
           <button className="sidebar-close-btn" type="button" onClick={() => setSidebarOpen(false)} aria-label="Cerrar menú">

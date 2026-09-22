@@ -107,21 +107,16 @@ function numeroALetras(num) {
 
 async function cargarLogoBoleta(doc, x, y, w, h) {
   try {
-    const logoResponse = await fetch('/icons/logoboleta.png');
-    if (!logoResponse.ok) return false;
-    const logoBlob = await logoResponse.blob();
-    const logoReader = new FileReader();
+    const { cargarLogoPngDataUrl } = await import('./pdfReporteColegioLogo');
+    const dataUrl = await cargarLogoPngDataUrl('/icons/logoboleta.png');
+    if (!dataUrl) return false;
     await new Promise((resolve) => {
-      logoReader.onloadend = () => {
-        try {
-          doc.addImage(logoReader.result, 'PNG', x, y, w, h);
-        } catch {
-          /* sin logo */
-        }
-        resolve();
-      };
-      logoReader.onerror = () => resolve();
-      logoReader.readAsDataURL(logoBlob);
+      try {
+        doc.addImage(dataUrl, 'PNG', x, y, w, h);
+      } catch {
+        /* sin logo */
+      }
+      resolve();
     });
     return true;
   } catch {

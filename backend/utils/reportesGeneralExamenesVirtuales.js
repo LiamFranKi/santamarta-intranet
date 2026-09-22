@@ -2,6 +2,7 @@
  * Reporte «Exámenes virtuales» — aula virtual por bimestre (modal + Excel).
  */
 const ExcelJS = require('exceljs');
+const { marcaCreadorExcel } = require('./identidadColegio');
 const { query } = require('./mysql');
 const {
   FILL_FILA_PAR,
@@ -438,7 +439,7 @@ async function generarExcelExamenesVirtuales(colegioId, filtros) {
   if (!data.ok) return data;
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'VanguardNet';
+  wb.creator = await marcaCreadorExcel(colegioId);
   wb.created = new Date();
   const cols = 10;
   const k = data.kpis || {};

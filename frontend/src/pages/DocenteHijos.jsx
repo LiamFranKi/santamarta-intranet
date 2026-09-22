@@ -1925,7 +1925,8 @@ function DocenteHijos() {
       let logoWidth = 0;
       let logoHeight = 0;
       try {
-        const logoUrl = 'https://sistema.vanguardschools.edu.pe/assets/logos/logo.png';
+        const { urlLogoConRespaldo } = await import('../utils/pdfReporteColegioLogo');
+        const logoUrl = await urlLogoConRespaldo('/assets/logos/logo.png');
         logoImg = new Image();
         logoImg.crossOrigin = 'anonymous';
         await new Promise((resolve, reject) => {
@@ -2875,7 +2876,8 @@ function DocenteHijos() {
       const logoSize = 10;
       const logoX = 3;
       const logoY = 2;
-      const logoUrlLocal = typeof window !== 'undefined' ? `${window.location.origin}/icons/logoboleta.png` : '';
+      const { urlLogoConRespaldo } = await import('../utils/pdfReporteColegioLogo');
+      const logoUrlLocal = await urlLogoConRespaldo('/icons/logoboleta.png');
       let logoData = logoUrlLocal ? await loadImageAsDataUrl(logoUrlLocal) : null;
       if (!logoData) logoData = qrData.logo_base64 || null;
       if (!logoData && qrData.logo_url) logoData = await loadImageAsDataUrl(qrData.logo_url);

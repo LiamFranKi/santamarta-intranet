@@ -1234,16 +1234,9 @@ function GruposPanel({ meta }) {
     const colorBlanco = [255, 255, 255];
 
     try {
-      const logoRes = await fetch('/icons/logoboleta.png');
-      if (logoRes.ok) {
-        const blob = await logoRes.blob();
-        const dataUrl = await new Promise((res) => {
-          const r = new FileReader();
-          r.onloadend = () => res(r.result);
-          r.readAsDataURL(blob);
-        });
-        doc.addImage(dataUrl, 'PNG', margin, 4, 24, 24);
-      }
+      const { cargarLogoPngDataUrl } = await import('../../utils/pdfReporteColegioLogo');
+      const dataUrl = await cargarLogoPngDataUrl('/icons/logoboleta.png');
+      if (dataUrl) doc.addImage(dataUrl, 'PNG', margin, 4, 24, 24);
     } catch (e) {
       /* ignorar */
     }

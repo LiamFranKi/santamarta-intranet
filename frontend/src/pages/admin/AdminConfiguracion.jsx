@@ -13,6 +13,8 @@ import {
   CASILLEROS_CONDUCTA,
   LABELS_CASILLERO,
 } from '../../utils/reglaConducta';
+import { invalidarCacheLogo } from '../../utils/pdfReporteColegioLogo';
+import { invalidarIdentidadColegio } from '../../utils/identidadColegio';
 import './AdminConfiguracion.css';
 
 function ConfigTabIcon({ name }) {
@@ -105,7 +107,7 @@ const CONFIG_TABS = [
     icon: 'general',
     tone: 'blue',
     helpTitle: 'Identidad del colegio',
-    help: 'Nombre, código modular, resolución, textos visibles, fondo del login y regla de conducta. Guarde cada bloque con su propio botón.',
+    help: 'Nombre, código modular, resolución, texto del menú y logos. Guarde cada bloque con su propio botón.',
   },
   {
     id: 'recaudo',
@@ -512,6 +514,9 @@ function AdminConfiguracion() {
     codigo_modular: '',
     resolucion_creacion: '',
     texto_intranet: '',
+    telefono_colegio: '',
+    correo_contacto: '',
+    direccion_contacto: '',
     titulo_formulario_matricula: '',
     
     // Información Recaudo
@@ -578,6 +583,9 @@ function AdminConfiguracion() {
     
     // Archivos
     login_fondo: null,
+    logo_colegio: null,
+    logo_blanco: null,
+    logo_minedu: null,
     libreta_logo: null,
     libreta_fondo: null,
     boleta_logo: null,
@@ -586,6 +594,9 @@ function AdminConfiguracion() {
 
   const [archivosPreview, setArchivosPreview] = useState({
     login_fondo: null,
+    logo_colegio: null,
+    logo_blanco: null,
+    logo_minedu: null,
     libreta_logo: null,
     libreta_fondo: null,
     boleta_logo: null
@@ -700,6 +711,9 @@ function AdminConfiguracion() {
         comision_tarjeta_credito: formatComisionPct(restData.comision_tarjeta_credito),
         regla_conducta: normalizarReglaConducta(data.regla_conducta),
         login_fondo: null,
+        logo_colegio: null,
+        logo_blanco: null,
+        logo_minedu: null,
         libreta_logo: null,
         libreta_fondo: null,
         boleta_logo: null
@@ -722,6 +736,9 @@ function AdminConfiguracion() {
       // Cargar previews de archivos existentes
       setArchivosPreview({
         login_fondo: data.login_fondo,
+        logo_colegio: data.logo_colegio,
+        logo_blanco: data.logo_blanco,
+        logo_minedu: data.logo_minedu,
         libreta_logo: data.libreta_logo,
         libreta_fondo: data.libreta_fondo,
         boleta_logo: data.boleta_logo
@@ -953,7 +970,7 @@ function AdminConfiguracion() {
       
       // Agregar solo los campos especificados
       fields.forEach(field => {
-        if (field === 'login_fondo' || field === 'libreta_logo' || field === 'libreta_fondo' || field === 'boleta_logo') {
+        if (field === 'login_fondo' || field === 'logo_colegio' || field === 'logo_blanco' || field === 'logo_minedu' || field === 'libreta_logo' || field === 'libreta_fondo' || field === 'boleta_logo') {
           // Archivos - solo agregar si hay un archivo nuevo seleccionado
           if (config[field] && config[field] instanceof File) {
             formData.append(field, config[field]);
@@ -1012,6 +1029,10 @@ function AdminConfiguracion() {
           'Content-Type': 'multipart/form-data'
         }
       });
+      if (fields.includes('logo_colegio') || fields.includes('logo_blanco') || fields.includes('logo_minedu')) {
+        invalidarCacheLogo();
+        invalidarIdentidadColegio();
+      }
 
       Swal.fire({
         icon: 'success',
@@ -1309,21 +1330,6 @@ function AdminConfiguracion() {
                 />
               </div>
               <div className="form-group">
-                <label>Fondo - Login</label>
-                {archivosPreview.login_fondo && (
-                  <div className="file-preview">
-                    <img src={archivosPreview.login_fondo} alt="Preview" />
-                  </div>
-                )}
-                <input
-                  type="file"
-                  name="login_fondo"
-                  accept=".jpg,.jpeg,.png"
-                  onChange={handleFileChange}
-                />
-                <small>Solo archivos JPG, PNG</small>
-              </div>
-              <div className="form-group">
                 <label>Texto Intranet</label>
                 <input
                   type="text"
@@ -1331,14 +1337,94 @@ function AdminConfiguracion() {
                   value={config.texto_intranet}
                   onChange={handleInputChange}
                 />
+                <small>Es el nombre junto al logo en el menú, en la pantalla de ingreso, en la pestaña del navegador y el nombre al instalar la aplicación. Si lo deja vacío, se muestra VanguardNet.</small>
+              </div>
+              <div className="form-group">
+                <label>Teléfonos de contacto</label>
+                <input
+                  type="text"
+                  name="telefono_colegio"
+                  value={config.telefono_colegio}
+                  onChange={handleInputChange}
+                  placeholder="Tel: 045 502 100 / 022 084 833"
+                />
+                <small>Lo que se ve hoy en la página web es 922 084 833 - 947 345 887 - 947 346 735. El correo de matrícula, si esto queda vacío, sigue con Tel: 045 502 100 / 022 084 833. Si escribe un texto aquí, la web y el correo de matrícula usan ese mismo texto.</small>
+              </div>
+              <div className="form-group">
+                <label>Correo de contacto</label>
+                <input
+                  type="email"
+                  name="correo_contacto"
+                  value={config.correo_contacto}
+                  onChange={handleInputChange}
+                  placeholder="admin@vanguardschools.edu.pe"
+                />
+                <small>Lo que se ve hoy en la web y en el correo de matrícula es admin@vanguardschools.edu.pe. Si escribe otro, la web y ese correo usan el nuevo.</small>
+              </div>
+              <div className="form-group form-group--full">
+                <label>Dirección de contacto</label>
+                <input
+                  type="text"
+                  name="direccion_contacto"
+                  value={config.direccion_contacto}
+                  onChange={handleInputChange}
+                  placeholder="Jr. Toribio de Luzuriaga Mz F lote 18 y 19 - SMP."
+                />
+                <small>Es la dirección del pie del correo de matrícula y de la página web. No usa la dirección de Facturación. Hoy dice: Jr. Toribio de Luzuriaga Mz F lote 18 y 19 - SMP. Si lo deja vacío, se mantiene esa.</small>
+              </div>
+              <div className="form-group form-group--full">
+                <label>Logo a color</label>
+                {archivosPreview.logo_colegio && (
+                  <div className="file-preview">
+                    <img src={archivosPreview.logo_colegio} alt="Logo a color actual" />
+                  </div>
+                )}
+                <input
+                  type="file"
+                  name="logo_colegio"
+                  accept=".jpg,.jpeg,.png"
+                  onChange={handleFileChange}
+                />
+                <small>Vista del logo que se usa hoy. Va en el login, libretas, reportes, carnets, correos y boletas. Al instalar la aplicación en un celular nuevo, el icono sale de este logo. Suba un PNG o JPG parecido para reemplazarlo. Si no sube uno, se mantiene este y el icono de instalación actual.</small>
+              </div>
+              <div className="form-group form-group--full">
+                <label>Logo blanco</label>
+                {archivosPreview.logo_blanco && (
+                  <div className="file-preview file-preview--menu">
+                    <img src={archivosPreview.logo_blanco} alt="Logo blanco actual" />
+                  </div>
+                )}
+                <input
+                  type="file"
+                  name="logo_blanco"
+                  accept=".jpg,.jpeg,.png"
+                  onChange={handleFileChange}
+                />
+                <small>Vista sobre el azul del menú, como se ve en la barra. Suba la versión en blanco. Si no sube uno, se mantiene este.</small>
+              </div>
+              <div className="form-group form-group--full">
+                <label>Sello MINEDU</label>
+                {archivosPreview.logo_minedu && (
+                  <div className="file-preview">
+                    <img src={archivosPreview.logo_minedu} alt="Sello MINEDU actual" />
+                  </div>
+                )}
+                <input
+                  type="file"
+                  name="logo_minedu"
+                  accept=".jpg,.jpeg,.png"
+                  onChange={handleFileChange}
+                />
+                <small>Solo en los PDF de CNEB, al lado del logo del colegio. Si no sube uno, se mantiene este sello.</small>
               </div>
             </div>
             <div className="card-actions">
               <button 
                 type="button" 
                 onClick={() => handleSaveSection([
-                  'titulo_intranet', 'codigo_modular', 'resolucion_creacion', 
-                  'texto_intranet', 'login_fondo'
+                  'titulo_intranet', 'codigo_modular', 'resolucion_creacion',
+                  'texto_intranet', 'telefono_colegio', 'correo_contacto', 'direccion_contacto',
+                  'logo_colegio', 'logo_blanco', 'logo_minedu'
                 ], 'Información General')}
                 disabled={saving}
                 className="btn-submit-card"
@@ -2197,6 +2283,7 @@ function AdminConfiguracion() {
                   onChange={handleInputChange}
                 />
               </div>
+              {false && (
               <div className="form-group">
                 <label>Logo Boleta</label>
                 {archivosPreview.boleta_logo && (
@@ -2210,14 +2297,14 @@ function AdminConfiguracion() {
                   accept=".jpg,.jpeg"
                   onChange={handleFileChange}
                 />
-                <small>Solo archivos .jpg</small>
               </div>
+              )}
             </div>
             <div className="card-actions">
               <button 
                 type="button" 
                 onClick={() => handleSaveSection([
-                  'ruc', 'razon_social', 'direccion', 'link_consulta_facturas', 'boleta_logo'
+                  'ruc', 'razon_social', 'direccion', 'link_consulta_facturas'
                 ], 'Facturación')}
                 disabled={saving}
                 className="btn-submit-card"

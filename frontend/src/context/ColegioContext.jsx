@@ -62,6 +62,29 @@ export const ColegioProvider = ({ children, colegioId = 1 }) => {
     root.style.setProperty('--navbar-bg', '#ffffff');
   }, [colegioData]);
 
+  useEffect(() => {
+    const marca = String(colegioData?.texto_intranet || '').trim() || 'VanguardNet';
+    document.title = marca;
+    const appleTitulo = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if (appleTitulo) appleTitulo.setAttribute('content', marca);
+
+    if (!colegioData?.logo_desde_config || !colegioData?.logo) return;
+    const ruta = String(colegioData.logo);
+    let href = ruta;
+    if (!ruta.startsWith('http')) {
+      const host = window.location.hostname;
+      const esLocal = host === 'localhost' || host === '127.0.0.1';
+      const origen = esLocal
+        ? String(process.env.REACT_APP_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '')
+        : window.location.origin;
+      href = `${origen}${ruta}`;
+    }
+    const icono = document.querySelector('link[rel="icon"]');
+    if (icono) icono.setAttribute('href', href);
+    const apple = document.querySelector('link[rel="apple-touch-icon"]');
+    if (apple) apple.setAttribute('href', href);
+  }, [colegioData]);
+
   const value = {
     colegioData,
     loading,
@@ -69,6 +92,10 @@ export const ColegioProvider = ({ children, colegioId = 1 }) => {
     nombreIntranet: colegioData?.nombre_intranet || 'Aula Virtual',
     nombre: colegioData?.nombre || 'Colegio',
     logo: colegioData?.logo || null,
+    logoDesdeConfig: !!colegioData?.logo_desde_config,
+    logoBlanco: colegioData?.logo_blanco || null,
+    logoBlancoDesdeConfig: !!colegioData?.logo_blanco_desde_config,
+    textoIntranet: colegioData?.texto_intranet || '',
     colorPrincipal: colegioData?.color_principal || null,
     colorSecundario: colegioData?.color_secundario || null,
     anioActivo: colegioData?.anio_activo || null,

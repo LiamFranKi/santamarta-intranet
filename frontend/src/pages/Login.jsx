@@ -13,7 +13,7 @@ function Login() {
   const [submitting, setSubmitting] = useState(false);
 
   const { login, isAuthenticated, user } = useAuth();
-  const { loading: loadingColegio, error: errorColegio } = useColegio();
+  const { loading: loadingColegio, error: errorColegio, logo, logoDesdeConfig, textoIntranet } = useColegio();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -34,8 +34,14 @@ function Login() {
     return `${protocol}//${hostname}`;
   }, []); // Solo calcular una vez al montar el componente
 
-  // Logo siempre desde la carpeta local, sin depender de MySQL
-  const logoUrl = useMemo(() => `${apiBaseUrl}/assets/logos/logo.png`, [apiBaseUrl]);
+  const logoUrl = useMemo(() => {
+    if (logoDesdeConfig && logo) {
+      const raw = String(logo);
+      if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+      return `${apiBaseUrl}${raw.startsWith('/') ? raw : `/${raw}`}`;
+    }
+    return `${apiBaseUrl}/assets/logos/logo.png`;
+  }, [apiBaseUrl, logo, logoDesdeConfig]);
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -115,7 +121,7 @@ function Login() {
           <div className="login-branding-left">
             <div className="branding-content">
               <div className="brand-logo-main">
-                <h1>VanguardNet</h1>
+                <h1>{(textoIntranet || '').trim() || 'VanguardNet'}</h1>
               </div>
 
               <p className="brand-description">

@@ -46,15 +46,8 @@ function esPresentacion(origen) {
 
 async function cargarLogoDataUrl() {
   try {
-    const logoRes = await fetch('/icons/logoboleta.png');
-    if (!logoRes.ok) return null;
-    const blob = await logoRes.blob();
-    return await new Promise((resolve) => {
-      const r = new FileReader();
-      r.onloadend = () => resolve(r.result);
-      r.onerror = () => resolve(null);
-      r.readAsDataURL(blob);
-    });
+    const { cargarLogoPngDataUrl } = await import('./pdfReporteColegioLogo');
+    return await cargarLogoPngDataUrl('/icons/logoboleta.png');
   } catch {
     return null;
   }

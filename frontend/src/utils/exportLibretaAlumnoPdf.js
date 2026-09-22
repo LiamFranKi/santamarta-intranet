@@ -210,7 +210,8 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
       let logoWidth = 0;
       let logoHeight = 0;
       try {
-        const logoUrl = 'https://sistema.vanguardschools.edu.pe/assets/logos/logo.png';
+        const { urlLogoConRespaldo } = await import('./pdfReporteColegioLogo');
+        const logoUrl = await urlLogoConRespaldo('/assets/logos/logo.png');
         logoImg = new Image();
         logoImg.crossOrigin = 'anonymous';
         await new Promise((resolve, reject) => {

@@ -65,6 +65,7 @@ function sortAlumnosByApellido(list) {
  */
 export default function EventoPublicoAsistencia() {
   const { token } = useParams();
+  const [marcaColegio, setMarcaColegio] = useState('Vanguard Schools');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [evento, setEvento] = useState(null);
@@ -112,6 +113,21 @@ export default function EventoPublicoAsistencia() {
   useEffect(() => {
     loadEvento();
   }, [loadEvento]);
+
+  useEffect(() => {
+    let vivo = true;
+    api
+      .get('/colegio/1')
+      .then(({ data }) => {
+        if (!vivo) return;
+        const titulo = String(data?.nombre_intranet || data?.nombre || '').trim();
+        if (titulo) setMarcaColegio(titulo);
+      })
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, []);
 
   const onElegirGrupo = async (g) => {
     setError(null);
@@ -243,7 +259,7 @@ export default function EventoPublicoAsistencia() {
     return (
       <div className="evento-publico-root">
         <div className="evento-publico-brand" aria-hidden>
-          Sistema Vanguard Schools
+          Sistema {marcaColegio}
         </div>
         <div className="evento-loading evento-loading--with-spinner">
           <div className="evento-spinner" aria-hidden />
@@ -256,7 +272,7 @@ export default function EventoPublicoAsistencia() {
   if (error && !evento) {
     return (
       <div className="evento-publico-root">
-        <div className="evento-publico-brand">Sistema Vanguard Schools</div>
+        <div className="evento-publico-brand">Sistema {marcaColegio}</div>
         <div className="evento-error" role="alert">
           {error}
         </div>
@@ -266,7 +282,7 @@ export default function EventoPublicoAsistencia() {
 
   return (
     <div className="evento-publico-root">
-      <div className="evento-publico-brand">Sistema Vanguard Schools</div>
+      <div className="evento-publico-brand">Sistema {marcaColegio}</div>
       <header className="evento-publico-header">
         <h1 className="evento-publico-event-title">{evento?.titulo || 'Evento'}</h1>
         {(fechaTexto || evento?.lugar || evento?.hora_inicio) && (

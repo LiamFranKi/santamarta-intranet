@@ -2,6 +2,7 @@
  * Consolidado de asistencia por aula (todos los grupos del mes).
  */
 const ExcelJS = require('exceljs');
+const { marcaCreadorExcel } = require('./identidadColegio');
 const { query } = require('./mysql');
 const { sqlMatriculaEstadoSoloRegular } = require('./matriculaEstados');
 const {
@@ -381,7 +382,7 @@ async function generarExcelConsolidadoAsistencia(colegioId, filtros) {
   const COLS = 7;
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'VanguardNet';
+  wb.creator = await marcaCreadorExcel(colegioId);
   const ws = wb.addWorksheet('Consolidado', {
     views: [{ state: 'frozen', ySplit: 4, showGridLines: false }],
     pageSetup: {
@@ -522,7 +523,8 @@ async function generarExcelConsolidadoAsistencia(colegioId, filtros) {
     cell.border = BORDER;
   });
 
-  ws.headerFooter.oddFooter = '&LVanguardNet&CConsolidado de asistencia&RPágina &P de &N';
+  const marcaPie = await marcaCreadorExcel(colegioId);
+  ws.headerFooter.oddFooter = `&L${marcaPie}&CConsolidado de asistencia&RPágina &P de &N`;
 
   const buffer = await wb.xlsx.writeBuffer();
   return {

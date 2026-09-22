@@ -143,21 +143,14 @@ function AdminGrupoAsistenciaModal({ open, grupo, onClose }) {
       doc.rect(0, 0, pageWidth, 32, 'F');
 
       try {
-        const logoResponse = await fetch('/icons/logoboleta.png');
-        if (logoResponse.ok) {
-          const logoBlob = await logoResponse.blob();
-          const logoReader = new FileReader();
-          await new Promise((resolve) => {
-            logoReader.onloadend = () => {
-              try {
-                doc.addImage(logoReader.result, 'PNG', margin, 4, 24, 24);
-              } catch (e) {
-                /* ignorar */
-              }
-              resolve();
-            };
-            logoReader.readAsDataURL(logoBlob);
-          });
+        const { cargarLogoPngDataUrl } = await import('../../utils/pdfReporteColegioLogo');
+        const logoDataUrl = await cargarLogoPngDataUrl('/icons/logoboleta.png');
+        if (logoDataUrl) {
+          try {
+            doc.addImage(logoDataUrl, 'PNG', margin, 4, 24, 24);
+          } catch (e) {
+            /* ignorar */
+          }
         }
       } catch (e) {
         /* continuar sin logo */

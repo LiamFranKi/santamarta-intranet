@@ -16,6 +16,7 @@ import {
 } from 'recharts';
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuth } from '../../context/AuthContext';
+import { useColegio } from '../../context/ColegioContext';
 import api from '../../services/api';
 import {
   SGOI_TIPOS_FRANJA,
@@ -159,6 +160,7 @@ function TooltipGestion({ active, payload, label }) {
 export default function GestionOperativaPage() {
   const location = useLocation();
   const { user } = useAuth();
+  const { textoIntranet } = useColegio();
   const vista = vistaDesdePath(location.pathname);
   const puedeHorario = usuarioPuedeHorarioSgoi(user?.tipo);
   const veArea = usuarioVeAreaSgoi(user?.tipo);
@@ -699,17 +701,17 @@ export default function GestionOperativaPage() {
     }
   };
 
-  const exportarHorarioPdf = () => {
+  const exportarHorarioPdf = async () => {
     try {
-      exportarHorarioSgoiPdf(horario, { nombre: nombreHorarioPdf });
+      await exportarHorarioSgoiPdf(horario, { nombre: nombreHorarioPdf });
     } catch (e) {
       Swal.fire({ icon: 'info', title: 'PDF', text: e.message || 'No se pudo exportar.' });
     }
   };
 
-  const exportarReportePdf = () => {
+  const exportarReportePdf = async () => {
     try {
-      exportarReporteSgoiPdf({
+      await exportarReporteSgoiPdf({
         reporte,
         periodo: periodoReporte,
         nombre: nombreReporte,
@@ -785,7 +787,7 @@ export default function GestionOperativaPage() {
       <div className="sgoi-page">
         <div className="sgoi-hero">
           <div>
-            <p className="sgoi-hero-kicker">Sistemas · VanguardNet</p>
+            <p className="sgoi-hero-kicker">Sistemas · {(textoIntranet || '').trim() || 'VanguardNet'}</p>
             <h1>Gestión operativa</h1>
             <p>El horario es el esqueleto del día. Si te interrumpen, el flotante atiende el caso sin romper la plantilla.</p>
           </div>

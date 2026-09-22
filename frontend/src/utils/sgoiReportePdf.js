@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import { obtenerMarcaIntranet } from './identidadColegio';
 import {
   etiquetaDiaCorto,
   etiquetaDiaLargo,
@@ -169,13 +170,14 @@ function chartPie(slices) {
 /**
  * PDF del reporte: horario del periodo, incidencias colgadas y gráficos al final.
  */
-export function exportarReporteSgoiPdf({ reporte, periodo, nombre }) {
+export async function exportarReporteSgoiPdf({ reporte, periodo, nombre }) {
   const dias = Array.isArray(reporte?.dias) ? reporte.dias : [];
   const resumen = reporte?.resumen || {};
   if (!dias.length && !(resumen.casos_total > 0)) {
     throw new Error('No hay horario ni incidencias en este periodo para exportar.');
   }
 
+  const marca = await obtenerMarcaIntranet();
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
@@ -201,8 +203,8 @@ export function exportarReporteSgoiPdf({ reporte, periodo, nombre }) {
       doc.setTextColor(100, 116, 139);
       doc.text(
         persona
-          ? `VanguardNet · Gestión operativa · ${persona}`
-          : 'VanguardNet · Gestión operativa · Área de Sistemas',
+          ? `${marca} · Gestión operativa · ${persona}`
+          : `${marca} · Gestión operativa · Área de Sistemas`,
         margin,
         pageH - 4.5
       );

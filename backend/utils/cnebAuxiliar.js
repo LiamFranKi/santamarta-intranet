@@ -2,6 +2,7 @@ const ExcelJS = require('exceljs');
 const { query, execute } = require('./mysql');
 const { sqlMatriculaEstadoSoloRegular } = require('./matriculaEstados');
 const { getColegioData } = require('./colegio');
+const { marcaCreadorExcel } = require('./identidadColegio');
 const { anexarPiarAAlumnos } = require('./cnebPiarAula');
 
 const XL = {
@@ -275,7 +276,7 @@ async function excelConsolidadoBuffer(cid, { anio, bimestre, grupoId, nivel, gru
   const cotejoCols = sesiones.reduce((n, s) => n + Math.max(1, (s.items || []).length), 0);
   const totalCols = 3 + cotejoCols + competencias.length;
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'Intranet Vanguard · CNEB';
+  wb.creator = `${await marcaCreadorExcel(cid)} · CNEB`;
   const ws = wb.addWorksheet('Consolidado', {
     views: [{ state: 'frozen', xSplit: 3, ySplit: 4, showGridLines: false }],
     pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 1, paperSize: 9 },
@@ -431,7 +432,7 @@ async function excelSiagieBuffer(cid, { anio, bimestre, grupoId, nivel, grupoLab
   const areas = xlAgruparAreas(competencias);
   const totalCols = 3 + competencias.length + 1;
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'Intranet Vanguard · CNEB';
+  wb.creator = `${await marcaCreadorExcel(cid)} · CNEB`;
   wb.created = new Date();
   const ws = wb.addWorksheet('Corte CNEB', {
     views: [{ state: 'frozen', xSplit: 3, ySplit: 4, showGridLines: false }],

@@ -24,12 +24,8 @@ const COLOR = {
 };
 
 function logoColegioPath() {
-  const dir = path.join(__dirname, '..', 'public', 'assets', 'logos');
-  for (const name of ['logo.png', 'logo-default.png']) {
-    const p = path.join(dir, name);
-    if (fs.existsSync(p)) return p;
-  }
-  return null;
+  const { rutaLogoColegioSync } = require('./logoColegio');
+  return rutaLogoColegioSync();
 }
 
 function pageBottom(doc) {

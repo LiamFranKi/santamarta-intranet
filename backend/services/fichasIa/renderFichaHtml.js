@@ -358,7 +358,7 @@ function renderFichaHtml(ctx, archivoPlantilla) {
     });
   }
 
-  const subtituloExtra = [subtituloGrado(ctx.grado, ctx.grupoEtiqueta), ctx.area, 'Vanguard Schools', String(ctx.anio || new Date().getFullYear())]
+  const subtituloExtra = [subtituloGrado(ctx.grado, ctx.grupoEtiqueta), ctx.area, ctx.colegioNombre || 'Vanguard Schools', String(ctx.anio || new Date().getFullYear())]
     .filter(Boolean)
     .join(' · ');
 

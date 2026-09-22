@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { obtenerLogoColegioParaPdf } from './pdfReporteColegioLogo';
+import { obtenerTituloColegio } from './identidadColegio';
 import {
   PDF_HEADER_BLUE,
   PDF_BORDER,
@@ -31,12 +32,13 @@ function fmtFechaLarga(ymd) {
 }
 
 export async function generarPdfListaVisitasGuiadas({
-  colegioNombre = 'Vanguard Schools',
+  colegioNombre,
   fechaYmd,
   horario = '',
   filas = [],
 }) {
   const logo = await obtenerLogoColegioParaPdf();
+  const nombreColegio = colegioNombre || (await obtenerTituloColegio());
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
@@ -47,7 +49,7 @@ export async function generarPdfListaVisitasGuiadas({
   subtitulos.push(`${(filas || []).length} visitante${(filas || []).length === 1 ? '' : 's'}`);
 
   let y = dibujarCabeceraReportePdf(doc, logo, {
-    colegioNombre,
+    colegioNombre: nombreColegio,
     titulos: ['Lista de visitas guiadas'],
     subtitulos,
   });
