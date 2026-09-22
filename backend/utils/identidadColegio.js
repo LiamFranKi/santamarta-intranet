@@ -3,7 +3,7 @@
  * Si un campo de contacto está vacío, se usa el texto que ya tenían los correos,
  * para que el colegio actual no cambie hasta que lo escriban en Configuración.
  */
-const { query } = require('../config/database');
+const { query } = require('./mysql');
 
 const CONTACTO_RESPALDO = {
   direccion: 'Jr. Toribio de Luzuriaga Mz F lote 18 y 19 - SMP.',
