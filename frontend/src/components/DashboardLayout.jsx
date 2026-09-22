@@ -1846,10 +1846,12 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>🗂️</span>
                     <span className="sidebar-label">Áreas</span>
                   </NavLink>
+                  {false && (
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/horario-gen">
                     <span className="sidebar-icon" aria-hidden>🗓️</span>
                     <span className="sidebar-label">Generar Horarios</span>
                   </NavLink>
+                  )}
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/avatares">
                     <span className="sidebar-icon" aria-hidden>🎮</span>
                     <span className="sidebar-label">Gamificación</span>
