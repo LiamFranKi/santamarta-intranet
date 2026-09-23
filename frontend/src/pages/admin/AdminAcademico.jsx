@@ -774,6 +774,25 @@ function NivelesPanel({ onRefreshMeta }) {
       SwalAcademico.fire({ icon: 'warning', title: 'Seleccione el tipo de calificación' });
       return;
     }
+    const nombreNivel = String(form.nombre || '').toUpperCase();
+    const nivelCneb =
+      nombreNivel.includes('SECUNDARIA') || nombreNivel.includes('PRIMARIA') || nombreNivel.includes('INICIAL');
+    const tipoAntes = modal?.edit != null ? String(modal.edit.tipo_calificacion ?? '') : null;
+    const tipoAhora = String(form.tipo_calificacion);
+    if (nivelCneb && tipoAntes != null && tipoAntes !== '' && tipoAntes !== tipoAhora) {
+      const aCuali = tipoAhora === '0';
+      const ok = await SwalAcademico.fire({
+        icon: 'question',
+        title: 'CNEB cambia con el tipo',
+        text: aCuali
+          ? 'Este nivel pasará a cualitativo y quedará con CNEB en el aula. Las notas y las sesiones se quedan guardadas.'
+          : 'Este nivel pasará a cuantitativo: números y la boleta de antes. CNEB se desmarca. No se borra nada.',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, cambiar',
+        cancelButtonText: 'Cancelar',
+      });
+      if (!ok.isConfirmed) return;
+    }
     const cuant = esCuantitativaForm(form);
     const body = {
       ...form,
@@ -2975,7 +2994,8 @@ function esNivelInicialPorId(nivelId, nivelesLista) {
   if (nivelId == null || nivelId === '') return false;
   const n = (nivelesLista || []).find((x) => String(x.id) === String(nivelId));
   if (!n) return false;
-  if (n.tipo_calificacion === 0) return true;
+  if (n.tipo_calificacion === 0 || n.tipo_calificacion === '0') return true;
+  if (n.tipo_calificacion === 1 || n.tipo_calificacion === '1') return false;
   return String(n.nombre || '').toUpperCase().includes('INICIAL');
 }
 
@@ -3549,7 +3569,7 @@ function AsignaturasPanel({ meta, accionesRef }) {
         <p className="admin-academico-niveles-empty">No hay asignaturas con esos filtros.</p>
       ) : (
         <div className="admin-academico-asignaturas-table-block">
-          {esInicialBuscado && (
+          {false && esInicialBuscado && (
             <div className="admin-academico-libreta-inicial-toolbar" role="region" aria-label="Libreta Inicial">
               {libretaGrupo?.conflicto ? (
                 <p className="admin-academico-libreta-inicial-warn">

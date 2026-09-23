@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import AdminCnebSesiones from './AdminCnebSesiones';
@@ -14,12 +13,10 @@ const NIVELES_UI = [
 ];
 
 const TABS = [
-  { id: 'uso', label: 'Uso en este año', hint: 'Qué nivel prueba el bimestre' },
   { id: 'sesiones', label: 'Sesiones', hint: 'Inicio, desarrollo y cierre' },
   { id: 'registro', label: 'Registro', hint: 'Cotejo y corte AD/A/B/C' },
   { id: 'catalogo', label: 'Catálogo CNEB', hint: 'Áreas y competencias oficiales' },
   { id: 'mapeo', label: 'Cursos del colegio', hint: 'Principal o complementario' },
-  { id: 'prompt', label: 'Prompt IA', hint: 'Texto que usa Gemini' },
 ];
 
 const AREA_TONE = {
@@ -53,14 +50,16 @@ function etiquetaNivel(id) {
 }
 
 export default function AdminCnebPiloto() {
-  const { user } = useAuth();
   const [nivel, setNivel] = useState('INICIAL');
   const [tab, setTab] = useState('sesiones');
+  const [verPrompt, setVerPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingUso, setSavingUso] = useState(false);
   const [resumen, setResumen] = useState(null);
-  const [usoDraft, setUsoDraft] = useState({ bimestre: 4, niveles: { INICIAL: true, PRIMARIA: false, SECUNDARIA: false } });
+  const [usoDraft, setUsoDraft] = useState({ bimestre: 4, niveles: { INICIAL: false, PRIMARIA: false, SECUNDARIA: false } });
+  const [usoBase, setUsoBase] = useState({ bimestre: 4, niveles: { INICIAL: false, PRIMARIA: false, SECUNDARIA: false } });
+  const [usoCuali, setUsoCuali] = useState({ INICIAL: true, PRIMARIA: false, SECUNDARIA: false });
   const [areas, setAreas] = useState([]);
   const [areaSel, setAreaSel] = useState(null);
   const [compSel, setCompSel] = useState(null);
@@ -85,10 +84,15 @@ export default function AdminCnebPiloto() {
       const uso = rRes.data?.uso;
       if (uso) {
         const niveles = { INICIAL: false, PRIMARIA: false, SECUNDARIA: false };
+        const cuali = { INICIAL: false, PRIMARIA: false, SECUNDARIA: false };
         (uso.niveles || []).forEach((row) => {
           niveles[row.nivel] = Boolean(row.activo);
+          cuali[row.nivel] = Boolean(row.cualitativo);
         });
-        setUsoDraft({ bimestre: Number(uso.bimestre || 4), niveles });
+        const siguiente = { bimestre: Number(uso.bimestre || 4), niveles };
+        setUsoDraft(siguiente);
+        setUsoBase(siguiente);
+        setUsoCuali(cuali);
       }
       const tree = cRes.data?.areas || [];
       setAreas(tree);
@@ -206,14 +210,48 @@ export default function AdminCnebPiloto() {
   };
 
   const guardarUso = async () => {
+    const cambios = NIVELES_UI.filter(
+      (n) => !usoCuali[n.id] && Boolean(usoDraft.niveles[n.id]) !== Boolean(usoBase.niveles[n.id])
+    );
+    const cambiaBimestre = Number(usoDraft.bimestre) !== Number(usoBase.bimestre);
+    if (cambios.length || cambiaBimestre) {
+      const lineas = cambios
+        .map((n) =>
+          usoDraft.niveles[n.id]
+            ? `${n.label} mostrará CNEB solo en el ${usoDraft.bimestre}.º bimestre. El nivel sigue como está en Niveles.`
+            : `${n.label} deja la prueba. El aula vuelve a números en todos los bimestres.`
+        )
+        .join(' ');
+      const ok = await Swal.fire({
+        icon: 'question',
+        title: 'Prueba de un bimestre',
+        text: `${lineas || `La prueba queda en el ${usoDraft.bimestre}.º bimestre.`} No se cambia el tipo del nivel y no se borra nada.`,
+        showCancelButton: true,
+        confirmButtonText: 'Sí, guardar',
+        cancelButtonText: 'Cancelar',
+      });
+      if (!ok.isConfirmed) return;
+    }
     setSavingUso(true);
     try {
       const { data } = await api.put('/admin/cneb/uso', usoDraft);
       setResumen((r) => ({ ...r, uso: data.uso }));
+      if (data?.uso) {
+        const niveles = { INICIAL: false, PRIMARIA: false, SECUNDARIA: false };
+        const cuali = { INICIAL: false, PRIMARIA: false, SECUNDARIA: false };
+        (data.uso.niveles || []).forEach((row) => {
+          niveles[row.nivel] = Boolean(row.activo);
+          cuali[row.nivel] = Boolean(row.cualitativo);
+        });
+        const siguiente = { bimestre: Number(data.uso.bimestre || usoDraft.bimestre), niveles };
+        setUsoDraft(siguiente);
+        setUsoBase(siguiente);
+        setUsoCuali(cuali);
+      }
       await Swal.fire({
         icon: 'success',
         title: 'Uso guardado',
-        text: 'No se cambiaron notas ni el tipo de calificación del nivel. Solo qué niveles usan este módulo en el bimestre de prueba.',
+        text: 'La prueba quedó guardada. El tipo del nivel no cambió y no se borró nada.',
       });
     } catch (e) {
       Swal.fire({
@@ -291,8 +329,8 @@ export default function AdminCnebPiloto() {
           </div>
           <h1>Evaluación CNEB</h1>
           <p>
-            El catálogo oficial se carga una vez. Usted elige qué nivel lo usa en el bimestre de
-            prueba. Activarlo no convierte las notas 0–20 ni cambia la libreta vigente.
+            El modo del año se elige en Académico → Niveles. Aquí puede probar CNEB en un solo
+            bimestre, sin cambiar ese modo.
           </p>
         </div>
         <div className="cneb-hero-stats">
@@ -317,7 +355,10 @@ export default function AdminCnebPiloto() {
             key={n.id}
             type="button"
             className={nivel === n.id ? 'is-active' : ''}
-            onClick={() => setNivel(n.id)}
+            onClick={() => {
+              setNivel(n.id);
+              setVerPrompt(false);
+            }}
           >
             <strong>{n.label}</strong>
             <span>{n.hint}</span>
@@ -325,12 +366,72 @@ export default function AdminCnebPiloto() {
         ))}
       </div>
 
-      <p className="cneb-safe">
-        Viendo <strong>{etiquetaNivel(nivel)}</strong>. Los cursos se mapean con las áreas de ese
-        nivel. El 4.º bimestre de prueba se configura en la pestaña Uso: puede dejar solo Inicial,
-        o sumar otro nivel cuando quieran.
-      </p>
+      <div className="cneb-uso-inline">
+        {usoCuali[nivel] ? (
+          <div>
+            <strong>{etiquetaNivel(nivel)} ya es cualitativo</strong>
+            <span>
+              CNEB va en los cuatro bimestres. Para cambiarlo, use Académico → Niveles. Esta prueba
+              no hace falta.
+            </span>
+          </div>
+        ) : (
+          <>
+            <div>
+              <strong>Probar CNEB en un bimestre · {etiquetaNivel(nivel)}</strong>
+              <span>
+                No cambia el tipo en Niveles. Solo el bimestre elegido muestra CNEB. Los otros
+                siguen con números. Quitar la prueba no borra nada.
+              </span>
+            </div>
+            <label className="cneb-uso-check">
+              <input
+                type="checkbox"
+                checked={Boolean(usoDraft.niveles[nivel])}
+                onChange={(e) =>
+                  setUsoDraft((u) => ({
+                    ...u,
+                    niveles: { ...u.niveles, [nivel]: e.target.checked },
+                  }))
+                }
+              />
+              {usoDraft.niveles[nivel] ? 'Prueba activa' : 'Sin prueba'}
+            </label>
+            <label className="cneb-select-wrap cneb-bimestre">
+              <span>Bimestre de la prueba</span>
+              <select
+                value={usoDraft.bimestre}
+                onChange={(e) => setUsoDraft((u) => ({ ...u, bimestre: Number(e.target.value) }))}
+              >
+                {[1, 2, 3, 4].map((b) => (
+                  <option key={b} value={b}>
+                    {b}.º bimestre
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="button" className="cneb-btn primary" onClick={guardarUso} disabled={savingUso}>
+              {savingUso ? 'Guardando…' : 'Guardar prueba'}
+            </button>
+          </>
+        )}
+      </div>
 
+      <div className="cneb-seccion-head">
+        <h2>Opciones de {etiquetaNivel(nivel)}</h2>
+        <button
+          type="button"
+          className={`cneb-btn ghost${verPrompt ? ' is-active' : ''}`}
+          onClick={() => setVerPrompt((v) => !v)}
+        >
+          {verPrompt ? 'Volver a las opciones del nivel' : 'Prompt de la IA (los 3 niveles)'}
+        </button>
+      </div>
+
+      {verPrompt ? (
+        <AdminCnebPrompt />
+      ) : (
+        <>
       <nav className="cneb-tabs" role="tablist" aria-label="Secciones CNEB">
         {TABS.map((t) => (
           <button
@@ -346,60 +447,6 @@ export default function AdminCnebPiloto() {
           </button>
         ))}
       </nav>
-
-      {tab === 'uso' && (
-        <section className="cneb-panel">
-          <h2 className="cneb-uso-title">Bimestre de prueba</h2>
-          <p className="cneb-muted cneb-uso-lead">
-            El catálogo de los tres niveles ya está listo. Aquí solo marca cuáles entran al piloto
-            (recomendado: Inicial). Primaria y Secundaria pueden quedar cargadas y apagadas hasta
-            que coordinación lo autorice.
-          </p>
-          <label className="cneb-select-wrap cneb-bimestre">
-            <span>Bimestre</span>
-            <select
-              value={usoDraft.bimestre}
-              onChange={(e) => setUsoDraft((u) => ({ ...u, bimestre: Number(e.target.value) }))}
-            >
-              {[1, 2, 3, 4].map((b) => (
-                <option key={b} value={b}>
-                  {b}.º bimestre
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="cneb-uso-grid">
-            {NIVELES_UI.map((n) => (
-              <label key={n.id} className={`cneb-uso-card${usoDraft.niveles[n.id] ? ' is-on' : ''}`}>
-                <input
-                  type="checkbox"
-                  checked={Boolean(usoDraft.niveles[n.id])}
-                  onChange={(e) =>
-                    setUsoDraft((u) => ({
-                      ...u,
-                      niveles: { ...u.niveles, [n.id]: e.target.checked },
-                    }))
-                  }
-                />
-                <strong>{n.label}</strong>
-                <span>{n.hint}</span>
-                <em>{usoDraft.niveles[n.id] ? 'Usa CNEB en el piloto' : 'Solo catálogo, sin piloto'}</em>
-              </label>
-            ))}
-          </div>
-          <button type="button" className="cneb-btn primary" onClick={guardarUso} disabled={savingUso}>
-            {savingUso ? 'Guardando…' : 'Guardar qué nivel se usa'}
-          </button>
-          <div className="cneb-next cneb-next--compact">
-            <h3>Ya puede armar la sesión</h3>
-            <p className="cneb-muted">
-              Sesiones con tres momentos, lista de cotejo, corte AD/A/B/C y Excel de trabajo para
-              SIAGIE. La IA usa el prompt de la última pestaña y solo el catálogo oficial.
-            </p>
-            <p className="cneb-muted">Perfil: {user?.tipo}.</p>
-          </div>
-        </section>
-      )}
 
       {tab === 'sesiones' && (
         <AdminCnebSesiones nivel={nivel} areas={areas} etiquetaNivel={etiquetaNivel} />
@@ -672,7 +719,8 @@ export default function AdminCnebPiloto() {
         </section>
       )}
 
-      {tab === 'prompt' && <AdminCnebPrompt />}
+        </>
+      )}
     </div>
   );
 }

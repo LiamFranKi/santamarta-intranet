@@ -9,6 +9,7 @@ const path = require('path');
 const multer = require('multer');
 const router = express.Router();
 const { query, execute } = require('../utils/mysql');
+const { sincronizarDesdeTipo } = require('../utils/cnebTipoNivel');
 const { authenticateToken } = require('../middleware/auth');
 const { sqlMatriculaEstadoSoloRegular } = require('../utils/matriculaEstados');
 const moment = require('moment-timezone');
@@ -286,6 +287,7 @@ router.post('/niveles', async (req, res) => {
     }
     const placeholders = fields.map(() => '?').join(', ');
     const r = await execute(`INSERT INTO niveles (${fields.join(', ')}) VALUES (${placeholders})`, values);
+    await sincronizarDesdeTipo(cid, nombre, req.body?.tipo_calificacion);
     res.json({ success: true, id: r.insertId });
   } catch (e) {
     console.error(e);
@@ -326,6 +328,7 @@ router.put('/niveles/:id', async (req, res) => {
     }
     vals.push(id, cid);
     await execute(`UPDATE niveles SET ${sets.join(', ')} WHERE id = ? AND colegio_id = ?`, vals);
+    await sincronizarDesdeTipo(cid, nombre, req.body?.tipo_calificacion);
     res.json({ success: true });
   } catch (e) {
     console.error(e);

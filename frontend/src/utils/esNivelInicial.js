@@ -1,9 +1,6 @@
 /**
- * Indica si el alumno/grupo pertenece al nivel INICIAL (calificación cualitativa).
- * Misma lógica que backend/libreta: tipo_calificacion === 0 o nombre del nivel contiene "INICIAL".
- *
- * @param {object} entity - hijo, grupoInfo, alumno, etc.
- * @returns {boolean}
+ * Cualitativo (letras y CNEB). Si el tipo viene informado, manda él.
+ * El nombre Inicial solo cubre pantallas viejas que no traen el tipo.
  */
 export function esNivelInicial(entity) {
   if (!entity) return false;
@@ -14,6 +11,7 @@ export function esNivelInicial(entity) {
     entity.tipo_calificacion_nivel;
 
   if (tipo === 0 || tipo === '0') return true;
+  if (tipo === 1 || tipo === '1') return false;
 
   const nombre = String(
     entity.nivel_nombre ?? entity.nivel ?? entity.nombre_nivel ?? ''

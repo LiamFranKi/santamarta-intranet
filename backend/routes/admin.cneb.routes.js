@@ -1,6 +1,7 @@
 /**
  * CNEB único: catálogo por nivel + mapeo de cursos + uso en bimestre de prueba.
- * No modifica tipo_calificacion, libreta ni notas vigentes.
+ * La casilla de uso y el tipo del nivel van juntos: cualitativo marca CNEB, cuantitativo lo quita.
+ * No borra notas ni sesiones.
  */
 const express = require('express');
 const router = express.Router();
@@ -39,6 +40,7 @@ const {
 } = require('../utils/cnebAuxiliar');
 const { informePdfBuffer, libretaPdfBuffer, sesionPdfBuffer } = require('../utils/cnebPdfs');
 const { piarActivosDelGrupo, varsGenerarSesionIa } = require('../utils/cnebPiarAula');
+const { tiposPorNivelCneb } = require('../utils/cnebTipoNivel');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -152,12 +154,14 @@ async function leerUso(cid, anio) {
     );
     const by = new Map((rows || []).map((r) => [String(r.nivel_cneb).toUpperCase(), r]));
     const bimestre = Number(rows?.[0]?.bimestre || 4);
+    const tipos = await tiposPorNivelCneb(cid);
     return {
       anio,
       bimestre,
       niveles: NIVELES.map((n) => ({
         nivel: n,
-        activo: by.size ? Number(by.get(n)?.activo || 0) === 1 : n === 'INICIAL',
+        activo: Number(by.get(n)?.activo || 0) === 1,
+        cualitativo: tipos[n] === true,
       })),
     };
   } catch (e) {
@@ -191,7 +195,7 @@ router.get('/resumen', async (req, res) => {
       catalogo,
       uso,
       aviso:
-        'Primaria y Secundaria nacen apagadas. La libreta sigue el tipo del nivel: cuantitativa es la boleta numérica de antes; cualitativa es la libreta y el informe CNEB. Activar el nivel no cambia ese tipo.',
+        'El modo del año se elige en Niveles. Aquí solo se prueba un bimestre, sin cambiar ese modo.',
     });
   } catch (e) {
     console.error('[cneb/resumen]', e);

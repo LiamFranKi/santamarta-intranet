@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
+const { esCualitativoNivel } = require('../utils/cnebTipoNivel');
 const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
 const {
   verificarAccesoGrupoTutoria,
@@ -5141,7 +5142,7 @@ router.get('/cursos/:cursoId/detalle-notas', async (req, res) => {
               n.nombre as nivel_nombre, n.tipo_calificacion, c.nombre as curso_nombre`
     );
     if (!cursoInfo) return;
-    const esInicial = cursoInfo.tipo_calificacion === 0 || (cursoInfo.nivel_nombre || '').toUpperCase().includes('INICIAL');
+    const esInicial = esCualitativoNivel(cursoInfo.tipo_calificacion, cursoInfo.nivel_nombre);
 
     // === RAMA INICIAL (cualitativa): detalle por indicador ===
     if (esInicial) {
@@ -5335,7 +5336,7 @@ router.post('/cursos/:cursoId/detalle-notas', async (req, res) => {
     );
     if (!asignatura) return;
 
-    const esInicial = asignatura.tipo_calificacion === 0 || (asignatura.nivel_nombre || '').toUpperCase().includes('INICIAL');
+    const esInicial = esCualitativoNivel(asignatura.tipo_calificacion, asignatura.nivel_nombre);
 
     if (esInicial && datos[0] && Array.isArray(datos[0].indicadores)) {
       // INICIAL: guardar por indicador en notas_detalle_explicaciones_indicadores
@@ -13553,10 +13554,9 @@ router.get('/hijos/:hijoId/libreta-anios', async (req, res) => {
       if (!Number.isFinite(y) || y <= 0) return;
       if (!anios.includes(y)) anios.push(y);
       if (niveles[String(y)]) return;
-      const nom = String(r.nivel_nombre || '').toUpperCase();
       niveles[String(y)] = {
         nivel_nombre: r.nivel_nombre || '',
-        inicial: r.tipo_calificacion === 0 || r.tipo_calificacion === '0' || nom.includes('INICIAL'),
+        inicial: esCualitativoNivel(r.tipo_calificacion, r.nivel_nombre),
       };
     });
     return res.json({ anios, niveles });
@@ -13682,7 +13682,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         : `http://localhost:5000/Static/Image/Fotos/${f}`;
     })();
     alumno.foto_url = fotoLibretaUrl;
-    const esCualitativa = alumno.tipo_calificacion === 0 || (alumno.nivel_nombre || '').toUpperCase().includes('INICIAL');
+    const esCualitativa = esCualitativoNivel(alumno.tipo_calificacion, alumno.nivel_nombre);
 
     // Obtener título de la intranet desde la tabla colegios
     const colegioInfo = await query(

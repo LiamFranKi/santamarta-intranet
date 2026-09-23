@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
+const { esCualitativoNivel } = require('../utils/cnebTipoNivel');
 const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
 const { requireMatriculaPortalActiva } = require('../middleware/matriculaPortal');
@@ -2509,10 +2510,9 @@ router.get('/hijos/:hijoId/libreta-anios', async (req, res) => {
       if (!Number.isFinite(y) || y <= 0) return;
       if (!anios.includes(y)) anios.push(y);
       if (niveles[String(y)]) return;
-      const nom = String(r.nivel_nombre || '').toUpperCase();
       niveles[String(y)] = {
         nivel_nombre: r.nivel_nombre || '',
-        inicial: r.tipo_calificacion === 0 || r.tipo_calificacion === '0' || nom.includes('INICIAL'),
+        inicial: esCualitativoNivel(r.tipo_calificacion, r.nivel_nombre),
       };
     });
     return res.json({ anios, niveles });
@@ -2627,7 +2627,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     }
 
     const alumno = alumnoInfo[0];
-    const esCualitativa = alumno.tipo_calificacion === 0 || (alumno.nivel_nombre || '').toUpperCase().includes('INICIAL');
+    const esCualitativa = esCualitativoNivel(alumno.tipo_calificacion, alumno.nivel_nombre);
 
     // Obtener título de la intranet
     const colegioInfo = await query(

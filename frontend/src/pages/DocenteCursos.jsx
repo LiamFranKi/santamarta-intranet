@@ -2499,8 +2499,12 @@ function DocenteCursos() {
   };
 
   // Helpers para Cualitativa (letras): convertir letra<->número usando rangos
-  const esCualitativa = datosNotas?.curso?.nivel?.tipo_calificacion === 0 ||
-    (datosNotas?.curso?.nivel_nombre || '').toUpperCase().includes('INICIAL');
+  const esCualitativa = (() => {
+    const tipo = datosNotas?.curso?.nivel?.tipo_calificacion;
+    if (tipo === 0 || tipo === '0') return true;
+    if (tipo === 1 || tipo === '1') return false;
+    return (datosNotas?.curso?.nivel_nombre || '').toUpperCase().includes('INICIAL');
+  })();
   const rangosLetras = datosNotas?.rangos_letras_primaria || [];
 
   // Puntaje mayor por letra para promediar: AD=20, A=19, B=18, C=17
@@ -3746,7 +3750,13 @@ function DocenteCursos() {
                 'linear-gradient(135deg, #e0f2f1 0%, #b2dfdb 100%)', // Turquesa pastel
               ];
               const colorFondo = coloresPasteles[index % coloresPasteles.length];
-              const ocultarMenuNotasInicial = (curso.nivel_nombre || '').toUpperCase().includes('INICIAL');
+              const tipoNivel = curso.nivel_tipo_calificacion;
+              const ocultarMenuNotasInicial =
+                tipoNivel === 0 || tipoNivel === '0'
+                  ? true
+                  : tipoNivel === 1 || tipoNivel === '1'
+                    ? false
+                    : (curso.nivel_nombre || '').toUpperCase().includes('INICIAL');
 
               return (
               <div key={curso.id} className="curso-card mundo-card" style={{ background: colorFondo }}>

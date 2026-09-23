@@ -195,11 +195,79 @@
   font-size: 0.95rem;
 }
 
-.cneb-nivel-switch button span {
+.cneb-nivel-switch button span,
+.cneb-nivel-switch button em {
   display: block;
   margin-top: 0.12rem;
   font-size: 0.75rem;
   color: var(--cneb-muted);
+  font-style: normal;
+}
+
+.cneb-nivel-switch button em {
+  color: var(--cneb-teal, #0f766e);
+  font-weight: 700;
+}
+
+.cneb-uso-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin: 0 0 1rem;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid var(--cneb-line);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.cneb-uso-inline > div:first-child {
+  flex: 1 1 16rem;
+}
+
+.cneb-uso-inline strong {
+  display: block;
+  font-size: 0.92rem;
+}
+
+.cneb-uso-inline > div:first-child span {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: var(--cneb-muted);
+  line-height: 1.4;
+}
+
+.cneb-uso-check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.cneb-uso-inline .cneb-bimestre {
+  margin: 0;
+  min-width: 11rem;
+}
+
+.cneb-seccion-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin: 0.15rem 0 0.7rem;
+}
+
+.cneb-seccion-head h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.cneb-seccion-head .cneb-btn.is-active {
+  border-color: #5eead4;
+  background: #f0fdfa;
 }
 
 .cneb-nivel-switch button.is-active {

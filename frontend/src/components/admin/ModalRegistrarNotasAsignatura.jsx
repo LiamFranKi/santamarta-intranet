@@ -151,8 +151,12 @@ export default function ModalRegistrarNotasAsignatura({ open, asignaturaId, onCl
   };
 
   // Helpers para Cualitativa (letras): convertir letra<->número usando rangos
-  const esCualitativa = datosNotas?.curso?.nivel?.tipo_calificacion === 0 ||
-    (datosNotas?.curso?.nivel_nombre || '').toUpperCase().includes('INICIAL');
+  const esCualitativa = (() => {
+    const tipo = datosNotas?.curso?.nivel?.tipo_calificacion;
+    if (tipo === 0 || tipo === '0') return true;
+    if (tipo === 1 || tipo === '1') return false;
+    return (datosNotas?.curso?.nivel_nombre || '').toUpperCase().includes('INICIAL');
+  })();
   const rangosLetras = datosNotas?.rangos_letras_primaria || [];
 
   // Puntaje mayor por letra para promediar: AD=20, A=19, B=18, C=17

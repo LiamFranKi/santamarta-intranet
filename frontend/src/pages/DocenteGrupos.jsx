@@ -10,6 +10,9 @@ import api from '../services/api';
 import './DocenteGrupos.css';
 
 function esGrupoNivelInicial(grupo) {
+  const tipo = grupo?.tipo_calificacion;
+  if (tipo === 0 || tipo === '0') return true;
+  if (tipo === 1 || tipo === '1') return false;
   return String(grupo?.nivel_nombre || '').toUpperCase().includes('INICIAL');
 }
 
@@ -301,7 +304,7 @@ function DocenteGrupos() {
                                   <span className="dropdown-icon">📉</span>
                                   <span>Presentación</span>
                                 </button>
-                                {esGrupoNivelInicial(grupo) && (
+                                {false && esGrupoNivelInicial(grupo) && (
                                   <>
                                     <button
                                       className="dropdown-item"

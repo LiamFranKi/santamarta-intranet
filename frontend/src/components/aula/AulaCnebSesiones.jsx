@@ -85,7 +85,12 @@ export default function AulaCnebSesiones({
       const { data } = await api.get(`${apiBase}/aula/${asignaturaId}`);
       setMeta(data);
       if (data?.areas?.length) setAreasCat(data.areas);
-      if (onActivoRef.current) onActivoRef.current(Boolean(data?.es_cneb ?? data?.es_inicial));
+      if (onActivoRef.current) {
+        onActivoRef.current({
+          anio: Boolean(data?.es_cneb_anio),
+          bimestre: data?.bimestre_prueba || null,
+        });
+      }
     } catch {
       setMeta(null);
       if (onActivoRef.current) onActivoRef.current(false);

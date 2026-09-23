@@ -35,6 +35,14 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
   const [enlaces, setEnlaces] = useState([]);
   const [evidencias, setEvidencias] = useState([]);
   const [cnebEstado, setCnebEstado] = useState('unknown');
+  const [cnebMeta, setCnebMeta] = useState({ anio: false, bimestre: null, listo: false });
+  useEffect(() => {
+    if (!cnebMeta.listo) return;
+    const si =
+      cnebMeta.anio ||
+      (cnebMeta.bimestre != null && Number(bimestreGlobal) === Number(cnebMeta.bimestre));
+    setCnebEstado(si ? 'si' : 'no');
+  }, [cnebMeta, bimestreGlobal]);
   
   // Estado para modal de tarea
   const [mostrarModalTarea, setMostrarModalTarea] = useState(false);
@@ -920,8 +928,14 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
     );
   }
 
-  const nivelInicialNombre = String(curso?.nivel_nombre || '').toUpperCase().includes('INICIAL');
-  const esCnebInicial = cnebEstado === 'si' || (cnebEstado === 'unknown' && nivelInicialNombre);
+  const tipoNivelAula = curso?.nivel_tipo_calificacion ?? curso?.tipo_calificacion;
+  const cualitativoAula =
+    tipoNivelAula === 0 || tipoNivelAula === '0'
+      ? true
+      : tipoNivelAula === 1 || tipoNivelAula === '1'
+        ? false
+        : String(curso?.nivel_nombre || '').toUpperCase().includes('INICIAL');
+  const esCnebInicial = cnebEstado === 'si' || (cnebEstado === 'unknown' && cualitativoAula);
   const mostrarCneb = cnebEstado !== 'no';
 
   return (
@@ -992,7 +1006,13 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
               rol="alumno"
               readOnly={modoSoloLectura}
               bimestre={bimestreGlobal}
-              onActivo={(v) => setCnebEstado(v ? 'si' : 'no')}
+              onActivo={(info) => {
+                if (info && typeof info === 'object') {
+                  setCnebMeta({ anio: !!info.anio, bimestre: info.bimestre || null, listo: true });
+                } else {
+                  setCnebMeta({ anio: !!info, bimestre: null, listo: true });
+                }
+              }}
             />
           ) : null}
           {!esCnebInicial && cnebEstado === 'no' ? (

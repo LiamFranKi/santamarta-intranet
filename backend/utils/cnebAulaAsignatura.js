@@ -1,4 +1,5 @@
 const { query } = require('./mysql');
+const { esCualitativoNivel } = require('./cnebTipoNivel');
 
 function nivelDesdeNombre(nombre) {
   const u = String(nombre || '').toUpperCase();
@@ -75,7 +76,7 @@ async function contextoAulaCneb(cid, asignaturaId) {
     `SELECT a.id AS asignatura_id, a.grupo_id, a.curso_id, a.personal_id,
             c.nombre AS curso_nombre,
             g.grado, g.seccion, g.anio,
-            n.nombre AS nivel_nombre
+            n.nombre AS nivel_nombre, n.tipo_calificacion
      FROM asignaturas a
      INNER JOIN cursos c ON c.id = a.curso_id AND c.colegio_id = a.colegio_id
      INNER JOIN grupos g ON g.id = a.grupo_id AND g.colegio_id = a.colegio_id
@@ -87,7 +88,24 @@ async function contextoAulaCneb(cid, asignaturaId) {
   if (!row) return null;
   const nivel = nivelDesdeNombre(row.nivel_nombre);
   const esInicial = nivel === 'INICIAL';
-  const esCneb = esInicial ? true : await nivelCnebActivoEnAula(cid, Number(row.anio), nivel);
+  const esCnebAnio = esCualitativoNivel(row.tipo_calificacion, row.nivel_nombre);
+  let bimestrePrueba = null;
+  if (!esCnebAnio && nivel) {
+    try {
+      const [uso] = await query(
+        `SELECT activo, bimestre FROM cneb_uso_colegio
+         WHERE colegio_id = ? AND anio = ? AND nivel_cneb = ? LIMIT 1`,
+        [cid, Number(row.anio), nivel]
+      );
+      if (Number(uso?.activo) === 1) {
+        const b = Number(uso.bimestre);
+        bimestrePrueba = b >= 1 && b <= 4 ? b : 4;
+      }
+    } catch (e) {
+      if (e.code !== 'ER_NO_SUCH_TABLE' && e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+    }
+  }
+  const esCneb = esCnebAnio || bimestrePrueba != null;
   let mapa = null;
   if (esCneb) {
     try {
@@ -127,6 +145,8 @@ async function contextoAulaCneb(cid, asignaturaId) {
     nivel_cneb: nivel,
     es_inicial: esInicial,
     es_cneb: esCneb,
+    es_cneb_anio: esCnebAnio,
+    bimestre_prueba: bimestrePrueba,
     mapa: mapa
       ? {
           tipo: mapa.tipo || 'principal',

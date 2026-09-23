@@ -347,7 +347,15 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   const buttonRef = useRef({});
   
   const [bimestreGlobal, setBimestreGlobal] = useState(1);
-  
+  const [cnebMeta, setCnebMeta] = useState({ anio: false, bimestre: null, listo: false });
+  useEffect(() => {
+    if (!cnebMeta.listo) return;
+    const si =
+      cnebMeta.anio ||
+      (cnebMeta.bimestre != null && Number(bimestreGlobal) === Number(cnebMeta.bimestre));
+    setCnebEstado(si ? 'si' : 'no');
+  }, [cnebMeta, bimestreGlobal]);
+
   // Formularios de video y enlace (después de bimestreGlobal)
   const [formVideo, setFormVideo] = useState({
     descripcion: '',
@@ -527,18 +535,30 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
         }
       }
       setCurso(cursoEncontrado || null);
-      const ini = String(cursoEncontrado?.nivel_nombre || '').toUpperCase().includes('INICIAL');
-      setCnebEstado(ini ? 'unknown' : 'no');
-      if (!ini && asignaturaId) {
+      const tipoNivel = cursoEncontrado?.nivel_tipo_calificacion ?? cursoEncontrado?.tipo_calificacion;
+      const nombreNivel = String(cursoEncontrado?.nivel_nombre || '').toUpperCase();
+      const cualitativo =
+        tipoNivel === 0 || tipoNivel === '0'
+          ? true
+          : tipoNivel === 1 || tipoNivel === '1'
+            ? false
+            : nombreNivel.includes('INICIAL');
+      setCnebEstado(cualitativo ? 'unknown' : 'no');
+      setCnebMeta({ anio: false, bimestre: null, listo: false });
+      if (asignaturaId) {
         const idPedido = asignaturaId;
         api.get(`/docente/cneb/aula/${idPedido}`)
           .then(({ data }) => {
             if (String(idPedido) !== String(asignaturaId)) return;
-            setCnebEstado(data?.es_cneb ? 'si' : 'no');
+            setCnebMeta({
+              anio: Boolean(data?.es_cneb_anio),
+              bimestre: data?.bimestre_prueba || null,
+              listo: true,
+            });
           })
           .catch(() => {
             if (String(idPedido) !== String(asignaturaId)) return;
-            setCnebEstado('no');
+            setCnebMeta({ anio: false, bimestre: null, listo: true });
           });
       }
 
@@ -1462,9 +1482,12 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   const sanearNotaCuantitativaEntrega = (val) =>
     String(val ?? '').replace(/\D/g, '').slice(0, 2);
 
-  const esEntregaNivelCualitativo = () =>
-    infoTareaEntregas?.tipo_calificacion === 0 ||
-    String(infoTareaEntregas?.nivel_nombre || '').toUpperCase().includes('INICIAL');
+  const esEntregaNivelCualitativo = () => {
+    const tipo = infoTareaEntregas?.tipo_calificacion;
+    if (tipo === 0 || tipo === '0') return true;
+    if (tipo === 1 || tipo === '1') return false;
+    return String(infoTareaEntregas?.nivel_nombre || '').toUpperCase().includes('INICIAL');
+  };
 
   const esEntradaValidaCualitativaEntrega = (val) => {
     if (val === '') return true;
@@ -3902,8 +3925,14 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   );
   };
 
-  const nivelInicialNombre = String(curso?.nivel_nombre || '').toUpperCase().includes('INICIAL');
-  const esCnebInicial = cnebEstado === 'si' || (cnebEstado === 'unknown' && nivelInicialNombre);
+  const tipoNivelAula = curso?.nivel_tipo_calificacion ?? curso?.tipo_calificacion;
+  const cualitativoAula =
+    tipoNivelAula === 0 || tipoNivelAula === '0'
+      ? true
+      : tipoNivelAula === 1 || tipoNivelAula === '1'
+        ? false
+        : String(curso?.nivel_nombre || '').toUpperCase().includes('INICIAL');
+  const esCnebInicial = cnebEstado === 'si' || (cnebEstado === 'unknown' && cualitativoAula);
   const mostrarCneb = cnebEstado !== 'no';
 
   return (
@@ -3971,7 +4000,13 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
               rol="docente"
               readOnly={soloLecturaTutor}
               bimestre={bimestreGlobal}
-              onActivo={(v) => setCnebEstado(v ? 'si' : 'no')}
+              onActivo={(info) => {
+                if (info && typeof info === 'object') {
+                  setCnebMeta({ anio: !!info.anio, bimestre: info.bimestre || null, listo: true });
+                } else {
+                  setCnebMeta({ anio: !!info, bimestre: null, listo: true });
+                }
+              }}
             />
           ) : null}
           {!esCnebInicial ? (
