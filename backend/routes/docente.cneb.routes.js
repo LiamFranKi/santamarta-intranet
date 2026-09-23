@@ -9,6 +9,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { NIVELES, arbolCatalogo } = require('../utils/cnebCatalogoSeed');
 const { armarBorrador } = require('../utils/cnebSesionBorrador');
 const { generarSesionConIa, PROMPT_SESION_DEFAULT } = require('../utils/cnebGeminiSesion');
+const { moduloActivo } = require('../utils/modulosSistema');
 const {
   parseIntOrNull,
   leerCuerpoSesion,
@@ -252,11 +253,11 @@ router.get('/aula/:asignaturaId', async (req, res) => {
     const ctx = await contextoAulaCneb(cid, asignaturaId);
     if (!ctx) return res.status(404).json({ error: 'Asignatura no encontrada.' });
     if (!(await gateGrupo(req, res, ctx.grupo_id))) return;
-    const sesiones = ctx.es_inicial ? await listarSesionesAula(cid, ctx) : [];
+    const sesiones = ctx.es_cneb ? await listarSesionesAula(cid, ctx) : [];
     let areas = [];
-    if (ctx.es_inicial) {
+    if (ctx.es_cneb) {
       try {
-        const arbol = await arbolCatalogo('INICIAL');
+        const arbol = await arbolCatalogo(ctx.nivel_cneb || 'INICIAL');
         areas = arbol.areas || [];
       } catch {
         areas = [];
@@ -385,6 +386,9 @@ router.post('/sesiones/borrador', async (req, res) => {
 
 router.post('/sesiones/generar-ia', async (req, res) => {
   try {
+    if (!(await moduloActivo('academico.cneb-ia'))) {
+      return res.status(403).json({ error: 'La IA de sesiones CNEB está apagada.' });
+    }
     const cid = colegio(req);
     const duracion = Math.min(180, Math.max(20, parseInt(req.body?.duracion_min, 10) || 60));
     const anio = (await getAnioActivo(cid)) || new Date().getFullYear();

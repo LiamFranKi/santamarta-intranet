@@ -85,7 +85,7 @@ export default function AulaCnebSesiones({
       const { data } = await api.get(`${apiBase}/aula/${asignaturaId}`);
       setMeta(data);
       if (data?.areas?.length) setAreasCat(data.areas);
-      if (onActivoRef.current) onActivoRef.current(Boolean(data?.es_inicial));
+      if (onActivoRef.current) onActivoRef.current(Boolean(data?.es_cneb ?? data?.es_inicial));
     } catch {
       setMeta(null);
       if (onActivoRef.current) onActivoRef.current(false);
@@ -99,11 +99,11 @@ export default function AulaCnebSesiones({
   }, [loadLista]);
 
   useEffect(() => {
-    if (!meta?.es_inicial || !esDocente) return;
+    if (!(meta?.es_cneb ?? meta?.es_inicial) || !esDocente) return;
     let alive = true;
     (async () => {
       try {
-        const { data } = await api.get('/docente/cneb/catalogo', { params: { nivel: 'INICIAL' } });
+        const { data } = await api.get('/docente/cneb/catalogo', { params: { nivel: meta?.nivel_cneb || 'INICIAL' } });
         if (alive) setAreasCat(data.areas || data || []);
       } catch {
         if (alive) setAreasCat([]);
@@ -112,13 +112,21 @@ export default function AulaCnebSesiones({
     return () => {
       alive = false;
     };
-  }, [meta?.es_inicial, esDocente]);
+  }, [meta?.es_cneb, meta?.es_inicial, meta?.nivel_cneb, esDocente]);
+
+  const nivelCneb = meta?.nivel_cneb || 'INICIAL';
+  const etiquetaNivel = nivelCneb === 'SECUNDARIA' ? 'Secundaria' : nivelCneb === 'PRIMARIA' ? 'Primaria' : 'Inicial';
 
   const contextoAula = useMemo(() => {
     if (!meta) return null;
     const grado = Number(meta.grado);
-    const corte = Number.isFinite(grado) && grado >= 3 && grado <= 5 ? grado : 5;
+    const nivel = meta.nivel_cneb || 'INICIAL';
+    let corte = 5;
+    if (nivel === 'SECUNDARIA') corte = Number.isFinite(grado) && grado >= 1 && grado <= 5 ? grado : 1;
+    else if (nivel === 'PRIMARIA') corte = Number.isFinite(grado) && grado >= 1 && grado <= 6 ? grado : 1;
+    else corte = Number.isFinite(grado) && grado >= 3 && grado <= 5 ? grado : 5;
     const aula = [meta.grado != null ? String(meta.grado) : '', meta.seccion || ''].filter(Boolean).join(' ') || 'Esta aula';
+    const corteLabel = nivel === 'INICIAL' ? `${corte} años` : `${corte}.º`;
     const tallerMapa = meta.mapa?.tipo === 'complementario';
     const areaResuelta = tallerMapa
       ? null
@@ -131,7 +139,7 @@ export default function AulaCnebSesiones({
         ? 'Taller interno'
         : areaResuelta?.nombre || meta.mapa?.area_nombre || meta.curso_nombre || '',
       corte,
-      aula_label: `${aula} · ${corte} años`,
+      aula_label: `${aula} · ${corteLabel}`,
     };
   }, [meta, areasCat]);
 
@@ -151,9 +159,11 @@ export default function AulaCnebSesiones({
       capacidades: caps,
       estandar,
       desempenos: desGuardados.length ? desGuardados : desCatalogo,
-      edadLabel: Number.isFinite(corte) && corte > 0 ? `${corte} años` : '',
+      edadLabel: Number.isFinite(corte) && corte > 0
+        ? ((meta?.nivel_cneb || 'INICIAL') === 'INICIAL' ? `${corte} años` : `${corte}.º`)
+        : '',
     };
-  }, [sesion, areasCat]);
+  }, [sesion, areasCat, meta?.nivel_cneb]);
 
   const abrir = async (id) => {
     try {
@@ -345,9 +355,9 @@ export default function AulaCnebSesiones({
           </div>
         ) : editor ? (
           <AdminCnebSesiones
-            nivel="INICIAL"
+            nivel={nivelCneb}
             areas={areasCat}
-            etiquetaNivel={() => 'Inicial'}
+            etiquetaNivel={() => etiquetaNivel}
             apiBase="/docente/cneb"
             embebido
             contextoAula={contextoAula}
@@ -363,7 +373,7 @@ export default function AulaCnebSesiones({
         ) : vista === 'corte' ? (
           <AdminCnebCorte
             apiBase="/docente/cneb"
-            nivel="INICIAL"
+            nivel={nivelCneb}
             grupos={
               meta?.grupo_id
                 ? [{ id: meta.grupo_id, grado: meta.grado, seccion: meta.seccion }]
@@ -371,7 +381,7 @@ export default function AulaCnebSesiones({
             }
             grupoFijo={meta?.grupo_id}
             bimestreDefault={bimestre}
-            etiquetaNivel={() => 'Inicial'}
+            etiquetaNivel={() => etiquetaNivel}
             areaId={contextoAula?.area_id || ''}
             areaNombre={contextoAula?.area_nombre || areaLabel}
             asignaturaId={meta?.asignatura_id || contextoAula?.asignatura_id || ''}

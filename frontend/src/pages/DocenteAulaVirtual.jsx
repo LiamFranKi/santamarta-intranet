@@ -529,6 +529,18 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
       setCurso(cursoEncontrado || null);
       const ini = String(cursoEncontrado?.nivel_nombre || '').toUpperCase().includes('INICIAL');
       setCnebEstado(ini ? 'unknown' : 'no');
+      if (!ini && asignaturaId) {
+        const idPedido = asignaturaId;
+        api.get(`/docente/cneb/aula/${idPedido}`)
+          .then(({ data }) => {
+            if (String(idPedido) !== String(asignaturaId)) return;
+            setCnebEstado(data?.es_cneb ? 'si' : 'no');
+          })
+          .catch(() => {
+            if (String(idPedido) !== String(asignaturaId)) return;
+            setCnebEstado('no');
+          });
+      }
 
       const configResponse = await api.get('/docente/aula-virtual/config');
       setTotalNotas(configResponse.data.total_notas || 4);

@@ -5,6 +5,7 @@ const { query } = require('./mysql');
 const { getColegioData } = require('./colegio');
 const { cargarCorte } = require('./cnebAuxiliar');
 const { cargarSesion } = require('./cnebSesionStore');
+const { listarDesempenosCatalogo } = require('./cnebCatalogoSeed');
 const { htmlABloques, htmlATextoPlano } = require('./cnebTextoRico');
 const { DUA_CAT_LABEL, DUA_OPCIONES, leerDua, duaTieneAlgo } = require('./cnebDua');
 
@@ -341,21 +342,9 @@ async function cargarMarcoCompetencias(competencias, { nivel, corte }) {
     capacidades = [];
   }
   try {
-    desempenos = await query(
-      `SELECT id, competencia_id, edad, grado, texto, orden FROM cneb_desempenos
-       WHERE competencia_id IN (${ph}) ORDER BY COALESCE(edad, grado) ASC, orden ASC, id ASC`,
-      ids
-    );
-  } catch (e) {
-    if (e.code === 'ER_BAD_FIELD_ERROR') {
-      desempenos = await query(
-        `SELECT id, competencia_id, edad, texto, orden FROM cneb_desempenos
-         WHERE competencia_id IN (${ph}) ORDER BY edad ASC, orden ASC, id ASC`,
-        ids
-      );
-    } else {
-      desempenos = [];
-    }
+    desempenos = await listarDesempenosCatalogo(ids);
+  } catch {
+    desempenos = [];
   }
   const capBy = new Map();
   (capacidades || []).forEach((x) => {

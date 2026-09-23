@@ -113,9 +113,21 @@ function normalizarSalida(parsed, duracionMin) {
   const cotejo = Array.isArray(parsed?.cotejo)
     ? parsed.cotejo.map((x) => String(x || '').trim()).filter(Boolean)
     : [];
+  const desempenos = [];
+  const vistos = new Set();
+  for (const x of Array.isArray(parsed?.desempenos) ? parsed.desempenos : []) {
+    const t = String(typeof x === 'string' ? x : x?.texto || '').trim();
+    if (!t || t.length > 500) continue;
+    const k = t.toLowerCase();
+    if (vistos.has(k)) continue;
+    vistos.add(k);
+    desempenos.push(t);
+    if (desempenos.length >= 6) break;
+  }
   return {
     titulo: String(parsed?.titulo || '').trim(),
     proposito: String(parsed?.proposito || '').trim(),
+    desempenos,
     minutos,
     momentos: {
       inicio: textoCnebAHtml(mom.inicio),
@@ -155,10 +167,17 @@ async function generarSesionConIa({ plantilla, vars, duracionMin }) {
     plantillaUso +=
       '\nIncluye "procedimientos": [{"piar_id":n,"alumno_id":n,"texto":"qué hará el docente HOY con ese niño"}] cuando haya PIAR. Sin diagnóstico. Si el docente ya escribió el texto, cópielo igual.';
   }
+  const proponerDesempenos = vars?.proponer_desempenos === true && !String(vars?.desempenos || '').trim();
+  if (proponerDesempenos) {
+    plantillaUso +=
+      '\n\nESTE GRADO NO TIENE DESEMPEÑOS EN EL CATÁLOGO:\n- Propón de 3 a 5 desempeños observables para {{corte_label}}, dentro de la competencia y las capacidades dadas. Son una propuesta de ESTA sesión, en lenguaje de aula. No los presentes como cita oficial del Ministerio.\n- Añade al JSON la clave "desempenos": ["frase 1", "frase 2"] aunque el ejemplo no la tenga.\n- La lista "cotejo" lleva un ítem observable por cada desempeño propuesto y como máximo un ítem de proceso. El docente podrá editar desempeños y cotejo antes de guardar.';
+  }
   const prompt = aplicarPlantilla(plantillaUso, vars);
   const { parsed, modelo, raw, tokens_entrada, tokens_salida } = await llamarGeminiJson(prompt);
+  const borrador = normalizarSalida(parsed, duracionMin);
+  if (!proponerDesempenos) borrador.desempenos = [];
   return {
-    borrador: normalizarSalida(parsed, duracionMin),
+    borrador,
     modelo,
     prompt,
     raw,

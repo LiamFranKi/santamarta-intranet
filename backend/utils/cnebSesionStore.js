@@ -30,6 +30,9 @@ function leerCuerpoSesion(body, nivel) {
     estado,
     nivel_cneb: nivel,
     desempeno_ids: Array.isArray(body?.desempeno_ids) ? body.desempeno_ids : [],
+    desempenos_libre: Array.isArray(body?.desempenos_libre)
+      ? body.desempenos_libre.map((t) => String(t || '').trim()).filter(Boolean).slice(0, 6)
+      : [],
     momentos: body?.momentos || { inicio: '', desarrollo: '', cierre: '' },
     minutos,
     suma,
@@ -97,7 +100,41 @@ async function cargarSesion(cid, id) {
   };
 }
 
-async function reemplazarHijos(sesionId, { desempeno_ids: desempenoIds, momentos, minutos, cotejo }) {
+async function idsDesempenosDeLaSesion(sesionId, body) {
+  const catalogo = (body.desempeno_ids || []).map((id) => parseInt(id, 10)).filter((n) => Number.isFinite(n));
+  const libres = body.desempenos_libre || [];
+  if (catalogo.length || !libres.length || !body.competencia_id) return catalogo;
+  const nivel = String(body.nivel_cneb || '').toUpperCase();
+  const corte = parseInt(body.corte, 10);
+  const edad = nivel === 'INICIAL' && corte >= 3 && corte <= 5 ? corte : null;
+  const grado = nivel !== 'INICIAL' && corte >= 1 && corte <= 6 ? corte : null;
+  const ids = [];
+  try {
+    for (let i = 0; i < libres.length; i += 1) {
+      const ins = await execute(
+        `INSERT INTO cneb_desempenos (competencia_id, edad, grado, texto, orden, origen, sesion_id)
+         VALUES (?, ?, ?, ?, ?, 'sesion', ?)`,
+        [body.competencia_id, edad, grado, libres[i], i + 1, sesionId]
+      );
+      ids.push(ins.insertId);
+    }
+    const ph = ids.map(() => '?').join(',');
+    await execute(
+      `DELETE FROM cneb_desempenos WHERE sesion_id = ? AND origen = 'sesion' AND id NOT IN (${ph})`,
+      [sesionId, ...ids]
+    );
+    return ids;
+  } catch (e) {
+    if (e.code === 'ER_BAD_FIELD_ERROR' || e.code === 'ER_BAD_NULL_ERROR' || e.code === 'ER_NO_SUCH_TABLE') {
+      return catalogo;
+    }
+    throw e;
+  }
+}
+
+async function reemplazarHijos(sesionId, body) {
+  const { momentos, minutos, cotejo } = body;
+  const desempenoIds = await idsDesempenosDeLaSesion(sesionId, body);
   await execute('DELETE FROM cneb_sesion_desempenos WHERE sesion_id = ?', [sesionId]);
   await execute('DELETE FROM cneb_sesion_momentos WHERE sesion_id = ?', [sesionId]);
   for (const rawId of desempenoIds || []) {
@@ -286,6 +323,11 @@ async function actualizarSesion(cid, id, body) {
 }
 
 async function eliminarSesion(cid, id) {
+  try {
+    await execute("DELETE FROM cneb_desempenos WHERE sesion_id = ? AND origen = 'sesion'", [id]);
+  } catch (e) {
+    if (e.code !== 'ER_BAD_FIELD_ERROR' && e.code !== 'ER_NO_SUCH_TABLE') throw e;
+  }
   try {
     await execute('UPDATE asignaturas_evidencias SET cneb_sesion_id = NULL WHERE cneb_sesion_id = ?', [id]);
   } catch (e) {

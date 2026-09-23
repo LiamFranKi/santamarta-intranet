@@ -17,6 +17,7 @@ const {
 } = require('../utils/cnebCatalogoSeed');
 const { armarBorrador } = require('../utils/cnebSesionBorrador');
 const { generarSesionConIa, PROMPT_SESION_DEFAULT } = require('../utils/cnebGeminiSesion');
+const { moduloActivo } = require('../utils/modulosSistema');
 const {
   parseIntOrNull,
   leerCuerpoSesion,
@@ -190,7 +191,7 @@ router.get('/resumen', async (req, res) => {
       catalogo,
       uso,
       aviso:
-        'Un solo CNEB para los tres niveles. Activar un nivel aquí no convierte las notas 0–20 ni cambia la libreta vigente.',
+        'Primaria y Secundaria nacen apagadas. La libreta sigue el tipo del nivel: cuantitativa es la boleta numérica de antes; cualitativa es la libreta y el informe CNEB. Activar el nivel no cambia ese tipo.',
     });
   } catch (e) {
     console.error('[cneb/resumen]', e);
@@ -551,6 +552,9 @@ router.put('/prompt', async (req, res) => {
 router.post('/sesiones/generar-ia', async (req, res) => {
   try {
     if (!puedeEscribir(req.user?.tipo)) return res.status(403).json({ error: 'Sin permiso.' });
+    if (!(await moduloActivo('academico.cneb-ia'))) {
+      return res.status(403).json({ error: 'La IA de sesiones CNEB está apagada.' });
+    }
     const cid = colegio(req);
     const duracion = Math.min(180, Math.max(20, parseInt(req.body?.duracion_min, 10) || 60));
     const anio = (await getAnioActivo(cid)) || new Date().getFullYear();

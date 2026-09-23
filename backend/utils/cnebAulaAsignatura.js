@@ -26,11 +26,29 @@ const HINTS_AREA_INICIAL = [
   { codigo: 'CYT', keys: ['ciencia', 'tecnolog', 'exploracion'] },
 ];
 
-async function resolverAreaPorCurso(cursoNombre) {
+async function nivelCnebActivoEnAula(cid, anio, nivel) {
+  if (nivel === 'INICIAL') return true;
+  if (nivel !== 'PRIMARIA' && nivel !== 'SECUNDARIA') return false;
+  try {
+    const [row] = await query(
+      `SELECT activo FROM cneb_uso_colegio
+       WHERE colegio_id = ? AND anio = ? AND nivel_cneb = ? LIMIT 1`,
+      [cid, anio, nivel]
+    );
+    return Number(row?.activo) === 1;
+  } catch (e) {
+    if (e.code === 'ER_NO_SUCH_TABLE' || e.code === 'ER_BAD_FIELD_ERROR') return false;
+    throw e;
+  }
+}
+
+async function resolverAreaPorCurso(cursoNombre, nivelCneb) {
+  const nivel = String(nivelCneb || 'INICIAL').toUpperCase();
   const areas = await query(
     `SELECT id, codigo, nombre FROM cneb_areas
-     WHERE nivel_cneb = 'INICIAL' AND activo = 1 AND tipo <> 'transversal'
-     ORDER BY orden ASC, id ASC`
+     WHERE nivel_cneb = ? AND activo = 1 AND tipo <> 'transversal'
+     ORDER BY orden ASC, id ASC`,
+    [nivel]
   ).catch(() => []);
   const n = normalizarNombre(cursoNombre);
   if (!n || !(areas || []).length) return null;
@@ -69,8 +87,9 @@ async function contextoAulaCneb(cid, asignaturaId) {
   if (!row) return null;
   const nivel = nivelDesdeNombre(row.nivel_nombre);
   const esInicial = nivel === 'INICIAL';
+  const esCneb = esInicial ? true : await nivelCnebActivoEnAula(cid, Number(row.anio), nivel);
   let mapa = null;
-  if (esInicial) {
+  if (esCneb) {
     try {
       const [m] = await query(
         `SELECT m.tipo, m.area_id, ar.nombre AS area_nombre, ar.codigo AS area_codigo
@@ -85,7 +104,7 @@ async function contextoAulaCneb(cid, asignaturaId) {
       if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
     }
     if (!mapa || (mapa.tipo !== 'complementario' && !mapa.area_id)) {
-      const resuelta = await resolverAreaPorCurso(row.curso_nombre);
+      const resuelta = await resolverAreaPorCurso(row.curso_nombre, nivel);
       if (resuelta) {
         mapa = {
           tipo: 'principal',
@@ -107,6 +126,7 @@ async function contextoAulaCneb(cid, asignaturaId) {
     nivel_nombre: row.nivel_nombre,
     nivel_cneb: nivel,
     es_inicial: esInicial,
+    es_cneb: esCneb,
     mapa: mapa
       ? {
           tipo: mapa.tipo || 'principal',
@@ -119,8 +139,8 @@ async function contextoAulaCneb(cid, asignaturaId) {
 }
 
 async function listarSesionesAula(cid, ctx) {
-  if (!ctx?.grupo_id || !ctx.es_inicial) return [];
-  const params = [cid, ctx.grupo_id, ctx.anio, 'INICIAL'];
+  if (!ctx?.grupo_id || !ctx.es_cneb) return [];
+  const params = [cid, ctx.grupo_id, ctx.anio, ctx.nivel_cneb || 'INICIAL'];
   let extra = '';
   if (ctx.mapa?.tipo === 'complementario') {
     extra = ' AND s.asignatura_id = ?';
@@ -163,6 +183,7 @@ function vistaAlumnoSesion(ses) {
 
 module.exports = {
   nivelDesdeNombre,
+  nivelCnebActivoEnAula,
   contextoAulaCneb,
   listarSesionesAula,
   vistaAlumnoSesion,

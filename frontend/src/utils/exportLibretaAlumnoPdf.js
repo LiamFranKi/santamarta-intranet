@@ -31,7 +31,8 @@ export async function fetchYExportarLibretaAlumno(hijoId, ciclo = 1, anio = null
 
 /**
  * Selector año/bimestre + PDF de un solo alumno (Tutoría, Admin → Lista de alumnos, hijos).
- * Informe CNEB solo si el año elegido (o el aula actual) es Inicial, no si el niño estuvo en Inicial otro año.
+ * Informe y libreta CNEB si ese año es cualitativo (Inicial, o un nivel con calificación por letras).
+ * La boleta numérica de antes se usa cuando el año es cuantitativo.
  */
 export async function promptYExportarLibretaAlumno(
   alumnoId,
@@ -70,7 +71,7 @@ export async function promptYExportarLibretaAlumno(
       html: `
         <p id="swal-libreta-alumno-hint" style="text-align:left;margin:0 0 12px;color:#475569;font-size:0.92rem">
           ${inicialDeAnio(anioSel)
-            ? 'En Inicial puede descargar la <b>libreta</b> (resumen para la familia) o el <b>informe de progreso</b> (detalle CNEB).'
+            ? 'En un nivel cualitativo puede descargar la <b>libreta</b> (resumen para la familia) o el <b>informe de progreso</b> (detalle CNEB). Un nivel cuantitativo descarga la boleta numérica de antes.'
             : 'Se descargará la libreta de este alumno.'}
         </p>
         <label style="display:block;text-align:left;font-weight:600;margin-bottom:4px">Año</label>
@@ -111,7 +112,7 @@ export async function promptYExportarLibretaAlumno(
           if (box) box.style.display = ini ? 'block' : 'none';
           if (hint) {
             hint.innerHTML = ini
-              ? 'En Inicial puede descargar la <b>libreta</b> (resumen para la familia) o el <b>informe de progreso</b> (detalle CNEB).'
+              ? 'En un nivel cualitativo puede descargar la <b>libreta</b> (resumen para la familia) o el <b>informe de progreso</b> (detalle CNEB). Un nivel cuantitativo descarga la boleta numérica de antes.'
               : 'Se descargará la libreta de este alumno.';
           }
           const popup = document.querySelector('.swal2-title');

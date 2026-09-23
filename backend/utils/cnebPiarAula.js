@@ -164,6 +164,7 @@ async function varsGenerarSesionIa(cid, body, anio) {
     desempenos: Array.isArray(body?.desempenos_texto)
       ? body.desempenos_texto.map((t, i) => `${i + 1}. ${t}`).join('\n')
       : '',
+    proponer_desempenos: body?.proponer_desempenos === true,
     titulo: body?.titulo || '',
     proposito: body?.proposito || '',
     apoyos_aula: [textoApoyosParaPrompt(activos), textoDuaMarcado(body?.dua)].filter(Boolean).join('\n\n'),

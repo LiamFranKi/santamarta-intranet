@@ -18,6 +18,7 @@ const MODULOS = [
   { clave: 'usuarios.apoderados', grupo: 'Usuarios', nombre: 'Apoderados', defecto: true },
 
   { clave: 'academico.cneb', grupo: 'Académico', nombre: 'CNEB', defecto: true },
+  { clave: 'academico.cneb-ia', grupo: 'Académico', nombre: 'IA en sesiones CNEB', defecto: false },
   { clave: 'academico.niveles', grupo: 'Académico', nombre: 'Niveles', defecto: true },
   { clave: 'academico.grados', grupo: 'Académico', nombre: 'Grados', defecto: true },
   { clave: 'academico.cursos', grupo: 'Académico', nombre: 'Cursos', defecto: true },
@@ -111,6 +112,12 @@ async function leerEstados() {
   return estados;
 }
 
+async function moduloActivo(clave) {
+  const estados = await leerEstados();
+  if (!Object.prototype.hasOwnProperty.call(estados, clave)) return true;
+  return !!estados[clave];
+}
+
 async function guardarEstado(clave, activo) {
   if (!POR_CLAVE.has(clave)) {
     const err = new Error('Módulo desconocido');
@@ -129,5 +136,6 @@ async function guardarEstado(clave, activo) {
 module.exports = {
   MODULOS,
   leerEstados,
+  moduloActivo,
   guardarEstado,
 };

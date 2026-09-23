@@ -7,6 +7,7 @@ import CnebHtmlVista from '../../components/aula/CnebHtmlVista';
 import CnebInclusivoPanel from '../../components/aula/CnebInclusivoPanel';
 import { htmlVacio, textoCnebAHtml } from '../../utils/cnebTextoRico';
 import { emptyDua, fusionarProcedimientos, leerDua } from '../../utils/cnebDua';
+import { useModulos } from '../../context/ModulosContext';
 
 const QUILL_CNEB = {
   toolbar: [
@@ -18,9 +19,6 @@ const QUILL_CNEB = {
 };
 
 const QUILL_FORMATS = ['bold', 'italic', 'underline', 'header', 'list', 'bullet'];
-
-/** Oculto: botón y mensajes de IA / Vanguarcito en sesiones CNEB. No borrar el flujo. */
-const MOSTRAR_IA_SESIONES_CNEB = false;
 
 function urlVanguarcito() {
   const base = String(api.defaults?.baseURL || '').replace(/\/api\/?$/i, '');
@@ -171,7 +169,7 @@ export function MarcoCnebVista({
       {!(desempenos || []).length ? (
         <p className="cneb-muted">
           {modo === 'edicion'
-            ? 'Elija área y competencia. En Inicial los desempeños ya están por edad.'
+            ? 'Este grado no tiene desempeños en el catálogo. Escríbalos abajo o pídalos a la IA. Quedan en esta sesión.'
             : 'No hay desempeños marcados en esta sesión.'}
         </p>
       ) : modo === 'edicion' ? (
@@ -236,6 +234,7 @@ function formVacio(nivel, ctx = null) {
     fecha_sesion: hoyISO(),
     estado: 'borrador',
     desempeno_ids: [],
+    desempenos_libre: [],
     momentos: { inicio: '', desarrollo: '', cierre: '' },
     minutos: partirMinutos(duracion_min),
     cotejo: [],
@@ -258,6 +257,8 @@ export default function AdminCnebSesiones({
   onCerrar = null,
   onGuardado = null,
 }) {
+  const { activo } = useModulos();
+  const mostrarIaSesiones = activo('academico.cneb-ia');
   const [lista, setLista] = useState([]);
   const [grupos, setGrupos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -374,6 +375,7 @@ export default function AdminCnebSesiones({
       area_id: areaId,
       competencia_id: first ? String(first.id) : '',
       desempeno_ids: [],
+      desempenos_libre: [],
     });
   };
 
@@ -432,6 +434,7 @@ export default function AdminCnebSesiones({
         fecha_sesion: s.fecha_sesion ? String(s.fecha_sesion).slice(0, 10) : '',
         estado: s.estado || 'borrador',
         desempeno_ids: s.desempeno_ids || [],
+        desempenos_libre: (s.desempenos || []).map((d) => d.texto).filter(Boolean),
         momentos: {
           inicio: textoCnebAHtml(s.momentos?.inicio),
           desarrollo: textoCnebAHtml(s.momentos?.desarrollo),
@@ -480,6 +483,9 @@ export default function AdminCnebSesiones({
         cierre: textoCnebAHtml(b.momentos?.cierre || form.momentos.cierre),
       },
       cotejo: (b.cotejo || []).map((item) => ({ item: typeof item === 'string' ? item : item.item })),
+      ...(Array.isArray(b.desempenos) && b.desempenos.length
+        ? { desempenos_libre: b.desempenos.map((t) => String(t || '').trim()).filter(Boolean) }
+        : {}),
       dua: {
         ...(form.dua || emptyDua()),
         procedimientos: fusionarProcedimientos(form.dua?.procedimientos, b.procedimientos),
@@ -488,9 +494,12 @@ export default function AdminCnebSesiones({
   };
 
   const generarConIa = async () => {
-    const textos = desempenosCorte
-      .filter((d) => form.desempeno_ids.map(String).includes(String(d.id)))
-      .map((d) => d.texto);
+    const libres = (form.desempenos_libre || []).map((t) => String(t || '').trim()).filter(Boolean);
+    const textos = desempenosCorte.length
+      ? desempenosCorte
+          .filter((d) => form.desempeno_ids.map(String).includes(String(d.id)))
+          .map((d) => d.texto)
+      : libres;
     if (!compForm?.nombre && !form.titulo.trim()) {
       await Swal.fire({
         icon: 'warning',
@@ -513,6 +522,7 @@ export default function AdminCnebSesiones({
           area_nombre: areaForm?.nombre || 'Taller interno',
           capacidades: (compForm?.capacidades || []).map((c) => c.nombre),
           desempenos_texto: textos,
+          proponer_desempenos: !desempenosCorte.length && !textos.length,
           duracion_min: form.duracion_min,
           corte_label: cortes.find((c) => c.v === Number(form.corte))?.label,
           grupo_id: form.grupo_id,
@@ -563,6 +573,10 @@ export default function AdminCnebSesiones({
         nivel,
         estado: estado || form.estado,
         cotejo: (form.cotejo || []).filter((c) => String(c.item || '').trim()),
+        desempenos_libre: desempenosCorte.length
+          ? []
+          : (form.desempenos_libre || []).map((t) => String(t || '').trim()).filter(Boolean),
+        desempeno_ids: desempenosCorte.length ? form.desempeno_ids : [],
       };
       if (form.id) await api.put(`${apiBase}/sesiones/${form.id}`, payload);
       else {
@@ -810,7 +824,10 @@ export default function AdminCnebSesiones({
               value={cortes.find((c) => Number(c.v) === Number(form.corte))?.label || `${form.corte} años`}
             />
           ) : (
-            <select value={form.corte} onChange={(e) => patch({ corte: Number(e.target.value), desempeno_ids: [] })}>
+            <select
+              value={form.corte}
+              onChange={(e) => patch({ corte: Number(e.target.value), desempeno_ids: [], desempenos_libre: [] })}
+            >
               {cortes.map((c) => (
                 <option key={c.v} value={c.v}>
                   {c.label}
@@ -845,7 +862,7 @@ export default function AdminCnebSesiones({
           <span>Competencia</span>
           <select
             value={form.competencia_id}
-            onChange={(e) => patch({ competencia_id: e.target.value, desempeno_ids: [] })}
+            onChange={(e) => patch({ competencia_id: e.target.value, desempeno_ids: [], desempenos_libre: [] })}
             disabled={!comps.length}
           >
             <option value="">{comps.length ? 'Elegir competencia…' : 'Cargando competencias…'}</option>
@@ -875,6 +892,46 @@ export default function AdminCnebSesiones({
         <p className="cneb-muted">
           Elija la competencia para ver capacidades, estándar de aprendizaje y desempeños de {edadLabel}.
         </p>
+      ) : null}
+
+      {form.area_id && compForm && !desempenosCorte.length ? (
+        <div className="cneb-cotejo-bloque">
+          <h3 className="cneb-uso-title">Desempeños de esta sesión · {edadLabel}</h3>
+          <p className="cneb-muted">
+            {mostrarIaSesiones
+              ? 'La IA los propone junto con la lista de cotejo. Puede cambiar el texto, quitar o añadir antes de guardar.'
+              : 'Escríbalos aquí. Quedan en esta sesión y no se agregan al catálogo del grado.'}
+          </p>
+          {(form.desempenos_libre || []).map((texto, i) => (
+            <div key={`des-libre-${i}`} className="cneb-cotejo-row">
+              <input
+                type="text"
+                value={texto}
+                onChange={(e) => {
+                  const next = [...(form.desempenos_libre || [])];
+                  next[i] = e.target.value;
+                  patch({ desempenos_libre: next });
+                }}
+              />
+              <button
+                type="button"
+                className="cneb-btn ghost"
+                onClick={() =>
+                  patch({ desempenos_libre: (form.desempenos_libre || []).filter((_, j) => j !== i) })
+                }
+              >
+                Quitar
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="cneb-btn ghost"
+            onClick={() => patch({ desempenos_libre: [...(form.desempenos_libre || []), ''] })}
+          >
+            Añadir desempeño
+          </button>
+        </div>
       ) : null}
 
       <label className="cneb-select-wrap cneb-full">
@@ -908,7 +965,7 @@ export default function AdminCnebSesiones({
         <button type="button" className="cneb-btn ghost" onClick={armarBorrador}>
           Armar borrador
         </button>
-        {MOSTRAR_IA_SESIONES_CNEB && (
+        {mostrarIaSesiones && (
           <button
             type="button"
             className="cneb-btn primary"
@@ -1003,7 +1060,10 @@ export default function AdminCnebSesiones({
 
       <div className="cneb-cotejo-bloque">
       <h3 className="cneb-uso-title">Lista de cotejo</h3>
-      <p className="cneb-muted">Ítems que el docente marcará al observar. Puede editarlos o añadir más.</p>
+      <p className="cneb-muted">
+        Ítems que el docente marcará al observar. La IA los escribe a partir de los desempeños y usted
+        puede editarlos o añadir más.
+      </p>
       {(form.cotejo || []).map((c, i) => (
         <div key={`cot-${i}`} className="cneb-cotejo-row">
           <input

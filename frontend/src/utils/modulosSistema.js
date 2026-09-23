@@ -13,6 +13,7 @@ export const MODULOS = [
   { clave: 'usuarios.apoderados', grupo: 'Usuarios', nombre: 'Apoderados', defecto: true, rutas: ['/admin/usuarios/apoderados'] },
 
   { clave: 'academico.cneb', grupo: 'Académico', nombre: 'CNEB', defecto: true, rutas: ['/admin/cneb', '/docente/cneb'] },
+  { clave: 'academico.cneb-ia', grupo: 'Académico', nombre: 'IA en sesiones CNEB', defecto: false, rutas: [] },
   { clave: 'academico.niveles', grupo: 'Académico', nombre: 'Niveles', defecto: true, rutas: ['/admin/academico/niveles'] },
   { clave: 'academico.grados', grupo: 'Académico', nombre: 'Grados', defecto: true, rutas: ['/admin/academico/grados'] },
   { clave: 'academico.cursos', grupo: 'Académico', nombre: 'Cursos', defecto: true, rutas: ['/admin/academico/cursos'] },

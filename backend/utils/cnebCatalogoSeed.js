@@ -110,13 +110,22 @@ async function sembrarCatalogoNivel(nivelCneb) {
         }
       }
 
-      const edades = Object.keys(comp.desempenos || {}).map((x) => parseInt(x, 10)).filter((n) => n >= 3 && n <= 5);
+      const clavesDes = Object.keys(comp.desempenos || {}).map((x) => parseInt(x, 10)).filter((n) => Number.isFinite(n));
+      const edades = nivel === 'INICIAL' ? clavesDes.filter((n) => n >= 3 && n <= 5) : [];
+      const grados = nivel === 'INICIAL' ? [] : clavesDes.filter((n) => n >= 1 && n <= 6);
       for (const edad of edades) {
         const lista = comp.desempenos[edad] || [];
         const [dn] = await query(
-          'SELECT COUNT(*) AS n FROM cneb_desempenos WHERE competencia_id = ? AND edad = ?',
+          `SELECT COUNT(*) AS n FROM cneb_desempenos
+           WHERE competencia_id = ? AND edad = ? AND (origen = 'catalogo' OR origen IS NULL)`,
           [compId, edad]
-        );
+        ).catch((e) => {
+          if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+          return query(
+            'SELECT COUNT(*) AS n FROM cneb_desempenos WHERE competencia_id = ? AND edad = ?',
+            [compId, edad]
+          );
+        });
         if (Number(dn?.n || 0) > 0) continue;
         for (let i = 0; i < lista.length; i += 1) {
           try {
@@ -131,6 +140,28 @@ async function sembrarCatalogoNivel(nivelCneb) {
               [compId, edad, lista[i], i + 1]
             );
           }
+          desOk += 1;
+        }
+      }
+      for (const grado of grados) {
+        const lista = comp.desempenos[grado] || [];
+        const [dn] = await query(
+          `SELECT COUNT(*) AS n FROM cneb_desempenos
+           WHERE competencia_id = ? AND grado = ? AND (origen = 'catalogo' OR origen IS NULL)`,
+          [compId, grado]
+        ).catch((e) => {
+          if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+          return query(
+            'SELECT COUNT(*) AS n FROM cneb_desempenos WHERE competencia_id = ? AND grado = ?',
+            [compId, grado]
+          );
+        });
+        if (Number(dn?.n || 0) > 0) continue;
+        for (let i = 0; i < lista.length; i += 1) {
+          await execute(
+            'INSERT INTO cneb_desempenos (competencia_id, edad, grado, texto, orden) VALUES (?, NULL, ?, ?, ?)',
+            [compId, grado, lista[i], i + 1]
+          );
           desOk += 1;
         }
       }
@@ -167,6 +198,32 @@ function fuenteDe(nivel) {
   return CATALOGOS[String(nivel || 'INICIAL').toUpperCase()]?.fuente || FUENTE_EBR;
 }
 
+async function listarDesempenosCatalogo(ids) {
+  if (!ids.length) return [];
+  const ph = ids.map(() => '?').join(',');
+  const intentos = [
+    `SELECT id, competencia_id, edad, grado, texto, orden FROM cneb_desempenos
+     WHERE competencia_id IN (${ph}) AND (origen = 'catalogo' OR origen IS NULL)
+     ORDER BY COALESCE(edad, grado) ASC, orden ASC, id ASC`,
+    `SELECT id, competencia_id, edad, grado, texto, orden FROM cneb_desempenos
+     WHERE competencia_id IN (${ph})
+     ORDER BY COALESCE(edad, grado) ASC, orden ASC, id ASC`,
+    `SELECT id, competencia_id, edad, texto, orden FROM cneb_desempenos
+     WHERE competencia_id IN (${ph})
+     ORDER BY edad ASC, orden ASC, id ASC`,
+  ];
+  let ultimo;
+  for (const sql of intentos) {
+    try {
+      return await query(sql, ids);
+    } catch (e) {
+      ultimo = e;
+      if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+    }
+  }
+  throw ultimo;
+}
+
 async function arbolCatalogo(nivelCneb) {
   const nivel = String(nivelCneb || 'INICIAL').toUpperCase();
   await asegurarCatalogos();
@@ -193,20 +250,7 @@ async function arbolCatalogo(nivelCneb) {
       )
     : [];
   const desempenos = competencias.length
-    ? await query(
-        `SELECT id, competencia_id, edad, grado, texto, orden FROM cneb_desempenos
-         WHERE competencia_id IN (${competencias.map(() => '?').join(',')})
-         ORDER BY COALESCE(edad, grado) ASC, orden ASC, id ASC`,
-        competencias.map((c) => c.id)
-      ).catch(async (e) => {
-        if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
-        return query(
-          `SELECT id, competencia_id, edad, texto, orden FROM cneb_desempenos
-           WHERE competencia_id IN (${competencias.map(() => '?').join(',')})
-           ORDER BY edad ASC, orden ASC, id ASC`,
-          competencias.map((c) => c.id)
-        );
-      })
+    ? await listarDesempenosCatalogo(competencias.map((c) => c.id))
     : [];
 
   const capBy = new Map();
@@ -243,6 +287,7 @@ module.exports = {
   sembrarCatalogosTodos,
   asegurarCatalogos,
   arbolCatalogo,
+  listarDesempenosCatalogo,
   fuenteDe,
   FUENTE: FUENTE_INICIAL,
 };

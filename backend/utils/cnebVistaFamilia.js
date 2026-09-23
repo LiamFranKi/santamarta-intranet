@@ -57,7 +57,7 @@ function resumenSesionFamilia(s) {
 async function payloadAulaFamilia(cid, asignaturaId) {
   const ctx = await contextoAulaCneb(cid, asignaturaId);
   if (!ctx) return null;
-  const sesiones = ctx.es_inicial ? await listarSesionesAula(cid, ctx) : [];
+  const sesiones = ctx.es_cneb ? await listarSesionesAula(cid, ctx) : [];
   return {
     ...ctx,
     sesiones: (sesiones || []).filter((s) => s.estado === 'aprobada').map(resumenSesionFamilia),
