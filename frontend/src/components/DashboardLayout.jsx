@@ -76,9 +76,6 @@ function AgendaInternaSidebarItem() {
   );
 }
 
-/** En `false`, el ítem no se muestra; la ruta `/admin/auditoria` sigue existiendo. */
-const MOSTRAR_MENU_AUDITORIA = false;
-
 function getInitials(nombre) {
   if (!nombre) return 'U';
   const parts = String(nombre).trim().split(/\s+/).slice(0, 2);
@@ -2165,7 +2162,7 @@ export default function DashboardLayout({ children }) {
                 </div>
               </div>
               )}
-              {MOSTRAR_MENU_AUDITORIA && activo('auditoria') && (
+              {activo('auditoria') && (
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/auditoria">
                   <span className="sidebar-icon">🧾</span>
