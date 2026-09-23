@@ -11,7 +11,7 @@ const { calcularPensionesAVerificar } = require('../utils/deudaPensiones');
 const { urlStaticFotos } = require('../utils/staticStorage');
 const { verificarMatriculaPortalLogin, MENSAJE_SIN_MATRICULA, sqlExistePagoMatriculaCancelado } = require('../utils/matriculaAnioActivo');
 const { deudasLog, deudasWarn, deudasError, deudasInfo } = require('../utils/deudasLogger');
-const { tipoSesionPublico } = require('../utils/superadminOculto');
+const { tipoSesionPublico, esSuperadmin } = require('../utils/superadminOculto');
 
 /** Un solo SELECT de pagos de pensión (evita 1 query por mes en cada login). */
 async function setPagosPensionCancelados(matriculaIds, nrosPago) {
@@ -205,7 +205,8 @@ router.post('/login', async (req, res) => {
       colegio: colegioData,
       personal_id: usuarioDB.personal_id ?? null,
       alumno_id: usuarioDB.alumno_id ?? null,
-      apoderado_id: usuarioDB.apoderado_id ?? null
+      apoderado_id: usuarioDB.apoderado_id ?? null,
+      es_superadmin: esSuperadmin(usuarioDB.tipo),
     };
 
     // Registrar login exitoso en auditoría
@@ -345,7 +346,8 @@ router.get('/me', authenticateToken, async (req, res) => {
       colegio: colegioData,
       personal_id: usuarioDB.personal_id ?? null,
       alumno_id: usuarioDB.alumno_id ?? null,
-      apoderado_id: usuarioDB.apoderado_id ?? null
+      apoderado_id: usuarioDB.apoderado_id ?? null,
+      es_superadmin: esSuperadmin(usuarioDB.tipo),
     };
 
     res.json({ user: userData });

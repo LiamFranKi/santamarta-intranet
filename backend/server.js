@@ -259,6 +259,9 @@ app.use('/api/colegio', colegioRoutes);
 const pwaRoutes = require('./routes/pwa.routes');
 app.use('/api/pwa', pwaRoutes);
 
+const modulosRoutes = require('./routes/modulos.routes');
+app.use('/api/modulos', modulosRoutes);
+
 // Rutas de autenticación
 const authRoutes = require('./routes/auth.routes');
 app.use('/api/auth', authRoutes);

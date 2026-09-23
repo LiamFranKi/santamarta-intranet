@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useModulos } from '../../context/ModulosContext';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import api from '../../services/api';
@@ -492,6 +493,7 @@ function PanelCajerosCajaChica() {
 
 function AdminConfiguracion() {
   const { user } = useAuth();
+  const { activo } = useModulos();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
@@ -501,13 +503,22 @@ function AdminConfiguracion() {
   const visibleTabs = useMemo(
     () =>
       CONFIG_TABS.filter((tab) => {
+        if (tab.id === 'matricula') return activo('config.matricula_online');
         if (tab.oculto) return false;
+        if (!activo(`config.${tab.id}`)) return false;
         if (user?.tipo === 'COORDINADOR') return tab.id === 'pagos';
         if (tab.soloAdmin && user?.tipo !== 'ADMINISTRADOR') return false;
         return true;
       }),
-    [user?.tipo]
+    [user?.tipo, activo]
   );
+
+  useEffect(() => {
+    if (!visibleTabs.length) return;
+    if (!visibleTabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab(visibleTabs[0].id);
+    }
+  }, [visibleTabs, activeTab]);
   const [config, setConfig] = useState({
     // Información General
     titulo_intranet: '',

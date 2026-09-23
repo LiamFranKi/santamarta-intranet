@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { query } = require('../utils/mysql');
-const { tipoSesionPublico } = require('../utils/superadminOculto');
+const { tipoSesionPublico, esSuperadmin } = require('../utils/superadminOculto');
 
 const sesionCache = new Map();
 const SESION_TTL_MS = 8000;
@@ -93,9 +93,11 @@ const authenticateToken = (req, res, next) => {
         });
       }
 
+      const tipoReal = estadoRow.tipo || user.tipo;
       req.user = {
         ...user,
-        tipo: tipoSesionPublico(estadoRow.tipo || user.tipo),
+        tipo: tipoSesionPublico(tipoReal),
+        es_superadmin: esSuperadmin(tipoReal),
       };
       next();
     } catch (e) {

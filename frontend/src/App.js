@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavig
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ModulosProvider } from './context/ModulosContext';
+import GuardaModulos from './components/GuardaModulos';
 import { AvatarWidgetProvider } from './context/AvatarWidgetContext';
 import { ColegioProvider } from './context/ColegioContext';
 import api from './services/api';
@@ -311,6 +313,14 @@ function AppRoutes() {
         path="/admin/dashboard"
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'SECRETARIA']}>
+            <Dashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/modulos"
+        element={
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -1697,6 +1707,7 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
+        <ModulosProvider>
         <AvatarWidgetProvider>
         <ColegioProvider colegioId={1}>
           <Router
@@ -1705,12 +1716,15 @@ function App() {
               v7_relativeSplatPath: true,
             }}
           >
+            <GuardaModulos>
             <ScrollToTop />
             <SwNotificationNavigateBridge />
             <AppRoutes />
+            </GuardaModulos>
           </Router>
         </ColegioProvider>
         </AvatarWidgetProvider>
+        </ModulosProvider>
       </AuthProvider>
     </ThemeProvider>
   );

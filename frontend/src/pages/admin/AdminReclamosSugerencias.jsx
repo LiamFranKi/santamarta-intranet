@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useModulos } from '../../context/ModulosContext';
 import { esPaqueteCoordinador } from '../../utils/coordinadorAcceso';
 import Swal from 'sweetalert2';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -2108,6 +2109,7 @@ function ModalAdmision({ open, mode, item, onClose, onSaved }) {
 
 export default function AdminReclamosSugerencias() {
   const { user } = useAuth();
+  const { activo } = useModulos();
   const soloLectura = esPaqueteCoordinador(user?.tipo);
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -2124,8 +2126,25 @@ export default function AdminReclamosSugerencias() {
     }
   }, [soloLectura, searchParams, setSearchParams]);
 
-  const tab = tabValido(searchParams.get('tab'), soloLectura);
-  const tabsVisibles = soloLectura ? TABS.filter((t) => t.id !== 'paginas' && t.id !== 'matricula') : TABS;
+  const tabsVisibles = useMemo(
+    () =>
+      TABS.filter((t) => {
+        if (soloLectura && (t.id === 'paginas' || t.id === 'matricula')) return false;
+        return activo(`web.${t.id}`);
+      }),
+    [soloLectura, activo]
+  );
+  const tabPedida = searchParams.get('tab');
+  const tab = tabsVisibles.some((t) => t.id === tabPedida)
+    ? tabPedida
+    : (tabsVisibles[0]?.id || 'reclamos');
+
+  useEffect(() => {
+    if (!tabsVisibles.length) return;
+    const pedida = searchParams.get('tab');
+    if (!pedida || tabsVisibles.some((t) => t.id === pedida)) return;
+    setSearchParams({ tab: tabsVisibles[0].id }, { replace: true });
+  }, [tabsVisibles, searchParams, setSearchParams]);
 
   const [listas, setListas] = useState({
     reclamos: [],

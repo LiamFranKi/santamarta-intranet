@@ -1,6 +1,8 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { NavLink as RouterNavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useModulos } from '../context/ModulosContext';
+import { claveDeRuta, CLAVES_CONFIG_PAGINA } from '../utils/modulosSistema';
 import { useColegio } from '../context/ColegioContext';
 import useIsMobileViewport from '../hooks/useIsMobileViewport';
 import api from '../services/api';
@@ -22,7 +24,29 @@ import { esPaqueteCoordinador, esPaqueteAcademico, esCoordinador } from '../util
 import '../styles/CumpleMarcoFestivo.css';
 import './DashboardLayout.css';
 
+function NavLink(props) {
+  const { activo, webActiva, alguno } = useModulos();
+  const to = typeof props.to === 'string' ? props.to : '';
+  const clave = claveDeRuta(to);
+  if (clave === 'web.pagina') {
+    if (!webActiva) return null;
+  } else if (clave === 'config.pagina') {
+    if (!alguno(CLAVES_CONFIG_PAGINA)) return null;
+  } else if (clave && !activo(clave)) {
+    return null;
+  }
+  return <RouterNavLink {...props} />;
+}
+
+function SiModulo({ id, children }) {
+  const { activo } = useModulos();
+  if (!activo(id)) return null;
+  return children;
+}
+
 function SgoiSidebarItem() {
+  const { activo } = useModulos();
+  if (!activo('sgoi')) return null;
   return (
     <div className="sidebar-item">
       <NavLink
@@ -37,6 +61,8 @@ function SgoiSidebarItem() {
 }
 
 function AgendaInternaSidebarItem() {
+  const { activo } = useModulos();
+  if (!activo('agenda')) return null;
   return (
     <div className="sidebar-item">
       <NavLink
@@ -81,6 +107,7 @@ function tituloUbicacionAulaDocente(ctx) {
 
 export default function DashboardLayout({ children }) {
   const { user, logout } = useAuth();
+  const { activo, alguno, webActiva, configActiva } = useModulos();
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobileViewport();
@@ -625,7 +652,7 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               )}
-              {/* Mis Asistencias */}
+              {activo('mis-asistencias') && (
               <div className="sidebar-item">
                 <button 
                   className="sidebar-link" 
@@ -636,6 +663,7 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Mis Asistencias</span>
                 </button>
               </div>
+              )}
               <div className="sidebar-item">
                 <NavLink
                   className={() =>
@@ -647,6 +675,7 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Psicología</span>
                 </NavLink>
               </div>
+              {alguno(['herramientas.documentos', 'herramientas.examenes', 'herramientas.encuestas', 'herramientas.vocabularios', 'herramientas.fichas', 'herramientas.supervision', 'herramientas.reuniones', 'herramientas.elecciones']) && (
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -743,6 +772,7 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
+              )}
 
               {/* Menú Hijos a Cargo (si es apoderado) */}
               {rolesAdicionales.es_apoderado && (
@@ -910,6 +940,7 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Comunicados</span>
                 </NavLink>
               </div>
+              {alguno(['herramientas.encuestas', 'herramientas.examenes', 'herramientas.vocabularios', 'herramientas.elecciones', 'herramientas.documentos']) && (
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -972,6 +1003,7 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
+              )}
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/actividades">
                   <span className="sidebar-icon">📆</span>
@@ -1007,12 +1039,14 @@ export default function DashboardLayout({ children }) {
               </div>
               {puedeVerSgoi && <SgoiSidebarItem />}
               <AgendaInternaSidebarItem />
+              <SiModulo id="psicologia">
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/psicologia">
                   <span className="sidebar-icon">🧠</span>
                   <span className="sidebar-label">Psicología</span>
                 </NavLink>
               </div>
+              </SiModulo>
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/actividades">
                   <span className="sidebar-icon">📅</span>
@@ -1094,7 +1128,7 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>📚</span>
                     <span className="sidebar-label">Temas</span>
                   </NavLink>
-                  {false && (
+                  {activo('reportes.asistencias') && (
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/asistencias">
                     <span className="sidebar-icon" aria-hidden>✅</span>
                     <span className="sidebar-label">Asistencias</span>
@@ -1104,7 +1138,7 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>📊</span>
                     <span className="sidebar-label">Notas</span>
                   </NavLink>
-                  {false && (
+                  {activo('reportes.estadisticas') && (
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/estadisticas">
                     <span className="sidebar-icon" aria-hidden>📈</span>
                     <span className="sidebar-label">Estadísticas</span>
@@ -1114,7 +1148,7 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>📋</span>
                     <span className="sidebar-label">Deudores</span>
                   </NavLink>
-                  {false && (
+                  {activo('reportes.incidencias') && (
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/incidencias">
                     <span className="sidebar-icon" aria-hidden>⚠️</span>
                     <span className="sidebar-label">Incidencias</span>
@@ -1248,7 +1282,7 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Mi Perfil</span>
                 </NavLink>
               </div>
-              {tienePersonalAsistencias && (
+              {tienePersonalAsistencias && activo('mis-asistencias') && (
                 <div className="sidebar-item">
                   <button
                     type="button"
@@ -1417,7 +1451,7 @@ export default function DashboardLayout({ children }) {
                     </span>
                     <span className="sidebar-label">Incidencias</span>
                   </NavLink>
-                  {false && (
+                  {activo('comunicaciones.chat') && (
                   <NavLink
                     className={({ isActive }) =>
                       `sidebar-sublink ${isActive || location.pathname === '/admin/vanguarcito' ? 'active' : ''}`
@@ -1466,7 +1500,7 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               <SgoiSidebarItem />
-              {tienePersonalAsistencias && (
+              {tienePersonalAsistencias && activo('mis-asistencias') && (
                 <div className="sidebar-item">
                   <button
                     type="button"
@@ -1479,18 +1513,22 @@ export default function DashboardLayout({ children }) {
                   </button>
                 </div>
               )}
+              {webActiva && (
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/web">
                   <span className="sidebar-icon">🌐</span>
                   <span className="sidebar-label">Web</span>
                 </NavLink>
               </div>
+              )}
+              <SiModulo id="institucional">
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/institucional">
                   <span className="sidebar-icon">🏛️</span>
                   <span className="sidebar-label">Institucional</span>
                 </NavLink>
               </div>
+              </SiModulo>
               <AgendaInternaSidebarItem />
               <div className="sidebar-menu-item">
                 <button
@@ -1694,7 +1732,7 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>📚</span>
                     <span className="sidebar-label">Temas</span>
                   </NavLink>
-                  {false && (
+                  {activo('reportes.asistencias') && (
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/asistencias">
                     <span className="sidebar-icon" aria-hidden>✅</span>
                     <span className="sidebar-label">Asistencias</span>
@@ -1710,7 +1748,7 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
-              {esCoordinador(role) && (
+              {esCoordinador(role) && activo('config.pagos') && (
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -1753,7 +1791,7 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               {puedeVerSgoi && <SgoiSidebarItem />}
-              {tienePersonalAsistencias && (
+              {tienePersonalAsistencias && activo('mis-asistencias') && (
                 <div className="sidebar-item">
                   <button
                     type="button"
@@ -1766,20 +1804,24 @@ export default function DashboardLayout({ children }) {
                   </button>
                 </div>
               )}
+              <SiModulo id="institucional">
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/institucional">
                   <span className="sidebar-icon">🏛️</span>
                   <span className="sidebar-label">Institucional</span>
                 </NavLink>
               </div>
+              </SiModulo>
+              {webActiva && (
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/web">
                   <span className="sidebar-icon">🌐</span>
                   <span className="sidebar-label">Web</span>
                 </NavLink>
               </div>
+              )}
               {role === 'ADMINISTRADOR' && <AgendaInternaSidebarItem />}
-              {false && (
+              {activo('reportes.estadisticas') && (
                 <div className="sidebar-item">
                   <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/estadisticas">
                     <span className="sidebar-icon">📈</span>
@@ -1787,12 +1829,15 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               )}
+              <SiModulo id="matriculas">
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/matriculas">
                   <span className="sidebar-icon">📋</span>
                   <span className="sidebar-label">Matrículas</span>
                 </NavLink>
               </div>
+              </SiModulo>
+              {alguno(['usuarios.personal', 'usuarios.alumnos', 'usuarios.apoderados']) && (
               <div className="sidebar-menu-item">
                 <button
                   className={`sidebar-menu-toggle ${expandedMenus.usuarios ? 'expanded' : ''}`}
@@ -1819,6 +1864,8 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
+              )}
+              {alguno(['academico.cneb', 'academico.niveles', 'academico.grados', 'academico.cursos', 'academico.asignaturas', 'academico.areas', 'academico.horario-gen', 'academico.gamificacion']) && (
               <div className="sidebar-menu-item">
                 <button
                   className={`sidebar-menu-toggle ${expandedMenus.academico ? 'expanded' : ''}`}
@@ -1831,42 +1878,58 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-menu-arrow">▶</span>
                 </button>
                 <div ref={(el) => { submenuRefs.current.academico = el; }} className={`sidebar-submenu ${expandedMenus.academico ? 'expanded' : ''}`}>
+                  <SiModulo id="academico.cneb">
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/cneb">
                     <span className="sidebar-icon" aria-hidden>📗</span>
                     <span className="sidebar-label">CNEB</span>
                   </NavLink>
+                  </SiModulo>
+                  <SiModulo id="academico.niveles">
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/academico/niveles">
                     <span className="sidebar-icon" aria-hidden>🔢</span>
                     <span className="sidebar-label">Niveles</span>
                   </NavLink>
+                  </SiModulo>
+                  <SiModulo id="academico.grados">
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/academico/grados">
                     <span className="sidebar-icon" aria-hidden>📑</span>
                     <span className="sidebar-label">Grados</span>
                   </NavLink>
+                  </SiModulo>
+                  <SiModulo id="academico.cursos">
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/academico/cursos">
                     <span className="sidebar-icon" aria-hidden>📚</span>
                     <span className="sidebar-label">Cursos</span>
                   </NavLink>
+                  </SiModulo>
+                  <SiModulo id="academico.asignaturas">
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/academico/asignaturas">
                     <span className="sidebar-icon" aria-hidden>📖</span>
                     <span className="sidebar-label">Asignaturas</span>
                   </NavLink>
+                  </SiModulo>
+                  <SiModulo id="academico.areas">
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/academico/areas">
                     <span className="sidebar-icon" aria-hidden>🗂️</span>
                     <span className="sidebar-label">Áreas</span>
                   </NavLink>
-                  {false && (
+                  </SiModulo>
+                  {activo('academico.horario-gen') && (
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/horario-gen">
                     <span className="sidebar-icon" aria-hidden>🗓️</span>
                     <span className="sidebar-label">Generar Horarios</span>
                   </NavLink>
                   )}
+                  <SiModulo id="academico.gamificacion">
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/avatares">
                     <span className="sidebar-icon" aria-hidden>🎮</span>
                     <span className="sidebar-label">Gamificación</span>
                   </NavLink>
+                  </SiModulo>
                 </div>
               </div>
+              )}
+              {alguno(['herramientas.documentos', 'herramientas.examenes', 'herramientas.encuestas', 'herramientas.elecciones', 'herramientas.vocabularios', 'herramientas.fichas', 'herramientas.supervision', 'herramientas.tardanzas', 'herramientas.reuniones', 'herramientas.vanguarcito']) && (
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -1916,7 +1979,7 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>🤝</span>
                     <span className="sidebar-label">Reuniones</span>
                   </NavLink>
-                  {false && (
+                  {activo('herramientas.vanguarcito') && (
                   <NavLink
                     className={({ isActive }) =>
                       `sidebar-sublink ${isActive || location.pathname === '/admin/vanguarcito' ? 'active' : ''}`
@@ -1929,6 +1992,8 @@ export default function DashboardLayout({ children }) {
                   )}
                 </div>
               </div>
+              )}
+              {alguno(['comunicaciones.publicaciones', 'comunicaciones.conexiones', 'comunicaciones.comunicados', 'comunicaciones.actividades', 'comunicaciones.eventos', 'comunicaciones.notificaciones', 'comunicaciones.chat']) && (
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -1950,7 +2015,7 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>🔗</span>
                     <span className="sidebar-label">Conexiones</span>
                   </NavLink>
-                  {false && (
+                  {activo('comunicaciones.chat') && (
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/chat-vanguard">
                     <span className="sidebar-icon" aria-hidden>💬</span>
                     <span className="sidebar-label">Chat Vanguard</span>
@@ -1974,6 +2039,8 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
+              )}
+              {alguno(['pagos.escolares', 'pagos.productos', 'pagos.ventas', 'pagos.compras', 'pagos.caja']) && (
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -2014,12 +2081,15 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
+              )}
+              <SiModulo id="psicologia">
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/psicologia">
                   <span className="sidebar-icon">🧠</span>
                   <span className="sidebar-label">Psicología</span>
                 </NavLink>
               </div>
+              </SiModulo>
               {rolesAdicionales.es_apoderado && (
                 <>
                   <div className="sidebar-section-divider"></div>
@@ -2045,6 +2115,7 @@ export default function DashboardLayout({ children }) {
                   </div>
                 </>
               )}
+              {alguno(['reportes.general', 'reportes.temas', 'reportes.notas', 'reportes.deudores', 'reportes.asistencias', 'reportes.estadisticas', 'reportes.incidencias']) && (
               <div className="sidebar-menu-item">
                 <button
                   className={`sidebar-menu-toggle ${expandedMenus.reportes ? 'expanded' : ''}`}
@@ -2065,7 +2136,7 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>📚</span>
                     <span className="sidebar-label">Temas</span>
                   </NavLink>
-                  {false && (
+                  {activo('reportes.asistencias') && (
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/asistencias">
                     <span className="sidebar-icon" aria-hidden>✅</span>
                     <span className="sidebar-label">Asistencias</span>
@@ -2075,7 +2146,7 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>📊</span>
                     <span className="sidebar-label">Notas</span>
                   </NavLink>
-                  {false && (
+                  {activo('reportes.estadisticas') && (
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/estadisticas">
                     <span className="sidebar-icon" aria-hidden>📈</span>
                     <span className="sidebar-label">Estadísticas</span>
@@ -2085,7 +2156,7 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>📋</span>
                     <span className="sidebar-label">Deudores</span>
                   </NavLink>
-                  {false && (
+                  {activo('reportes.incidencias') && (
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/incidencias">
                     <span className="sidebar-icon" aria-hidden>⚠️</span>
                     <span className="sidebar-label">Incidencias</span>
@@ -2093,7 +2164,8 @@ export default function DashboardLayout({ children }) {
                   )}
                 </div>
               </div>
-              {MOSTRAR_MENU_AUDITORIA && (
+              )}
+              {MOSTRAR_MENU_AUDITORIA && activo('auditoria') && (
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/auditoria">
                   <span className="sidebar-icon">🧾</span>
@@ -2101,6 +2173,7 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               )}
+              {configActiva && (
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -2128,6 +2201,7 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
+              )}
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/mensajes">
                   <span className="sidebar-icon">✉️</span>
@@ -2137,6 +2211,14 @@ export default function DashboardLayout({ children }) {
             </>
           )}
 
+          {user?.es_superadmin && (
+          <div className="sidebar-item">
+            <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/modulos">
+              <span className="sidebar-icon" aria-hidden>🧩</span>
+              <span className="sidebar-label">Módulos</span>
+            </NavLink>
+          </div>
+          )}
           <div className="sidebar-item">
             <button className="sidebar-link sidebar-link-button" type="button" onClick={() => logout()}>
               <span className="sidebar-icon sidebar-icon-logout" aria-hidden="true">🚪</span>
@@ -2190,7 +2272,7 @@ export default function DashboardLayout({ children }) {
               || role === 'PSICOLOGA'
               || role === 'DIRECTOR'
               || role === 'COORDINADOR'
-              || role === 'CONTADOR') && <NotificacionesWidget />}
+              || role === 'CONTADOR') && activo('comunicaciones.notificaciones') && <NotificacionesWidget />}
             <button
               className="header-btn"
               type="button"
@@ -2233,14 +2315,14 @@ export default function DashboardLayout({ children }) {
           {/* Columna derecha: solo se monta en web/tablet para evitar requests ocultos en móvil */}
           {!isMobile && (role === 'DOCENTE' || role === 'CONTADOR' || role === 'ALUMNO' || role === 'APODERADO') && (
             <aside className="dashboard-sidebar-right">
-              {role === 'ALUMNO' && <AlumnoAvatarWidget />}
+              {role === 'ALUMNO' && activo('academico.gamificacion') && <AlumnoAvatarWidget />}
               <CalendarioWidget />
-              {(role === 'DOCENTE' || role === 'CONTADOR') && (
+              {(role === 'DOCENTE' || role === 'CONTADOR') && activo('comunicaciones.publicaciones') && (
                 <div id="dashboard-publicaciones" className="publicaciones-widget-sidebar">
                   <PublicacionesWidget />
                 </div>
               )}
-              {(role === 'ALUMNO' || role === 'APODERADO') && (
+              {(role === 'ALUMNO' || role === 'APODERADO') && activo('comunicaciones.publicaciones') && (
                 <div id="dashboard-publicaciones" className="publicaciones-widget-sidebar">
                   <PublicacionesCardFeed />
                 </div>
@@ -2256,10 +2338,10 @@ export default function DashboardLayout({ children }) {
         <PWAUpdateNotification />
 
         {/* Encuesta activa: aviso una vez por encuesta (z-index sobre cumpleaños) */}
-        <EncuestaActivacionModal />
+        {activo('herramientas.encuestas') && <EncuestaActivacionModal />}
 
         {/* Examen herramientas activo: mismo estilo; si hay encuesta pendiente, no compite (el otro componente espera) */}
-        <HerramientasExamenActivacionModal />
+        {activo('herramientas.examenes') && <HerramientasExamenActivacionModal />}
 
         {/* Comunicados con "Mostrar en inicio" (puede haber varios; z-index sobre encuesta/cumpleaños) */}
         <ComunicadoHomeModal />
@@ -2275,7 +2357,7 @@ export default function DashboardLayout({ children }) {
           />
         )}
 
-        {puedeVerSgoi && <SgoiFlotante />}
+        {puedeVerSgoi && activo('sgoi') && <SgoiFlotante />}
       </div>
     </div>
   );

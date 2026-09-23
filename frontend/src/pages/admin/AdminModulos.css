@@ -1,0 +1,61 @@
+.modulos-page h1 {
+  margin: 0 0 0.4rem;
+  font-size: 1.45rem;
+}
+.modulos-lead {
+  margin: 0 0 1.2rem;
+  color: #475569;
+  max-width: 42rem;
+  line-height: 1.45;
+}
+.modulos-error {
+  background: #fef2f2;
+  color: #991b1b;
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  margin-bottom: 1rem;
+}
+.modulos-grupo {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.9rem 1rem 0.4rem;
+  margin-bottom: 0.9rem;
+}
+.modulos-grupo h2 {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+  color: #1e3a8a;
+}
+.modulos-grupo ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.modulos-grupo li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0;
+  border-top: 1px solid #f1f5f9;
+}
+.modulos-switch {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  border-radius: 999px;
+  min-width: 7.2rem;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+.modulos-switch.is-on {
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+  color: #047857;
+}
+.modulos-switch:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
