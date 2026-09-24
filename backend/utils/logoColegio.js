@@ -1,7 +1,6 @@
 /**
- * Logo único del colegio.
- * Si en config existe `logo_colegio` y el archivo está en uploads/colegio, esa es la fuente.
- * Si no, se mantiene el archivo que el sistema ya usa (assets/logos/logo.png o boleta_logo).
+ * Logos del colegio (config + uploads/colegio).
+ * `boleta_logo` también acepta el archivo viejo en Static/Archivos.
  */
 const fs = require('fs');
 const path = require('path');
@@ -15,7 +14,26 @@ const VARIANTES = {
   logo_colegio: { prefix: 'logo-colegio-', fallback: ['logo.png', 'logo-default.png'] },
   logo_blanco: { prefix: 'logo-blanco-', fallback: ['logoblanco.png', 'logo.png'] },
   logo_minedu: { prefix: 'logo-minedu-', fallback: ['minedu.png', 'minedu.jpg', 'minedu.jpeg'] },
+  boleta_logo: { prefix: 'logo-boleta-', fallback: ['logo.png'] },
 };
+
+function dirsArchivosLegacy() {
+  const dirs = [];
+  if (process.env.STATIC_ARCHIVOS_PATH) dirs.push(process.env.STATIC_ARCHIVOS_PATH);
+  dirs.push(path.join(__dirname, '..', 'Static', 'Archivos'));
+  dirs.push('/home/vanguard/intranet2026/backend/Static/Archivos');
+  return dirs;
+}
+
+function buscarEnArchivosLegacy(nombre) {
+  const name = path.basename(String(nombre || ''));
+  if (!name || !/\.(png|jpe?g)$/i.test(name)) return null;
+  for (const dir of dirsArchivosLegacy()) {
+    const p = path.join(dir, name);
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
 
 function asegurarDir() {
   if (!fs.existsSync(DIR)) fs.mkdirSync(DIR, { recursive: true });
@@ -64,12 +82,22 @@ async function resolverLogoVariante(clave) {
   try {
     const rows = await query(`SELECT valor FROM config WHERE clave = ? LIMIT 1`, [clave]);
     const name = rows?.[0]?.valor ? path.basename(String(rows[0].valor)) : '';
-    if (name && name.startsWith(spec.prefix) && /\.(png|jpe?g)$/i.test(name)) {
-      const p = path.join(DIR, name);
-      if (fs.existsSync(p)) {
-        desdeConfig = true;
-        fsPath = p;
-        urlPath = `/uploads/colegio/${name}`;
+    if (name && /\.(png|jpe?g)$/i.test(name)) {
+      if (name.startsWith(spec.prefix)) {
+        const p = path.join(DIR, name);
+        if (fs.existsSync(p)) {
+          desdeConfig = true;
+          fsPath = p;
+          urlPath = `/uploads/colegio/${name}`;
+        }
+      }
+      if (!desdeConfig && clave === 'boleta_logo') {
+        const legacy = buscarEnArchivosLegacy(name);
+        if (legacy) {
+          desdeConfig = true;
+          fsPath = legacy;
+          urlPath = `/Static/Archivos/${name}`;
+        }
       }
     }
   } catch (_) {
@@ -142,34 +170,22 @@ function dataUrlDesdeArchivo(fsPath) {
   }
 }
 
-/** Logo para carnets y respuestas JSON. Prioriza logo_colegio; si no hay, boleta_logo. */
+/** Logo de CV, carnet QR y respaldo de boleta. Sale de `boleta_logo` en config. */
 async function leerLogoParaCliente() {
-  const logo = await resolverLogoColegio();
-  if (logo.desdeConfig && logo.fsPath) {
-    return {
-      logo_url: logo.urlAbsoluta,
-      logo_base64: dataUrlDesdeArchivo(logo.fsPath),
-      desdeConfig: true,
-    };
-  }
-  const configLogo = await query(`SELECT valor FROM config WHERE clave = 'boleta_logo' LIMIT 1`);
-  const nombre = configLogo?.[0]?.valor ? path.basename(String(configLogo[0].valor)) : '';
-  if (!nombre) return { logo_url: null, logo_base64: null, desdeConfig: false };
-  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
-  const isProduction = process.env.NODE_ENV === 'production';
-  const logo_url = isProduction
-    ? `${phpSystemUrl}/Static/Archivos/${nombre}`
-    : `http://localhost:5000/Static/Archivos/${nombre}`;
-  const baseArchivosPath = process.env.STATIC_ARCHIVOS_PATH || path.join(__dirname, '..', 'Static', 'Archivos');
-  let logoPath = path.join(baseArchivosPath, nombre);
-  if (!fs.existsSync(logoPath) && isProduction) {
-    logoPath = path.join('/home/vanguard/intranet2026/backend/Static/Archivos', nombre);
-  }
+  const logo = await resolverLogoVariante('boleta_logo');
   return {
-    logo_url,
-    logo_base64: dataUrlDesdeArchivo(logoPath),
-    desdeConfig: false,
+    logo_url: logo.urlAbsoluta || null,
+    logo_base64: dataUrlDesdeArchivo(logo.fsPath),
+    desdeConfig: !!logo.desdeConfig,
   };
+}
+
+/** Boletas de pago: logo a color si está subido; si no, el de boleta/CV. */
+async function urlLogoBoletaPago() {
+  const color = await resolverLogoColegio();
+  if (color.desdeConfig && color.urlAbsoluta) return color.urlAbsoluta;
+  const boleta = await resolverLogoVariante('boleta_logo');
+  return boleta.urlAbsoluta || null;
 }
 
 module.exports = {
@@ -179,5 +195,6 @@ module.exports = {
   rutaLogoColegioSync,
   rutaLogoVarianteSync,
   leerLogoParaCliente,
+  urlLogoBoletaPago,
   upsertClave,
 };

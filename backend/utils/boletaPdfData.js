@@ -83,25 +83,9 @@ async function getBoletaPdfJsonForPago(query, colegio_id, pagoIdNum, ctx) {
     colegio_id,
   ]);
 
-  const { resolverLogoColegio } = require('./logoColegio');
-  const logoUnico = await resolverLogoColegio();
-  const configLogo = logoUnico.desdeConfig
-    ? []
-    : await query(`SELECT valor FROM config WHERE clave = 'boleta_logo' LIMIT 1`);
-
+  const { urlLogoBoletaPago } = require('./logoColegio');
   const facturacion = facturacionData.length > 0 ? facturacionData[0] : {};
-  const logoFileName = configLogo.length > 0 ? configLogo[0].valor : null;
-
-  let logoUrl = logoUnico.desdeConfig ? logoUnico.urlAbsoluta : null;
-  if (!logoUrl && logoFileName) {
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
-    const isProduction = process.env.NODE_ENV === 'production';
-    if (isProduction) {
-      logoUrl = `${phpSystemUrl}/Static/Archivos/${logoFileName}`;
-    } else {
-      logoUrl = `http://localhost:5000/Static/Archivos/${logoFileName}`;
-    }
-  }
+  const logoUrl = await urlLogoBoletaPago();
 
   let descripcionPago = '';
   if (pago.tipo === 0) {

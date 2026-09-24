@@ -1577,6 +1577,7 @@ router.get('/configuracion', async (req, res) => {
     const logoColegioRes = await resolverLogoVariante('logo_colegio');
     const logoBlancoRes = await resolverLogoVariante('logo_blanco');
     const logoMineduRes = await resolverLogoVariante('logo_minedu');
+    const logoBoletaRes = await resolverLogoVariante('boleta_logo');
     
     res.json({
       ...restColegioData,
@@ -1610,7 +1611,7 @@ router.get('/configuracion', async (req, res) => {
       login_fondo: colegioData.login_background ? `${baseUrl}/Static/Image/Fondos/${colegioData.login_background}` : null,
       libreta_logo: configMap['libreta_logo'] ? `${baseUrl}/Static/Image/Fondos/${configMap['libreta_logo']}` : null,
       libreta_fondo: configMap['libreta_fondo'] ? `${baseUrl}/Static/Image/Fondos/${configMap['libreta_fondo']}` : null,
-      boleta_logo: configMap['boleta_logo'] ? `${baseUrl}/Static/Archivos/${configMap['boleta_logo']}` : null,
+      boleta_logo: logoBoletaRes.urlAbsoluta,
       logo_colegio: logoColegioRes.urlAbsoluta,
       logo_blanco: logoBlancoRes.urlAbsoluta,
       logo_minedu: logoMineduRes.urlAbsoluta,
@@ -1946,27 +1947,11 @@ router.put('/configuracion', uploadConfig.fields([
         }
       }
 
-      for (const clave of ['logo_colegio', 'logo_blanco', 'logo_minedu']) {
+      for (const clave of ['logo_colegio', 'logo_blanco', 'logo_minedu', 'boleta_logo']) {
         const subido = req.files[clave] && req.files[clave][0];
         if (!subido) continue;
         const filename = guardarArchivoLogo(subido.path, subido.originalname, clave);
         await upsertClave(clave, filename);
-      }
-
-      if (req.files.boleta_logo && req.files.boleta_logo[0]) {
-        const boletaLogoPath = '/home/vanguard/intranet2026/backend/Static/Archivos';
-        if (!fs.existsSync(boletaLogoPath)) {
-          fs.mkdirSync(boletaLogoPath, { recursive: true });
-        }
-        const boletaLogoFile = path.join(boletaLogoPath, req.files.boleta_logo[0].filename);
-        fs.renameSync(req.files.boleta_logo[0].path, boletaLogoFile);
-
-        const existing = await query(`SELECT id FROM config WHERE clave = 'boleta_logo'`);
-        if (existing.length > 0) {
-          await execute(`UPDATE config SET valor = ? WHERE clave = 'boleta_logo'`, [req.files.boleta_logo[0].filename]);
-        } else {
-          await execute(`INSERT INTO config (clave, valor) VALUES ('boleta_logo', ?)`, [req.files.boleta_logo[0].filename]);
-        }
       }
     }
 

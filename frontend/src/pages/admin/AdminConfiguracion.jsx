@@ -1183,7 +1183,7 @@ function AdminConfiguracion() {
           'Content-Type': 'multipart/form-data'
         }
       });
-      if (fields.includes('logo_colegio') || fields.includes('logo_blanco') || fields.includes('logo_minedu')) {
+      if (fields.includes('logo_colegio') || fields.includes('logo_blanco') || fields.includes('logo_minedu') || fields.includes('boleta_logo')) {
         invalidarCacheLogo();
         invalidarIdentidadColegio();
       }
@@ -1539,7 +1539,7 @@ function AdminConfiguracion() {
                   accept=".jpg,.jpeg,.png"
                   onChange={handleFileChange}
                 />
-                <small>Vista del logo que se usa hoy. Va en el login, libretas, reportes, carnets, correos y boletas. Al instalar la aplicación en un celular nuevo, el icono sale de este logo. Suba un PNG o JPG parecido para reemplazarlo. Si no sube uno, se mantiene este y el icono de instalación actual.</small>
+                <small>Vista del logo que se usa hoy. Va en el login, libretas, reportes, correos y boletas de pago. Al instalar la aplicación en un celular nuevo, el icono sale de este logo. Suba un PNG o JPG para reemplazarlo. Si no sube uno, se mantiene este.</small>
               </div>
               <div className="form-group form-group--full">
                 <label>Logo blanco</label>
@@ -1571,6 +1571,21 @@ function AdminConfiguracion() {
                 />
                 <small>Solo en los PDF de CNEB, al lado del logo del colegio. Si no sube uno, se mantiene este sello.</small>
               </div>
+              <div className="form-group form-group--full">
+                <label>Logo de CV y carnet</label>
+                {archivosPreview.boleta_logo && (
+                  <div className="file-preview">
+                    <img src={archivosPreview.boleta_logo} alt="Logo de CV y carnet actual" />
+                  </div>
+                )}
+                <input
+                  type="file"
+                  name="boleta_logo"
+                  accept=".jpg,.jpeg,.png"
+                  onChange={handleFileChange}
+                />
+                <small>Escudo o logo institucional. Sale en el currículum del personal y en el carnet QR del alumno. Las boletas lo usan solo si no hay logo a color. Suba un PNG o JPG para cambiarlo. Si no sube uno, se mantiene el actual.</small>
+              </div>
             </div>
             <div className="card-actions">
               <button 
@@ -1578,7 +1593,7 @@ function AdminConfiguracion() {
                 onClick={() => handleSaveSection([
                   'titulo_intranet', 'codigo_modular', 'resolucion_creacion',
                   'texto_intranet', 'telefono_colegio', 'correo_contacto', 'direccion_contacto',
-                  'logo_colegio', 'logo_blanco', 'logo_minedu'
+                  'logo_colegio', 'logo_blanco', 'logo_minedu', 'boleta_logo'
                 ], 'Información General')}
                 disabled={saving}
                 className="btn-submit-card"
@@ -2437,22 +2452,6 @@ function AdminConfiguracion() {
                   onChange={handleInputChange}
                 />
               </div>
-              {false && (
-              <div className="form-group">
-                <label>Logo Boleta</label>
-                {archivosPreview.boleta_logo && (
-                  <div className="file-preview">
-                    <img src={archivosPreview.boleta_logo} alt="Preview" />
-                  </div>
-                )}
-                <input
-                  type="file"
-                  name="boleta_logo"
-                  accept=".jpg,.jpeg"
-                  onChange={handleFileChange}
-                />
-              </div>
-              )}
             </div>
             <div className="card-actions">
               <button 
