@@ -33,7 +33,6 @@ const HEAD_PADRON = [
   'Nivel',
   'Grado',
   'Sección',
-  'Orden de recojo',
   'Apellidos y nombres de la persona autorizada',
   'DNI / CE',
   'Parentesco',
@@ -54,7 +53,6 @@ const HEAD_CONTROL = [
   'DNI / CE verificado',
   'Parentesco',
   'Hora de entrega',
-  'Estado',
   'Responsable que entrega',
   'Firma de quien recoge',
   'Huella dactilar',
@@ -421,7 +419,7 @@ async function logoExcel(wb) {
 
 function escribirBloqueEncabezado(ws, cols, bloque, colegioNombre, tituloDoc, subtitulo, r0, logoId) {
   let r = r0;
-  ws.mergeCells(r, 1, r + 1, 2);
+  ws.mergeCells(r, 1, r + 2, 2);
   if (logoId != null) {
     ws.addImage(logoId, {
       tl: { col: 0, row: r - 1 },
@@ -434,7 +432,9 @@ function escribirBloqueEncabezado(ws, cols, bloque, colegioNombre, tituloDoc, su
   t.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' }, name: 'Calibri' };
   t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_TITULO } };
   t.alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.getRow(r).height = 22;
+  ws.getRow(r).height = 24;
+  r += 1;
+  ws.getRow(r).height = 8;
   r += 1;
   ws.mergeCells(r, 3, r, cols);
   const s = ws.getCell(r, 3);
@@ -442,7 +442,7 @@ function escribirBloqueEncabezado(ws, cols, bloque, colegioNombre, tituloDoc, su
   s.font = { bold: true, size: 11, color: { argb: 'FF1E3A8A' }, name: 'Calibri' };
   s.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_SUB } };
   s.alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.getRow(r).height = 18;
+  ws.getRow(r).height = 22;
   r += 1;
   ws.mergeCells(r, 1, r, cols);
   const d = ws.getCell(r, 1);
@@ -453,21 +453,19 @@ function escribirBloqueEncabezado(ws, cols, bloque, colegioNombre, tituloDoc, su
   r += 2;
 
   const meta = [
-    ['Año escolar', bloque.anio, 'Nivel', bloque.nivel, 'Grado', bloque.grado],
-    ['Sección', bloque.seccion, 'Turno', bloque.turno, 'Tutor(a)', bloque.tutor || '—'],
+    ['Año escolar', bloque.anio, 'Tutor(a)', bloque.tutor || '—', 'Tutor 2', bloque.tutor2 || '—'],
     [
-      'Tutor 2',
-      bloque.tutor2 || '—',
       'Fecha de actualización',
       fmtFechaPe(bloque.fecha_actualizacion),
-      bloque.en_blanco ? 'Plantilla' : 'Estudiantes / autorizados',
-      bloque.en_blanco
-        ? `${bloque.estudiantes} alumnos (llenar apoderados a mano)`
-        : `${bloque.estudiantes} / ${bloque.autorizados}`,
+      'Estudiantes',
+      bloque.estudiantes,
+      bloque.en_blanco ? '' : 'Autorizados',
+      bloque.en_blanco ? '' : bloque.autorizados,
     ],
   ];
   meta.forEach((pares) => {
     for (let i = 0; i < 3; i += 1) {
+      if (!pares[i * 2]) continue;
       const cLab = 1 + i * 2;
       const cVal = cLab + 1;
       const lab = ws.getCell(r, cLab);
@@ -526,8 +524,8 @@ async function generarExcelPadronEmergencias(colegioId, rawFiltros) {
 
   const wsP = wb.addWorksheet('Padrón autorizado', { views: [{ showGridLines: false }] });
   const wsC = wb.addWorksheet('Control de recojo', { views: [{ showGridLines: false }] });
-  const widthsP = [6, 14, 32, 14, 14, 10, 10, 10, 32, 12, 14, 14, 14, 12, 22, 18];
-  const widthsC = [6, 32, 14, 10, 10, 26, 14, 12, 12, 12, 20, 16, 12, 20, 16, 14];
+  const widthsP = [6, 14, 36, 14, 14, 10, 10, 36, 14, 14, 14, 14, 14, 24, 18];
+  const widthsC = [6, 36, 14, 10, 10, 30, 14, 14, 12, 22, 16, 12, 22, 16, 16];
   widthsP.forEach((w, i) => {
     wsP.getColumn(i + 1).width = w;
   });
@@ -543,7 +541,6 @@ async function generarExcelPadronEmergencias(colegioId, rawFiltros) {
     'nivel',
     'grado',
     'seccion',
-    'orden_recojo',
     'autorizado_nombre',
     'autorizado_dni',
     'parentesco',
@@ -563,7 +560,6 @@ async function generarExcelPadronEmergencias(colegioId, rawFiltros) {
     'dni_verificado',
     'parentesco',
     'hora_entrega',
-    'estado',
     'responsable',
     'firma',
     'huella',
@@ -577,7 +573,7 @@ async function generarExcelPadronEmergencias(colegioId, rawFiltros) {
   for (const b of bloques) {
     rP = escribirBloqueEncabezado(
       wsP,
-      16,
+      15,
       b,
       data.colegio_nombre,
       'PADRÓN DE APODERADOS AUTORIZADOS PARA EL RECOJO DE ESTUDIANTES EN CASO DE DESASTRES NATURALES',
@@ -587,12 +583,12 @@ async function generarExcelPadronEmergencias(colegioId, rawFiltros) {
     );
     pintarCabecera(wsP.getRow(rP), HEAD_PADRON);
     rP += 1;
-    rP = escribirFilas(wsP, rP, b.filas_padron, keysP, 16);
+    rP = escribirFilas(wsP, rP, b.filas_padron, keysP, 15);
     rP += 2;
 
     rC = escribirBloqueEncabezado(
       wsC,
-      16,
+      15,
       b,
       data.colegio_nombre,
       'CONTROL DE ENTREGA DE ESTUDIANTES DURANTE UNA EMERGENCIA',
@@ -602,7 +598,7 @@ async function generarExcelPadronEmergencias(colegioId, rawFiltros) {
     );
     pintarCabecera(wsC.getRow(rC), HEAD_CONTROL);
     rC += 1;
-    rC = escribirFilas(wsC, rC, b.filas_control, keysC, 16);
+    rC = escribirFilas(wsC, rC, b.filas_control, keysC, 15);
     rC += 2;
   }
 

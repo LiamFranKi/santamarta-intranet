@@ -26,7 +26,6 @@ function TablaPadron({ filas }) {
             <th>N.°</th>
             <th>Estudiante</th>
             <th>DNI</th>
-            <th>Orden</th>
             <th>Persona autorizada</th>
             <th>DNI / CE</th>
             <th>Parentesco</th>
@@ -36,7 +35,7 @@ function TablaPadron({ filas }) {
         <tbody>
           {(filas || []).length === 0 ? (
             <tr>
-              <td colSpan={8}>Sin registros.</td>
+              <td colSpan={7}>Sin registros.</td>
             </tr>
           ) : (
             filas.map((f, i) => (
@@ -44,7 +43,6 @@ function TablaPadron({ filas }) {
                 <td>{f.n}</td>
                 <td>{f.alumno_nombre}</td>
                 <td>{f.alumno_dni || '—'}</td>
-                <td>{f.orden_recojo || '—'}</td>
                 <td>{f.autorizado_nombre || '—'}</td>
                 <td>{f.autorizado_dni || '—'}</td>
                 <td>{f.parentesco || '—'}</td>
@@ -69,7 +67,6 @@ function TablaControl({ filas }) {
             <th>Nivel</th>
             <th>Grado</th>
             <th>Sección</th>
-            <th>Estado</th>
             <th>Quien recoge</th>
           </tr>
         </thead>
@@ -81,7 +78,6 @@ function TablaControl({ filas }) {
               <td>{f.nivel}</td>
               <td>{f.grado}</td>
               <td>{f.seccion}</td>
-              <td>{f.estado}</td>
               <td>{f.persona_recoge || '—'}</td>
             </tr>
           ))}
@@ -175,9 +171,7 @@ export default function ModalPadronEmergencias({
           <>
             <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
               {colegioNombre} · {totales?.estudiantes || 0} estudiantes
-              {enBlanco
-                ? ' · plantilla para llenar apoderados a mano'
-                : ` · ${totales?.autorizados || 0} autorizados`}
+              {enBlanco ? '' : ` · ${totales?.autorizados || 0} autorizados`}
             </Typography>
             <nav className="rg-tabs-report" role="tablist" style={{ marginBottom: '0.75rem' }}>
               <button

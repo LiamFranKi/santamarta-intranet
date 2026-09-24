@@ -20,8 +20,7 @@ const COLS_PADRON = [
   { key: 'nivel', label: 'Nivel', w: 14 },
   { key: 'grado', label: 'Grado', w: 10 },
   { key: 'seccion', label: 'Secc.', w: 9 },
-  { key: 'orden_recojo', label: 'Orden', w: 9 },
-  { key: 'autorizado_nombre', label: 'Persona autorizada', w: 32 },
+  { key: 'autorizado_nombre', label: 'Persona autorizada', w: 38 },
   { key: 'autorizado_dni', label: 'DNI / CE', w: 13 },
   { key: 'parentesco', label: 'Parentesco', w: 14 },
   { key: 'celular', label: 'Celular', w: 14 },
@@ -39,10 +38,9 @@ const COLS_CONTROL = [
   { key: 'seccion', label: 'Secc.', w: 9 },
   { key: 'persona_recoge', label: 'Quien recoge', w: 28 },
   { key: 'dni_verificado', label: 'DNI verif.', w: 14 },
-  { key: 'parentesco', label: 'Parentesco', w: 13 },
-  { key: 'hora_entrega', label: 'Hora', w: 11 },
-  { key: 'estado', label: 'Estado', w: 13 },
-  { key: 'responsable', label: 'Entrega', w: 20 },
+  { key: 'parentesco', label: 'Parentesco', w: 14 },
+  { key: 'hora_entrega', label: 'Hora', w: 12 },
+  { key: 'responsable', label: 'Entrega', w: 22 },
   { key: 'firma', label: 'Firma', w: 14 },
   { key: 'huella', label: 'Huella', w: 11 },
   { key: 'incidencia', label: 'Incidencia', w: 18 },
@@ -63,11 +61,11 @@ function drawHeaderDoc(doc, logo, { colegioNombre, titulo, subtitulo, bloque }) 
   doc.setFontSize(13);
   doc.setTextColor(15, 23, 42);
   doc.text(safeTxtPdf(colegioNombre || 'Colegio').toUpperCase(), pageW / 2, y + 5, { align: 'center' });
-  y += 8;
+  y += 14;
   doc.setFontSize(9.5);
   doc.setTextColor(30, 64, 175);
   doc.text(titulo, pageW / 2, y, { align: 'center', maxWidth: pageW - 56 });
-  y += 5;
+  y += 6;
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(7);
   doc.setTextColor(71, 85, 105);
@@ -76,15 +74,11 @@ function drawHeaderDoc(doc, logo, { colegioNombre, titulo, subtitulo, bloque }) 
 
   const metas = [
     `Año: ${bloque.anio || '—'}`,
-    `Nivel: ${bloque.nivel || '—'}`,
-    `Grado: ${bloque.grado || '—'}`,
-    `Sección: ${bloque.seccion || '—'}`,
-    `Turno: ${bloque.turno || '—'}`,
     `Tutor: ${bloque.tutor || '—'}`,
     `Tutor 2: ${bloque.tutor2 || '—'}`,
     `Actualización: ${fmtFecha(bloque.fecha_actualizacion) || '—'}`,
     bloque.en_blanco
-      ? `Estudiantes: ${bloque.estudiantes}   (apoderados para completar a mano)`
+      ? `Estudiantes: ${bloque.estudiantes}`
       : `Estudiantes: ${bloque.estudiantes}   Autorizados: ${bloque.autorizados}`,
   ];
   doc.setFont('helvetica', 'normal');
