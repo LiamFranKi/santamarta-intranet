@@ -353,10 +353,11 @@ async function listarSesiones(cid, { nivel, anio, grupoIds }) {
   return query(
     `SELECT s.id, s.titulo, s.duracion_min, s.estado, s.fecha_sesion, s.corte, s.grupo_id,
             s.area_id, s.competencia_id, s.asignatura_id, s.actualizado_en, s.creado_en, s.nivel_cneb,
-            ar.nombre AS area_nombre, asg.nombre AS asignatura_nombre, g.grado, g.seccion
+            ar.nombre AS area_nombre, cu.nombre AS asignatura_nombre, g.grado, g.seccion
      FROM cneb_sesiones s
      LEFT JOIN cneb_areas ar ON ar.id = s.area_id
      LEFT JOIN asignaturas asg ON asg.id = s.asignatura_id
+     LEFT JOIN cursos cu ON cu.id = asg.curso_id
      LEFT JOIN grupos g ON g.id = s.grupo_id AND g.colegio_id = s.colegio_id
      WHERE s.colegio_id = ? AND s.nivel_cneb = ? AND s.anio = ?${extra}
      ORDER BY COALESCE(s.fecha_sesion, s.creado_en) DESC, s.id DESC`,
