@@ -24,6 +24,9 @@ import ReporteExamenesVirtuales from './reportesGeneral/ReporteExamenesVirtuales
 import ReporteIncidenciasEstrellas from './reportesGeneral/ReporteIncidenciasEstrellas';
 import ReporteAvatar from './reportesGeneral/ReporteAvatar';
 import ReporteNominasAlumnos from './reportesGeneral/ReporteNominasAlumnos';
+import ReportePadronEmergencias, {
+  ReportePadronEmergenciasBlanco,
+} from './reportesGeneral/ReportePadronEmergencias';
 import './AdminEstadisticas.css';
 import './AdminReportesGeneral.css';
 
@@ -70,6 +73,22 @@ const REPORT_CATALOG = [
         icon: '🧒',
         ayuda: 'Listado de matriculados con antigüedad (nuevos o antiguos en el colegio).',
         Component: ReporteAlumnos,
+      },
+      {
+        id: 'padron-emergencias',
+        label: 'Padrón emergencias',
+        icon: '🚨',
+        ayuda:
+          'Padrón lleno con apoderados y contactos de emergencia, más la hoja de control de recojo. Excel y PDF por grado o de todo el colegio.',
+        Component: ReportePadronEmergencias,
+      },
+      {
+        id: 'padron-emergencias-blanco',
+        label: 'Padrón emergencias (en blanco)',
+        icon: '📝',
+        ayuda:
+          'Misma plantilla, solo con alumnos. Las columnas de persona autorizada quedan vacías para completar a mano. Incluye padrón y control de recojo.',
+        Component: ReportePadronEmergenciasBlanco,
       },
     ],
   },

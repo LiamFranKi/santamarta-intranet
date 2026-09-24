@@ -33,6 +33,7 @@ const {
   mountAlumnoFichaByIdRoutes
 } = require('../utils/alumnoPerfilExtra');
 const { sqlPersonalSinSuperadmin, personalEsSuperadmin } = require('../utils/superadminOculto');
+const { staticFsSubdir } = require('../utils/staticStorage');
 
 async function hideSuperadminPersonal(res, personalId, colegioId) {
   if (await personalEsSuperadmin(query, personalId, colegioId)) {
@@ -1453,15 +1454,15 @@ function mapMatriculaListAdminRows(rows) {
 
 const personalFotoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadPath = '/home/vanguard/intranet2026/backend/Static/Image/Fotos';
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
+    try {
+      cb(null, staticFsSubdir('Image', 'Fotos'));
+    } catch (e) {
+      cb(e);
     }
-    cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname || '') || '.jpg';
-    const safe = ext.toLowerCase().replace(/[^.a-z0-9]/g, '');
+    const safe = ext.toLowerCase().replace(/[^.a-z0-9]/g, '') || '.jpg';
     cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${safe}`);
   },
 });
@@ -2796,7 +2797,20 @@ router.post('/alumnos', uploadUsuarioFoto.single('foto'), async (req, res) => {
   }
 });
 
-router.put('/alumnos/:id', async (req, res) => {
+function multerFotoOpcional(req, res, next) {
+  const ct = String(req.headers['content-type'] || '');
+  if (!ct.includes('multipart/form-data')) return next();
+  uploadUsuarioFoto.single('foto')(req, res, (err) => {
+    if (!err) return next();
+    const msg =
+      err.code === 'LIMIT_FILE_SIZE'
+        ? 'La foto supera 5 MB. Use una imagen más liviana.'
+        : err.message || 'Error al subir la foto';
+    return res.status(400).json({ error: msg });
+  });
+}
+
+router.put('/alumnos/:id', multerFotoOpcional, async (req, res) => {
   try {
     const { colegio_id, usuario_id: adminUsuarioId } = req.user;
     const id = parseInt(req.params.id, 10);
@@ -2890,6 +2904,10 @@ router.put('/alumnos/:id', async (req, res) => {
       sets.push('experiencias_traumaticas = ?');
       params.push(salud.experiencias_traumaticas);
     }
+    if (req.file?.filename) {
+      sets.push('foto = ?');
+      params.push(req.file.filename);
+    }
     if (sets.length) {
       params.push(id, colegio_id);
       await execute(`UPDATE alumnos SET ${sets.join(', ')} WHERE id = ? AND colegio_id = ?`, params);
@@ -2931,7 +2949,7 @@ mountAlumnoFichaByIdRoutes(router, {
   }
 });
 
-router.put('/alumnos/:id/foto', uploadUsuarioFoto.single('foto'), async (req, res) => {
+router.put('/alumnos/:id/foto', multerFotoOpcional, async (req, res) => {
   try {
     const { colegio_id } = req.user;
     const id = parseInt(req.params.id, 10);

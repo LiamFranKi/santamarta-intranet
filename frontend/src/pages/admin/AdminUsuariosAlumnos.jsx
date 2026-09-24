@@ -13,6 +13,11 @@ import { mensajeHtmlTieneContenido } from '../../utils/mensajesHtml';
 import { showHistorialPagosSwal, showListaPagosMatriculaSwal } from '../../utils/adminAlumnoPagosSwal';
 import AlumnoSaludFields from '../../components/AlumnoSaludFields';
 import AlumnoPerfilExtra from '../../components/AlumnoPerfilExtra';
+import {
+  comprimirFotoPerfil,
+  mensajeErrorGuardar,
+  payloadAlumnoEdit,
+} from '../../utils/adminUsuariosAlumnoGuardar';
 import './AdminUsuarios.css';
 import './AdminUsuariosEquipoCards.css';
 
@@ -181,7 +186,7 @@ export default function AdminUsuariosAlumnos() {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => fd.append(k, v ?? ''));
       if (fotoCreateFile) {
-        fd.append('foto', fotoCreateFile);
+        fd.append('foto', await comprimirFotoPerfil(fotoCreateFile));
       }
       await api.post('/admin/usuarios/alumnos', fd);
       Swal.fire({ icon: 'success', title: 'Alumno registrado', text: 'Acceso: usuario y clave = DNI' });
@@ -190,7 +195,7 @@ export default function AdminUsuariosAlumnos() {
       setModalCreate(false);
       cargar();
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo guardar' });
+      Swal.fire({ icon: 'error', title: 'Error', text: mensajeErrorGuardar(e) });
     }
   };
 
@@ -226,11 +231,15 @@ export default function AdminUsuariosAlumnos() {
 
   const guardarEdit = async () => {
     try {
-      await api.put(`/admin/usuarios/alumnos/${modalEdit}`, form);
+      Swal.fire({ title: 'Guardando…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      const body = payloadAlumnoEdit(form);
       if (fotoEditFile) {
         const fd = new FormData();
-        fd.append('foto', fotoEditFile);
-        await api.put(`/admin/usuarios/alumnos/${modalEdit}/foto`, fd);
+        Object.entries(body).forEach(([k, v]) => fd.append(k, v ?? ''));
+        fd.append('foto', await comprimirFotoPerfil(fotoEditFile));
+        await api.put(`/admin/usuarios/alumnos/${modalEdit}`, fd, { timeout: 60000 });
+      } else {
+        await api.put(`/admin/usuarios/alumnos/${modalEdit}`, body, { timeout: 60000 });
       }
       Swal.fire({ icon: 'success', title: 'Actualizado' });
       setFotoEditFile(null);
@@ -238,7 +247,7 @@ export default function AdminUsuariosAlumnos() {
       setModalEdit(null);
       cargar();
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo guardar' });
+      Swal.fire({ icon: 'error', title: 'Error', text: mensajeErrorGuardar(e) });
     }
   };
 

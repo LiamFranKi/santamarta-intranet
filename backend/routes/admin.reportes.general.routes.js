@@ -50,6 +50,10 @@ const {
 } = require('../utils/reportesGeneralIncidenciasEstrellas');
 const { obtenerAvatar, generarExcelAvatar } = require('../utils/reportesGeneralAvatar');
 const { catalogoCurriculums, exportarCurriculums } = require('../utils/personalCvExport');
+const {
+  obtenerPadronEmergencias,
+  generarExcelPadronEmergencias,
+} = require('../utils/reportesGeneralPadronEmergencias');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -854,6 +858,50 @@ router.get('/avatar/excel', async (req, res) => {
   } catch (e) {
     console.error('[reportes/general/avatar/excel]', e);
     res.status(500).json({ error: e.message || 'Error al exportar Excel de avatar' });
+  }
+});
+
+function filtrosPadron(req) {
+  return {
+    anio: req.query.anio,
+    turno_id: req.query.turno_id,
+    sede_id: req.query.sede_id,
+    nivel_id: req.query.nivel_id,
+    grado: req.query.grado,
+    seccion: req.query.seccion,
+    todos: req.query.todos,
+    modo: req.query.modo,
+    en_blanco: req.query.en_blanco,
+    variante: req.query.variante,
+  };
+}
+
+/** GET /api/admin/reportes/general/padron-emergencias */
+router.get('/padron-emergencias', async (req, res) => {
+  try {
+    const result = await obtenerPadronEmergencias(colegioId(req), filtrosPadron(req));
+    if (!result.ok) return res.status(result.status || 500).json({ error: result.error });
+    res.json(result);
+  } catch (e) {
+    console.error('[reportes/general/padron-emergencias]', e);
+    res.status(500).json({ error: e.message || 'Error al generar el padrón de emergencias' });
+  }
+});
+
+/** GET /api/admin/reportes/general/padron-emergencias/excel */
+router.get('/padron-emergencias/excel', async (req, res) => {
+  try {
+    const result = await generarExcelPadronEmergencias(colegioId(req), filtrosPadron(req));
+    if (!result.ok) return res.status(result.status || 500).json({ error: result.error });
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(Buffer.from(result.buffer));
+  } catch (e) {
+    console.error('[reportes/general/padron-emergencias/excel]', e);
+    res.status(500).json({ error: e.message || 'Error al exportar el padrón de emergencias' });
   }
 });
 
