@@ -65,6 +65,55 @@ function etiquetaNivelXl(nivel) {
   return 'Inicial';
 }
 
+function xlTexto(v) {
+  if (v == null) return '';
+  if (typeof v === 'bigint') return v.toString();
+  if (typeof v === 'number') return Number.isFinite(v) ? v : '';
+  if (v instanceof Date) return v;
+  return String(v)
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')
+    .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '')
+    .slice(0, 32000);
+}
+
+function xlMerge(ws, r1, c1, r2, c2) {
+  if (r2 < r1 || c2 < c1 || (r1 === r2 && c1 === c2)) return;
+  try {
+    ws.mergeCells(r1, c1, r2, c2);
+  } catch (e) {
+    if (!/already merged/i.test(String(e && e.message))) throw e;
+  }
+}
+
+function idOk(v) {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function acotarPorEleccion(sesiones, { areaId, asignaturaId, sesionId }) {
+  const sid = idOk(sesionId);
+  const asid = idOk(asignaturaId);
+  const aid = idOk(areaId);
+  let list = sesiones || [];
+  if (sid) list = list.filter((s) => Number(s.id) === sid);
+  else if (asid) list = list.filter((s) => Number(s.asignatura_id) === asid);
+  else if (aid) list = list.filter((s) => Number(s.area_id) === aid);
+  return { list, acotar: Boolean(sid || asid || aid) };
+}
+
+function competenciasDeSesiones(competencias, sesiones, acotar) {
+  if (!acotar) return competencias || [];
+  const ids = new Set(
+    (sesiones || [])
+      .map((s) => s.competencia_id)
+      .filter((id) => id != null && id !== '')
+      .map((id) => String(id))
+  );
+  if (!ids.size) return [];
+  return (competencias || []).filter((c) => ids.has(String(c.id)));
+}
+
 async function listarAlumnosGrupo(cid, grupoId) {
   return query(
     `SELECT m.id AS matricula_id, a.id AS alumno_id,
@@ -142,7 +191,7 @@ async function guardarAuxiliar(cid, sesionId, filas) {
   return { ok: true, guardados: n };
 }
 
-async function cargarCorte(cid, { anio, bimestre, grupoId, nivel, areaId, asignaturaId }) {
+async function cargarCorte(cid, { anio, bimestre, grupoId, nivel, areaId, asignaturaId, sesionId }) {
   const alumnosRaw = await listarAlumnosGrupo(cid, grupoId);
   const alumnos = await anexarPiarAAlumnos(cid, anio, grupoId, alumnosRaw);
   const competencias = await competenciasDeNivel(nivel);
@@ -161,6 +210,11 @@ async function cargarCorte(cid, { anio, bimestre, grupoId, nivel, areaId, asigna
   let sesExtra = '';
   const asId = parseInt(asignaturaId, 10);
   const arId = parseInt(areaId, 10);
+  const sesId = parseInt(sesionId, 10);
+  if (Number.isFinite(sesId) && sesId > 0) {
+    sesExtra += ' AND s.id = ?';
+    sesParams.push(sesId);
+  }
   if (Number.isFinite(asId) && asId > 0) {
     sesExtra += ' AND s.asignatura_id = ?';
     sesParams.push(asId);
@@ -207,7 +261,7 @@ async function cargarConsolidado(cid, { anio, bimestre, grupoId, nivel }) {
   const alumnos = await anexarPiarAAlumnos(cid, anio, grupoId, alumnosRaw);
   const sesiones = await query(
     `SELECT s.id, s.titulo, s.fecha_sesion, s.duracion_min, s.estado, s.area_id, s.competencia_id,
-            ar.nombre AS area_nombre, cp.nombre AS competencia_nombre
+            s.asignatura_id, ar.nombre AS area_nombre, cp.nombre AS competencia_nombre
      FROM cneb_sesiones s
      LEFT JOIN cneb_areas ar ON ar.id = s.area_id
      LEFT JOIN cneb_competencias cp ON cp.id = s.competencia_id
@@ -259,7 +313,7 @@ async function cargarConsolidado(cid, { anio, bimestre, grupoId, nivel }) {
   };
 }
 
-async function excelConsolidadoBuffer(cid, { anio, bimestre, grupoId, nivel, grupoLabel }) {
+async function excelConsolidadoBuffer(cid, { anio, bimestre, grupoId, nivel, grupoLabel, areaId, asignaturaId, sesionId }) {
   const data = await cargarConsolidado(cid, { anio, bimestre, grupoId, nivel });
   const colegio = await getColegioData(cid).catch(() => null);
   const cotejoMap = new Map();
@@ -270,8 +324,9 @@ async function excelConsolidadoBuffer(cid, { anio, bimestre, grupoId, nivel, gru
   (data.valoresCorte || []).forEach((v) => {
     corteMap.set(`${v.matricula_id}_${v.competencia_id}`, v);
   });
-  const sesiones = data.sesiones || [];
-  const competencias = data.competencias || [];
+  const elegido = acotarPorEleccion(data.sesiones || [], { areaId, asignaturaId, sesionId });
+  const sesiones = elegido.list;
+  const competencias = competenciasDeSesiones(data.competencias || [], sesiones, elegido.acotar);
   const areas = xlAgruparAreas(competencias);
   const cotejoCols = sesiones.reduce((n, s) => n + Math.max(1, (s.items || []).length), 0);
   const totalCols = 3 + cotejoCols + competencias.length;
@@ -281,24 +336,26 @@ async function excelConsolidadoBuffer(cid, { anio, bimestre, grupoId, nivel, gru
     views: [{ state: 'frozen', xSplit: 3, ySplit: 4, showGridLines: false }],
     pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 1, paperSize: 9 },
   });
-  ws.mergeCells(1, 1, 1, totalCols);
+  xlMerge(ws, 1, 1, 1, Math.max(1, totalCols));
   const t = ws.getCell(1, 1);
   t.value = 'REGISTRO AUXILIAR CONSOLIDADO · CNEB';
   t.font = { bold: true, size: 14, color: { argb: XL.white }, name: 'Calibri' };
   t.fill = xlFill(XL.title);
   t.alignment = { horizontal: 'center', vertical: 'middle' };
   ws.getRow(1).height = 24;
-  ws.mergeCells(2, 1, 2, totalCols);
+  xlMerge(ws, 2, 1, 2, Math.max(1, totalCols));
   const sub = ws.getCell(2, 1);
-  sub.value = [
-    colegio?.nombre || 'Institución educativa',
-    etiquetaNivelXl(nivel),
-    grupoLabel || '',
-    `${bimestre}.º bimestre`,
-    anio,
-  ]
-    .filter(Boolean)
-    .join('  ·  ');
+  sub.value = xlTexto(
+    [
+      colegio?.nombre || 'Institución educativa',
+      etiquetaNivelXl(nivel),
+      grupoLabel || '',
+      `${bimestre}.º bimestre`,
+      anio,
+    ]
+      .filter(Boolean)
+      .join('  ·  ')
+  );
   sub.font = { size: 10, color: { argb: XL.muted }, name: 'Calibri' };
   sub.fill = xlFill('FFE2E8F0');
   sub.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -308,16 +365,17 @@ async function excelConsolidadoBuffer(cid, { anio, bimestre, grupoId, nivel, gru
   const rB = 4;
   const borde = xlBorde();
   const cabeceraFija = (col, texto, rowSpan) => {
-    if (rowSpan > 1) ws.mergeCells(rA, col, rB, col);
     const cell = ws.getCell(rA, col);
-    cell.value = texto;
+    const abajo = ws.getCell(rB, col);
     cell.fill = xlFill(XL.head);
     cell.font = { bold: true, size: 9, color: { argb: XL.white }, name: 'Calibri' };
     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
     cell.border = borde;
-    ws.getCell(rB, col).fill = xlFill(XL.head);
-    ws.getCell(rB, col).border = borde;
-    ws.getCell(rB, col).font = { bold: true, size: 8, color: { argb: XL.white }, name: 'Calibri' };
+    abajo.fill = xlFill(XL.head);
+    abajo.border = borde;
+    abajo.font = { bold: true, size: 8, color: { argb: XL.white }, name: 'Calibri' };
+    if (rowSpan > 1) xlMerge(ws, rA, col, rB, col);
+    cell.value = xlTexto(texto);
   };
   cabeceraFija(1, 'N°', 2);
   cabeceraFija(2, 'DNI', 2);
@@ -325,17 +383,20 @@ async function excelConsolidadoBuffer(cid, { anio, bimestre, grupoId, nivel, gru
   let col = 4;
   sesiones.forEach((s) => {
     const n = Math.max(1, (s.items || []).length);
-    if (n > 1) ws.mergeCells(rA, col, rA, col + n - 1);
+    for (let i = 0; i < n; i += 1) {
+      const h = ws.getCell(rA, col + i);
+      h.fill = xlFill(XL.area);
+      h.font = { bold: true, size: 8, color: { argb: XL.white }, name: 'Calibri' };
+      h.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      h.border = borde;
+    }
+    if (n > 1) xlMerge(ws, rA, col, rA, col + n - 1);
     const cell = ws.getCell(rA, col);
-    cell.value = s.titulo || `Sesión ${s.id}`;
-    cell.fill = xlFill(XL.area);
-    cell.font = { bold: true, size: 8, color: { argb: XL.white }, name: 'Calibri' };
-    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    cell.border = borde;
+    cell.value = xlTexto(s.titulo || `Sesión ${s.id}`);
     const items = s.items || [];
     if (!items.length) {
       const c2 = ws.getCell(rB, col);
-      c2.value = '(sin cotejo)';
+      c2.value = xlTexto('(sin cotejo)');
       c2.fill = xlFill(XL.head);
       c2.font = { bold: true, size: 8, color: { argb: XL.white }, name: 'Calibri' };
       c2.alignment = { wrapText: true, vertical: 'middle' };
@@ -344,7 +405,7 @@ async function excelConsolidadoBuffer(cid, { anio, bimestre, grupoId, nivel, gru
     } else {
       items.forEach((it) => {
         const c2 = ws.getCell(rB, col);
-        c2.value = String(it.item || '').slice(0, 80);
+        c2.value = xlTexto(String(it.item || '').slice(0, 80));
         c2.fill = xlFill(XL.head);
         c2.font = { bold: true, size: 8, color: { argb: XL.white }, name: 'Calibri' };
         c2.alignment = { wrapText: true, vertical: 'middle' };
@@ -354,16 +415,19 @@ async function excelConsolidadoBuffer(cid, { anio, bimestre, grupoId, nivel, gru
     }
   });
   areas.forEach(([area, comps]) => {
-    if (comps.length > 1) ws.mergeCells(rA, col, rA, col + comps.length - 1);
+    for (let i = 0; i < comps.length; i += 1) {
+      const h = ws.getCell(rA, col + i);
+      h.fill = xlFill(XL.title);
+      h.font = { bold: true, size: 8, color: { argb: XL.white }, name: 'Calibri' };
+      h.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      h.border = borde;
+    }
+    if (comps.length > 1) xlMerge(ws, rA, col, rA, col + comps.length - 1);
     const cell = ws.getCell(rA, col);
-    cell.value = `Corte · ${area}`;
-    cell.fill = xlFill(XL.title);
-    cell.font = { bold: true, size: 8, color: { argb: XL.white }, name: 'Calibri' };
-    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    cell.border = borde;
+    cell.value = xlTexto(`Corte · ${area}`);
     comps.forEach((c) => {
       const c2 = ws.getCell(rB, col);
-      c2.value = c.nombre;
+      c2.value = xlTexto(c.nombre);
       c2.fill = xlFill(XL.head);
       c2.font = { bold: true, size: 8, color: { argb: XL.white }, name: 'Calibri' };
       c2.alignment = { wrapText: true, vertical: 'middle', horizontal: 'center' };
@@ -381,8 +445,8 @@ async function excelConsolidadoBuffer(cid, { anio, bimestre, grupoId, nivel, gru
   data.alumnos.forEach((al, i) => {
     const row = ws.getRow(5 + i);
     row.getCell(1).value = i + 1;
-    row.getCell(2).value = al.dni || '';
-    row.getCell(3).value = al.nombre;
+    row.getCell(2).value = xlTexto(al.dni);
+    row.getCell(3).value = xlTexto(al.nombre);
     let c = 4;
     sesiones.forEach((s) => {
       const items = s.items || [];
@@ -413,24 +477,36 @@ async function excelConsolidadoBuffer(cid, { anio, bimestre, grupoId, nivel, gru
     row.height = 18;
   });
   const noteRow = 6 + data.alumnos.length;
-  ws.mergeCells(noteRow, 1, noteRow, totalCols);
+  xlMerge(ws, noteRow, 1, noteRow, Math.max(1, totalCols));
   const note = ws.getCell(noteRow, 1);
-  note.value =
-    'Registro auxiliar interno. El cotejo incluye talleres; el corte AD/A/B/C es solo de áreas oficiales. No altera notas 0–20 ni SIAGIE.';
+  note.value = xlTexto(
+    'Registro auxiliar interno. El cotejo incluye talleres; el corte AD/A/B/C es solo de áreas oficiales. No altera notas 0–20 ni SIAGIE.'
+  );
   note.font = { italic: true, size: 9, color: { argb: XL.muted }, name: 'Calibri' };
   const buf = await wb.xlsx.writeBuffer();
   return { buffer: buf, filename: `cneb_consolidado_${nivel}_${anio}_b${bimestre}.xlsx` };
 }
 
-async function excelSiagieBuffer(cid, { anio, bimestre, grupoId, nivel, grupoLabel }) {
-  const { alumnos, competencias, valores } = await cargarCorte(cid, { anio, bimestre, grupoId, nivel });
+async function excelSiagieBuffer(cid, { anio, bimestre, grupoId, nivel, grupoLabel, areaId, asignaturaId, sesionId }) {
+  const corte = await cargarCorte(cid, {
+    anio,
+    bimestre,
+    grupoId,
+    nivel,
+    areaId,
+    asignaturaId,
+    sesionId,
+  });
+  const { alumnos, valores } = corte;
+  const elegido = acotarPorEleccion(corte.sesiones || [], { areaId, asignaturaId, sesionId });
+  const competencias = competenciasDeSesiones(corte.competencias || [], elegido.list, elegido.acotar);
   const colegio = await getColegioData(cid).catch(() => null);
   const map = new Map();
   (valores || []).forEach((v) => {
     map.set(`${v.matricula_id}_${v.competencia_id}`, v);
   });
   const areas = xlAgruparAreas(competencias);
-  const totalCols = 3 + competencias.length + 1;
+  const totalCols = Math.max(4, 3 + competencias.length + 1);
   const wb = new ExcelJS.Workbook();
   wb.creator = `${await marcaCreadorExcel(cid)} · CNEB`;
   wb.created = new Date();
@@ -446,7 +522,7 @@ async function excelSiagieBuffer(cid, { anio, bimestre, grupoId, nivel, grupoLab
     },
   });
 
-  ws.mergeCells(1, 1, 1, totalCols);
+  xlMerge(ws, 1, 1, 1, totalCols);
   const title = ws.getCell(1, 1);
   title.value = 'CORTE BIMESTRAL CNEB  ·  CALIFICATIVOS AD / A / B / C';
   title.font = { bold: true, size: 14, color: { argb: XL.white }, name: 'Calibri' };
@@ -454,17 +530,19 @@ async function excelSiagieBuffer(cid, { anio, bimestre, grupoId, nivel, grupoLab
   title.alignment = { horizontal: 'center', vertical: 'middle' };
   ws.getRow(1).height = 26;
 
-  ws.mergeCells(2, 1, 2, totalCols);
+  xlMerge(ws, 2, 1, 2, totalCols);
   const meta = ws.getCell(2, 1);
-  meta.value = [
-    colegio?.nombre || 'Institución educativa',
-    etiquetaNivelXl(nivel),
-    grupoLabel || '',
-    `${bimestre}.º bimestre`,
-    String(anio),
-  ]
-    .filter(Boolean)
-    .join('   ·   ');
+  meta.value = xlTexto(
+    [
+      colegio?.nombre || 'Institución educativa',
+      etiquetaNivelXl(nivel),
+      grupoLabel || '',
+      `${bimestre}.º bimestre`,
+      String(anio),
+    ]
+      .filter(Boolean)
+      .join('   ·   ')
+  );
   meta.font = { size: 10, color: { argb: XL.muted }, name: 'Calibri' };
   meta.fill = xlFill('FFE2E8F0');
   meta.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -474,15 +552,16 @@ async function excelSiagieBuffer(cid, { anio, bimestre, grupoId, nivel, grupoLab
   const rB = 4;
   const borde = xlBorde();
   const pintarFijo = (col, texto) => {
-    ws.mergeCells(rA, col, rB, col);
     const cell = ws.getCell(rA, col);
-    cell.value = texto;
+    const abajo = ws.getCell(rB, col);
     cell.fill = xlFill(XL.head);
     cell.font = { bold: true, size: 10, color: { argb: XL.white }, name: 'Calibri' };
     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
     cell.border = borde;
-    ws.getCell(rB, col).fill = xlFill(XL.head);
-    ws.getCell(rB, col).border = borde;
+    abajo.fill = xlFill(XL.head);
+    abajo.border = borde;
+    xlMerge(ws, rA, col, rB, col);
+    cell.value = xlTexto(texto);
   };
   pintarFijo(1, 'N°');
   pintarFijo(2, 'DNI');
@@ -490,20 +569,19 @@ async function excelSiagieBuffer(cid, { anio, bimestre, grupoId, nivel, grupoLab
 
   let col = 4;
   areas.forEach(([area, comps]) => {
-    if (comps.length > 1) ws.mergeCells(rA, col, rA, col + comps.length - 1);
-    const cell = ws.getCell(rA, col);
-    cell.value = String(area || '').toUpperCase();
-    cell.fill = xlFill(XL.area);
-    cell.font = { bold: true, size: 9, color: { argb: XL.white }, name: 'Calibri' };
-    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    cell.border = borde;
     for (let i = 0; i < comps.length; i += 1) {
-      ws.getCell(rA, col + i).border = borde;
-      ws.getCell(rA, col + i).fill = xlFill(XL.area);
+      const h = ws.getCell(rA, col + i);
+      h.fill = xlFill(XL.area);
+      h.font = { bold: true, size: 9, color: { argb: XL.white }, name: 'Calibri' };
+      h.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      h.border = borde;
     }
+    if (comps.length > 1) xlMerge(ws, rA, col, rA, col + comps.length - 1);
+    const cell = ws.getCell(rA, col);
+    cell.value = xlTexto(String(area || '').toUpperCase());
     comps.forEach((c) => {
       const c2 = ws.getCell(rB, col);
-      c2.value = c.nombre;
+      c2.value = xlTexto(c.nombre);
       c2.fill = xlFill(XL.head);
       c2.font = { bold: true, size: 8, color: { argb: XL.white }, name: 'Calibri' };
       c2.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
@@ -524,8 +602,8 @@ async function excelSiagieBuffer(cid, { anio, bimestre, grupoId, nivel, grupoLab
   alumnos.forEach((al, i) => {
     const row = ws.getRow(5 + i);
     row.getCell(1).value = i + 1;
-    row.getCell(2).value = al.dni || '';
-    row.getCell(3).value = al.nombre;
+    row.getCell(2).value = xlTexto(al.dni);
+    row.getCell(3).value = xlTexto(al.nombre);
     let c = 4;
     competencias.forEach((comp) => {
       const v = map.get(`${al.matricula_id}_${comp.id}`);
@@ -533,7 +611,7 @@ async function excelSiagieBuffer(cid, { anio, bimestre, grupoId, nivel, grupoLab
       c += 1;
     });
     const concCell = row.getCell(c);
-    concCell.value = conclusionDeAlumno(valores, al.matricula_id);
+    concCell.value = xlTexto(conclusionDeAlumno(valores, al.matricula_id));
     concCell.alignment = { wrapText: true, vertical: 'middle' };
     concCell.font = { size: 9, name: 'Calibri', color: { argb: XL.ink } };
     for (let k = 1; k <= totalCols; k += 1) {
@@ -554,8 +632,8 @@ async function excelSiagieBuffer(cid, { anio, bimestre, grupoId, nivel, grupoLab
   ley.getColumn(1).width = 10;
   ley.getColumn(2).width = 22;
   ley.getColumn(3).width = 72;
-  ley.mergeCells(1, 1, 1, 3);
-  ley.getCell(1, 1).value = 'Escala de calificación CNEB / MINEDU';
+  xlMerge(ley, 1, 1, 1, 3);
+  ley.getCell(1, 1).value = xlTexto('Escala de calificación CNEB / MINEDU');
   ley.getCell(1, 1).font = { bold: true, size: 13, color: { argb: XL.white }, name: 'Calibri' };
   ley.getCell(1, 1).fill = xlFill(XL.title);
   ley.getCell(1, 1).alignment = { horizontal: 'center', vertical: 'middle' };
@@ -569,8 +647,8 @@ async function excelSiagieBuffer(cid, { anio, bimestre, grupoId, nivel, grupoLab
   escala.forEach((fila, i) => {
     const row = ley.getRow(3 + i);
     xlLetra(row.getCell(1), fila[0]);
-    row.getCell(2).value = fila[1];
-    row.getCell(3).value = fila[2];
+    row.getCell(2).value = xlTexto(fila[1]);
+    row.getCell(3).value = xlTexto(fila[2]);
     [1, 2, 3].forEach((c) => {
       row.getCell(c).border = borde;
       row.getCell(c).font = row.getCell(c).font || { name: 'Calibri', size: 10 };
@@ -578,9 +656,10 @@ async function excelSiagieBuffer(cid, { anio, bimestre, grupoId, nivel, grupoLab
     });
     row.height = 22;
   });
-  ley.mergeCells(8, 1, 8, 3);
-  ley.getCell(8, 1).value =
-    'Plantilla de trabajo del colegio. Calce las columnas con el Excel oficial de SIAGIE del año antes de subir. No sustituye el reporte que genera SIAGIE.';
+  xlMerge(ley, 8, 1, 8, 3);
+  ley.getCell(8, 1).value = xlTexto(
+    'Plantilla de trabajo del colegio. Calce las columnas con el Excel oficial de SIAGIE del año antes de subir. No sustituye el reporte que genera SIAGIE.'
+  );
   ley.getCell(8, 1).font = { italic: true, size: 9, color: { argb: XL.muted }, name: 'Calibri' };
   ley.getCell(8, 1).alignment = { wrapText: true, vertical: 'middle' };
   ley.getRow(8).height = 32;

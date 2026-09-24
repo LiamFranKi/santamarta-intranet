@@ -8,6 +8,7 @@ import CnebInclusivoPanel from '../../components/aula/CnebInclusivoPanel';
 import { htmlVacio, textoCnebAHtml } from '../../utils/cnebTextoRico';
 import { emptyDua, fusionarProcedimientos, leerDua } from '../../utils/cnebDua';
 import { useModulos } from '../../context/ModulosContext';
+import { aulasDe, claveCurso, cursosDe, etiquetaGrado, gradosDe } from './cnebElegirAula';
 
 const QUILL_CNEB = {
   toolbar: [
@@ -261,6 +262,9 @@ export default function AdminCnebSesiones({
   const mostrarIaSesiones = activo('academico.cneb-ia');
   const [lista, setLista] = useState([]);
   const [grupos, setGrupos] = useState([]);
+  const [gradoSel, setGradoSel] = useState('');
+  const [aulaSel, setAulaSel] = useState('');
+  const [cursoSel, setCursoSel] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -300,6 +304,9 @@ export default function AdminCnebSesiones({
     }
     setEditing(false);
     setForm(formVacio(nivel));
+    setGradoSel('');
+    setAulaSel('');
+    setCursoSel('');
   }, [nivel, loadLista, embebido, sesionId]);
 
   useEffect(() => {
@@ -676,11 +683,66 @@ export default function AdminCnebSesiones({
             Nueva sesión
           </button>
         </div>
-        {lista.length === 0 ? (
-          <div className="cneb-empty">Aún no hay sesiones en este nivel. Cree la primera con el catálogo oficial.</div>
+        <div className="cneb-elige">
+          <label className="cneb-select-wrap">
+            <span>Grado</span>
+            <select
+              value={gradoSel}
+              onChange={(e) => {
+                setGradoSel(e.target.value);
+                setAulaSel('');
+                setCursoSel('');
+              }}
+            >
+              <option value="">Elegir grado…</option>
+              {gradosDe(grupos).map((g) => (
+                <option key={g} value={g}>
+                  {etiquetaGrado(nivel, g)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="cneb-select-wrap">
+            <span>Aula</span>
+            <select
+              value={aulaSel}
+              disabled={!gradoSel}
+              onChange={(e) => {
+                setAulaSel(e.target.value);
+                setCursoSel('');
+              }}
+            >
+              <option value="">Elegir aula…</option>
+              {aulasDe(grupos, gradoSel).map((g) => (
+                <option key={g.id} value={g.id}>
+                  {etiquetaAula(g)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="cneb-select-wrap">
+            <span>Curso</span>
+            <select value={cursoSel} disabled={!aulaSel} onChange={(e) => setCursoSel(e.target.value)}>
+              <option value="">Elegir curso…</option>
+              {cursosDe(lista.filter((s) => String(s.grupo_id) === String(aulaSel))).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {!gradoSel || !aulaSel || !cursoSel ? (
+          <div className="cneb-empty">
+            Elija el grado, el aula y el curso para ver las sesiones de ese grupo.
+          </div>
+        ) : lista.filter((s) => String(s.grupo_id) === String(aulaSel) && claveCurso(s) === cursoSel).length === 0 ? (
+          <div className="cneb-empty">En este curso todavía no hay sesiones.</div>
         ) : (
           <div className="cneb-ses-list">
-            {lista.map((s) => (
+            {lista
+              .filter((s) => String(s.grupo_id) === String(aulaSel) && claveCurso(s) === cursoSel)
+              .map((s) => (
               <article key={s.id} className={`cneb-ses-card${s.estado === 'aprobada' ? ' is-ok' : ''}`}>
                 <div>
                   <p className="cneb-kicker">{s.estado === 'aprobada' ? 'Aprobada' : 'Borrador'}</p>

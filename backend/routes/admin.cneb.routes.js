@@ -646,6 +646,7 @@ router.get('/corte', async (req, res) => {
       nivel,
       areaId: req.query.area_id,
       asignaturaId: req.query.asignatura_id,
+      sesionId: req.query.sesion_id,
     });
     res.json({ anio, bimestre, ...data });
   } catch (e) {
@@ -686,6 +687,9 @@ router.get('/export/siagie.xlsx', async (req, res) => {
       grupoId,
       nivel,
       grupoLabel: req.query.grupo_label || '',
+      areaId: req.query.area_id,
+      asignaturaId: req.query.asignatura_id,
+      sesionId: req.query.sesion_id,
     });
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -745,6 +749,9 @@ router.get('/export/consolidado.xlsx', async (req, res) => {
       grupoId,
       nivel,
       grupoLabel: req.query.grupo_label || '',
+      areaId: req.query.area_id,
+      asignaturaId: req.query.asignatura_id,
+      sesionId: req.query.sesion_id,
     });
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

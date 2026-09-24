@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import CnebPiarMarca from '../../components/aula/CnebPiarMarca';
+import { textoErrorDescarga } from './cnebElegirAula';
 
 const LOGROS = [
   { v: '', label: '—' },
@@ -22,8 +23,12 @@ export default function AdminCnebConsolidado({
   grupos = [],
   bimestreDefault = 4,
   etiquetaNivel,
+  grupoInicial = '',
+  areaId = null,
+  asignaturaId = null,
+  sesionIdFiltro = '',
 }) {
-  const [grupoId, setGrupoId] = useState(grupos[0] ? String(grupos[0].id) : '');
+  const [grupoId, setGrupoId] = useState(grupoInicial ? String(grupoInicial) : '');
   const [bimestre, setBimestre] = useState(Number(bimestreDefault) || 4);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -32,8 +37,8 @@ export default function AdminCnebConsolidado({
   const [letras, setLetras] = useState({});
 
   useEffect(() => {
-    if (!grupoId && grupos[0]) setGrupoId(String(grupos[0].id));
-  }, [grupos, grupoId]);
+    if (grupoInicial) setGrupoId(String(grupoInicial));
+  }, [grupoInicial]);
 
   const load = useCallback(async () => {
     if (!grupoId || !nivel) return;
@@ -68,19 +73,38 @@ export default function AdminCnebConsolidado({
     load();
   }, [load]);
 
+  const sesionesVista = useMemo(() => {
+    const all = data?.sesiones || [];
+    if (sesionIdFiltro) return all.filter((s) => String(s.id) === String(sesionIdFiltro));
+    if (asignaturaId) return all.filter((s) => String(s.asignatura_id) === String(asignaturaId));
+    if (areaId) return all.filter((s) => String(s.area_id) === String(areaId));
+    return all;
+  }, [data, sesionIdFiltro, areaId, asignaturaId]);
+
+  const competenciasVista = useMemo(() => {
+    const all = data?.competencias || [];
+    if (!areaId && !asignaturaId && !sesionIdFiltro) return all;
+    const ids = new Set(
+      sesionesVista.map((s) => s.competencia_id).filter((id) => id != null && id !== '')
+    );
+    if (!ids.size) return [];
+    const keys = new Set([...ids].map((id) => String(id)));
+    return all.filter((c) => keys.has(String(c.id)));
+  }, [data, sesionesVista, areaId, asignaturaId, sesionIdFiltro]);
+
   const areasAgrupadas = useMemo(() => {
     const map = new Map();
-    (data?.competencias || []).forEach((c) => {
+    competenciasVista.forEach((c) => {
       const key = c.area_nombre || 'Área';
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(c);
     });
     return [...map.entries()];
-  }, [data]);
+  }, [competenciasVista]);
 
   const guardar = async () => {
     const filas_cotejo = [];
-    (data?.sesiones || []).forEach((s) => {
+    sesionesVista.forEach((s) => {
       (s.items || []).forEach((it) => {
         (data?.alumnos || []).forEach((al) => {
           const logro = cotejo[`${al.matricula_id}_${it.id}`];
@@ -96,7 +120,7 @@ export default function AdminCnebConsolidado({
     });
     const items_corte = [];
     (data?.alumnos || []).forEach((al) => {
-      (data?.competencias || []).forEach((c) => {
+      competenciasVista.forEach((c) => {
         items_corte.push({
           matricula_id: al.matricula_id,
           competencia_id: c.id,
@@ -132,7 +156,15 @@ export default function AdminCnebConsolidado({
     try {
       const g = grupos.find((x) => String(x.id) === String(grupoId));
       const res = await api.get(`${apiBase}/export/consolidado.xlsx`, {
-        params: { nivel, grupo_id: grupoId, bimestre, grupo_label: etiquetaAula(g) },
+        params: {
+          nivel,
+          grupo_id: grupoId,
+          bimestre,
+          grupo_label: etiquetaAula(g),
+          ...(areaId ? { area_id: areaId } : {}),
+          ...(asignaturaId ? { asignatura_id: asignaturaId } : {}),
+          ...(sesionIdFiltro ? { sesion_id: sesionIdFiltro } : {}),
+        },
         responseType: 'blob',
         timeout: 60000,
       });
@@ -148,7 +180,7 @@ export default function AdminCnebConsolidado({
       Swal.fire({
         icon: 'error',
         title: 'No se pudo descargar el Excel',
-        text: e.response?.data?.error || e.message,
+        text: await textoErrorDescarga(e),
       });
     }
   };
@@ -174,6 +206,7 @@ export default function AdminCnebConsolidado({
         </div>
       </div>
       <div className="cneb-ses-grid">
+        {grupoInicial ? null : (
         <label className="cneb-select-wrap">
           <span>Aula</span>
           <select value={grupoId} onChange={(e) => setGrupoId(e.target.value)}>
@@ -185,6 +218,7 @@ export default function AdminCnebConsolidado({
             ))}
           </select>
         </label>
+        )}
         <label className="cneb-select-wrap">
           <span>Bimestre (corte)</span>
           <select value={bimestre} onChange={(e) => setBimestre(Number(e.target.value))}>
@@ -202,7 +236,7 @@ export default function AdminCnebConsolidado({
         <div className="cneb-empty">Elija un aula.</div>
       ) : !(data?.alumnos || []).length ? (
         <div className="cneb-empty">No hay alumnos regulares en esta aula.</div>
-      ) : !(data?.sesiones || []).length ? (
+      ) : !sesionesVista.length ? (
         <div className="cneb-empty">Aún no hay sesiones en esta aula. Créelas y vuelva al consolidado.</div>
       ) : (
         <div className="cneb-table-wrap">
@@ -212,7 +246,7 @@ export default function AdminCnebConsolidado({
                 <th className="cneb-sticky" rowSpan={2}>
                   Estudiante
                 </th>
-                {(data.sesiones || []).map((s) => (
+                {sesionesVista.map((s) => (
                   <th key={`s-${s.id}`} colSpan={Math.max(1, (s.items || []).length)} title={s.area_nombre || ''}>
                     {s.titulo}
                     {s.fecha_sesion ? ` · ${String(s.fecha_sesion).slice(0, 10)}` : ''}
@@ -225,7 +259,7 @@ export default function AdminCnebConsolidado({
                 ))}
               </tr>
               <tr>
-                {(data.sesiones || []).flatMap((s) => {
+                {sesionesVista.flatMap((s) => {
                   const items = s.items || [];
                   if (!items.length) {
                     return [
@@ -240,7 +274,7 @@ export default function AdminCnebConsolidado({
                     </th>
                   ));
                 })}
-                {(data.competencias || []).map((c) => (
+                {competenciasVista.map((c) => (
                   <th key={`c-${c.id}`} className="cneb-th-corte" title={c.nombre}>
                     {String(c.nombre || '').slice(0, 22)}
                   </th>
@@ -254,7 +288,7 @@ export default function AdminCnebConsolidado({
                     <strong>{al.nombre}</strong>
                     <CnebPiarMarca piar={al.piar} />
                   </td>
-                  {(data.sesiones || []).flatMap((s) => {
+                  {sesionesVista.flatMap((s) => {
                     const items = s.items || [];
                     if (!items.length) {
                       return [
@@ -283,7 +317,7 @@ export default function AdminCnebConsolidado({
                       );
                     });
                   })}
-                  {(data.competencias || []).map((c) => {
+                  {competenciasVista.map((c) => {
                     const k = `${al.matricula_id}_${c.id}`;
                     return (
                       <td key={k}>

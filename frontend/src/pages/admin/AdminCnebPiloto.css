@@ -928,6 +928,13 @@
   margin-bottom: 0.85rem;
 }
 
+.cneb-elige {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-bottom: 0.75rem;
+}
+
 .cneb-full {
   margin-bottom: 0.7rem;
 }
@@ -1043,7 +1050,8 @@
 }
 
 @media (max-width: 860px) {
-  .cneb-ses-grid {
+  .cneb-ses-grid,
+  .cneb-elige {
     grid-template-columns: 1fr;
   }
 }

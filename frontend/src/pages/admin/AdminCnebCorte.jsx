@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import CnebPiarMarca from '../../components/aula/CnebPiarMarca';
+import { textoErrorDescarga } from './cnebElegirAula';
 
 const LETRAS = ['', 'AD', 'A', 'B', 'C'];
 
@@ -48,11 +49,10 @@ export default function AdminCnebCorte({
   areaId = null,
   areaNombre = '',
   asignaturaId = null,
+  sesionIdFiltro = '',
   haySesiones = true,
 }) {
-  const [grupoId, setGrupoId] = useState(
-    grupoFijo ? String(grupoFijo) : grupos[0] ? String(grupos[0].id) : ''
-  );
+  const [grupoId, setGrupoId] = useState(grupoFijo ? String(grupoFijo) : '');
   const [bimestre, setBimestre] = useState(Number(bimestreDefault) || 4);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -61,12 +61,8 @@ export default function AdminCnebCorte({
   const [conclusiones, setConclusiones] = useState({});
 
   useEffect(() => {
-    if (grupoFijo) {
-      setGrupoId(String(grupoFijo));
-      return;
-    }
-    if (!grupoId && grupos[0]) setGrupoId(String(grupos[0].id));
-  }, [grupos, grupoId, grupoFijo]);
+    if (grupoFijo) setGrupoId(String(grupoFijo));
+  }, [grupoFijo]);
 
   const load = useCallback(async () => {
     if (!grupoId || !nivel) return;
@@ -79,6 +75,7 @@ export default function AdminCnebCorte({
           bimestre,
           ...(areaId ? { area_id: areaId } : {}),
           ...(asignaturaId ? { asignatura_id: asignaturaId } : {}),
+          ...(sesionIdFiltro ? { sesion_id: sesionIdFiltro } : {}),
         },
       });
       setData(d);
@@ -99,15 +96,21 @@ export default function AdminCnebCorte({
     } finally {
       setLoading(false);
     }
-  }, [apiBase, nivel, grupoId, bimestre, areaId, asignaturaId]);
+  }, [apiBase, nivel, grupoId, bimestre, areaId, asignaturaId, sesionIdFiltro]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const sesionesVista = useMemo(() => data?.sesiones || [], [data]);
+  const sesionesVista = useMemo(() => {
+    const all = data?.sesiones || [];
+    if (!sesionIdFiltro) return all;
+    return all.filter((s) => String(s.id) === String(sesionIdFiltro));
+  }, [data, sesionIdFiltro]);
   const soloSesionesElegidas =
-    (areaId != null && areaId !== '') || (asignaturaId != null && asignaturaId !== '');
+    (areaId != null && areaId !== '') ||
+    (asignaturaId != null && asignaturaId !== '') ||
+    Boolean(sesionIdFiltro);
 
   const competenciasVista = useMemo(() => {
     const all = data?.competencias || [];
@@ -179,7 +182,7 @@ export default function AdminCnebCorte({
       Swal.fire({
         icon: 'error',
         title: 'No se pudo descargar el informe',
-        text: e.response?.data?.error || e.message,
+        text: await textoErrorDescarga(e),
       });
     }
   };
@@ -197,7 +200,7 @@ export default function AdminCnebCorte({
       Swal.fire({
         icon: 'error',
         title: 'No se pudo descargar la libreta',
-        text: e.response?.data?.error || e.message,
+        text: await textoErrorDescarga(e),
       });
     }
   };
@@ -210,12 +213,15 @@ export default function AdminCnebCorte({
         grupo_id: grupoId,
         bimestre,
         grupo_label: etiquetaAula(g),
+        ...(areaId ? { area_id: areaId } : {}),
+        ...(asignaturaId ? { asignatura_id: asignaturaId } : {}),
+        ...(sesionIdFiltro ? { sesion_id: sesionIdFiltro } : {}),
       });
     } catch (e) {
       Swal.fire({
         icon: 'error',
         title: 'No se pudo descargar el Excel',
-        text: e.response?.data?.error || e.message,
+        text: await textoErrorDescarga(e),
       });
     }
   };
