@@ -55,6 +55,12 @@ async function leerIdentidadColegio(colegioId = 1) {
   };
 }
 
+/** Nombre público para correos: Título / Nombre del Colegio. No usa colegios.nombre ni VanguardNet. */
+async function nombreParaCorreo(colegioId = 1) {
+  const id = await leerIdentidadColegio(colegioId);
+  return (id.titulo || '').trim() || 'Vanguard Schools';
+}
+
 async function marcaCreadorExcel(colegioId = 1) {
   try {
     const id = await leerIdentidadColegio(colegioId);
@@ -67,5 +73,6 @@ async function marcaCreadorExcel(colegioId = 1) {
 module.exports = {
   CONTACTO_RESPALDO,
   leerIdentidadColegio,
+  nombreParaCorreo,
   marcaCreadorExcel,
 };

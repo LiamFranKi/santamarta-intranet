@@ -329,11 +329,11 @@ async function enviarEmailsMatriculaOnline({
   firmaFilename,
 }) {
   const vars = buildVarsEmail(ctx);
-  const colegioNombre = config.remitente_emails || vars.colegio || 'Vanguard Schools';
+  const identidad = await leerIdentidadColegio(1);
+  const colegioNombre = identidad.titulo || config.remitente_emails || vars.colegio || 'Vanguard Schools';
   const subtitulo = vars.nivel_grado_subtitulo || vars.nivel_grado;
   const resultados = { apoderado: null, internos: [] };
   const logoUrl = await logoEmailUrl();
-  const identidad = await leerIdentidadColegio(1);
   const footerContacto = {
     direccion: identidad.direccionContacto,
     telefonos: identidad.telefono,

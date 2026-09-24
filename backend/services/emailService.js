@@ -2,6 +2,17 @@ const nodemailer = require('nodemailer');
 const path = require('path');
 const fs = require('fs');
 const { envolverMarcoCumpleanosEmail } = require('../utils/cumpleanosMarcoHtml');
+const { nombreParaCorreo } = require('../utils/identidadColegio');
+
+async function marcaCorreo(fallback, colegioId = 1) {
+  try {
+    const n = await nombreParaCorreo(colegioId);
+    if (n) return n;
+  } catch (_) {
+    /* se usa el respaldo */
+  }
+  return String(fallback || 'Vanguard Schools').trim() || 'Vanguard Schools';
+}
 
 /**
  * Control global de envío SMTP. Por defecto deshabilitado (solo push/campanita/mensajes internos).
@@ -441,7 +452,8 @@ async function enviarCorreoAsistencia(destinatario, datos) {
       return { success: false, error: 'Destinatario inválido' };
     }
 
-    const { nombreAlumno, hora, fecha, tipo, colegioNombre, esDocente, tipoAsistencia, descuentosPresentacion } = datos;
+    const { nombreAlumno, hora, fecha, tipo, esDocente, tipoAsistencia, descuentosPresentacion } = datos;
+    const colegioNombre = await marcaCorreo(datos.colegioNombre);
     
     console.log(`📧 [EMAIL] Enviando correo de asistencia a: ${emailDestino}`);
     console.log(`📧 [EMAIL] Datos:`, { nombreAlumno, hora, fecha, tipo, colegioNombre, esDocente, tipoAsistencia, descuentosPresentacion });
@@ -451,7 +463,7 @@ async function enviarCorreoAsistencia(destinatario, datos) {
       hora,
       fecha,
       tipo,
-      colegioNombre: colegioNombre || 'Vanguard Schools',
+      colegioNombre,
       esDocente: esDocente || false,
       tipoAsistencia: tipoAsistencia || null,
       descuentosPresentacion: Array.isArray(descuentosPresentacion) ? descuentosPresentacion : []
@@ -542,14 +554,15 @@ async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNo
     const { icono } = obtenerIconoYColor(titulo);
     const tituloConIcono = titulo.includes(icono) ? titulo : `${icono} ${titulo}`;
     
+    const marca = await marcaCorreo(colegioNombre);
     const template = generarTemplateNotificacion({
       titulo: tituloConIcono,
       mensaje,
-      colegioNombre: colegioNombre || 'Vanguard Schools'
+      colegioNombre: marca
     });
 
     const mailOptions = {
-      from: `"${colegioNombre || 'Vanguard Schools'}" <${fromUser}>`,
+      from: `"${marca}" <${fromUser}>`,
       to: emailDestino,
       subject: tituloConIcono,
       html: template,
@@ -607,6 +620,7 @@ async function enviarCorreoCumpleanosHtml(destinatario, asunto, innerHtmlBody, c
       return { success: false, error: 'Email inválido' };
     }
 
+    const marca = await marcaCorreo(colegioNombre);
     const bloque = envolverMarcoCumpleanosEmail(String(innerHtmlBody || '').trim() || '<p>¡Feliz cumpleaños!</p>');
     const year = new Date().getFullYear();
     const html = `<!DOCTYPE html>
@@ -614,11 +628,11 @@ async function enviarCorreoCumpleanosHtml(destinatario, asunto, innerHtmlBody, c
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:20px 12px;background:#f3f4f6;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
 ${bloque}
-<p style="margin:24px 0 0;text-align:center;font-size:12px;color:#9ca3af;">© ${year} ${colegioNombre} · Mensaje automático</p>
+<p style="margin:24px 0 0;text-align:center;font-size:12px;color:#9ca3af;">© ${year} ${marca} · Mensaje automático</p>
 </body></html>`;
 
     const mailOptions = {
-      from: `"${colegioNombre}" <${fromUser}>`,
+      from: `"${marca}" <${fromUser}>`,
       to: emailDestino,
       subject: String(asunto).trim(),
       html,
@@ -680,8 +694,9 @@ ${htmlBody}
 </body>
 </html>`;
 
+    const marca = await marcaCorreo(colegioNombre);
     const mailOptions = {
-      from: `"${colegioNombre || 'Vanguard Schools'}" <${fromUser}>`,
+      from: `"${marca}" <${fromUser}>`,
       to: emailDestino,
       subject: String(asunto).trim(),
       html,

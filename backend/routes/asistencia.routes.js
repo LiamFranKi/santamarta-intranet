@@ -4,6 +4,7 @@ const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
 const moment = require('moment-timezone');
 const { enviarCorreoAsistencia, isEmailEnvioHabilitado, enviarCorreoHtml } = require('../services/emailService');
+const { nombreParaCorreo } = require('../utils/identidadColegio');
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
 const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { urlPortalHijoPorTipoUsuario } = require('../utils/notificacionUrls');
@@ -669,11 +670,7 @@ router.post('/registrar', async (req, res) => {
     console.log(`📧 [ASISTENCIA] Verificando notificaciones para tipo_usuario: ${tipo_usuario}, datosUsuario:`, datosUsuario ? 'existe' : 'null');
     
     // Obtener nombre del colegio (se usa tanto para ALUMNO como DOCENTE)
-    const colegio = await query(
-      `SELECT nombre FROM colegios WHERE id = ?`,
-      [colegio_id]
-    );
-    const colegioNombre = colegio.length > 0 ? colegio[0].nombre : 'Vanguard Schools';
+    const colegioNombre = await nombreParaCorreo(colegio_id);
     const fechaFormateada = moment().tz('America/Lima').format('DD/MM/YYYY');
     const horaFormateada = moment().tz('America/Lima').format('HH:mm');
     
