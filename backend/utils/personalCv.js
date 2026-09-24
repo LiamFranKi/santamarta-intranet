@@ -322,6 +322,23 @@ function mountSelfServiceCvRoutes(router) {
     }
   });
 
+  router.get('/perfil/cv/export', async (req, res) => {
+    try {
+      const { colegio_id } = req.user;
+      const personalId = await resolvePersonalIdFromUser(req);
+      if (!personalId) {
+        return res.status(404).json({ error: 'Personal no encontrado' });
+      }
+      const { exportarCurriculumUno } = require('./personalCvExport');
+      const data = await exportarCurriculumUno(colegio_id, personalId);
+      if (!data.ok) return res.status(data.status || 404).json({ error: data.error });
+      res.json(data);
+    } catch (e) {
+      console.error('GET /perfil/cv/export', e);
+      res.status(500).json({ error: e.message || 'Error al exportar CV' });
+    }
+  });
+
   router.put('/perfil/cv/estudios', async (req, res) => {
     try {
       const { colegio_id } = req.user;
@@ -434,6 +451,20 @@ function mountAdminEquipoCvRoutes(router) {
     } catch (e) {
       console.error('GET equipo cv', e);
       res.status(500).json({ error: e.message || 'Error al cargar CV' });
+    }
+  });
+
+  router.get('/equipo/:personalId/cv/export', async (req, res) => {
+    try {
+      const t = await resolveTarget(req, res);
+      if (!t) return;
+      const { exportarCurriculumUno } = require('./personalCvExport');
+      const data = await exportarCurriculumUno(t.colegioId, t.personalId);
+      if (!data.ok) return res.status(data.status || 404).json({ error: data.error });
+      res.json(data);
+    } catch (e) {
+      console.error('GET equipo cv export', e);
+      res.status(500).json({ error: e.message || 'Error al exportar CV' });
     }
   });
 

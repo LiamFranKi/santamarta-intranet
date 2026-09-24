@@ -1,0 +1,331 @@
+.bib-page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-bottom: 3rem;
+}
+
+.bib-hero {
+  display: flex;
+  gap: 1.1rem;
+  align-items: flex-start;
+  padding: 1.4rem 1.5rem;
+  border-radius: 18px;
+  color: #fff;
+  background: linear-gradient(135deg, #0f766e 0%, #0ea5e9 55%, #1d4ed8 100%);
+  box-shadow: 0 12px 32px rgba(14, 165, 233, 0.22);
+  margin-bottom: 1rem;
+}
+
+.bib-hero-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.bib-hero h1 {
+  margin: 0 0 0.3rem;
+  font-size: clamp(1.35rem, 3vw, 1.8rem);
+}
+
+.bib-hero p {
+  margin: 0;
+  opacity: 0.92;
+  font-size: 0.94rem;
+  max-width: 46rem;
+}
+
+.bib-hijo-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.85rem;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.bib-hijo-bar select {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.4rem 0.6rem;
+}
+
+.bib-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.bib-tab {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font-weight: 650;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.bib-tab.is-active {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #fff;
+}
+
+.bib-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.bib-toolbar input,
+.bib-toolbar select {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.48rem 0.7rem;
+  min-width: 160px;
+  flex: 1 1 160px;
+}
+
+.bib-btn {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 10px;
+  padding: 0.42rem 0.75rem;
+  font-weight: 650;
+  cursor: pointer;
+  color: #334155;
+}
+
+.bib-btn--primary {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #fff;
+  flex: 0 0 auto;
+}
+
+.bib-btn--primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.bib-btn--sm {
+  font-size: 0.78rem;
+  padding: 0.28rem 0.5rem;
+  margin-right: 0.25rem;
+}
+
+.bib-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.bib-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+}
+
+.bib-cover {
+  height: 160px;
+  background: #0f2744;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 1.8rem;
+  font-weight: 800;
+}
+
+.bib-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bib-card-body {
+  padding: 0.85rem 0.95rem 1rem;
+}
+
+.bib-card-body h3 {
+  margin: 0 0 0.2rem;
+  font-size: 1rem;
+  color: #0f172a;
+}
+
+.bib-autor,
+.bib-meta,
+.bib-muted {
+  color: #64748b;
+  font-size: 0.85rem;
+  margin: 0 0 0.25rem;
+}
+
+.bib-stock {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f766e;
+  margin: 0.35rem 0 0.6rem;
+}
+
+.bib-stock.is-out {
+  color: #b45309;
+}
+
+.bib-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.bib-table-wrap {
+  overflow-x: auto;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+}
+
+.bib-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.bib-table th,
+.bib-table td {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+  text-align: left;
+}
+
+.bib-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+  color: #475569;
+}
+
+.bib-date {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: #64748b;
+  flex: 0 0 auto;
+}
+
+.bib-date input {
+  min-width: 150px;
+}
+
+.bib-count {
+  align-self: center;
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: #64748b;
+}
+
+.bib-table tr.is-vencido td {
+  background: #fff7ed;
+}
+
+.bib-btn--ok {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #fff;
+}
+
+.bib-pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.12rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.bib-pill--SEPARADO { background: #fef3c7; color: #92400e; }
+.bib-pill--PRESTADO { background: #dbeafe; color: #1d4ed8; }
+.bib-pill--DEVUELTO { background: #d1fae5; color: #047857; }
+.bib-pill--CANCELADO,
+.bib-pill--NO_RECOGIDO { background: #fee2e2; color: #b91c1c; }
+
+.bib-tax-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.bib-tax-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.45rem;
+}
+
+.bib-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 80;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4vh 1rem;
+  overflow: auto;
+}
+
+.bib-modal-card {
+  width: min(640px, 100%);
+  background: #fff;
+  border-radius: 16px;
+  padding: 1.2rem 1.25rem 1.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.bib-modal-card h2 { margin: 0 0 0.3rem; }
+.bib-modal-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: #475569;
+}
+
+.bib-modal-card input,
+.bib-modal-card select,
+.bib-modal-card textarea {
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  padding: 0.45rem 0.6rem;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.bib-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.55rem;
+}
+
+.bib-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}

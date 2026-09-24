@@ -7,6 +7,7 @@ export const MODULOS = [
   { clave: 'matriculas', grupo: 'General', nombre: 'Matrículas', defecto: true, rutas: ['/admin/matriculas'] },
   { clave: 'psicologia', grupo: 'General', nombre: 'Psicología', defecto: true, rutas: ['/admin/psicologa-dashboard', '/admin/psicologia', '/docente/psicologia', '/apoderado/psicologia'] },
   { clave: 'auditoria', grupo: 'General', nombre: 'Auditoría', defecto: true, rutas: ['/admin/auditoria'] },
+  { clave: 'biblioteca', grupo: 'General', nombre: 'Biblioteca', defecto: true, rutas: ['/biblioteca'] },
 
   { clave: 'usuarios.personal', grupo: 'Usuarios', nombre: 'Personal', defecto: true, rutas: ['/admin/usuarios/equipo'] },
   { clave: 'usuarios.alumnos', grupo: 'Usuarios', nombre: 'Alumnos', defecto: true, rutas: ['/admin/usuarios/alumnos'] },
@@ -76,6 +77,7 @@ export const MODULOS = [
   { clave: 'config.facturacion', grupo: 'Configuración', nombre: 'Facturación', defecto: true, rutas: [] },
   { clave: 'config.tutoria', grupo: 'Configuración', nombre: 'Tutoría', defecto: true, rutas: [] },
   { clave: 'config.cajero', grupo: 'Configuración', nombre: 'Cajero', defecto: true, rutas: [] },
+  { clave: 'config.biblioteca', grupo: 'Configuración', nombre: 'Biblioteca', defecto: true, rutas: [] },
   { clave: 'config.cumpleanos', grupo: 'Configuración', nombre: 'Cumpleaños', defecto: true, rutas: ['/admin/config/cumpleanos'] },
   { clave: 'config.indicadores', grupo: 'Configuración', nombre: 'Indicadores', defecto: true, rutas: ['/admin/config/indicadores'] },
   { clave: 'config.matricula_online', grupo: 'Configuración', nombre: 'Matrícula online', defecto: false, rutas: [] },
@@ -93,6 +95,7 @@ export const CLAVES_CONFIG_PAGINA = [
   'config.facturacion',
   'config.tutoria',
   'config.cajero',
+  'config.biblioteca',
   'config.matricula_online',
 ];
 

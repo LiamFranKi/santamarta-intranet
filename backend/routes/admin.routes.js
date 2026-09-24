@@ -4159,6 +4159,106 @@ router.post('/caja-chica-cajeros/personal', requireSoloAdministrador, async (req
   }
 });
 
+// ========== Biblioteca (función, como Cajero) ==========
+
+router.get('/biblioteca-personal', requireSoloAdministrador, async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const rows = await query(
+      `SELECT t.id, t.personal_id, t.activo, t.created_at,
+              p.nombres, p.apellidos, p.nro_documento,
+              u.id AS usuario_id, u.usuario AS dni
+       FROM biblioteca_personal t
+       INNER JOIN personal p ON p.id = t.personal_id AND p.colegio_id = t.colegio_id
+       LEFT JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = t.colegio_id AND u.estado = 'ACTIVO'
+       WHERE t.colegio_id = ? AND t.activo = 1
+       ORDER BY p.apellidos, p.nombres`,
+      [colegio_id]
+    );
+    res.json({ personal: rows || [] });
+  } catch (e) {
+    if (e.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({ error: 'Ejecute 107_biblioteca_mysql.sql en phpMyAdmin.' });
+    }
+    console.error('[admin] list biblioteca-personal', e);
+    res.status(500).json({ error: 'Error al listar personal de biblioteca' });
+  }
+});
+
+router.get('/biblioteca-personal/candidatos', requireSoloAdministrador, async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const q = (req.query.q || '').trim();
+    let sql = `SELECT p.id AS personal_id, p.nombres, p.apellidos, p.nro_documento,
+                      u.id AS usuario_id, u.usuario AS dni, u.tipo
+               FROM personal p
+               INNER JOIN usuarios u ON u.id = (
+                 SELECT u2.id FROM usuarios u2
+                 WHERE u2.personal_id = p.id AND u2.colegio_id = p.colegio_id AND u2.estado = 'ACTIVO'
+                 ORDER BY u2.id ASC LIMIT 1
+               )
+               WHERE p.colegio_id = ? AND ${sqlPersonalSinSuperadmin('p')}`;
+    const params = [colegio_id];
+    if (q) {
+      sql += ` AND (
+        p.nombres LIKE ? OR p.apellidos LIKE ? OR p.nro_documento LIKE ?
+        OR EXISTS (
+          SELECT 1 FROM usuarios u3
+          WHERE u3.personal_id = p.id AND u3.colegio_id = p.colegio_id AND u3.estado = 'ACTIVO'
+            AND u3.usuario LIKE ?
+        )
+      )`;
+      const like = `%${q}%`;
+      params.push(like, like, like, like);
+    }
+    sql += ` ORDER BY p.apellidos, p.nombres LIMIT 80`;
+    res.json({ personal: (await query(sql, params)) || [] });
+  } catch (e) {
+    console.error('[admin] biblioteca candidatos', e);
+    res.status(500).json({ error: 'Error al buscar personal' });
+  }
+});
+
+router.post('/biblioteca-personal', requireSoloAdministrador, async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const personalId = parseInt(req.body.personal_id, 10);
+    if (!personalId) return res.status(400).json({ error: 'personal_id es requerido' });
+    const prow = await query(`SELECT id FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`, [
+      personalId,
+      colegio_id,
+    ]);
+    if (!prow.length) return res.status(404).json({ error: 'Personal no encontrado en este colegio' });
+    await execute(
+      `INSERT INTO biblioteca_personal (colegio_id, personal_id, activo)
+       VALUES (?, ?, 1)
+       ON DUPLICATE KEY UPDATE activo = 1`,
+      [colegio_id, personalId]
+    );
+    res.json({ success: true });
+  } catch (e) {
+    if (e.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({ error: 'Ejecute 107_biblioteca_mysql.sql en phpMyAdmin.' });
+    }
+    console.error('[admin] add biblioteca-personal', e);
+    res.status(500).json({ error: 'Error al asignar bibliotecario' });
+  }
+});
+
+router.delete('/biblioteca-personal/:id', requireSoloAdministrador, async (req, res) => {
+  try {
+    const r = await execute(`DELETE FROM biblioteca_personal WHERE id = ? AND colegio_id = ?`, [
+      parseInt(req.params.id, 10),
+      req.user.colegio_id,
+    ]);
+    if (!r.affectedRows) return res.status(404).json({ error: 'Registro no encontrado' });
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[admin] delete biblioteca-personal', e);
+    res.status(500).json({ error: 'Error al quitar bibliotecario' });
+  }
+});
+
 router.delete('/caja-chica-cajeros/personal/:id', requireSoloAdministrador, async (req, res) => {
   try {
     const { colegio_id } = req.user;

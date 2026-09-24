@@ -354,6 +354,8 @@ const adminCalendarizacionRoutes = require('./routes/admin.calendarizacion.route
 app.use('/api/admin/calendarizacion', adminCalendarizacionRoutes);
 const agendaInternaRoutes = require('./routes/agendaInterna.routes');
 app.use('/api/agenda-interna', agendaInternaRoutes);
+const bibliotecaRoutes = require('./routes/biblioteca.routes');
+app.use('/api/biblioteca', bibliotecaRoutes);
 const adminFaqsRoutes = require('./routes/admin.faqs.routes');
 app.use('/api/admin/faqs', adminFaqsRoutes);
 const adminUtilesRoutes = require('./routes/admin.utiles.routes');
@@ -540,6 +542,30 @@ app.listen(PORT, () => {
     }
   };
   iniciarAgendaInternaVencimiento();
+
+  const iniciarAvisosBiblioteca = () => {
+    try {
+      const { ejecutarAvisosBiblioteca } = require('./services/bibliotecaAvisoService');
+      setTimeout(async () => {
+        try {
+          await ejecutarAvisosBiblioteca();
+        } catch (e) {
+          console.error('❌ [BIBLIOTECA] Error en primera ejecución:', e);
+        }
+      }, 24 * 60 * 1000);
+      setInterval(async () => {
+        try {
+          await ejecutarAvisosBiblioteca();
+        } catch (e) {
+          console.error('❌ [BIBLIOTECA] Error en ejecución periódica:', e);
+        }
+      }, 6 * 60 * 60 * 1000);
+      console.log('📖 [BIBLIOTECA] Avisos de préstamo: primera ~24 min, luego cada 6 h.');
+    } catch (error) {
+      console.error('❌ [BIBLIOTECA] Error configurando avisos:', error);
+    }
+  };
+  iniciarAvisosBiblioteca();
 
   // Examenes: cerrar intentos ACTIVO vencidos / examen cerrado y notificar apoderados pendientes
   const iniciarCierreExamenesPendientes = () => {

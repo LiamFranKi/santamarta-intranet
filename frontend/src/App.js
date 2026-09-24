@@ -42,6 +42,7 @@ import AdminPerfil from './pages/admin/AdminPerfil';
 import GestionOperativaPage from './pages/admin/GestionOperativaPage';
 import AdminInstitucional from './pages/admin/AdminInstitucional';
 import AgendaInterna from './pages/AgendaInterna';
+import Biblioteca from './pages/Biblioteca';
 import AdminPublicaciones from './pages/admin/AdminPublicaciones';
 import AdminConexiones from './pages/admin/AdminConexiones';
 import AdminNotificacionesEnvio from './pages/admin/AdminNotificacionesEnvio';
@@ -410,6 +411,14 @@ function AppRoutes() {
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'COORDINADOR', 'PROMOTORIA', 'DIRECTOR', 'CONTADOR', 'DOCENTE']}>
             <AgendaInterna />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/biblioteca"
+        element={
+          <PrivateRoute>
+            <Biblioteca />
           </PrivateRoute>
         }
       />

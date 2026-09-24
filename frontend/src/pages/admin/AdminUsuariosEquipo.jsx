@@ -12,6 +12,7 @@ import AdminMensajeQuillEditor from '../../components/admin/AdminMensajeQuillEdi
 import PersonalCvEditor from '../../components/PersonalCvEditor';
 import PersonalCvViewer from '../../components/PersonalCvViewer';
 import { mensajeHtmlTieneContenido } from '../../utils/mensajesHtml';
+import { descargarCurriculumConAviso } from '../../utils/descargarCurriculumPersonal';
 import './AdminUsuarios.css';
 import './AdminUsuariosEquipoCards.css';
 
@@ -445,6 +446,11 @@ export default function AdminUsuariosEquipo() {
     }
   };
 
+  const descargarCv = (row) => {
+    if (!row?.id) return;
+    descargarCurriculumConAviso(`/admin/usuarios/equipo/${row.id}/cv/export`);
+  };
+
   const abrirModalMensaje = (row) => {
     if (!row.usuario_id) {
       Swal.fire({
@@ -857,6 +863,9 @@ export default function AdminUsuariosEquipo() {
           <button type="button" onClick={() => { verHorario(menuRow); cerrarMenus(); }}>
             🗓️ Ver horario
           </button>
+          <button type="button" onClick={() => { descargarCv(menuRow); cerrarMenus(); }}>
+            📄 Descargar CV
+          </button>
           <button type="button" onClick={() => { abrirModalMensaje(menuRow); cerrarMenus(); }}>
             ✉️ Enviar mensaje
           </button>
@@ -1142,7 +1151,11 @@ export default function AdminUsuariosEquipo() {
                 <div className="admin-usu-profile-section">
                   <h3>Formación y CV</h3>
                   {modalEdit ? (
-                    <PersonalCvEditor apiBase={`/admin/usuarios/equipo/${modalEdit}/cv`} compact />
+                    <PersonalCvEditor
+                      apiBase={`/admin/usuarios/equipo/${modalEdit}/cv`}
+                      exportUrl={`/admin/usuarios/equipo/${modalEdit}/cv/export`}
+                      compact
+                    />
                   ) : null}
                 </div>
                 <div className="admin-usu-profile-section">
@@ -1222,7 +1235,10 @@ export default function AdminUsuariosEquipo() {
                 <div className="admin-usu-profile-section">
                   <h3>Formación y CV</h3>
                   {modalInfo?.id ? (
-                    <PersonalCvViewer apiBase={`/admin/usuarios/equipo/${modalInfo.id}/cv`} />
+                    <PersonalCvViewer
+                      apiBase={`/admin/usuarios/equipo/${modalInfo.id}/cv`}
+                      exportUrl={`/admin/usuarios/equipo/${modalInfo.id}/cv/export`}
+                    />
                   ) : null}
                 </div>
                 <div className="admin-usu-profile-section">

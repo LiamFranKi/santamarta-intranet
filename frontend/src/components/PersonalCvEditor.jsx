@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../services/api';
 import Swal from 'sweetalert2';
+import { descargarCurriculumConAviso } from '../utils/descargarCurriculumPersonal';
 import './PersonalCvEditor.css';
 
 const NIVELES_IDIOMA = [
@@ -43,9 +44,9 @@ const labelTipoDoc = (tipo) =>
   TIPOS_DOC.find((t) => t.value === tipo)?.label || tipo || '—';
 
 /**
- * @param {{ apiBase: string, compact?: boolean }} props
+ * @param {{ apiBase: string, compact?: boolean, exportUrl?: string }} props
  */
-export default function PersonalCvEditor({ apiBase, compact = false }) {
+export default function PersonalCvEditor({ apiBase, compact = false, exportUrl }) {
   const [loading, setLoading] = useState(true);
   const [estudios, setEstudios] = useState([]);
   const [idiomas, setIdiomas] = useState([]);
@@ -247,12 +248,30 @@ export default function PersonalCvEditor({ apiBase, compact = false }) {
     }
   };
 
+  const descargarPdf = () => {
+    if (!exportUrl) return;
+    descargarCurriculumConAviso(exportUrl);
+  };
+
   if (loading) {
     return <div className="pcv-loading">Cargando CV…</div>;
   }
 
   return (
     <div className={`pcv-editor${compact ? ' pcv-editor--compact' : ''}`}>
+      {exportUrl ? (
+        <div className="pcv-export-bar">
+          <p className="pcv-export-hint">
+            {compact
+              ? 'PDF profesional con foto, contacto, formación, idiomas, experiencia y documentos.'
+              : 'Descargá un PDF profesional con tu foto, datos de contacto y todo lo registrado abajo.'}
+          </p>
+          <button type="button" className="pcv-btn pcv-btn--export" onClick={descargarPdf}>
+            <span className="pcv-btn-ico" aria-hidden="true">📄</span>
+            Descargar currículum
+          </button>
+        </div>
+      ) : null}
       {/* ——— Estudios ——— */}
       <section className="pcv-block">
         <div className="pcv-block-head">

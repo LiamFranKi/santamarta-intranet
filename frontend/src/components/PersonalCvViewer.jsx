@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../services/api';
+import { descargarCurriculumConAviso } from '../utils/descargarCurriculumPersonal';
 import './PersonalCvEditor.css';
 
 const NIVELES_IDIOMA = {
@@ -17,9 +18,9 @@ const TIPOS_DOC = {
 
 /**
  * Vista de solo lectura del CV de personal (estudios, idiomas, experiencia, docs).
- * @param {{ apiBase: string }} props
+ * @param {{ apiBase: string, exportUrl?: string }} props
  */
-export default function PersonalCvViewer({ apiBase }) {
+export default function PersonalCvViewer({ apiBase, exportUrl }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [cv, setCv] = useState({
@@ -66,6 +67,19 @@ export default function PersonalCvViewer({ apiBase }) {
 
   return (
     <div className="pcv-editor pcv-editor--compact">
+      {exportUrl ? (
+        <div className="pcv-export-bar">
+          <p className="pcv-export-hint">PDF profesional con foto, contacto y formación.</p>
+          <button
+            type="button"
+            className="pcv-btn pcv-btn--export"
+            onClick={() => descargarCurriculumConAviso(exportUrl)}
+          >
+            <span className="pcv-btn-ico" aria-hidden="true">📄</span>
+            Descargar currículum
+          </button>
+        </div>
+      ) : null}
       <section className="pcv-block">
         <div className="pcv-block-head">
           <h3>Estudios / formación</h3>

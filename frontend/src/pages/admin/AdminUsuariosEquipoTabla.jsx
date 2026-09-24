@@ -11,6 +11,7 @@ import AdminUsuariosFotoLightbox from '../../components/admin/AdminUsuariosFotoL
 import AdminMensajeQuillEditor from '../../components/admin/AdminMensajeQuillEditor';
 import PersonalCvViewer from '../../components/PersonalCvViewer';
 import { mensajeHtmlTieneContenido } from '../../utils/mensajesHtml';
+import { descargarCurriculumConAviso } from '../../utils/descargarCurriculumPersonal';
 import './AdminUsuarios.css';
 
 /**
@@ -444,6 +445,11 @@ export default function AdminUsuariosEquipoTabla() {
     }
   };
 
+  const descargarCv = (row) => {
+    if (!row?.id) return;
+    descargarCurriculumConAviso(`/admin/usuarios/equipo/${row.id}/cv/export`);
+  };
+
   const abrirModalMensaje = (row) => {
     if (!row.usuario_id) {
       Swal.fire({
@@ -862,6 +868,9 @@ export default function AdminUsuariosEquipoTabla() {
           <button type="button" onClick={() => { verHorario(menuRow); cerrarMenus(); }}>
             🗓️ Ver horario
           </button>
+          <button type="button" onClick={() => { descargarCv(menuRow); cerrarMenus(); }}>
+            📄 Descargar CV
+          </button>
           <button type="button" onClick={() => { abrirModalMensaje(menuRow); cerrarMenus(); }}>
             ✉️ Enviar mensaje
           </button>
@@ -1181,7 +1190,10 @@ export default function AdminUsuariosEquipoTabla() {
                 <div className="admin-usu-profile-section">
                   <h3>Formación y CV</h3>
                   {modalInfo?.id ? (
-                    <PersonalCvViewer apiBase={`/admin/usuarios/equipo/${modalInfo.id}/cv`} />
+                    <PersonalCvViewer
+                      apiBase={`/admin/usuarios/equipo/${modalInfo.id}/cv`}
+                      exportUrl={`/admin/usuarios/equipo/${modalInfo.id}/cv/export`}
+                    />
                   ) : null}
                 </div>
                 <div className="admin-usu-profile-section">

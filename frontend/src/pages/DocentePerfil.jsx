@@ -561,7 +561,7 @@ function DocentePerfil({ apiPrefix = '/docente', dashboardPath = '/docente/dashb
               {tabActiva === 'datos'
                 ? 'Editá nombre, correo, teléfono y dirección. Guardá los cambios al final.'
                 : tabActiva === 'cv'
-                  ? 'Estudios, idiomas, experiencia laboral y documentos PDF (títulos, certificados).'
+                  ? 'Estudios, idiomas, experiencia laboral y documentos PDF. También podés descargar tu currículum.'
                   : tabActiva === 'sistema'
                     ? 'Datos de solo lectura asociados a tu ficha laboral (DNI, cargo, horarios).'
                     : tabActiva === 'notificaciones'
@@ -721,7 +721,10 @@ function DocentePerfil({ apiPrefix = '/docente', dashboardPath = '/docente/dashb
               </span>
               Formación y CV
             </h2>
-            <PersonalCvEditor apiBase={`${apiPrefix}/perfil/cv`} />
+            <PersonalCvEditor
+              apiBase={`${apiPrefix}/perfil/cv`}
+              exportUrl={`${apiPrefix}/perfil/cv/export`}
+            />
           </div>
         )}
 

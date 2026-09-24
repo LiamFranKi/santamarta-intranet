@@ -12,6 +12,7 @@ const MODULOS = [
   { clave: 'matriculas', grupo: 'General', nombre: 'Matrículas', defecto: true },
   { clave: 'psicologia', grupo: 'General', nombre: 'Psicología', defecto: true },
   { clave: 'auditoria', grupo: 'General', nombre: 'Auditoría', defecto: true },
+  { clave: 'biblioteca', grupo: 'General', nombre: 'Biblioteca', defecto: true },
 
   { clave: 'usuarios.personal', grupo: 'Usuarios', nombre: 'Personal', defecto: true },
   { clave: 'usuarios.alumnos', grupo: 'Usuarios', nombre: 'Alumnos', defecto: true },
@@ -81,6 +82,7 @@ const MODULOS = [
   { clave: 'config.facturacion', grupo: 'Configuración', nombre: 'Facturación', defecto: true },
   { clave: 'config.tutoria', grupo: 'Configuración', nombre: 'Tutoría', defecto: true },
   { clave: 'config.cajero', grupo: 'Configuración', nombre: 'Cajero', defecto: true },
+  { clave: 'config.biblioteca', grupo: 'Configuración', nombre: 'Biblioteca', defecto: true },
   { clave: 'config.cumpleanos', grupo: 'Configuración', nombre: 'Cumpleaños', defecto: true },
   { clave: 'config.indicadores', grupo: 'Configuración', nombre: 'Indicadores', defecto: true },
   { clave: 'config.matricula_online', grupo: 'Configuración', nombre: 'Matrícula online', defecto: false },

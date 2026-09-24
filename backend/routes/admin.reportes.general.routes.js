@@ -49,6 +49,7 @@ const {
   generarExcelIncidenciasEstrellas,
 } = require('../utils/reportesGeneralIncidenciasEstrellas');
 const { obtenerAvatar, generarExcelAvatar } = require('../utils/reportesGeneralAvatar');
+const { catalogoCurriculums, exportarCurriculums } = require('../utils/personalCvExport');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -853,6 +854,25 @@ router.get('/avatar/excel', async (req, res) => {
   } catch (e) {
     console.error('[reportes/general/avatar/excel]', e);
     res.status(500).json({ error: e.message || 'Error al exportar Excel de avatar' });
+  }
+});
+
+/** GET /api/admin/reportes/general/curriculums — CVs de personal activo */
+router.get('/curriculums', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const soloLista = String(req.query.solo_lista || '') === '1';
+    if (soloLista) {
+      return res.json(await catalogoCurriculums(cid));
+    }
+    const result = await exportarCurriculums(cid, {
+      tipo: req.query.tipo,
+      personalId: req.query.personal_id,
+    });
+    res.json(result);
+  } catch (e) {
+    console.error('[reportes/general/curriculums]', e);
+    res.status(500).json({ error: e.message || 'Error al cargar currículums' });
   }
 });
 

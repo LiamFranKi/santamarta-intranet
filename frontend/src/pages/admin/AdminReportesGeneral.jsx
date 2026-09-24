@@ -17,6 +17,7 @@ import ReporteDeudaAnual from './reportesGeneral/ReporteDeudaAnual';
 import ReporteRankingNotas from './reportesGeneral/ReporteRankingNotas';
 import ReporteAsistenciaPersonal from './reportesGeneral/ReporteAsistenciaPersonal';
 import ReporteHorariosPersonal from './reportesGeneral/ReporteHorariosPersonal';
+import ReporteCurriculumsPersonal from './reportesGeneral/ReporteCurriculumsPersonal';
 import ReporteConsolidadoPromedios from './reportesGeneral/ReporteConsolidadoPromedios';
 import ReporteConsolidadoPromediosDetallado from './reportesGeneral/ReporteConsolidadoPromediosDetallado';
 import ReporteExamenesVirtuales from './reportesGeneral/ReporteExamenesVirtuales';
@@ -143,6 +144,13 @@ const REPORT_CATALOG = [
         icon: '🪪',
         ayuda: 'Personal del colegio: cargo, contacto y datos básicos.',
         Component: ReporteListaPersonal,
+      },
+      {
+        id: 'curriculums-personal',
+        label: 'Currículums',
+        icon: '📄',
+        ayuda: 'Descargue el CV de un trabajador o de todo el personal activo, con filtro por perfil (docente, auxiliar, etc.).',
+        Component: ReporteCurriculumsPersonal,
       },
       {
         id: 'asistencia-personal',
