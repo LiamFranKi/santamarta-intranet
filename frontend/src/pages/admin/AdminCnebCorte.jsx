@@ -2,7 +2,16 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import CnebPiarMarca from '../../components/aula/CnebPiarMarca';
-import { textoErrorDescarga } from './cnebElegirAula';
+import {
+  areaIdDeCurso,
+  asignaturaIdDeCurso,
+  aulasDe,
+  claveCurso,
+  cursosDe,
+  etiquetaGrado,
+  gradosDe,
+  textoErrorDescarga,
+} from './cnebElegirAula';
 
 const LETRAS = ['', 'AD', 'A', 'B', 'C'];
 
@@ -51,7 +60,12 @@ export default function AdminCnebCorte({
   asignaturaId = null,
   sesionIdFiltro = '',
   haySesiones = true,
+  sesiones = [],
 }) {
+  const [gradoSel, setGradoSel] = useState('');
+  const [aulaSel, setAulaSel] = useState('');
+  const [cursoSel, setCursoSel] = useState('');
+  const [sesionLocal, setSesionLocal] = useState('');
   const [grupoId, setGrupoId] = useState(grupoFijo ? String(grupoFijo) : '');
   const [bimestre, setBimestre] = useState(Number(bimestreDefault) || 4);
   const [loading, setLoading] = useState(false);
@@ -60,12 +74,36 @@ export default function AdminCnebCorte({
   const [letras, setLetras] = useState({});
   const [conclusiones, setConclusiones] = useState({});
 
+  const grados = useMemo(() => gradosDe(grupos), [grupos]);
+  const aulas = useMemo(() => aulasDe(grupos, gradoSel), [grupos, gradoSel]);
+  const sesionesAula = useMemo(
+    () => (sesiones || []).filter((s) => String(s.grupo_id) === String(aulaSel)),
+    [sesiones, aulaSel]
+  );
+  const cursos = useMemo(() => cursosDe(sesionesAula), [sesionesAula]);
+  const sesionesCurso = useMemo(
+    () => sesionesAula.filter((s) => claveCurso(s) === cursoSel),
+    [sesionesAula, cursoSel]
+  );
+  const sesionElegida = sesionLocal && sesionLocal !== 'todas' ? sesionLocal : '';
+  const listoLocal = Boolean(gradoSel && aulaSel && cursoSel && sesionLocal);
+  const areaEfectivo = grupoFijo ? areaId : areaIdDeCurso(cursoSel, sesionesCurso);
+  const asignaturaEfectiva = grupoFijo ? asignaturaId : asignaturaIdDeCurso(cursoSel, sesionesCurso);
+  const sesionEfectiva = grupoFijo ? sesionIdFiltro : sesionElegida;
+  const nombreCurso = cursos.find((c) => c.id === cursoSel)?.nombre || areaNombre;
+
   useEffect(() => {
-    if (grupoFijo) setGrupoId(String(grupoFijo));
-  }, [grupoFijo]);
+    if (grupoFijo) {
+      setGrupoId(String(grupoFijo));
+      return;
+    }
+    setGrupoId(listoLocal ? String(aulaSel) : '');
+    if (!listoLocal) setData(null);
+  }, [grupoFijo, aulaSel, listoLocal]);
 
   const load = useCallback(async () => {
     if (!grupoId || !nivel) return;
+    if (!grupoFijo && !listoLocal) return;
     setLoading(true);
     try {
       const { data: d } = await api.get(`${apiBase}/corte`, {
@@ -73,9 +111,9 @@ export default function AdminCnebCorte({
           nivel,
           grupo_id: grupoId,
           bimestre,
-          ...(areaId ? { area_id: areaId } : {}),
-          ...(asignaturaId ? { asignatura_id: asignaturaId } : {}),
-          ...(sesionIdFiltro ? { sesion_id: sesionIdFiltro } : {}),
+          ...(areaEfectivo ? { area_id: areaEfectivo } : {}),
+          ...(asignaturaEfectiva ? { asignatura_id: asignaturaEfectiva } : {}),
+          ...(sesionEfectiva ? { sesion_id: sesionEfectiva } : {}),
         },
       });
       setData(d);
@@ -96,7 +134,7 @@ export default function AdminCnebCorte({
     } finally {
       setLoading(false);
     }
-  }, [apiBase, nivel, grupoId, bimestre, areaId, asignaturaId, sesionIdFiltro]);
+  }, [apiBase, nivel, grupoId, bimestre, areaEfectivo, asignaturaEfectiva, sesionEfectiva, grupoFijo, listoLocal]);
 
   useEffect(() => {
     load();
@@ -104,13 +142,13 @@ export default function AdminCnebCorte({
 
   const sesionesVista = useMemo(() => {
     const all = data?.sesiones || [];
-    if (!sesionIdFiltro) return all;
-    return all.filter((s) => String(s.id) === String(sesionIdFiltro));
-  }, [data, sesionIdFiltro]);
+    if (!sesionEfectiva) return all;
+    return all.filter((s) => String(s.id) === String(sesionEfectiva));
+  }, [data, sesionEfectiva]);
   const soloSesionesElegidas =
-    (areaId != null && areaId !== '') ||
-    (asignaturaId != null && asignaturaId !== '') ||
-    Boolean(sesionIdFiltro);
+    (areaEfectivo != null && areaEfectivo !== '') ||
+    (asignaturaEfectiva != null && asignaturaEfectiva !== '') ||
+    Boolean(sesionEfectiva);
 
   const competenciasVista = useMemo(() => {
     const all = data?.competencias || [];
@@ -213,9 +251,9 @@ export default function AdminCnebCorte({
         grupo_id: grupoId,
         bimestre,
         grupo_label: etiquetaAula(g),
-        ...(areaId ? { area_id: areaId } : {}),
-        ...(asignaturaId ? { asignatura_id: asignaturaId } : {}),
-        ...(sesionIdFiltro ? { sesion_id: sesionIdFiltro } : {}),
+        ...(areaEfectivo ? { area_id: areaEfectivo } : {}),
+        ...(asignaturaEfectiva ? { asignatura_id: asignaturaEfectiva } : {}),
+        ...(sesionEfectiva ? { sesion_id: sesionEfectiva } : {}),
       });
     } catch (e) {
       Swal.fire({
@@ -233,7 +271,7 @@ export default function AdminCnebCorte({
           <h2>Corte bimestral · {etiquetaNivel ? etiquetaNivel(nivel) : nivel}</h2>
           <p>
             {soloSesionesElegidas
-              ? `Solo las sesiones que ya creó en ${areaNombre || 'este curso'}. Las competencias que no trabajó en una sesión no aparecen.`
+              ? `Solo las sesiones que ya creó en ${nombreCurso || 'este curso'}. Las competencias que no trabajó en una sesión no aparecen.`
               : 'Letra por competencia (AD, A, B, C) al cierre del bimestre. El PDF lleva el logo MINEDU como referencia curricular; no sustituye el reporte oficial de SIAGIE.'}
           </p>
         </div>
@@ -252,19 +290,78 @@ export default function AdminCnebCorte({
           </button>
         </div>
       </div>
-      <div className="cneb-ses-grid">
+      <div className="cneb-elige">
         {grupoFijo ? null : (
-        <label className="cneb-select-wrap">
-          <span>Aula</span>
-          <select value={grupoId} onChange={(e) => setGrupoId(e.target.value)}>
-            <option value="">Elegir aula…</option>
-            {grupos.map((g) => (
-              <option key={g.id} value={g.id}>
-                {etiquetaAula(g)}
-              </option>
-            ))}
-          </select>
-        </label>
+          <>
+            <label className="cneb-select-wrap">
+              <span>Grado</span>
+              <select
+                value={gradoSel}
+                onChange={(e) => {
+                  setGradoSel(e.target.value);
+                  setAulaSel('');
+                  setCursoSel('');
+                  setSesionLocal('');
+                }}
+              >
+                <option value="">Elegir grado…</option>
+                {grados.map((g) => (
+                  <option key={g} value={g}>
+                    {etiquetaGrado(nivel, g)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="cneb-select-wrap">
+              <span>Aula</span>
+              <select
+                value={aulaSel}
+                disabled={!gradoSel}
+                onChange={(e) => {
+                  setAulaSel(e.target.value);
+                  setCursoSel('');
+                  setSesionLocal('');
+                }}
+              >
+                <option value="">Elegir aula…</option>
+                {aulas.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {etiquetaAula(g)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="cneb-select-wrap">
+              <span>Curso</span>
+              <select
+                value={cursoSel}
+                disabled={!aulaSel}
+                onChange={(e) => {
+                  setCursoSel(e.target.value);
+                  setSesionLocal('');
+                }}
+              >
+                <option value="">Elegir curso…</option>
+                {cursos.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="cneb-select-wrap">
+              <span>Sesión</span>
+              <select value={sesionLocal} disabled={!cursoSel} onChange={(e) => setSesionLocal(e.target.value)}>
+                <option value="">Elegir sesión…</option>
+                <option value="todas">Todas las sesiones de este curso</option>
+                {sesionesCurso.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.titulo}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
         )}
         <label className="cneb-select-wrap">
           <span>Bimestre</span>
@@ -279,6 +376,8 @@ export default function AdminCnebCorte({
       </div>
       {loading ? (
         <p className="cneb-muted">Cargando corte…</p>
+      ) : !grupoFijo && !listoLocal ? (
+        <div className="cneb-empty">Elija el grado, el aula, el curso y la sesión para ver el corte.</div>
       ) : !grupoId ? (
         <div className="cneb-empty">Elija un aula para ver el corte.</div>
       ) : !haySesiones || (soloSesionesElegidas && !sesionesVista.length) ? (

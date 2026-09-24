@@ -4,8 +4,6 @@ import AdminCnebAuxiliar from './AdminCnebAuxiliar';
 import AdminCnebCorte from './AdminCnebCorte';
 import AdminCnebConsolidado from './AdminCnebConsolidado';
 import {
-  asignaturaIdDeCurso,
-  areaIdDeCurso,
   aulasDe,
   claveCurso,
   cursosDe,
@@ -62,8 +60,6 @@ export default function AdminCnebRegistro({
   );
   const sesionUna = sesionId && sesionId !== 'todas' ? sesionId : '';
   const listo = Boolean(gradoSel && aulaSel && cursoSel && sesionId);
-  const areaId = areaIdDeCurso(cursoSel, sesionesCurso);
-  const asignaturaId = asignaturaIdDeCurso(cursoSel, sesionesCurso);
   const aula = aulas.find((g) => String(g.id) === String(aulaSel));
 
   const onGrado = (v) => {
@@ -110,6 +106,7 @@ export default function AdminCnebRegistro({
           Consolidado
         </button>
       </div>
+      {modo === 'auxiliar' ? (
       <section className="cneb-panel" style={{ marginBottom: '0.7rem' }}>
         <div className="cneb-elige">
           <label className="cneb-select-wrap">
@@ -174,33 +171,26 @@ export default function AdminCnebRegistro({
           </p>
         )}
       </section>
+      ) : null}
       {modo === 'auxiliar' && sesionUna ? <AdminCnebAuxiliar apiBase={apiBase} sesionId={sesionUna} /> : null}
-      {modo === 'corte' && listo ? (
+      {modo === 'corte' ? (
         <AdminCnebCorte
           apiBase={apiBase}
           nivel={nivel}
           grupos={grupos}
+          sesiones={sesiones}
           bimestreDefault={bimestreDefault}
           etiquetaNivel={etiquetaNivel}
-          grupoFijo={aulaSel}
-          areaId={areaId}
-          areaNombre={cursos.find((c) => c.id === cursoSel)?.nombre || ''}
-          asignaturaId={asignaturaId}
-          sesionIdFiltro={sesionUna}
-          haySesiones={sesionesCurso.length > 0}
         />
       ) : null}
-      {modo === 'consolidado' && listo ? (
+      {modo === 'consolidado' ? (
         <AdminCnebConsolidado
           apiBase={apiBase}
           nivel={nivel}
           grupos={grupos}
+          sesiones={sesiones}
           bimestreDefault={bimestreDefault}
           etiquetaNivel={etiquetaNivel}
-          grupoInicial={aulaSel}
-          areaId={areaId}
-          asignaturaId={asignaturaId}
-          sesionIdFiltro={sesionUna}
         />
       ) : null}
     </>

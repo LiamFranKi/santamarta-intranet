@@ -2,7 +2,16 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import CnebPiarMarca from '../../components/aula/CnebPiarMarca';
-import { textoErrorDescarga } from './cnebElegirAula';
+import {
+  areaIdDeCurso,
+  asignaturaIdDeCurso,
+  aulasDe,
+  claveCurso,
+  cursosDe,
+  etiquetaGrado,
+  gradosDe,
+  textoErrorDescarga,
+} from './cnebElegirAula';
 
 const LOGROS = [
   { v: '', label: '—' },
@@ -27,7 +36,12 @@ export default function AdminCnebConsolidado({
   areaId = null,
   asignaturaId = null,
   sesionIdFiltro = '',
+  sesiones = [],
 }) {
+  const [gradoSel, setGradoSel] = useState('');
+  const [aulaSel, setAulaSel] = useState('');
+  const [cursoSel, setCursoSel] = useState('');
+  const [sesionLocal, setSesionLocal] = useState('');
   const [grupoId, setGrupoId] = useState(grupoInicial ? String(grupoInicial) : '');
   const [bimestre, setBimestre] = useState(Number(bimestreDefault) || 4);
   const [loading, setLoading] = useState(false);
@@ -36,12 +50,35 @@ export default function AdminCnebConsolidado({
   const [cotejo, setCotejo] = useState({});
   const [letras, setLetras] = useState({});
 
+  const grados = useMemo(() => gradosDe(grupos), [grupos]);
+  const aulas = useMemo(() => aulasDe(grupos, gradoSel), [grupos, gradoSel]);
+  const sesionesAula = useMemo(
+    () => (sesiones || []).filter((s) => String(s.grupo_id) === String(aulaSel)),
+    [sesiones, aulaSel]
+  );
+  const cursos = useMemo(() => cursosDe(sesionesAula), [sesionesAula]);
+  const sesionesCurso = useMemo(
+    () => sesionesAula.filter((s) => claveCurso(s) === cursoSel),
+    [sesionesAula, cursoSel]
+  );
+  const sesionElegida = sesionLocal && sesionLocal !== 'todas' ? sesionLocal : '';
+  const listoLocal = Boolean(gradoSel && aulaSel && cursoSel && sesionLocal);
+  const areaEfectivo = grupoInicial ? areaId : areaIdDeCurso(cursoSel, sesionesCurso);
+  const asignaturaEfectiva = grupoInicial ? asignaturaId : asignaturaIdDeCurso(cursoSel, sesionesCurso);
+  const sesionEfectiva = grupoInicial ? sesionIdFiltro : sesionElegida;
+
   useEffect(() => {
-    if (grupoInicial) setGrupoId(String(grupoInicial));
-  }, [grupoInicial]);
+    if (grupoInicial) {
+      setGrupoId(String(grupoInicial));
+      return;
+    }
+    setGrupoId(listoLocal ? String(aulaSel) : '');
+    if (!listoLocal) setData(null);
+  }, [grupoInicial, aulaSel, listoLocal]);
 
   const load = useCallback(async () => {
     if (!grupoId || !nivel) return;
+    if (!grupoInicial && !listoLocal) return;
     setLoading(true);
     try {
       const { data: d } = await api.get(`${apiBase}/consolidado`, {
@@ -67,7 +104,7 @@ export default function AdminCnebConsolidado({
     } finally {
       setLoading(false);
     }
-  }, [apiBase, nivel, grupoId, bimestre]);
+  }, [apiBase, nivel, grupoId, bimestre, grupoInicial, listoLocal]);
 
   useEffect(() => {
     load();
@@ -75,22 +112,22 @@ export default function AdminCnebConsolidado({
 
   const sesionesVista = useMemo(() => {
     const all = data?.sesiones || [];
-    if (sesionIdFiltro) return all.filter((s) => String(s.id) === String(sesionIdFiltro));
-    if (asignaturaId) return all.filter((s) => String(s.asignatura_id) === String(asignaturaId));
-    if (areaId) return all.filter((s) => String(s.area_id) === String(areaId));
+    if (sesionEfectiva) return all.filter((s) => String(s.id) === String(sesionEfectiva));
+    if (asignaturaEfectiva) return all.filter((s) => String(s.asignatura_id) === String(asignaturaEfectiva));
+    if (areaEfectivo) return all.filter((s) => String(s.area_id) === String(areaEfectivo));
     return all;
-  }, [data, sesionIdFiltro, areaId, asignaturaId]);
+  }, [data, sesionEfectiva, areaEfectivo, asignaturaEfectiva]);
 
   const competenciasVista = useMemo(() => {
     const all = data?.competencias || [];
-    if (!areaId && !asignaturaId && !sesionIdFiltro) return all;
+    if (!areaEfectivo && !asignaturaEfectiva && !sesionEfectiva) return all;
     const ids = new Set(
       sesionesVista.map((s) => s.competencia_id).filter((id) => id != null && id !== '')
     );
     if (!ids.size) return [];
     const keys = new Set([...ids].map((id) => String(id)));
     return all.filter((c) => keys.has(String(c.id)));
-  }, [data, sesionesVista, areaId, asignaturaId, sesionIdFiltro]);
+  }, [data, sesionesVista, areaEfectivo, asignaturaEfectiva, sesionEfectiva]);
 
   const areasAgrupadas = useMemo(() => {
     const map = new Map();
@@ -161,9 +198,9 @@ export default function AdminCnebConsolidado({
           grupo_id: grupoId,
           bimestre,
           grupo_label: etiquetaAula(g),
-          ...(areaId ? { area_id: areaId } : {}),
-          ...(asignaturaId ? { asignatura_id: asignaturaId } : {}),
-          ...(sesionIdFiltro ? { sesion_id: sesionIdFiltro } : {}),
+          ...(areaEfectivo ? { area_id: areaEfectivo } : {}),
+          ...(asignaturaEfectiva ? { asignatura_id: asignaturaEfectiva } : {}),
+          ...(sesionEfectiva ? { sesion_id: sesionEfectiva } : {}),
         },
         responseType: 'blob',
         timeout: 60000,
@@ -205,19 +242,78 @@ export default function AdminCnebConsolidado({
           </button>
         </div>
       </div>
-      <div className="cneb-ses-grid">
+      <div className="cneb-elige">
         {grupoInicial ? null : (
-        <label className="cneb-select-wrap">
-          <span>Aula</span>
-          <select value={grupoId} onChange={(e) => setGrupoId(e.target.value)}>
-            <option value="">Elegir aula…</option>
-            {grupos.map((g) => (
-              <option key={g.id} value={g.id}>
-                {etiquetaAula(g)}
-              </option>
-            ))}
-          </select>
-        </label>
+          <>
+            <label className="cneb-select-wrap">
+              <span>Grado</span>
+              <select
+                value={gradoSel}
+                onChange={(e) => {
+                  setGradoSel(e.target.value);
+                  setAulaSel('');
+                  setCursoSel('');
+                  setSesionLocal('');
+                }}
+              >
+                <option value="">Elegir grado…</option>
+                {grados.map((g) => (
+                  <option key={g} value={g}>
+                    {etiquetaGrado(nivel, g)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="cneb-select-wrap">
+              <span>Aula</span>
+              <select
+                value={aulaSel}
+                disabled={!gradoSel}
+                onChange={(e) => {
+                  setAulaSel(e.target.value);
+                  setCursoSel('');
+                  setSesionLocal('');
+                }}
+              >
+                <option value="">Elegir aula…</option>
+                {aulas.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {etiquetaAula(g)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="cneb-select-wrap">
+              <span>Curso</span>
+              <select
+                value={cursoSel}
+                disabled={!aulaSel}
+                onChange={(e) => {
+                  setCursoSel(e.target.value);
+                  setSesionLocal('');
+                }}
+              >
+                <option value="">Elegir curso…</option>
+                {cursos.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="cneb-select-wrap">
+              <span>Sesión</span>
+              <select value={sesionLocal} disabled={!cursoSel} onChange={(e) => setSesionLocal(e.target.value)}>
+                <option value="">Elegir sesión…</option>
+                <option value="todas">Todas las sesiones de este curso</option>
+                {sesionesCurso.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.titulo}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
         )}
         <label className="cneb-select-wrap">
           <span>Bimestre (corte)</span>
@@ -232,6 +328,8 @@ export default function AdminCnebConsolidado({
       </div>
       {loading ? (
         <p className="cneb-muted">Cargando consolidado…</p>
+      ) : !grupoInicial && !listoLocal ? (
+        <div className="cneb-empty">Elija el grado, el aula, el curso y la sesión para ver el consolidado.</div>
       ) : !grupoId ? (
         <div className="cneb-empty">Elija un aula.</div>
       ) : !(data?.alumnos || []).length ? (

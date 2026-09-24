@@ -405,7 +405,7 @@ async function excelConsolidadoBuffer(cid, { anio, bimestre, grupoId, nivel, gru
     } else {
       items.forEach((it) => {
         const c2 = ws.getCell(rB, col);
-        c2.value = xlTexto(String(it.item || '').slice(0, 80));
+        c2.value = xlTexto(String(it.item || ''));
         c2.fill = xlFill(XL.head);
         c2.font = { bold: true, size: 8, color: { argb: XL.white }, name: 'Calibri' };
         c2.alignment = { wrapText: true, vertical: 'middle' };
@@ -435,12 +435,12 @@ async function excelConsolidadoBuffer(cid, { anio, bimestre, grupoId, nivel, gru
       col += 1;
     });
   });
-  ws.getRow(rA).height = 22;
-  ws.getRow(rB).height = 36;
+  ws.getRow(rA).height = 36;
+  ws.getRow(rB).height = 78;
   ws.getColumn(1).width = 5;
-  ws.getColumn(2).width = 12;
-  ws.getColumn(3).width = 34;
-  for (let c = 4; c <= totalCols; c += 1) ws.getColumn(c).width = 14;
+  ws.getColumn(2).width = 14;
+  ws.getColumn(3).width = 36;
+  for (let c = 4; c <= totalCols; c += 1) ws.getColumn(c).width = 28;
 
   data.alumnos.forEach((al, i) => {
     const row = ws.getRow(5 + i);
@@ -628,7 +628,7 @@ async function excelSiagieBuffer(cid, { anio, bimestre, grupoId, nivel, grupoLab
     row.height = 22;
   });
 
-  const ley = ws.addWorksheet('Leyenda', { views: [{ showGridLines: false }] });
+  const ley = wb.addWorksheet('Leyenda', { views: [{ showGridLines: false }] });
   ley.getColumn(1).width = 10;
   ley.getColumn(2).width = 22;
   ley.getColumn(3).width = 72;
