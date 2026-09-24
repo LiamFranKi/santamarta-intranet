@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Swal from 'sweetalert2';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
@@ -620,14 +621,20 @@ export default function Biblioteca() {
         ) : tab === 'categorias' || tab === 'areas' ? (
           <TaxPanel
             titulo={tab === 'categorias' ? 'Categorías' : 'Áreas'}
+            hint={
+              tab === 'categorias'
+                ? 'Tipo o género del material: novela, cuento, enciclopedia, diccionario, cómic, texto escolar… Sirve para ordenar el catálogo por clase de libro.'
+                : 'Materia o disciplina: Matemática, Comunicación, Ciencia, Historia, Inglés… Sirve para buscar libros de un área curricular.'
+            }
             items={tab === 'categorias' ? meta.categorias : meta.areas}
             onSave={(nombre, id) => guardarTax(tab, nombre, id)}
             onDelete={(id) => borrarTax(tab, id)}
           />
         ) : null}
 
-        {formLibro && (
-          <div className="bib-modal" role="dialog">
+        {formLibro &&
+          createPortal(
+          <div className="bib-modal" role="dialog" aria-modal="true">
             <form className="bib-modal-card" onSubmit={guardarLibro}>
               <h2>{formLibro.id ? 'Editar libro' : 'Nuevo libro'}</h2>
               <label>
@@ -699,17 +706,19 @@ export default function Biblioteca() {
                 </button>
               </div>
             </form>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </DashboardLayout>
   );
 }
 
-function TaxPanel({ titulo, items, onSave, onDelete }) {
+function TaxPanel({ titulo, hint, items, onSave, onDelete }) {
   const [nombre, setNombre] = useState('');
   return (
     <div className="bib-tax">
+      {hint ? <p className="bib-hint">{hint}</p> : null}
       <div className="bib-toolbar">
         <input
           value={nombre}
