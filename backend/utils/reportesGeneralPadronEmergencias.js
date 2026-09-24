@@ -417,73 +417,97 @@ async function logoExcel(wb) {
   }
 }
 
+function pintarRango(ws, r, c1, c2, { fill, font, align, value, wrap }) {
+  if (c2 > c1) ws.mergeCells(r, c1, r, c2);
+  for (let c = c1; c <= c2; c += 1) {
+    const cell = ws.getCell(r, c);
+    if (fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
+    if (font) cell.font = font;
+    cell.alignment = { horizontal: align || 'center', vertical: 'middle', wrapText: !!wrap };
+    borde(cell);
+  }
+  if (value !== undefined) ws.getCell(r, c1).value = value;
+}
+
+function pintarMetaFila(ws, r, cols, items) {
+  const n = items.length;
+  if (!n) return r;
+  const base = Math.floor(cols / n);
+  let c = 1;
+  items.forEach((item, i) => {
+    const span = i === n - 1 ? cols - c + 1 : base;
+    const labSpan = span >= 5 ? 2 : 1;
+    const cLab2 = c + labSpan - 1;
+    const cVal1 = cLab2 + 1;
+    const cVal2 = c + span - 1;
+    pintarRango(ws, r, c, cLab2, {
+      fill: FILL_META,
+      font: { bold: true, size: 8, color: { argb: 'FF1E3A8A' }, name: 'Calibri' },
+      align: 'center',
+      value: item.label,
+      wrap: true,
+    });
+    pintarRango(ws, r, cVal1, cVal2, {
+      fill: 'FFFFFFFF',
+      font: { size: 9, name: 'Calibri', color: { argb: 'FF0F172A' } },
+      align: 'left',
+      value: item.value == null || item.value === '' ? '—' : item.value,
+      wrap: true,
+    });
+    c += span;
+  });
+  ws.getRow(r).height = 22;
+  return r + 1;
+}
+
 function escribirBloqueEncabezado(ws, cols, bloque, colegioNombre, tituloDoc, subtitulo, r0, logoId) {
   let r = r0;
-  ws.mergeCells(r, 1, r + 2, 2);
+  pintarRango(ws, r, 1, cols, {
+    fill: 'FFFFFFFF',
+    font: { bold: true, size: 16, color: { argb: FILL_TITULO } },
+    align: 'center',
+    value: String(colegioNombre || 'Colegio').toUpperCase(),
+  });
+  ws.getRow(r).height = 44;
   if (logoId != null) {
     ws.addImage(logoId, {
       tl: { col: 0, row: r - 1 },
-      ext: { width: 72, height: 52 },
+      ext: { width: 90, height: 54 },
+      editAs: 'oneCell',
     });
   }
-  ws.mergeCells(r, 3, r, cols);
-  const t = ws.getCell(r, 3);
-  t.value = String(colegioNombre || 'Colegio').toUpperCase();
-  t.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' }, name: 'Calibri' };
-  t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_TITULO } };
-  t.alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.getRow(r).height = 24;
   r += 1;
-  ws.getRow(r).height = 8;
+  pintarRango(ws, r, 1, cols, {
+    fill: FILL_SUB,
+    font: { bold: true, size: 12, color: { argb: 'FF1E3A8A' }, name: 'Calibri' },
+    align: 'center',
+    value: tituloDoc,
+    wrap: true,
+  });
+  ws.getRow(r).height = 36;
   r += 1;
-  ws.mergeCells(r, 3, r, cols);
-  const s = ws.getCell(r, 3);
-  s.value = tituloDoc;
-  s.font = { bold: true, size: 11, color: { argb: 'FF1E3A8A' }, name: 'Calibri' };
-  s.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_SUB } };
-  s.alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.getRow(r).height = 22;
-  r += 1;
-  ws.mergeCells(r, 1, r, cols);
-  const d = ws.getCell(r, 1);
-  d.value = subtitulo;
-  d.font = { italic: true, size: 8, color: { argb: 'FF334155' }, name: 'Calibri' };
-  d.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  pintarRango(ws, r, 1, cols, {
+    fill: 'FFF8FAFC',
+    font: { italic: true, size: 8, color: { argb: 'FF334155' }, name: 'Calibri' },
+    align: 'center',
+    value: subtitulo,
+    wrap: true,
+  });
   ws.getRow(r).height = 16;
   r += 2;
 
-  const meta = [
-    ['Año escolar', bloque.anio, 'Tutor(a)', bloque.tutor || '—', 'Tutor 2', bloque.tutor2 || '—'],
-    [
-      'Fecha de actualización',
-      fmtFechaPe(bloque.fecha_actualizacion),
-      'Estudiantes',
-      bloque.estudiantes,
-      bloque.en_blanco ? '' : 'Autorizados',
-      bloque.en_blanco ? '' : bloque.autorizados,
-    ],
+  r = pintarMetaFila(ws, r, cols, [
+    { label: 'Año escolar', value: bloque.anio },
+    { label: 'Tutor(a)', value: bloque.tutor || '—' },
+    { label: 'Tutor 2', value: bloque.tutor2 || '—' },
+  ]);
+  const meta2 = [
+    { label: 'Fecha de actualización', value: fmtFechaPe(bloque.fecha_actualizacion) },
+    { label: 'Estudiantes', value: bloque.estudiantes },
   ];
-  meta.forEach((pares) => {
-    for (let i = 0; i < 3; i += 1) {
-      if (!pares[i * 2]) continue;
-      const cLab = 1 + i * 2;
-      const cVal = cLab + 1;
-      const lab = ws.getCell(r, cLab);
-      lab.value = pares[i * 2];
-      lab.font = { bold: true, size: 8, color: { argb: 'FF1E3A8A' }, name: 'Calibri' };
-      lab.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_META } };
-      borde(lab);
-      const val = ws.getCell(r, cVal);
-      val.value = pares[i * 2 + 1] == null || pares[i * 2 + 1] === '' ? '—' : pares[i * 2 + 1];
-      val.font = { size: 8, name: 'Calibri' };
-      val.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
-      borde(val);
-    }
-    ws.getRow(r).height = 16;
-    r += 1;
-  });
-  r += 1;
-  return r;
+  if (!bloque.en_blanco) meta2.push({ label: 'Autorizados', value: bloque.autorizados });
+  r = pintarMetaFila(ws, r, cols, meta2);
+  return r + 1;
 }
 
 function escribirFilas(ws, startRow, rows, keys, cols) {
