@@ -632,50 +632,59 @@ export default function KioscoCafetin() {
         {caja && panel === 'ajustes' && config && (
           <section className="kio-panel">
             <div className="kio-panel-head"><h2>Ajustes</h2></div>
-            <div className="kio-ajuste">
-              <div><strong>Familia</strong><p>Quién puede pedir en línea.</p></div>
-              <select value={config.quien_pide} onChange={(e) => setConfig({ ...config, quien_pide: e.target.value })}>
-                <option value="AMBOS">Papá y alumno</option>
-                <option value="APODERADO">Solo el papá</option>
-                <option value="ALUMNO">Solo el alumno</option>
-              </select>
-            </div>
-            <div className="kio-ajuste">
-              <div><strong>Personal</strong><p>Docentes y administrativos.</p></div>
-              <label className="kio-switch">
-                <input type="checkbox" checked={config.pide_personal !== false} onChange={(e) => setConfig({ ...config, pide_personal: e.target.checked })} />
-                <span>{config.pide_personal !== false ? 'Pueden pedir' : 'No pueden'}</span>
-              </label>
-            </div>
-            <div className="kio-ajuste">
-              <div><strong>Límite</strong><p>Tope por pedido. Apagado = sin tope.</p></div>
-              <div className="kio-ajuste-ctrl">
+            <div className="kio-ajustes">
+              <article className="kio-ajuste">
+                <div><strong>Familia</strong><p>Quién puede pedir en línea.</p></div>
+                <select className="kio-ajuste-select" value={config.quien_pide} onChange={(e) => setConfig({ ...config, quien_pide: e.target.value })}>
+                  <option value="AMBOS">Papá y alumno</option>
+                  <option value="APODERADO">Solo el papá</option>
+                  <option value="ALUMNO">Solo el alumno</option>
+                </select>
+              </article>
+              <article className="kio-ajuste">
+                <div><strong>Personal</strong><p>Docentes y administrativos.</p></div>
+                <label className="kio-switch">
+                  <input type="checkbox" checked={config.pide_personal !== false} onChange={(e) => setConfig({ ...config, pide_personal: e.target.checked })} />
+                  <i />
+                  <span>{config.pide_personal !== false ? 'Pueden pedir' : 'No pueden'}</span>
+                </label>
+              </article>
+              <article className="kio-ajuste">
+                <div><strong>Límite</strong><p>Tope por pedido. Apagado, se pide sin tope.</p></div>
                 <label className="kio-switch">
                   <input type="checkbox" checked={config.limite_activo} onChange={(e) => setConfig({ ...config, limite_activo: e.target.checked })} />
+                  <i />
                   <span>{config.limite_activo ? 'Con límite' : 'Sin límite'}</span>
                 </label>
-                {config.limite_activo && <input type="number" min="0" step="0.5" value={config.limite_monto} onChange={(e) => setConfig({ ...config, limite_monto: e.target.value })} />}
-              </div>
-            </div>
-            <div className="kio-ajuste">
-              <div><strong>Corte</strong><p>Apagado = se pide hasta el final.</p></div>
-              <div className="kio-ajuste-ctrl">
+                {config.limite_activo && <input type="number" min="0" step="0.5" value={config.limite_monto} onChange={(e) => setConfig({ ...config, limite_monto: e.target.value })} placeholder="Monto máximo" />}
+              </article>
+              <article className="kio-ajuste">
+                <div><strong>Corte</strong><p>Hora límite para pedir. Apagado, se pide hasta el final.</p></div>
                 <label className="kio-switch">
                   <input type="checkbox" checked={config.corte_activo} onChange={(e) => setConfig({ ...config, corte_activo: e.target.checked })} />
+                  <i />
                   <span>{config.corte_activo ? 'Con corte' : 'Sin corte'}</span>
                 </label>
                 {config.corte_activo && <input type="time" value={config.corte_hora || '20:00'} onChange={(e) => setConfig({ ...config, corte_hora: e.target.value })} />}
-              </div>
+              </article>
+              <article className="kio-ajuste">
+                <div><strong>Comida</strong><p>Platos marcados como comida en la carta.</p></div>
+                <label className="kio-switch">
+                  <input type="checkbox" checked={config.comida_activa} onChange={(e) => setConfig({ ...config, comida_activa: e.target.checked })} />
+                  <i />
+                  <span>{config.comida_activa ? 'Visible' : 'Oculta'}</span>
+                </label>
+              </article>
+              <article className="kio-ajuste">
+                <div><strong>Fiado</strong><p>Si se puede dejar el pago para después.</p></div>
+                <label className="kio-switch">
+                  <input type="checkbox" checked={config.fiado_activo} onChange={(e) => setConfig({ ...config, fiado_activo: e.target.checked })} />
+                  <i />
+                  <span>{config.fiado_activo ? 'Permitido' : 'No permitido'}</span>
+                </label>
+              </article>
             </div>
-            <div className="kio-ajuste">
-              <div><strong>Comida</strong></div>
-              <label className="kio-switch"><input type="checkbox" checked={config.comida_activa} onChange={(e) => setConfig({ ...config, comida_activa: e.target.checked })} /><span>{config.comida_activa ? 'Visible' : 'Oculta'}</span></label>
-            </div>
-            <div className="kio-ajuste">
-              <div><strong>Fiado</strong></div>
-              <label className="kio-switch"><input type="checkbox" checked={config.fiado_activo} onChange={(e) => setConfig({ ...config, fiado_activo: e.target.checked })} /><span>{config.fiado_activo ? 'Permitido' : 'No'}</span></label>
-            </div>
-            <button type="button" className="kio-btn" onClick={() => guardarAjustes(config)}>Guardar</button>
+            <button type="button" className="kio-btn kio-ajuste-guardar" onClick={() => guardarAjustes(config)}>Guardar</button>
           </section>
         )}
 
