@@ -44,6 +44,7 @@ import AdminInstitucional from './pages/admin/AdminInstitucional';
 import AgendaInterna from './pages/AgendaInterna';
 import Biblioteca from './pages/Biblioteca';
 import ChatVanguard from './pages/ChatVanguard';
+import KioscoCafetin from './pages/KioscoCafetin';
 import AdminPublicaciones from './pages/admin/AdminPublicaciones';
 import AdminConexiones from './pages/admin/AdminConexiones';
 import AdminNotificacionesEnvio from './pages/admin/AdminNotificacionesEnvio';
@@ -181,6 +182,8 @@ function PrivateRoute({ children, requiredType = null, requiredTypes = null }) {
       return <Navigate to="/admin/psicologa-dashboard" replace />;
     } else if (user?.tipo === 'DIRECTOR' || user?.tipo === 'COORDINADOR' || user?.tipo === 'CONTADOR') {
       return <Navigate to="/docente/dashboard" replace />;
+    } else if (user?.tipo === 'KIOSCO') {
+      return <Navigate to="/kiosco" replace />;
     }
     // Si no tiene un tipo válido, redirigir al login
     return <Navigate to="/login" />;
@@ -299,6 +302,8 @@ function NavigateToDashboard() {
     return <Navigate to="/admin/psicologa-dashboard" replace />;
   } else if (tipo === 'DIRECTOR' || tipo === 'COORDINADOR' || tipo === 'CONTADOR') {
     return <Navigate to="/docente/dashboard" replace />;
+  } else if (tipo === 'KIOSCO') {
+    return <Navigate to="/kiosco" replace />;
   }
 
   // Tipo desconocido: ir al login en lugar de asumir admin
@@ -311,6 +316,14 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/evento/:token" element={<EventoPublicoAsistencia />} />
       <Route path="/matricula_online" element={<MatriculaOnline />} />
+      <Route
+        path="/kiosco"
+        element={(
+          <PrivateRoute requiredTypes={['KIOSCO', 'ADMINISTRADOR', 'APODERADO', 'ALUMNO']}>
+            <KioscoCafetin />
+          </PrivateRoute>
+        )}
+      />
       <Route
         path="/admin/dashboard"
         element={

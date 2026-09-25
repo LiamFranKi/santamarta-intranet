@@ -8,6 +8,7 @@ export const MODULOS = [
   { clave: 'psicologia', grupo: 'General', nombre: 'Psicología', defecto: true, rutas: ['/admin/psicologa-dashboard', '/admin/psicologia', '/docente/psicologia', '/apoderado/psicologia'] },
   { clave: 'auditoria', grupo: 'General', nombre: 'Auditoría', defecto: true, rutas: ['/admin/auditoria'] },
   { clave: 'biblioteca', grupo: 'General', nombre: 'Biblioteca', defecto: true, rutas: ['/biblioteca'] },
+  { clave: 'kiosco', grupo: 'General', nombre: 'Kiosco cafetín', defecto: false, rutas: ['/kiosco'] },
 
   { clave: 'usuarios.personal', grupo: 'Usuarios', nombre: 'Personal', defecto: true, rutas: ['/admin/usuarios/equipo'] },
   { clave: 'usuarios.alumnos', grupo: 'Usuarios', nombre: 'Alumnos', defecto: true, rutas: ['/admin/usuarios/alumnos'] },
@@ -52,9 +53,9 @@ export const MODULOS = [
   { clave: 'reportes.temas', grupo: 'Reportes', nombre: 'Temas', defecto: true, rutas: ['/admin/reportes/temas'] },
   { clave: 'reportes.notas', grupo: 'Reportes', nombre: 'Notas', defecto: true, rutas: ['/admin/reportes/notas'] },
   { clave: 'reportes.deudores', grupo: 'Reportes', nombre: 'Deudores', defecto: true, rutas: ['/admin/reportes/deudores'] },
-  { clave: 'reportes.asistencias', grupo: 'Reportes', nombre: 'Asistencias', defecto: false, rutas: ['/admin/reportes/asistencias'] },
-  { clave: 'reportes.estadisticas', grupo: 'Reportes', nombre: 'Estadísticas', defecto: false, rutas: ['/admin/reportes/estadisticas', '/admin/estadisticas'] },
-  { clave: 'reportes.incidencias', grupo: 'Reportes', nombre: 'Incidencias', defecto: false, rutas: ['/admin/reportes/incidencias'] },
+  { clave: 'reportes.asistencias', grupo: 'Reportes', nombre: 'Asistencias', defecto: false, oculto: true, rutas: ['/admin/reportes/asistencias'] },
+  { clave: 'reportes.estadisticas', grupo: 'Reportes', nombre: 'Estadísticas', defecto: false, oculto: true, rutas: ['/admin/reportes/estadisticas', '/admin/estadisticas'] },
+  { clave: 'reportes.incidencias', grupo: 'Reportes', nombre: 'Incidencias', defecto: false, oculto: true, rutas: ['/admin/reportes/incidencias'] },
 
   { clave: 'web.reclamos', grupo: 'Web', nombre: 'Reclamos', defecto: true, rutas: [] },
   { clave: 'web.sugerencias', grupo: 'Web', nombre: 'Sugerencias', defecto: true, rutas: [] },
@@ -125,5 +126,6 @@ export function inicioPorTipo(tipo) {
   if (tipo === 'PSICOLOGA') return '/admin/psicologa-dashboard';
   if (tipo === 'PROMOTORIA') return '/promotoria/dashboard';
   if (tipo === 'ASISTENCIA') return '/asistencia/escaneo';
+  if (tipo === 'KIOSCO') return '/kiosco';
   return '/admin/dashboard';
 }

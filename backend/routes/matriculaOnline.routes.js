@@ -243,12 +243,46 @@ function filaAlumno(row) {
     apellido_paterno: row.apellido_paterno || '',
     apellido_materno: row.apellido_materno || '',
     nombres: row.nombres || '',
-    sexo: row.sexo === 1 || row.sexo === 2 ? row.sexo : '',
+    sexo: (() => {
+      const s = parseInt(row.sexo, 10);
+      if (s === 0 || s === 1) return s;
+      if (s === 2) return 0;
+      return '';
+    })(),
     fecha_nacimiento: fechaFormulario(row.fecha_nacimiento),
     email: row.email || '',
     domicilio: row.domicilio || '',
     seguro_id: row.seguro_id ? String(row.seguro_id) : '',
   };
+}
+
+function siguientePostulacion(nivelNombre, grado) {
+  const n = String(nivelNombre || '').toUpperCase();
+  const g = parseInt(grado, 10);
+  if (!Number.isFinite(g)) return null;
+  if (n.includes('INICIAL')) {
+    if (g === 3) return { clave: 'INICIAL', grado: 4 };
+    if (g === 4) return { clave: 'INICIAL', grado: 5 };
+    if (g === 5) return { clave: 'PRIMARIA', grado: 1 };
+  }
+  if (n.includes('PRIM')) {
+    if (g >= 1 && g <= 5) return { clave: 'PRIMARIA', grado: g + 1 };
+    if (g === 6) return { clave: 'SECUNDARIA', grado: 1 };
+  }
+  if (n.includes('SECUND')) {
+    if (g >= 1 && g <= 4) return { clave: 'SECUNDARIA', grado: g + 1 };
+  }
+  return null;
+}
+
+function nivelPorClave(niveles, clave) {
+  return (niveles || []).find((nv) => {
+    const nombre = String(nv.nombre || '').toUpperCase();
+    if (clave === 'INICIAL') return nombre.includes('INICIAL');
+    if (clave === 'PRIMARIA') return nombre.includes('PRIM');
+    if (clave === 'SECUNDARIA') return nombre.includes('SECUND');
+    return false;
+  });
 }
 
 function filaApoderado(row) {
@@ -302,6 +336,28 @@ router.get('/dni/:numero', async (req, res) => {
       );
       apoderado = ap || null;
     }
+    let postulacion = null;
+    if (alumno) {
+      const [ultima] = await query(
+        `SELECT g.grado, n.nombre AS nivel_nombre
+         FROM matriculas m
+         INNER JOIN grupos g ON g.id = m.grupo_id
+         INNER JOIN niveles n ON n.id = g.nivel_id
+         WHERE m.alumno_id = ? AND m.colegio_id = ? AND m.estado NOT IN (2, 3)
+         ORDER BY g.anio DESC, m.id DESC
+         LIMIT 1`,
+        [alumno.id, colegio_id]
+      );
+      if (ultima) {
+        const sig = siguientePostulacion(ultima.nivel_nombre, ultima.grado);
+        const niveles = await query(
+          'SELECT id, nombre FROM niveles WHERE colegio_id = ? ORDER BY id ASC',
+          [colegio_id]
+        );
+        const nivel = sig ? nivelPorClave(niveles, sig.clave) : null;
+        if (nivel) postulacion = { nivel_id: nivel.id, grado: sig.grado };
+      }
+    }
     if (!apoderado) {
       const [apDirecto] = await query(
         `SELECT tipo_documento, nro_documento, apellido_paterno, apellido_materno, nombres,
@@ -320,6 +376,7 @@ router.get('/dni/:numero', async (req, res) => {
       encontrado: true,
       alumno: filaAlumno(alumno),
       apoderado: filaApoderado(apoderado),
+      postulacion,
     });
   } catch (e) {
     console.error('[matricula-online dni]', e);
@@ -355,8 +412,7 @@ router.post('/', uploadMatricula.fields([{ name: 'foto_dni', maxCount: 1 }, { na
     const am = String(alumnoIn.apellido_materno || '').trim();
     const nom = String(alumnoIn.nombres || '').trim();
     const fn = String(alumnoIn.fecha_nacimiento || '').slice(0, 10);
-    let sexoAl = parseInt(alumnoIn.sexo, 10);
-    if (Number.isNaN(sexoAl)) sexoAl = 0;
+    const sexoAl = parseInt(alumnoIn.sexo, 10);
     const emailAl = String(alumnoIn.email || '').trim();
     const domicilioAl = String(alumnoIn.domicilio || '').trim();
     const tipoDocAl = tipoDocumentoValido(alumnoIn.tipo_documento);
@@ -384,7 +440,7 @@ router.post('/', uploadMatricula.fields([{ name: 'foto_dni', maxCount: 1 }, { na
     if (!am) return res.status(400).json({ error: 'Indique el apellido materno del alumno.' });
     if (!nom) return res.status(400).json({ error: 'Indique los nombres del alumno.' });
     if (!fechaOk(fn)) return res.status(400).json({ error: 'Indique la fecha de nacimiento del alumno.' });
-    if (sexoAl !== 1 && sexoAl !== 2) {
+    if (sexoAl !== 0 && sexoAl !== 1) {
       return res.status(400).json({ error: 'Seleccione el sexo del alumno.' });
     }
     if (!esSeguroIdValido(seguroId)) {

@@ -13,6 +13,7 @@ const MODULOS = [
   { clave: 'psicologia', grupo: 'General', nombre: 'Psicología', defecto: true },
   { clave: 'auditoria', grupo: 'General', nombre: 'Auditoría', defecto: true },
   { clave: 'biblioteca', grupo: 'General', nombre: 'Biblioteca', defecto: true },
+  { clave: 'kiosco', grupo: 'General', nombre: 'Kiosco cafetín', defecto: false },
 
   { clave: 'usuarios.personal', grupo: 'Usuarios', nombre: 'Personal', defecto: true },
   { clave: 'usuarios.alumnos', grupo: 'Usuarios', nombre: 'Alumnos', defecto: true },

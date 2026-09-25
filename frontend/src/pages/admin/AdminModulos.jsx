@@ -12,6 +12,7 @@ export default function AdminModulos() {
   const grupos = useMemo(() => {
     const map = new Map();
     for (const item of MODULOS) {
+      if (item.oculto) continue;
       if (!map.has(item.grupo)) map.set(item.grupo, []);
       map.get(item.grupo).push(item);
     }

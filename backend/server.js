@@ -358,6 +358,8 @@ const bibliotecaRoutes = require('./routes/biblioteca.routes');
 app.use('/api/biblioteca', bibliotecaRoutes);
 const chatRoutes = require('./routes/chat.routes');
 app.use('/api/chat', chatRoutes);
+const kioscoRoutes = require('./routes/kiosco.routes');
+app.use('/api/kiosco', kioscoRoutes);
 const adminFaqsRoutes = require('./routes/admin.faqs.routes');
 app.use('/api/admin/faqs', adminFaqsRoutes);
 const adminUtilesRoutes = require('./routes/admin.utiles.routes');

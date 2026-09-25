@@ -110,6 +110,10 @@ export default function MatriculaOnline() {
         if (data.apoderado) {
           setApoderado((p) => ({ ...p, ...data.apoderado }));
         }
+        if (data.postulacion?.nivel_id) {
+          setNivelId(String(data.postulacion.nivel_id));
+          setGrado(String(data.postulacion.grado));
+        }
       }
       if (destino === 'apoderado' && data.apoderado) {
         setApoderado((p) => ({ ...p, ...data.apoderado, nro_documento: p.nro_documento }));
@@ -147,11 +151,14 @@ export default function MatriculaOnline() {
   const gradosOpciones = useMemo(() => gradosParaNivel(nivelSel?.nombre), [nivelSel]);
 
   useEffect(() => {
-    if (gradosOpciones.length) {
-      setGrado(String(gradosOpciones[0].v));
-    } else {
+    if (!gradosOpciones.length) {
       setGrado('');
+      return;
     }
+    setGrado((prev) => {
+      if (gradosOpciones.some((g) => String(g.v) === String(prev))) return String(prev);
+      return String(gradosOpciones[0].v);
+    });
   }, [gradosOpciones]);
 
   const applyFotoFile = (file) => {
@@ -186,7 +193,7 @@ export default function MatriculaOnline() {
     if (!alumno.nombres.trim()) return 'Indique los nombres del alumno.';
     if (!alumno.fecha_nacimiento) return 'Indique la fecha de nacimiento del alumno.';
     const sexo = parseInt(alumno.sexo, 10);
-    if (sexo !== 1 && sexo !== 2) return 'Seleccione el sexo del alumno.';
+    if (sexo !== 0 && sexo !== 1) return 'Seleccione el sexo del alumno.';
     if (!alumno.seguro_id) return 'Seleccione el seguro del alumno.';
     if (!String(alumno.email || '').trim()) return 'Indique el correo electrónico del alumno.';
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(alumno.email).trim())) {
@@ -468,8 +475,8 @@ export default function MatriculaOnline() {
                   onChange={(e) => setAlumno((p) => ({ ...p, sexo: parseInt(e.target.value, 10) }))}
                 >
                   <option value="">— Seleccione —</option>
+                  <option value={0}>Masculino</option>
                   <option value={1}>Femenino</option>
-                  <option value={2}>Masculino</option>
                 </select>
               </div>
               <div className="matricula-online-field">

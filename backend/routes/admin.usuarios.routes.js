@@ -62,6 +62,7 @@ const TIPOS_ENUM_USUARIO = [
   'TUTOR',
   'MANTENIMIENTO',
   'SUPERADMINISTRADOR',
+  'KIOSCO',
 ];
 
 /**
