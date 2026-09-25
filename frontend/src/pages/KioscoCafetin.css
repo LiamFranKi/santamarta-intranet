@@ -125,12 +125,15 @@
   box-shadow: 0 6px 16px rgba(60, 36, 16, 0.06);
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
   gap: 0.25rem;
 }
+.kio-card ul { margin: 0.2rem 0; padding: 0; list-style: none; }
 .kio-card span, .kio-hint { color: #7a6554; font-size: 0.82rem; }
 .kio-plato-fijo { cursor: default; }
 .kio-plato-fijo:hover { outline: none; }
-.kio-plato-foto { aspect-ratio: 1; height: auto; border-radius: 16px; }
+.kio-plato-foto { width: 100%; aspect-ratio: 1 / 1; height: auto; border-radius: 16px; }
 .kio-mini { width: 72px; aspect-ratio: 1; border-radius: 14px; overflow: hidden; }
 .kio-check {
   display: flex !important;
@@ -242,10 +245,11 @@
   background: #1c1410;
   color: #fff8f1;
 }
-.kio-cats-lg img, .kio-plato-foto img, .kio-pieza-foto img, .kio-linea img {
+.kio-cats-lg img, .kio-plato-foto img, .kio-pieza-foto img, .kio-linea img, .kio-tab-foto img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
 }
 .kio-cats-lg button img, .kio-cats-lg button span:first-child {
   width: 2.4rem;
@@ -266,7 +270,8 @@
 .kio-plato {
   border: 0;
   cursor: pointer;
-  text-align: left;
+  text-align: center;
+  align-items: center;
   background: #fff;
   border-radius: 18px;
   padding: 0.45rem;
@@ -277,10 +282,12 @@
 }
 .kio-plato:hover { outline: 2px solid #ea580c; }
 .kio-plato-foto {
-  height: 110px;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  height: auto;
   border-radius: 14px;
   overflow: hidden;
-  background: #f6efe7;
+  background: #fff;
   display: grid;
   place-items: center;
   font-size: 2.4rem;
@@ -290,10 +297,14 @@
 
 .kio-pieza { text-align: center; }
 .kio-pieza-foto {
-  height: 180px;
+  width: min(280px, 100%);
+  aspect-ratio: 1 / 1;
+  height: auto;
+  margin-left: auto;
+  margin-right: auto;
   border-radius: 18px;
   overflow: hidden;
-  background: #f6efe7;
+  background: #fff;
   display: grid;
   place-items: center;
   font-size: 4rem;
@@ -331,7 +342,23 @@
 .kio-btn:disabled { opacity: 0.45; cursor: default; }
 .kio-btn-ghost { background: #1c1410; }
 .kio-btn-danger { background: #9f1239; }
-.kio-btn-row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.kio-btn-row { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; }
+.kio-icono {
+  width: 2.35rem;
+  height: 2.35rem;
+  border: 0;
+  border-radius: 999px;
+  background: #c2410c;
+  color: #fff;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  font-weight: 700;
+}
+.kio-icono-oscuro { background: #1c1410; }
+.kio-icono-rojo { background: #9f1239; }
+.kio-sumar { justify-content: center; }
+.kio-mini { margin: 0 auto; }
 
 .kio-campo, .kio-modal-body label {
   display: flex;
@@ -384,7 +411,7 @@
   place-items: center;
   font-size: 2rem;
 }
-.kio-tab-foto img { width: 100%; height: 100%; object-fit: cover; }
+.kio-tab-foto img { width: 100%; height: 100%; object-fit: contain; object-position: center; background: #fff; }
 .kio-tab-item strong, .kio-tab-item span, .kio-tab-item b { display: block; }
 .kio-tab-item span { color: #7a6554; font-size: 0.82rem; }
 .kio-tab-item b { color: #c2410c; margin: 0.15rem 0 0.4rem; }
@@ -480,7 +507,7 @@
 .kio-lista li > span:first-child { display: flex; align-items: center; gap: 0.4rem; }
 .kio-sumar { display: flex; gap: 0.3rem; }
 .kio-sumar input { width: 4.2rem; }
-.kio-sumar button { border: 0; background: #1c1410; color: #fff; border-radius: 10px; padding: 0.4rem 0.6rem; cursor: pointer; }
+.kio-sumar button { width: 2.35rem; height: 2.35rem; border: 0; background: #1c1410; color: #fff; border-radius: 999px; padding: 0; cursor: pointer; display: grid; place-items: center; }
 
 .kio-ajuste {
   display: flex;

@@ -38,6 +38,20 @@ function Foto({ src, emoji }) {
   return <span>{emoji || '🍽️'}</span>;
 }
 
+function Icono({ tipo }) {
+  const p = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
+  if (tipo === 'edit') {
+    return <svg {...p}><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>;
+  }
+  if (tipo === 'trash') {
+    return <svg {...p}><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></svg>;
+  }
+  if (tipo === 'check') return <svg {...p}><path d="M20 6 9 17l-5-5" /></svg>;
+  if (tipo === 'x') return <svg {...p}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>;
+  if (tipo === 'box') return <svg {...p}><path d="M21 8 12 3 3 8v8l9 5 9-5V8z" /><path d="M3 8l9 5 9-5" /><path d="M12 13v8" /></svg>;
+  return <svg {...p}><path d="M12 5v14" /><path d="M5 12h14" /></svg>;
+}
+
 function Modal({ titulo, onClose, children, ancho, encima }) {
   return createPortal(
     <div className={`kio-overlay${encima ? ' kio-overlay-top' : ''}`} onClick={onClose} role="presentation">
@@ -390,13 +404,13 @@ export default function KioscoCafetin() {
                   <p className="kio-deuda">Debe S/ {Number(p.deuda).toFixed(2)}</p>
                   {p.estado === 'pedido' && (
                     <div className="kio-btn-row">
-                      <button type="button" className="kio-btn" onClick={() => decidir(p.id, 'aceptado', 'pendiente')}>Aceptar</button>
-                      {config?.fiado_activo && <button type="button" className="kio-btn kio-btn-ghost" onClick={() => decidir(p.id, 'aceptado', 'fiado')}>Fiado</button>}
-                      <button type="button" className="kio-btn kio-btn-danger" onClick={() => decidir(p.id, 'rechazado')}>Rechazar</button>
+                      <button type="button" className="kio-icono" title="Aceptar" aria-label="Aceptar" onClick={() => decidir(p.id, 'aceptado', 'pendiente')}><Icono tipo="check" /></button>
+                      {config?.fiado_activo && <button type="button" className="kio-icono kio-icono-oscuro" title="Fiado" aria-label="Fiado" onClick={() => decidir(p.id, 'aceptado', 'fiado')}>F</button>}
+                      <button type="button" className="kio-icono kio-icono-rojo" title="Rechazar" aria-label="Rechazar" onClick={() => decidir(p.id, 'rechazado')}><Icono tipo="x" /></button>
                     </div>
                   )}
                   {p.estado === 'aceptado' && (
-                    <button type="button" className="kio-btn" onClick={() => decidir(p.id, 'entregado', p.pago)}>Entregado</button>
+                    <button type="button" className="kio-icono" title="Entregado" aria-label="Entregado" onClick={() => decidir(p.id, 'entregado', p.pago)}><Icono tipo="box" /></button>
                   )}
                 </article>
               ))}
@@ -431,10 +445,10 @@ export default function KioscoCafetin() {
                         setAviso(`Sumaste ${n} a ${p.nombre}.`);
                         cargarCatalogo();
                       });
-                    }}>Sumar</button>
+                    }} title="Sumar stock" aria-label="Sumar stock"><Icono tipo="plus" /></button>
                   </div>
                   <div className="kio-btn-row">
-                    <button type="button" className="kio-btn kio-btn-ghost" onClick={() => {
+                    <button type="button" className="kio-icono kio-icono-oscuro" onClick={() => {
                       setEditProdId(p.id);
                       setFormProd({
                         nombre: p.nombre,
@@ -447,15 +461,15 @@ export default function KioscoCafetin() {
                         imagen: null,
                       });
                       setVentana('form-prod');
-                    }}>Editar</button>
-                    <button type="button" className="kio-btn kio-btn-danger" onClick={() => {
+                    }} title="Editar" aria-label="Editar"><Icono tipo="edit" /></button>
+                    <button type="button" className="kio-icono kio-icono-rojo" onClick={() => {
                       if (!window.confirm(`¿Quitar ${p.nombre}?`)) return;
                       api.delete(`/kiosco/productos/${p.id}`).then(() => {
                         setAviso('Producto eliminado.');
                         cargarCatalogo();
                         cargarCarta(fecha);
                       });
-                    }}>Eliminar</button>
+                    }} title="Eliminar" aria-label="Eliminar"><Icono tipo="trash" /></button>
                   </div>
                 </article>
               ))}
@@ -480,18 +494,18 @@ export default function KioscoCafetin() {
                   <div className="kio-plato-foto"><Foto src={c.imagen_url} emoji={c.emoji} /></div>
                   <strong>{c.nombre}</strong>
                   <div className="kio-btn-row">
-                    <button type="button" className="kio-btn kio-btn-ghost" onClick={() => {
+                    <button type="button" className="kio-icono kio-icono-oscuro" onClick={() => {
                       setEditCatId(c.id);
                       setFormCat({ nombre: c.nombre, emoji: c.emoji || '🍽️', imagen: null });
                       setVentana('form-cat');
-                    }}>Editar</button>
-                    <button type="button" className="kio-btn kio-btn-danger" onClick={() => {
+                    }} title="Editar" aria-label="Editar"><Icono tipo="edit" /></button>
+                    <button type="button" className="kio-icono kio-icono-rojo" onClick={() => {
                       if (!window.confirm(`¿Quitar la categoría ${c.nombre}?`)) return;
                       api.delete(`/kiosco/categorias/${c.id}`).then(() => {
                         setAviso('Categoría eliminada.');
                         cargarCatalogo();
                       });
-                    }}>Eliminar</button>
+                    }} title="Eliminar" aria-label="Eliminar"><Icono tipo="trash" /></button>
                   </div>
                 </article>
               ))}
@@ -513,9 +527,9 @@ export default function KioscoCafetin() {
                   <div className="kio-plato-foto kio-mini"><Foto src={f.imagen_url} emoji={f.emoji} /></div>
                   <strong>{f.nombre}</strong>
                   <span>{String(f.fecha).slice(0, 10)}</span>
-                  <button type="button" className="kio-btn kio-btn-danger" onClick={() => {
+                  <button type="button" className="kio-icono kio-icono-rojo" onClick={() => {
                     api.delete(`/kiosco/carta/${f.id}`).then(() => { setAviso('Quitado de la carta.'); cargarCartaDias(); cargarCarta(fecha); });
-                  }}>Quitar</button>
+                  }} title="Quitar" aria-label="Quitar"><Icono tipo="trash" /></button>
                 </article>
               ))}
               {!cartaDias.length && <p className="kio-vacio">No hay productos especiales publicados.</p>}
@@ -621,8 +635,8 @@ export default function KioscoCafetin() {
                     <span>{it.cantidad} × S/ {Number(it.precio).toFixed(2)}</span>
                     <b>S/ {(it.precio * it.cantidad).toFixed(2)}</b>
                     <div className="kio-btn-row">
-                      <button type="button" className="kio-btn kio-btn-ghost" onClick={() => editarLinea(it)}>Editar</button>
-                      <button type="button" className="kio-quitar" onClick={() => setCarrito((prev) => prev.filter((x) => x.producto_id !== it.producto_id))}>Eliminar</button>
+                      <button type="button" className="kio-icono kio-icono-oscuro" title="Editar" aria-label="Editar" onClick={() => editarLinea(it)}><Icono tipo="edit" /></button>
+                      <button type="button" className="kio-icono kio-icono-rojo" title="Eliminar" aria-label="Eliminar" onClick={() => setCarrito((prev) => prev.filter((x) => x.producto_id !== it.producto_id))}><Icono tipo="trash" /></button>
                     </div>
                   </div>
                 </article>
@@ -668,8 +682,8 @@ export default function KioscoCafetin() {
                     <span>{it.cantidad} × S/ {Number(it.precio).toFixed(2)}</span>
                     <b>S/ {(it.precio * it.cantidad).toFixed(2)}</b>
                     <div className="kio-btn-row">
-                      <button type="button" className="kio-btn kio-btn-ghost" onClick={() => editarLinea(it)}>Editar</button>
-                      <button type="button" className="kio-quitar" onClick={() => setCarrito((prev) => prev.filter((x) => x.producto_id !== it.producto_id))}>Eliminar</button>
+                      <button type="button" className="kio-icono kio-icono-oscuro" title="Editar" aria-label="Editar" onClick={() => editarLinea(it)}><Icono tipo="edit" /></button>
+                      <button type="button" className="kio-icono kio-icono-rojo" title="Eliminar" aria-label="Eliminar" onClick={() => setCarrito((prev) => prev.filter((x) => x.producto_id !== it.producto_id))}><Icono tipo="trash" /></button>
                     </div>
                   </div>
                 </article>
@@ -705,8 +719,8 @@ export default function KioscoCafetin() {
                     <span>{it.cantidad} × S/ {Number(it.precio).toFixed(2)}</span>
                     <b>S/ {(it.precio * it.cantidad).toFixed(2)}</b>
                     <div className="kio-btn-row">
-                      <button type="button" className="kio-btn kio-btn-ghost" onClick={() => editarLinea(it)}>Editar</button>
-                      <button type="button" className="kio-quitar" onClick={() => setCarrito((prev) => prev.filter((x) => x.producto_id !== it.producto_id))}>Eliminar</button>
+                      <button type="button" className="kio-icono kio-icono-oscuro" title="Editar" aria-label="Editar" onClick={() => editarLinea(it)}><Icono tipo="edit" /></button>
+                      <button type="button" className="kio-icono kio-icono-rojo" title="Eliminar" aria-label="Eliminar" onClick={() => setCarrito((prev) => prev.filter((x) => x.producto_id !== it.producto_id))}><Icono tipo="trash" /></button>
                     </div>
                   </div>
                 </article>
