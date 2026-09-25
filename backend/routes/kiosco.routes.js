@@ -30,8 +30,17 @@ async function exigirModulo(res) {
   return false;
 }
 
+const TIPOS_PERSONAL = new Set([
+  'ADMINISTRADOR', 'DIRECTOR', 'DOCENTE', 'AUXILIAR', 'SECRETARIA', 'CAJERO',
+  'ENFERMERA', 'PROMOTORIA', 'COORDINADOR', 'PSICOLOGA', 'CONTADOR', 'TUTOR', 'MANTENIMIENTO',
+]);
+
 function esCaja(user) {
   return user?.tipo === 'KIOSCO' || user?.tipo === 'ADMINISTRADOR';
+}
+
+function esPersonal(user) {
+  return TIPOS_PERSONAL.has(user?.tipo);
 }
 
 async function leerConfig(colegioId) {
@@ -39,6 +48,7 @@ async function leerConfig(colegioId) {
   if (row) {
     return {
       quien_pide: row.quien_pide || 'AMBOS',
+      pide_personal: row.pide_personal == null ? true : Number(row.pide_personal) === 1,
       limite_activo: Number(row.limite_activo) === 1,
       limite_monto: Number(row.limite_monto) || 0,
       corte_activo: Number(row.corte_activo) === 1,
@@ -49,6 +59,7 @@ async function leerConfig(colegioId) {
   }
   return {
     quien_pide: 'AMBOS',
+    pide_personal: true,
     limite_activo: false,
     limite_monto: 0,
     corte_activo: false,
@@ -58,13 +69,20 @@ async function leerConfig(colegioId) {
   };
 }
 
-async function deudaDeAlumno(colegioId, alumnoId) {
-  const [row] = await query(
-    `SELECT COALESCE(SUM(total), 0) AS deuda
-     FROM kiosco_pedidos
-     WHERE colegio_id = ? AND alumno_id = ? AND pago IN ('pendiente','fiado') AND estado IN ('aceptado','entregado')`,
-    [colegioId, alumnoId]
-  );
+async function deudaDeCliente(colegioId, alumnoId, usuarioId) {
+  const [row] = alumnoId
+    ? await query(
+      `SELECT COALESCE(SUM(total), 0) AS deuda
+       FROM kiosco_pedidos
+       WHERE colegio_id = ? AND alumno_id = ? AND pago IN ('pendiente','fiado') AND estado IN ('aceptado','entregado')`,
+      [colegioId, alumnoId]
+    )
+    : await query(
+      `SELECT COALESCE(SUM(total), 0) AS deuda
+       FROM kiosco_pedidos
+       WHERE colegio_id = ? AND cliente_usuario_id = ? AND pago IN ('pendiente','fiado') AND estado IN ('aceptado','entregado')`,
+      [colegioId, usuarioId]
+    );
   return Number(row?.deuda) || 0;
 }
 
@@ -103,15 +121,17 @@ router.put('/config', async (req, res) => {
   try {
     await execute(
       `INSERT INTO kiosco_config
-        (colegio_id, quien_pide, limite_activo, limite_monto, corte_activo, corte_hora, comida_activa, fiado_activo)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (colegio_id, quien_pide, pide_personal, limite_activo, limite_monto, corte_activo, corte_hora, comida_activa, fiado_activo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
-        quien_pide = VALUES(quien_pide), limite_activo = VALUES(limite_activo), limite_monto = VALUES(limite_monto),
+        quien_pide = VALUES(quien_pide), pide_personal = VALUES(pide_personal),
+        limite_activo = VALUES(limite_activo), limite_monto = VALUES(limite_monto),
         corte_activo = VALUES(corte_activo), corte_hora = VALUES(corte_hora),
         comida_activa = VALUES(comida_activa), fiado_activo = VALUES(fiado_activo)`,
       [
         colegioId,
         quien,
+        b.pide_personal === false ? 0 : 1,
         b.limite_activo ? 1 : 0,
         Number(b.limite_monto) || 0,
         b.corte_activo ? 1 : 0,
@@ -180,7 +200,26 @@ router.get('/hijos', async (req, res) => {
         id: a.id,
         nombre: `${a.nombres || ''} ${a.apellido_paterno || ''} ${a.apellido_materno || ''}`.replace(/\s+/g, ' ').trim(),
         grado: await gradoDeAlumno(a.id, colegioId),
-        deuda: await deudaDeAlumno(colegioId, a.id),
+        deuda: await deudaDeCliente(colegioId, a.id, null),
+      });
+    }
+    if (!rows.length && esPersonal(req.user) && req.user.tipo !== 'KIOSCO') {
+      const [p] = await query(
+        `SELECT p.nombres, p.apellidos FROM personal p
+         INNER JOIN usuarios u ON u.personal_id = p.id
+         WHERE u.id = ? LIMIT 1`,
+        [req.user.id]
+      );
+      const nombre = p
+        ? `${p.nombres || ''} ${p.apellidos || ''}`.replace(/\s+/g, ' ').trim()
+        : (req.user.nombres || req.user.usuario || 'Personal');
+      return res.json({
+        hijos: [],
+        yo: {
+          usuario_id: req.user.id,
+          nombre,
+          deuda: await deudaDeCliente(colegioId, null, req.user.id),
+        },
       });
     }
     res.json({ hijos });
@@ -193,7 +232,7 @@ router.post('/pedidos', async (req, res) => {
   if (!(await exigirModulo(res))) return;
   const colegioId = req.user.colegio_id || DEFAULT_COLEGIO_ID;
   const tipo = req.user.tipo;
-  if (tipo !== 'APODERADO' && tipo !== 'ALUMNO' && tipo !== 'KIOSCO' && tipo !== 'ADMINISTRADOR') {
+  if (tipo !== 'APODERADO' && tipo !== 'ALUMNO' && tipo !== 'KIOSCO' && !esPersonal(req.user)) {
     return res.status(403).json({ error: 'No puedes hacer pedidos.' });
   }
   try {
@@ -206,13 +245,20 @@ router.post('/pedidos', async (req, res) => {
       if (tipo === 'ALUMNO' && config.quien_pide === 'APODERADO') {
         return res.status(403).json({ error: 'En este momento solo el apoderado puede pedir.' });
       }
+      if (esPersonal(req.user) && tipo !== 'ADMINISTRADOR' && !config.pide_personal) {
+        return res.status(403).json({ error: 'El personal no puede pedir en línea en este momento.' });
+      }
     }
-    const alumnoId = parseInt(req.body?.alumno_id, 10);
+    const alumnoId = parseInt(req.body?.alumno_id, 10) || null;
+    const clienteUsuarioId = parseInt(req.body?.cliente_usuario_id, 10) || (req.body?.para_mi ? req.user.id : null);
     const fecha = String(req.body?.fecha || '');
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
     const pago = ['pagado', 'pendiente', 'fiado'].includes(req.body?.pago) ? req.body.pago : 'pendiente';
-    if (!alumnoId || !/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !items.length) {
-      return res.status(400).json({ error: 'Elige al estudiante, el día y al menos un producto.' });
+    if ((!alumnoId && !clienteUsuarioId) || !/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !items.length) {
+      return res.status(400).json({ error: 'Elige a la persona, el día y al menos un producto.' });
+    }
+    if (clienteUsuarioId && !mostrador && clienteUsuarioId !== req.user.id) {
+      return res.status(403).json({ error: 'Solo puedes pedir para ti.' });
     }
     if (!mostrador && config.corte_activo && config.corte_hora && horaLima() >= config.corte_hora && fecha <= hoyLima()) {
       return res.status(400).json({ error: `El corte de pedidos de hoy fue a las ${config.corte_hora}.` });
@@ -249,11 +295,12 @@ router.post('/pedidos', async (req, res) => {
     const pagoFinal = mostrador ? pago : 'pendiente';
     const ins = await execute(
       `INSERT INTO kiosco_pedidos
-        (colegio_id, alumno_id, usuario_id, codigo, fecha_consumo, estado, pago, origen, total, nota, creado_en)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (colegio_id, alumno_id, cliente_usuario_id, usuario_id, codigo, fecha_consumo, estado, pago, origen, total, nota, creado_en)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         colegioId,
         alumnoId,
+        clienteUsuarioId,
         req.user.id,
         codigo,
         fecha,
@@ -296,6 +343,35 @@ router.post('/pedidos', async (req, res) => {
   }
 });
 
+router.get('/clientes', async (req, res) => {
+  if (!(await exigirModulo(res))) return;
+  if (!esCaja(req.user)) return res.status(403).json({ error: 'No autorizado' });
+  const colegioId = req.user.colegio_id || DEFAULT_COLEGIO_ID;
+  const q = `%${String(req.query.q || '').trim()}%`;
+  if (q === '%%') return res.json({ clientes: [] });
+  try {
+    const alumnos = await query(
+      `SELECT id AS alumno_id, NULL AS usuario_id, CONCAT(nombres, ' ', apellido_paterno) AS nombre, 'Alumno' AS clase
+       FROM alumnos
+       WHERE colegio_id = ? AND (nombres LIKE ? OR apellido_paterno LIKE ? OR nro_documento LIKE ?)
+       ORDER BY apellido_paterno LIMIT 8`,
+      [colegioId, q, q, q]
+    );
+    const personal = await query(
+      `SELECT NULL AS alumno_id, u.id AS usuario_id, CONCAT(p.nombres, ' ', p.apellidos) AS nombre, u.tipo AS clase
+       FROM personal p
+       INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = p.colegio_id AND u.estado = 'ACTIVO'
+       WHERE p.colegio_id = ? AND u.tipo <> 'KIOSCO'
+         AND (p.nombres LIKE ? OR p.apellidos LIKE ? OR p.nro_documento LIKE ?)
+       ORDER BY p.apellidos LIMIT 8`,
+      [colegioId, q, q, q]
+    );
+    res.json({ clientes: [...(alumnos || []), ...(personal || [])] });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'No se pudo buscar' });
+  }
+});
+
 router.get('/pedidos', async (req, res) => {
   if (!(await exigirModulo(res))) return;
   if (!esCaja(req.user)) return res.status(403).json({ error: 'Solo el perfil Kiosco ve la cola.' });
@@ -304,9 +380,12 @@ router.get('/pedidos', async (req, res) => {
   try {
     const pedidos = await query(
       `SELECT p.id, p.codigo, p.fecha_consumo, p.estado, p.pago, p.origen, p.total, p.nota, p.creado_en,
-              a.nombres, a.apellido_paterno, a.apellido_materno, p.alumno_id
+              a.nombres, a.apellido_paterno, a.apellido_materno, p.alumno_id, p.cliente_usuario_id,
+              per.nombres AS per_nombres, per.apellidos AS per_apellidos
        FROM kiosco_pedidos p
-       INNER JOIN alumnos a ON a.id = p.alumno_id
+       LEFT JOIN alumnos a ON a.id = p.alumno_id
+       LEFT JOIN usuarios cu ON cu.id = p.cliente_usuario_id
+       LEFT JOIN personal per ON per.id = cu.personal_id
        WHERE p.colegio_id = ? AND (? = 'todos' OR p.estado = ?)
        ORDER BY p.id DESC
        LIMIT 80`,
@@ -320,9 +399,11 @@ router.get('/pedidos', async (req, res) => {
       );
       salida.push({
         ...p,
-        alumno: `${p.nombres || ''} ${p.apellido_paterno || ''}`.replace(/\s+/g, ' ').trim(),
-        grado: await gradoDeAlumno(p.alumno_id, colegioId),
-        deuda: await deudaDeAlumno(colegioId, p.alumno_id),
+        alumno: p.alumno_id
+          ? `${p.nombres || ''} ${p.apellido_paterno || ''}`.replace(/\s+/g, ' ').trim()
+          : `${p.per_nombres || ''} ${p.per_apellidos || ''}`.replace(/\s+/g, ' ').trim() || 'Personal',
+        grado: p.alumno_id ? await gradoDeAlumno(p.alumno_id, colegioId) : 'Personal',
+        deuda: await deudaDeCliente(colegioId, p.alumno_id, p.cliente_usuario_id),
         items: items || [],
       });
     }
@@ -359,12 +440,15 @@ router.post('/pedidos/:id/estado', async (req, res) => {
     const pagoSql = ['pagado', 'pendiente', 'fiado'].includes(pago) ? pago : ped.pago;
     await execute('UPDATE kiosco_pedidos SET estado = ?, pago = ? WHERE id = ?', [estado, pagoSql, id]);
     if (estado === 'aceptado' || estado === 'rechazado') {
-      const padres = await query(
-        `SELECT u.id FROM usuarios u
-         INNER JOIN familias f ON f.apoderado_id = u.apoderado_id
-         WHERE f.alumno_id = ? AND u.tipo = 'APODERADO' AND u.colegio_id = ?`,
-        [ped.alumno_id, colegioId]
-      );
+      const padres = ped.alumno_id
+        ? await query(
+          `SELECT u.id FROM usuarios u
+           INNER JOIN familias f ON f.apoderado_id = u.apoderado_id
+           WHERE f.alumno_id = ? AND u.tipo = 'APODERADO' AND u.colegio_id = ?`,
+          [ped.alumno_id, colegioId]
+        )
+        : [];
+      if (ped.cliente_usuario_id) padres.push({ id: ped.cliente_usuario_id });
       const texto = estado === 'aceptado'
         ? `Tu pedido ${ped.codigo} fue aceptado. Total S/ ${Number(ped.total).toFixed(2)}.`
         : `Tu pedido ${ped.codigo} no fue aceptado.`;

@@ -668,6 +668,14 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Dashboard</span>
                 </NavLink>
               </div>
+              {activo('kiosco') && (
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/kiosco">
+                  <span className="sidebar-icon">☕</span>
+                  <span className="sidebar-label">Kiosco cafetín</span>
+                </NavLink>
+              </div>
+              )}
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/perfil">
                   <span className="sidebar-icon">👤</span>
@@ -1098,6 +1106,14 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Dashboard</span>
                 </NavLink>
               </div>
+              {activo('kiosco') && (
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/kiosco">
+                  <span className="sidebar-icon">☕</span>
+                  <span className="sidebar-label">Kiosco cafetín</span>
+                </NavLink>
+              </div>
+              )}
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/perfil">
                   <span className="sidebar-icon">👤</span>
@@ -1356,6 +1372,14 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Dashboard</span>
                 </NavLink>
               </div>
+              {activo('kiosco') && (
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/kiosco">
+                  <span className="sidebar-icon">☕</span>
+                  <span className="sidebar-label">Kiosco cafetín</span>
+                </NavLink>
+              </div>
+              )}
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/perfil">
                   <span className="sidebar-icon">👤</span>
@@ -1576,6 +1600,14 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Dashboard</span>
                 </NavLink>
               </div>
+              {activo('kiosco') && (
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/kiosco">
+                  <span className="sidebar-icon">☕</span>
+                  <span className="sidebar-label">Kiosco cafetín</span>
+                </NavLink>
+              </div>
+              )}
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/perfil">
                   <span className="sidebar-icon">👤</span>

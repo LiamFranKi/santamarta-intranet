@@ -319,7 +319,7 @@ function AppRoutes() {
       <Route
         path="/kiosco"
         element={(
-          <PrivateRoute requiredTypes={['KIOSCO', 'ADMINISTRADOR', 'APODERADO', 'ALUMNO']}>
+          <PrivateRoute requiredTypes={['KIOSCO', 'ADMINISTRADOR', 'APODERADO', 'ALUMNO', 'DOCENTE', 'DIRECTOR', 'AUXILIAR', 'SECRETARIA', 'CAJERO', 'ENFERMERA', 'PROMOTORIA', 'COORDINADOR', 'PSICOLOGA', 'CONTADOR', 'TUTOR', 'MANTENIMIENTO']}>
             <KioscoCafetin />
           </PrivateRoute>
         )}

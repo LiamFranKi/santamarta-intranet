@@ -21,6 +21,10 @@ export default function KioscoCafetin() {
   const { user } = useAuth();
   const caja = user?.tipo === 'KIOSCO' || user?.tipo === 'ADMINISTRADOR';
   const [tab, setTab] = useState(caja ? 'pedidos' : 'pedir');
+  const [yo, setYo] = useState(null);
+  const [busca, setBusca] = useState('');
+  const [clientes, setClientes] = useState([]);
+  const [clienteUsuarioId, setClienteUsuarioId] = useState('');
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [config, setConfig] = useState(null);
@@ -66,6 +70,7 @@ export default function KioscoCafetin() {
           const { data } = await api.get('/kiosco/hijos');
           if (!vivo) return;
           setHijos(data.hijos || []);
+          setYo(data.yo || null);
           if (data.hijos?.[0]) setAlumnoId(String(data.hijos[0].id));
         }
       } catch (e) {
@@ -121,7 +126,9 @@ export default function KioscoCafetin() {
     setError('');
     try {
       const { data } = await api.post('/kiosco/pedidos', {
-        alumno_id: parseInt(alumnoId, 10),
+        alumno_id: alumnoId ? parseInt(alumnoId, 10) : null,
+        cliente_usuario_id: clienteUsuarioId ? parseInt(clienteUsuarioId, 10) : null,
+        para_mi: Boolean(yo) && !caja,
         fecha,
         items: carrito.map((it) => ({ producto_id: it.producto_id, cantidad: it.cantidad })),
         origen,
@@ -184,6 +191,7 @@ export default function KioscoCafetin() {
       {caja && (
         <nav className="kio-tabs">
           {[
+            ['vender', 'Vender'],
             ['pedidos', 'Pedidos'],
             ['carta', 'Carta del día'],
             ['productos', 'Productos'],
@@ -198,7 +206,7 @@ export default function KioscoCafetin() {
       {error && <p className="kio-alert">{error}</p>}
       {aviso && <p className="kio-ok">{aviso}</p>}
 
-      {(tab === 'pedir' || !caja) && (
+      {(tab === 'vender' || tab === 'pedir' || !caja) && (
         <section className="kio-pedir">
           <div className="kio-dias">
             {dias.map((d) => (
@@ -218,10 +226,40 @@ export default function KioscoCafetin() {
               {hijoSel && <span className="kio-deuda">Debe S/ {Number(hijoSel.deuda).toFixed(2)}</span>}
             </label>
           )}
+          {yo && !caja && (
+            <p className="kio-hijo">Pedido para <strong>{yo.nombre}</strong> <span className="kio-deuda">Debe S/ {Number(yo.deuda).toFixed(2)}</span></p>
+          )}
           {caja && (
             <label className="kio-hijo">
-              Estudiante (id)
-              <input value={alumnoId} onChange={(e) => setAlumnoId(e.target.value)} placeholder="ID del alumno" />
+              Alumno o personal
+              <input
+                value={busca}
+                onChange={async (e) => {
+                  const v = e.target.value;
+                  setBusca(v);
+                  if (v.trim().length < 2) { setClientes([]); return; }
+                  const { data } = await api.get('/kiosco/clientes', { params: { q: v.trim() } });
+                  setClientes(data.clientes || []);
+                }}
+                placeholder="Nombre o DNI"
+              />
+              {clientes.length > 0 && (
+                <select
+                  value={alumnoId ? `a-${alumnoId}` : clienteUsuarioId ? `u-${clienteUsuarioId}` : ''}
+                  onChange={(e) => {
+                    const [tipo, id] = e.target.value.split('-');
+                    setAlumnoId(tipo === 'a' ? id : '');
+                    setClienteUsuarioId(tipo === 'u' ? id : '');
+                  }}
+                >
+                  <option value="">Elige</option>
+                  {clientes.map((c) => (
+                    <option key={`${c.alumno_id || 'u'}-${c.usuario_id || c.alumno_id}`} value={c.alumno_id ? `a-${c.alumno_id}` : `u-${c.usuario_id}`}>
+                      {c.nombre} · {c.clase}
+                    </option>
+                  ))}
+                </select>
+              )}
             </label>
           )}
           <div className="kio-cats">
@@ -255,14 +293,14 @@ export default function KioscoCafetin() {
             ))}
             <p className="kio-total">Total S/ {total.toFixed(2)}</p>
             {!caja && (
-              <button type="button" className="kio-btn" disabled={enviando || !carrito.length || !alumnoId} onClick={() => pedir('linea', 'pendiente')}>
+              <button type="button" className="kio-btn" disabled={enviando || !carrito.length || (!alumnoId && !yo)} onClick={() => pedir('linea', 'pendiente')}>
                 {enviando ? 'Enviando…' : 'Pedir'}
               </button>
             )}
             {caja && (
               <div className="kio-btn-row">
-                <button type="button" className="kio-btn" disabled={enviando || !carrito.length || !alumnoId} onClick={() => pedir('mostrador', 'pagado')}>Cobrar</button>
-                <button type="button" className="kio-btn kio-btn-ghost" disabled={enviando || !carrito.length || !alumnoId} onClick={() => pedir('mostrador', 'fiado')}>Fiar</button>
+                <button type="button" className="kio-btn" disabled={enviando || !carrito.length || (!alumnoId && !clienteUsuarioId)} onClick={() => pedir('mostrador', 'pagado')}>Cobrar</button>
+                <button type="button" className="kio-btn kio-btn-ghost" disabled={enviando || !carrito.length || (!alumnoId && !clienteUsuarioId)} onClick={() => pedir('mostrador', 'fiado')}>Fiar</button>
               </div>
             )}
           </aside>
@@ -394,25 +432,79 @@ export default function KioscoCafetin() {
       )}
 
       {caja && tab === 'ajustes' && config && (
-        <section className="kio-forms">
+        <section className="kio-ajustes">
           <h2>Cómo se pide</h2>
-          <label>Quién puede pedir en línea
+          <div className="kio-ajuste">
+            <div>
+              <strong>Familia</strong>
+              <p>Quién de la familia puede armar un pedido en línea.</p>
+            </div>
             <select value={config.quien_pide} onChange={(e) => setConfig({ ...config, quien_pide: e.target.value })}>
               <option value="AMBOS">Papá y alumno</option>
               <option value="APODERADO">Solo el papá</option>
               <option value="ALUMNO">Solo el alumno</option>
             </select>
-          </label>
-          <label><input type="checkbox" checked={config.limite_activo} onChange={(e) => setConfig({ ...config, limite_activo: e.target.checked })} /> Límite de monto por pedido</label>
-          {config.limite_activo && (
-            <input type="number" min="0" step="0.5" value={config.limite_monto} onChange={(e) => setConfig({ ...config, limite_monto: e.target.value })} />
-          )}
-          <label><input type="checkbox" checked={config.corte_activo} onChange={(e) => setConfig({ ...config, corte_activo: e.target.checked })} /> Hora de corte</label>
-          {config.corte_activo && (
-            <input type="time" value={config.corte_hora || '20:00'} onChange={(e) => setConfig({ ...config, corte_hora: e.target.value })} />
-          )}
-          <label><input type="checkbox" checked={config.comida_activa} onChange={(e) => setConfig({ ...config, comida_activa: e.target.checked })} /> Ofrecer comida</label>
-          <label><input type="checkbox" checked={config.fiado_activo} onChange={(e) => setConfig({ ...config, fiado_activo: e.target.checked })} /> Permitir fiado</label>
+          </div>
+          <div className="kio-ajuste">
+            <div>
+              <strong>Personal</strong>
+              <p>Docentes y administrativos también pueden pedir en línea.</p>
+            </div>
+            <label className="kio-switch">
+              <input type="checkbox" checked={config.pide_personal !== false} onChange={(e) => setConfig({ ...config, pide_personal: e.target.checked })} />
+              <span>{config.pide_personal !== false ? 'Pueden pedir' : 'No pueden pedir'}</span>
+            </label>
+          </div>
+          <div className="kio-ajuste">
+            <div>
+              <strong>Límite de monto</strong>
+              <p>Si está apagado, el pedido no tiene tope.</p>
+            </div>
+            <div className="kio-ajuste-ctrl">
+              <label className="kio-switch">
+                <input type="checkbox" checked={config.limite_activo} onChange={(e) => setConfig({ ...config, limite_activo: e.target.checked })} />
+                <span>{config.limite_activo ? 'Con límite' : 'Sin límite'}</span>
+              </label>
+              {config.limite_activo && (
+                <input type="number" min="0" step="0.5" value={config.limite_monto} onChange={(e) => setConfig({ ...config, limite_monto: e.target.value })} />
+              )}
+            </div>
+          </div>
+          <div className="kio-ajuste">
+            <div>
+              <strong>Hora de corte</strong>
+              <p>Si está apagada, se puede pedir hasta el último momento.</p>
+            </div>
+            <div className="kio-ajuste-ctrl">
+              <label className="kio-switch">
+                <input type="checkbox" checked={config.corte_activo} onChange={(e) => setConfig({ ...config, corte_activo: e.target.checked })} />
+                <span>{config.corte_activo ? 'Con corte' : 'Sin corte'}</span>
+              </label>
+              {config.corte_activo && (
+                <input type="time" value={config.corte_hora || '20:00'} onChange={(e) => setConfig({ ...config, corte_hora: e.target.value })} />
+              )}
+            </div>
+          </div>
+          <div className="kio-ajuste">
+            <div>
+              <strong>Comida</strong>
+              <p>Muestra los productos marcados como comida.</p>
+            </div>
+            <label className="kio-switch">
+              <input type="checkbox" checked={config.comida_activa} onChange={(e) => setConfig({ ...config, comida_activa: e.target.checked })} />
+              <span>{config.comida_activa ? 'Ofrecer' : 'Ocultar'}</span>
+            </label>
+          </div>
+          <div className="kio-ajuste">
+            <div>
+              <strong>Fiado</strong>
+              <p>Permite dejar el pago pendiente.</p>
+            </div>
+            <label className="kio-switch">
+              <input type="checkbox" checked={config.fiado_activo} onChange={(e) => setConfig({ ...config, fiado_activo: e.target.checked })} />
+              <span>{config.fiado_activo ? 'Permitido' : 'No permitir'}</span>
+            </label>
+          </div>
           <button type="button" className="kio-btn" onClick={() => guardarAjustes(config)}>Guardar ajustes</button>
         </section>
       )}
