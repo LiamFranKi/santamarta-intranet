@@ -323,7 +323,55 @@
   line-height: 1.35;
   text-align: center;
 }
-.kio-modal-body textarea {
+.kio-modal-body form input,
+.kio-modal-body form select,
+.kio-modal-body form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  display: block;
+  margin-bottom: 0.75rem;
+}
+.kio-input-nombre { font-size: 1.15rem; font-weight: 700; padding: 0.8rem 0.75rem; }
+.kio-modal-body form textarea { min-height: 4.2rem; font-size: 0.92rem; }
+.kio-modal-body form select { min-height: 2.8rem; font-size: 1rem; }
+.kio-emoji-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid #eadfd4;
+  background: #fff;
+  border-radius: 12px;
+  padding: 0.55rem 0.8rem;
+  margin-bottom: 0.75rem;
+  cursor: pointer;
+  font: inherit;
+  color: #241910;
+}
+.kio-emoji-btn span { font-size: 1.5rem; }
+.kio-emoji-grid { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.kio-emoji-grid button {
+  width: 2.6rem;
+  height: 2.6rem;
+  border: 0;
+  border-radius: 10px;
+  background: #f6efe7;
+  font-size: 1.3rem;
+  cursor: pointer;
+}
+.kio-emoji-grid button.is-on { outline: 2px solid #c2410c; }
+.kio-checks { display: flex; gap: 1.4rem; align-items: center; flex-wrap: wrap; margin: 0.2rem 0 0.9rem; }
+.kio-checks .kio-check { margin: 0; }
+.kio-atras {
+  border: 0;
+  background: #1c1410;
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  cursor: pointer;
+  margin-bottom: 0.7rem;
+}
+.kio-cat-titulo { margin: 0 0 0.7rem; }
+.kio-modal-body form textarea {
   width: 100%;
   border: 1px solid #eadfd4;
   border-radius: 12px;
@@ -331,7 +379,6 @@
   font: inherit;
   color: #241910;
   resize: vertical;
-  margin-bottom: 0.55rem;
 }
 .kio-plato em { font-style: normal; color: #c2410c; font-weight: 700; }
 

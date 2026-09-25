@@ -13,19 +13,6 @@ function sumarDias(iso, dias) {
 
 const EMOJIS = ['🥤', '🧃', '💧', '☕', '🍪', '🍫', '🍬', '🍩', '🍔', '🍟', '🌭', '🍕', '🥪', '🌮', '🥗', '🍚', '🍗', '🍦', '🍎', '🍌'];
 
-function EmojiCampo({ value, onChange }) {
-  return (
-    <div className="kio-emoji">
-      <div className="kio-emoji-grid">
-        {EMOJIS.map((e) => (
-          <button key={e} type="button" className={value === e ? 'is-on' : ''} onClick={() => onChange(e)}>{e}</button>
-        ))}
-      </div>
-      <input value={value} onChange={(ev) => onChange(ev.target.value)} placeholder="O pega otro emoji" />
-    </div>
-  );
-}
-
 function etiquetaDia(iso, hoy) {
   if (iso === hoy) return 'Hoy';
   if (iso === sumarDias(hoy, 1)) return 'Mañana';
@@ -107,7 +94,10 @@ export default function KioscoCafetin() {
   const [formProd, setFormProd] = useState({
     nombre: '', precio: '', detalle: '', emoji: '🥤', categoria_id: '', siempre: true, es_comida: false, stock: '', imagen: null,
   });
-  const [sumar, setSumar] = useState({});
+  const [vistaCarta, setVistaCarta] = useState('cats');
+  const [emojiPara, setEmojiPara] = useState(null);
+  const [stockDe, setStockDe] = useState(null);
+  const [stockCant, setStockCant] = useState('');
 
   const cargarBase = useCallback(async () => {
     const { data } = await api.get('/kiosco/config');
@@ -183,8 +173,9 @@ export default function KioscoCafetin() {
   }, []);
 
   const productosVisibles = useMemo(() => {
-    if (!catId) return carta.productos;
-    return carta.productos.filter((p) => String(p.categoria_id) === String(catId));
+    if (catId === 'carta') return carta.productos.filter((p) => Number(p.siempre) !== 1);
+    if (!catId) return [];
+    return carta.productos.filter((p) => String(p.categoria_id) === String(catId) && Number(p.siempre) === 1);
   }, [carta, catId]);
 
   const total = carrito.reduce((s, it) => s + Number(it.precio) * it.cantidad, 0);
@@ -290,16 +281,27 @@ export default function KioscoCafetin() {
     setVentana(null);
   };
 
-  const cartaBloque = (
+  const nombreCat = catId === 'carta'
+    ? 'Carta del día'
+    : (carta.categorias.find((c) => String(c.id) === String(catId))?.nombre || 'Productos');
+
+  const cartaBloque = vistaCarta === 'cats' ? (
+    <div className="kio-cats-lg">
+      <button type="button" onClick={() => { setCatId('carta'); setVistaCarta('prods'); }}>
+        <span>🍽️</span>
+        <span>Carta del día</span>
+      </button>
+      {carta.categorias.map((c) => (
+        <button key={c.id} type="button" onClick={() => { setCatId(String(c.id)); setVistaCarta('prods'); }}>
+          <Foto src={c.imagen_url} emoji={c.emoji} />
+          <span>{c.nombre}</span>
+        </button>
+      ))}
+    </div>
+  ) : (
     <>
-      <div className="kio-cats-lg">
-        {carta.categorias.map((c) => (
-          <button key={c.id} type="button" className={String(catId) === String(c.id) ? 'is-on' : ''} onClick={() => setCatId(String(c.id))}>
-            <Foto src={c.imagen_url} emoji={c.emoji} />
-            <span>{c.nombre}</span>
-          </button>
-        ))}
-      </div>
+      <button type="button" className="kio-atras" onClick={() => setVistaCarta('cats')}>← Categorías</button>
+      <h3 className="kio-cat-titulo">{nombreCat}</h3>
       <div className="kio-platos">
         {productosVisibles.map((p) => (
           <button key={p.id} type="button" className="kio-plato" onClick={() => abrirPieza(p)}>
@@ -309,7 +311,7 @@ export default function KioscoCafetin() {
             <em>S/ {Number(p.precio).toFixed(2)}</em>
           </button>
         ))}
-        {!productosVisibles.length && <p className="kio-vacio">Esta categoría no tiene productos hoy.</p>}
+        {!productosVisibles.length && <p className="kio-vacio">{catId === 'carta' ? 'Hoy no hay platos de la carta.' : 'Esta categoría no tiene productos de siempre.'}</p>}
       </div>
     </>
   );
@@ -452,19 +454,8 @@ export default function KioscoCafetin() {
                   <strong>{p.nombre}</strong>
                   {p.descripcion ? <small className="kio-detalle">{p.descripcion}</small> : null}
                   <em>S/ {Number(p.precio).toFixed(2)} · stock {p.stock}</em>
-                  <div className="kio-sumar">
-                    <input type="number" min="1" placeholder="+ stock" value={sumar[p.id] || ''} onChange={(e) => setSumar((s) => ({ ...s, [p.id]: e.target.value }))} />
-                    <button type="button" onClick={() => {
-                      const n = parseInt(sumar[p.id], 10);
-                      if (!n) return;
-                      api.post('/kiosco/stock', { producto_id: p.id, cantidad: n }).then(() => {
-                        setSumar((s) => ({ ...s, [p.id]: '' }));
-                        setAviso(`Sumaste ${n} a ${p.nombre}.`);
-                        cargarCatalogo();
-                      });
-                    }} title="Sumar stock" aria-label="Sumar stock"><Icono tipo="plus" /></button>
-                  </div>
                   <div className="kio-btn-row">
+                    <button type="button" className="kio-icono" title="Aumentar stock" aria-label="Aumentar stock" onClick={() => { setStockDe(p); setStockCant(''); }}><Icono tipo="plus" /></button>
                     <button type="button" className="kio-icono kio-icono-oscuro" onClick={() => {
                       setEditProdId(p.id);
                       setFormProd({
@@ -818,12 +809,11 @@ export default function KioscoCafetin() {
                 setError(err.response?.data?.error || 'No se pudo guardar la categoría.');
               }
             }}>
-              <input value={formCat.nombre} onChange={(e) => setFormCat({ ...formCat, nombre: e.target.value })} placeholder="Nombre" required />
-              <EmojiCampo value={formCat.emoji} onChange={(emoji) => setFormCat({ ...formCat, emoji })} />
-              <label className="kio-file">Foto de la categoría
+              <input className="kio-input-nombre" value={formCat.nombre} onChange={(e) => setFormCat({ ...formCat, nombre: e.target.value })} placeholder="Nombre" required />
+              <button type="button" className="kio-emoji-btn" onClick={() => setEmojiPara('cat')}><span>{formCat.emoji || '🍽️'}</span> Icono</button>
+              <label className="kio-file">Foto
                 <input type="file" accept="image/*" onChange={(e) => setFormCat({ ...formCat, imagen: e.target.files?.[0] || null })} />
               </label>
-              <p className="kio-hint">Cuadrada, 400×400 px. Se muestra con esquinas redondeadas.</p>
               <button className="kio-btn" type="submit">{editCatId ? 'Guardar' : 'Crear'}</button>
             </form>
           </Modal>
@@ -857,23 +847,54 @@ export default function KioscoCafetin() {
                 setError(err.response?.data?.error || 'No se pudo guardar el producto.');
               }
             }}>
-              <input value={formProd.nombre} onChange={(e) => setFormProd({ ...formProd, nombre: e.target.value })} placeholder="Nombre" required />
-              <textarea value={formProd.detalle} onChange={(e) => setFormProd({ ...formProd, detalle: e.target.value })} placeholder="Detalle: entrada, segundo, postre…" rows={3} maxLength={255} />
+              <input className="kio-input-nombre" value={formProd.nombre} onChange={(e) => setFormProd({ ...formProd, nombre: e.target.value })} placeholder="Nombre" required />
+              <textarea value={formProd.detalle} onChange={(e) => setFormProd({ ...formProd, detalle: e.target.value })} placeholder="Detalle: entrada, segundo, postre…" rows={2} maxLength={255} />
               <input value={formProd.precio} onChange={(e) => setFormProd({ ...formProd, precio: e.target.value })} placeholder="Precio" required />
-              <EmojiCampo value={formProd.emoji} onChange={(emoji) => setFormProd({ ...formProd, emoji })} />
-              <label className="kio-file">Foto del producto
+              <button type="button" className="kio-emoji-btn" onClick={() => setEmojiPara('prod')}><span>{formProd.emoji || '🍽️'}</span> Icono</button>
+              <label className="kio-file">Foto
                 <input type="file" accept="image/*" onChange={(e) => setFormProd({ ...formProd, imagen: e.target.files?.[0] || null })} />
               </label>
-              <p className="kio-hint">Cuadrada, 600×600 px. En la grilla se ve cuadrada, con esquinas redondeadas.</p>
               <select value={formProd.categoria_id} onChange={(e) => setFormProd({ ...formProd, categoria_id: e.target.value })}>
                 <option value="">Sin categoría</option>
                 {catalogo.categorias.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
               <input value={formProd.stock} onChange={(e) => setFormProd({ ...formProd, stock: e.target.value })} placeholder="Stock" />
-              <label className="kio-check"><input type="checkbox" checked={formProd.siempre} onChange={(e) => setFormProd({ ...formProd, siempre: e.target.checked })} /> De siempre</label>
-              <label className="kio-check"><input type="checkbox" checked={formProd.es_comida} onChange={(e) => setFormProd({ ...formProd, es_comida: e.target.checked })} /> Es comida</label>
+              <div className="kio-checks">
+                <label className="kio-check"><input type="checkbox" checked={formProd.siempre} onChange={(e) => setFormProd({ ...formProd, siempre: e.target.checked })} /> De siempre</label>
+                <label className="kio-check"><input type="checkbox" checked={formProd.es_comida} onChange={(e) => setFormProd({ ...formProd, es_comida: e.target.checked })} /> Es comida</label>
+              </div>
               <button className="kio-btn" type="submit">{editProdId ? 'Guardar' : 'Publicar'}</button>
             </form>
+          </Modal>
+        )}
+
+        {emojiPara && (
+          <Modal titulo="Elegir icono" onClose={() => setEmojiPara(null)} encima>
+            <div className="kio-emoji-grid">
+              {EMOJIS.map((e) => (
+                <button key={e} type="button" className={(emojiPara === 'prod' ? formProd.emoji : formCat.emoji) === e ? 'is-on' : ''} onClick={() => {
+                  if (emojiPara === 'prod') setFormProd((f) => ({ ...f, emoji: e }));
+                  else setFormCat((f) => ({ ...f, emoji: e }));
+                  setEmojiPara(null);
+                }}>{e}</button>
+              ))}
+            </div>
+          </Modal>
+        )}
+
+        {stockDe && (
+          <Modal titulo="Aumentar stock" onClose={() => setStockDe(null)} encima>
+            <p>{stockDe.nombre}. Ahora hay {stockDe.stock}.</p>
+            <input type="number" min="1" value={stockCant} onChange={(e) => setStockCant(e.target.value)} placeholder="Cantidad a sumar" />
+            <button type="button" className="kio-btn" onClick={() => {
+              const n = parseInt(stockCant, 10);
+              if (!n) return;
+              api.post('/kiosco/stock', { producto_id: stockDe.id, cantidad: n }).then(() => {
+                setAviso(`Sumaste ${n} a ${stockDe.nombre}.`);
+                setStockDe(null);
+                cargarCatalogo();
+              });
+            }}>Guardar</button>
           </Modal>
         )}
 
