@@ -32,13 +32,33 @@ function etiquetaDia(iso, hoy) {
   return d.toLocaleDateString('es-PE', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
+function Foto({ src, emoji }) {
+  if (src) return <img src={src} alt="" />;
+  return <span>{emoji || '🍽️'}</span>;
+}
+
+function Modal({ titulo, onClose, children, ancho, encima }) {
+  return (
+    <div className={`kio-overlay${encima ? ' kio-overlay-top' : ''}`} onClick={onClose} role="presentation">
+      <div className={`kio-modal ${ancho || ''}`} onClick={(e) => e.stopPropagation()} role="dialog">
+        <header>
+          <h2>{titulo}</h2>
+          <button type="button" className="kio-x" onClick={onClose} aria-label="Cerrar">×</button>
+        </header>
+        <div className="kio-modal-body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function KioscoCafetin() {
   const { user } = useAuth();
   const caja = user?.tipo === 'KIOSCO' || user?.tipo === 'ADMINISTRADOR';
-  const [tab, setTab] = useState(caja ? 'pedidos' : 'pedir');
+  const [ventana, setVentana] = useState(null);
   const [yo, setYo] = useState(null);
   const [busca, setBusca] = useState('');
   const [clientes, setClientes] = useState([]);
+  const [clienteSel, setClienteSel] = useState(null);
   const [clienteUsuarioId, setClienteUsuarioId] = useState('');
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
@@ -46,10 +66,12 @@ export default function KioscoCafetin() {
   const [hoy, setHoy] = useState('');
   const [fecha, setFecha] = useState('');
   const [carta, setCarta] = useState({ categorias: [], productos: [] });
-  const [catId, setCatId] = useState('todas');
+  const [catId, setCatId] = useState('');
   const [hijos, setHijos] = useState([]);
   const [alumnoId, setAlumnoId] = useState('');
   const [carrito, setCarrito] = useState([]);
+  const [pieza, setPieza] = useState(null);
+  const [cant, setCant] = useState(1);
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState('');
   const [pedidos, setPedidos] = useState([]);
@@ -72,7 +94,9 @@ export default function KioscoCafetin() {
   const cargarCarta = useCallback(async (dia) => {
     if (!dia) return;
     const { data } = await api.get('/kiosco/carta', { params: { fecha: dia } });
-    setCarta({ categorias: data.categorias || [], productos: data.productos || [] });
+    const categorias = data.categorias || [];
+    setCarta({ categorias, productos: data.productos || [] });
+    setCatId((id) => id || (categorias[0] ? String(categorias[0].id) : ''));
   }, []);
 
   useEffect(() => {
@@ -88,6 +112,12 @@ export default function KioscoCafetin() {
           setHijos(data.hijos || []);
           setYo(data.yo || null);
           if (data.hijos?.[0]) setAlumnoId(String(data.hijos[0].id));
+        } else {
+          const r = await api.get('/kiosco/resumen');
+          const p = await api.get('/kiosco/pedidos', { params: { estado: 'todos' } });
+          if (!vivo) return;
+          setResumen(r.data);
+          setPedidos(p.data.pedidos || []);
         }
       } catch (e) {
         if (vivo) setError(e.response?.data?.error || 'No se pudo abrir el kiosco.');
@@ -114,26 +144,57 @@ export default function KioscoCafetin() {
     setCatalogo({ categorias: data.categorias || [], productos: data.productos || [] });
   }, []);
 
-  useEffect(() => {
-    if (!caja) return;
-    if (tab === 'pedidos' || tab === 'caja') cargarPedidos().catch(() => {});
-    if (tab === 'productos' || tab === 'carta') cargarCatalogo().catch(() => {});
-  }, [caja, tab, cargarPedidos, cargarCatalogo]);
-
   const productosVisibles = useMemo(() => {
-    if (catId === 'todas') return carta.productos;
+    if (!catId) return carta.productos;
     return carta.productos.filter((p) => String(p.categoria_id) === String(catId));
   }, [carta, catId]);
 
   const total = carrito.reduce((s, it) => s + Number(it.precio) * it.cantidad, 0);
+  const piezas = carrito.reduce((s, it) => s + it.cantidad, 0);
   const hijoSel = hijos.find((h) => String(h.id) === String(alumnoId));
+  const dias = hoy ? [0, 1, 2, 3, 4, 5, 6].map((n) => sumarDias(hoy, n)) : [];
+  const esperando = pedidos.filter((p) => p.estado === 'pedido').length;
 
-  const agregar = (p) => {
+  const abrirPieza = (p) => {
+    setPieza(p);
+    setCant(1);
+  };
+
+  const confirmarPieza = () => {
+    const n = Math.max(1, cant);
     setCarrito((prev) => {
-      const ya = prev.find((it) => it.producto_id === p.id);
-      if (ya) return prev.map((it) => (it.producto_id === p.id ? { ...it, cantidad: it.cantidad + 1 } : it));
-      return [...prev, { producto_id: p.id, nombre: p.nombre, precio: Number(p.precio), cantidad: 1, emoji: p.emoji }];
+      const ya = prev.find((it) => it.producto_id === pieza.id);
+      if (ya) {
+        return prev.map((it) => (it.producto_id === pieza.id ? { ...it, cantidad: it.cantidad + n } : it));
+      }
+      return [...prev, {
+        producto_id: pieza.id,
+        nombre: pieza.nombre,
+        precio: Number(pieza.precio),
+        cantidad: n,
+        emoji: pieza.emoji,
+        imagen_url: pieza.imagen_url,
+      }];
     });
+    setPieza(null);
+  };
+
+  const buscarCliente = async (texto) => {
+    setBusca(texto);
+    if (texto.trim().length < 2) {
+      setClientes([]);
+      return;
+    }
+    const { data } = await api.get('/kiosco/clientes', { params: { q: texto.trim() } });
+    setClientes(data.clientes || []);
+  };
+
+  const elegirCliente = (c) => {
+    setClienteSel(c);
+    setAlumnoId(c.alumno_id ? String(c.alumno_id) : '');
+    setClienteUsuarioId(c.usuario_id ? String(c.usuario_id) : '');
+    setClientes([]);
+    setBusca(c.nombre);
   };
 
   const pedir = async (origen, pago) => {
@@ -151,8 +212,10 @@ export default function KioscoCafetin() {
         pago,
       });
       setCarrito([]);
+      setVentana(null);
       setAviso(origen === 'mostrador' ? `Venta lista. Código ${data.codigo}.` : `Pedido enviado. Código ${data.codigo}.`);
       cargarCarta(fecha).catch(() => {});
+      if (caja) cargarPedidos().catch(() => {});
     } catch (e) {
       setError(e.response?.data?.error || 'No se pudo enviar el pedido.');
     } finally {
@@ -169,399 +232,365 @@ export default function KioscoCafetin() {
     const { data } = await api.put('/kiosco/config', siguiente);
     setConfig(data.config);
     setAviso('Ajustes guardados.');
+    setVentana(null);
   };
+
+  const cartaBloque = (
+    <>
+      <div className="kio-cats-lg">
+        {carta.categorias.map((c) => (
+          <button key={c.id} type="button" className={String(catId) === String(c.id) ? 'is-on' : ''} onClick={() => setCatId(String(c.id))}>
+            <Foto src={c.imagen_url} emoji={c.emoji} />
+            <span>{c.nombre}</span>
+          </button>
+        ))}
+      </div>
+      <div className="kio-platos">
+        {productosVisibles.map((p) => (
+          <button key={p.id} type="button" className="kio-plato" onClick={() => abrirPieza(p)}>
+            <div className="kio-plato-foto"><Foto src={p.imagen_url} emoji={p.emoji} /></div>
+            <strong>{p.nombre}</strong>
+            <em>S/ {Number(p.precio).toFixed(2)}</em>
+          </button>
+        ))}
+        {!productosVisibles.length && <p className="kio-vacio">Esta categoría no tiene productos hoy.</p>}
+      </div>
+    </>
+  );
 
   if (cargando) {
     return (
       <DashboardLayout>
-      <div className="kio-page">
-        <div className="kio-loading">
-          <div className="kio-loading-mark">☕</div>
-          <p>Preparando la carta…</p>
-        </div>
-      </div>
+        <div className="kio-page"><div className="kio-loading"><div className="kio-loading-mark">☕</div><p>Preparando la carta…</p></div></div>
       </DashboardLayout>
     );
   }
 
-  const dias = hoy ? [0, 1, 2, 3, 4, 5, 6].map((n) => sumarDias(hoy, n)) : [];
-
   return (
     <DashboardLayout>
-    <div className="kio-page">
-      <header className="kio-hero">
-        <div>
-          <p className="kio-kicker">Colegio</p>
-          <h1>Kiosco cafetín</h1>
-          <p className="kio-lead">Lo de siempre y lo del día, para pedir con calma.</p>
-        </div>
-        {resumen && caja && (
-          <div className="kio-stats">
-            <div><span>Hoy</span><strong>S/ {resumen.ventas_dia.toFixed(2)}</strong></div>
-            <div><span>Mes</span><strong>S/ {resumen.ventas_mes.toFixed(2)}</strong></div>
-            <div><span>Fiado</span><strong>S/ {resumen.fiado.toFixed(2)}</strong></div>
+      <div className="kio-page">
+        <header className="kio-hero">
+          <div>
+            <p className="kio-kicker">{caja ? 'Mostrador' : 'Para llevar'}</p>
+            <h1>Kiosco cafetín</h1>
+          </div>
+          {caja && resumen && (
+            <div className="kio-stats">
+              <div><span>Hoy</span><strong>S/ {resumen.ventas_dia.toFixed(2)}</strong></div>
+              <div><span>Mes</span><strong>S/ {resumen.ventas_mes.toFixed(2)}</strong></div>
+              <div><span>Fiado</span><strong>S/ {resumen.fiado.toFixed(2)}</strong></div>
+            </div>
+          )}
+        </header>
+
+        {error && <p className="kio-alert">{error}</p>}
+        {aviso && <p className="kio-ok">{aviso}</p>}
+
+        {caja ? (
+          <div className="kio-acciones">
+            <button type="button" className="kio-accion kio-accion-venta" onClick={() => setVentana('vender')}>
+              <span>Vender</span><small>DNI, productos y cobro</small>
+            </button>
+            <button type="button" className="kio-accion" onClick={() => { setVentana('pedidos'); cargarPedidos(); }}>
+              <span>Pedidos</span><small>{esperando} esperando</small>
+            </button>
+            <button type="button" className="kio-accion" onClick={() => { setVentana('productos'); cargarCatalogo(); }}>
+              <span>Productos</span><small>Fotos, stock y categorías</small>
+            </button>
+            <button type="button" className="kio-accion" onClick={() => { setVentana('carta'); cargarCatalogo(); }}>
+              <span>Carta del día</span><small>Lo novedoso de cada fecha</small>
+            </button>
+            <button type="button" className="kio-accion" onClick={() => { setVentana('caja'); cargarPedidos(); }}>
+              <span>Caja</span><small>Cobros y fiados</small>
+            </button>
+            <button type="button" className="kio-accion" onClick={() => setVentana('ajustes')}>
+              <span>Ajustes</span><small>Quién pide, corte y límite</small>
+            </button>
+          </div>
+        ) : (
+          <div className="kio-acciones">
+            <button type="button" className="kio-accion kio-accion-venta" onClick={() => setVentana('pedir')}>
+              <span>Pedir</span><small>Categoría, foto y cantidad</small>
+            </button>
+            <button type="button" className="kio-accion" onClick={() => setVentana('carrito')}>
+              <span>Mi pedido</span><small>{piezas} productos · S/ {total.toFixed(2)}</small>
+            </button>
           </div>
         )}
-      </header>
 
-      {caja && (
-        <nav className="kio-tabs">
-          {[
-            ['vender', 'Vender'],
-            ['pedidos', 'Pedidos'],
-            ['carta', 'Carta del día'],
-            ['productos', 'Productos'],
-            ['caja', 'Caja'],
-            ['ajustes', 'Ajustes'],
-          ].map(([id, label]) => (
-            <button key={id} type="button" className={tab === id ? 'is-on' : ''} onClick={() => setTab(id)}>{label}</button>
-          ))}
-        </nav>
-      )}
+        <button type="button" className="kio-flotante" onClick={() => setVentana('carrito')}>
+          Carrito <b>{piezas}</b>
+          <span>S/ {total.toFixed(2)}</span>
+        </button>
 
-      {error && <p className="kio-alert">{error}</p>}
-      {aviso && <p className="kio-ok">{aviso}</p>}
+        {pieza && (
+          <Modal titulo={pieza.nombre} onClose={() => setPieza(null)} encima>
+            <div className="kio-pieza">
+              <div className="kio-pieza-foto"><Foto src={pieza.imagen_url} emoji={pieza.emoji} /></div>
+              <p className="kio-precio-lg">S/ {Number(pieza.precio).toFixed(2)}</p>
+              <div className="kio-stepper">
+                <button type="button" onClick={() => setCant((n) => Math.max(1, n - 1))}>−</button>
+                <strong>{cant}</strong>
+                <button type="button" onClick={() => setCant((n) => n + 1)}>+</button>
+              </div>
+              <button type="button" className="kio-btn" onClick={confirmarPieza}>Agregar S/ {(Number(pieza.precio) * cant).toFixed(2)}</button>
+            </div>
+          </Modal>
+        )}
 
-      {(tab === 'vender' || tab === 'pedir' || !caja) && (
-        <section className="kio-pedir">
-          <div className="kio-dias">
-            {dias.map((d) => (
-              <button key={d} type="button" className={fecha === d ? 'is-on' : ''} onClick={() => setFecha(d)}>
-                {etiquetaDia(d, hoy)}
-              </button>
-            ))}
-          </div>
-          {hijos.length > 0 && (
-            <label className="kio-hijo">
-              Para
-              <select value={alumnoId} onChange={(e) => setAlumnoId(e.target.value)}>
-                {hijos.map((h) => (
-                  <option key={h.id} value={h.id}>{h.nombre}{h.grado ? ` · ${h.grado}` : ''}</option>
-                ))}
-              </select>
-              {hijoSel && <span className="kio-deuda">Debe S/ {Number(hijoSel.deuda).toFixed(2)}</span>}
-            </label>
-          )}
-          {yo && !caja && (
-            <p className="kio-hijo">Pedido para <strong>{yo.nombre}</strong> <span className="kio-deuda">Debe S/ {Number(yo.deuda).toFixed(2)}</span></p>
-          )}
-          {caja && (
-            <label className="kio-hijo">
-              Alumno o personal
-              <input
-                value={busca}
-                onChange={async (e) => {
-                  const v = e.target.value;
-                  setBusca(v);
-                  if (v.trim().length < 2) { setClientes([]); return; }
-                  const { data } = await api.get('/kiosco/clientes', { params: { q: v.trim() } });
-                  setClientes(data.clientes || []);
-                }}
-                placeholder="Nombre o DNI"
-              />
-              {clientes.length > 0 && (
-                <select
-                  value={alumnoId ? `a-${alumnoId}` : clienteUsuarioId ? `u-${clienteUsuarioId}` : ''}
-                  onChange={(e) => {
-                    const [tipo, id] = e.target.value.split('-');
-                    setAlumnoId(tipo === 'a' ? id : '');
-                    setClienteUsuarioId(tipo === 'u' ? id : '');
-                  }}
-                >
-                  <option value="">Elige</option>
-                  {clientes.map((c) => (
-                    <option key={`${c.alumno_id || 'u'}-${c.usuario_id || c.alumno_id}`} value={c.alumno_id ? `a-${c.alumno_id}` : `u-${c.usuario_id}`}>
-                      {c.nombre} · {c.clase}
-                    </option>
-                  ))}
+        {ventana === 'carrito' && (
+          <Modal titulo="Tu pedido" onClose={() => setVentana(null)}>
+            <div className="kio-dias">
+              {dias.map((d) => (
+                <button key={d} type="button" className={fecha === d ? 'is-on' : ''} onClick={() => setFecha(d)}>{etiquetaDia(d, hoy)}</button>
+              ))}
+            </div>
+            {hijos.length > 0 && (
+              <label className="kio-campo">Para
+                <select value={alumnoId} onChange={(e) => setAlumnoId(e.target.value)}>
+                  {hijos.map((h) => <option key={h.id} value={h.id}>{h.nombre}{h.grado ? ` · ${h.grado}` : ''}</option>)}
                 </select>
-              )}
-            </label>
-          )}
-          <div className="kio-cats">
-            <button type="button" className={catId === 'todas' ? 'is-on' : ''} onClick={() => setCatId('todas')}>Todo</button>
-            {carta.categorias.map((c) => (
-              <button key={c.id} type="button" className={String(catId) === String(c.id) ? 'is-on' : ''} onClick={() => setCatId(String(c.id))}>
-                {c.imagen_url ? <img src={c.imagen_url} alt="" /> : c.emoji} {c.nombre}
-              </button>
-            ))}
-          </div>
-          <div className="kio-grid">
-            {productosVisibles.map((p) => (
-              <button key={p.id} type="button" className="kio-card" onClick={() => agregar(p)}>
-                <span className="kio-card-emoji">{p.imagen_url ? <img src={p.imagen_url} alt="" /> : p.emoji}</span>
-                <strong>{p.nombre}</strong>
-                <em>{p.descripcion}</em>
-                <span className="kio-precio">S/ {Number(p.precio).toFixed(2)}</span>
-                <span className="kio-stock">{Number(p.siempre) === 1 ? 'Siempre' : 'Del día'} · {p.stock} u.</span>
-              </button>
-            ))}
-            {!productosVisibles.length && <p className="kio-vacio">Este día todavía no tiene productos publicados.</p>}
-          </div>
-          <aside className="kio-carrito">
-            <h2>Tu pedido</h2>
-            {!carrito.length && <p>Toca un producto para sumarlo.</p>}
+              </label>
+            )}
+            {yo && !caja && <p>Para {yo.nombre}. Debe S/ {Number(yo.deuda).toFixed(2)}</p>}
+            {hijoSel && <p className="kio-deuda">Debe S/ {Number(hijoSel.deuda).toFixed(2)}</p>}
+            {!carrito.length && <p className="kio-vacio">Todavía no elegiste productos.</p>}
             {carrito.map((it) => (
               <div key={it.producto_id} className="kio-linea">
-                <span>{it.emoji} {it.nombre} × {it.cantidad}</span>
-                <span>S/ {(it.precio * it.cantidad).toFixed(2)}</span>
+                <span><Foto src={it.imagen_url} emoji={it.emoji} /> {it.nombre}</span>
+                <span>× {it.cantidad}</span>
+                <b>S/ {(it.precio * it.cantidad).toFixed(2)}</b>
               </div>
             ))}
             <p className="kio-total">Total S/ {total.toFixed(2)}</p>
             {!caja && (
               <button type="button" className="kio-btn" disabled={enviando || !carrito.length || (!alumnoId && !yo)} onClick={() => pedir('linea', 'pendiente')}>
-                {enviando ? 'Enviando…' : 'Pedir'}
+                {enviando ? 'Enviando…' : 'Confirmar pedido'}
               </button>
             )}
-            {caja && (
-              <div className="kio-btn-row">
-                <button type="button" className="kio-btn" disabled={enviando || !carrito.length || (!alumnoId && !clienteUsuarioId)} onClick={() => pedir('mostrador', 'pagado')}>Cobrar</button>
-                <button type="button" className="kio-btn kio-btn-ghost" disabled={enviando || !carrito.length || (!alumnoId && !clienteUsuarioId)} onClick={() => pedir('mostrador', 'fiado')}>Fiar</button>
+          </Modal>
+        )}
+
+        {ventana === 'pedir' && (
+          <Modal titulo="Pedir" onClose={() => setVentana(null)} ancho="kio-modal-ancho">
+            <div className="kio-dias">
+              {dias.map((d) => (
+                <button key={d} type="button" className={fecha === d ? 'is-on' : ''} onClick={() => setFecha(d)}>{etiquetaDia(d, hoy)}</button>
+              ))}
+            </div>
+            {cartaBloque}
+          </Modal>
+        )}
+
+        {ventana === 'vender' && (
+          <Modal titulo="Vender" onClose={() => setVentana(null)} ancho="kio-modal-ancho">
+            <label className="kio-campo">DNI o nombre
+              <input value={busca} onChange={(e) => buscarCliente(e.target.value)} placeholder="Escribe para buscar" />
+            </label>
+            {clientes.length > 0 && (
+              <div className="kio-clientes">
+                {clientes.map((c) => (
+                  <button key={`${c.clase}-${c.alumno_id || c.usuario_id}`} type="button" onClick={() => elegirCliente(c)}>
+                    <strong>{c.nombre}</strong>
+                    <span>{c.clase}</span>
+                  </button>
+                ))}
               </div>
             )}
-          </aside>
-        </section>
-      )}
+            {clienteSel && <p className="kio-ok">Cliente: {clienteSel.nombre}</p>}
+            {cartaBloque}
+            <div className="kio-cobro">
+              <span>{piezas} productos · S/ {total.toFixed(2)}</span>
+              <button type="button" className="kio-btn" disabled={enviando || !carrito.length || (!alumnoId && !clienteUsuarioId)} onClick={() => pedir('mostrador', 'pagado')}>Cobrar</button>
+              {config?.fiado_activo && (
+                <button type="button" className="kio-btn kio-btn-ghost" disabled={enviando || !carrito.length || (!alumnoId && !clienteUsuarioId)} onClick={() => pedir('mostrador', 'fiado')}>Fiar</button>
+              )}
+            </div>
+          </Modal>
+        )}
 
-      {caja && tab === 'pedidos' && (
-        <section className="kio-cola">
-          {pedidos.filter((p) => p.estado === 'pedido').map((p) => (
-            <article key={p.id} className="kio-pedido">
-              <header>
-                <div>
-                  <strong>{p.alumno}</strong>
-                  <span>{p.grado} · {p.fecha_consumo} · #{p.codigo}</span>
+        {ventana === 'pedidos' && (
+          <Modal titulo="Pedidos" onClose={() => setVentana(null)} ancho="kio-modal-ancho">
+            {pedidos.filter((p) => p.estado === 'pedido').map((p) => (
+              <article key={p.id} className="kio-pedido">
+                <header><div><strong>{p.alumno}</strong><span>{p.grado} · #{p.codigo}</span></div><b>S/ {Number(p.total).toFixed(2)}</b></header>
+                <ul>{(p.items || []).map((it, i) => <li key={i}>{it.cantidad} × {it.nombre}</li>)}</ul>
+                <p className="kio-deuda">Debe S/ {Number(p.deuda).toFixed(2)}</p>
+                <div className="kio-btn-row">
+                  <button type="button" className="kio-btn" onClick={() => decidir(p.id, 'aceptado', 'pendiente')}>Aceptar</button>
+                  {config?.fiado_activo && <button type="button" className="kio-btn kio-btn-ghost" onClick={() => decidir(p.id, 'aceptado', 'fiado')}>Fiado</button>}
+                  <button type="button" className="kio-btn kio-btn-danger" onClick={() => decidir(p.id, 'rechazado')}>Rechazar</button>
                 </div>
-                <b>S/ {Number(p.total).toFixed(2)}</b>
-              </header>
-              <ul>{(p.items || []).map((it, i) => <li key={i}>{it.cantidad} × {it.nombre}</li>)}</ul>
-              <p className="kio-deuda">Debe S/ {Number(p.deuda).toFixed(2)}</p>
-              <div className="kio-btn-row">
-                <button type="button" className="kio-btn" onClick={() => decidir(p.id, 'aceptado', 'pendiente')}>Aceptar</button>
-                {config?.fiado_activo && (
-                  <button type="button" className="kio-btn kio-btn-ghost" onClick={() => decidir(p.id, 'aceptado', 'fiado')}>Aceptar fiado</button>
-                )}
-                <button type="button" className="kio-btn kio-btn-danger" onClick={() => decidir(p.id, 'rechazado')}>Rechazar</button>
-              </div>
-            </article>
-          ))}
-          {!pedidos.some((p) => p.estado === 'pedido') && <p className="kio-vacio">No hay pedidos esperando.</p>}
-          <h3>Para entregar</h3>
-          {pedidos.filter((p) => p.estado === 'aceptado').map((p) => (
-            <article key={p.id} className="kio-pedido kio-pedido-ok">
-              <header>
-                <div>
-                  <strong>{p.alumno}</strong>
-                  <span>{p.grado} · #{p.codigo} · {p.pago}</span>
-                </div>
-                <button type="button" className="kio-btn" onClick={() => decidir(p.id, 'entregado', p.pago)}>Entregado</button>
-              </header>
-              <ul>{(p.items || []).map((it, i) => <li key={i}>{it.cantidad} × {it.nombre}</li>)}</ul>
-            </article>
-          ))}
-        </section>
-      )}
-
-      {caja && tab === 'productos' && (
-        <section className="kio-forms">
-          <form onSubmit={async (e) => {
-            e.preventDefault();
-            const fd = new FormData();
-            fd.append('nombre', formCat.nombre);
-            fd.append('emoji', formCat.emoji);
-            if (formCat.imagen) fd.append('imagen', formCat.imagen);
-            await api.post('/kiosco/categorias', fd);
-            setFormCat({ nombre: '', emoji: '🍽️', imagen: null });
-            cargarCatalogo();
-          }}>
-            <h2>Categoría</h2>
-            <input value={formCat.nombre} onChange={(e) => setFormCat({ ...formCat, nombre: e.target.value })} placeholder="Bebidas, snacks, menú…" required />
-            <EmojiCampo value={formCat.emoji} onChange={(emoji) => setFormCat({ ...formCat, emoji })} />
-            <label className="kio-file">Foto de la categoría
-              <input type="file" accept="image/*" onChange={(e) => setFormCat({ ...formCat, imagen: e.target.files?.[0] || null })} />
-            </label>
-            <button className="kio-btn" type="submit">Crear categoría</button>
-          </form>
-          <form onSubmit={async (e) => {
-            e.preventDefault();
-            const fd = new FormData();
-            fd.append('nombre', formProd.nombre);
-            fd.append('precio', String(formProd.precio || '0'));
-            fd.append('emoji', formProd.emoji);
-            fd.append('categoria_id', formProd.categoria_id || '');
-            fd.append('stock', String(formProd.stock || '0'));
-            fd.append('siempre', formProd.siempre ? 'true' : 'false');
-            fd.append('es_comida', formProd.es_comida ? 'true' : 'false');
-            if (formProd.imagen) fd.append('imagen', formProd.imagen);
-            await api.post('/kiosco/productos', fd);
-            setFormProd({ nombre: '', precio: '', emoji: '🥤', categoria_id: '', siempre: true, es_comida: false, stock: '10', imagen: null });
-            cargarCatalogo();
-            cargarCarta(fecha);
-          }}>
-            <h2>Producto</h2>
-            <input value={formProd.nombre} onChange={(e) => setFormProd({ ...formProd, nombre: e.target.value })} placeholder="Nombre" required />
-            <input value={formProd.precio} onChange={(e) => setFormProd({ ...formProd, precio: e.target.value })} placeholder="Precio" required />
-            <EmojiCampo value={formProd.emoji} onChange={(emoji) => setFormProd({ ...formProd, emoji })} />
-            <label className="kio-file">Foto del producto
-              <input type="file" accept="image/*" onChange={(e) => setFormProd({ ...formProd, imagen: e.target.files?.[0] || null })} />
-            </label>
-            <select value={formProd.categoria_id} onChange={(e) => setFormProd({ ...formProd, categoria_id: e.target.value })}>
-              <option value="">Sin categoría</option>
-              {catalogo.categorias.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </select>
-            <input value={formProd.stock} onChange={(e) => setFormProd({ ...formProd, stock: e.target.value })} placeholder="Stock inicial" />
-            <label><input type="checkbox" checked={formProd.siempre} onChange={(e) => setFormProd({ ...formProd, siempre: e.target.checked })} /> De siempre</label>
-            <label><input type="checkbox" checked={formProd.es_comida} onChange={(e) => setFormProd({ ...formProd, es_comida: e.target.checked })} /> Es comida</label>
-            <button className="kio-btn" type="submit">Publicar producto</button>
-          </form>
-          <ul className="kio-lista">
-            {catalogo.productos.map((p) => (
-              <li key={p.id}>
-                <span>{p.imagen_url ? <img className="kio-mini" src={p.imagen_url} alt="" /> : p.emoji} {p.nombre} · S/ {Number(p.precio).toFixed(2)} · stock {p.stock}</span>
-                <span className="kio-sumar">
-                  <input
-                    type="number"
-                    min="1"
-                    placeholder="Cant."
-                    value={sumar[p.id] || ''}
-                    onChange={(e) => setSumar((s) => ({ ...s, [p.id]: e.target.value }))}
-                  />
-                  <button type="button" onClick={() => {
-                    const n = parseInt(sumar[p.id], 10);
-                    if (!n) return;
-                    api.post('/kiosco/stock', { producto_id: p.id, cantidad: n }).then(() => {
-                      setSumar((s) => ({ ...s, [p.id]: '' }));
-                      cargarCatalogo();
-                    });
-                  }}>Sumar</button>
-                </span>
-              </li>
+              </article>
             ))}
-          </ul>
-        </section>
-      )}
+            {!pedidos.some((p) => p.estado === 'pedido') && <p className="kio-vacio">No hay pedidos esperando.</p>}
+            <h3>Para entregar</h3>
+            {pedidos.filter((p) => p.estado === 'aceptado').map((p) => (
+              <article key={p.id} className="kio-pedido">
+                <header><div><strong>{p.alumno}</strong><span>{p.grado} · #{p.codigo} · {p.pago}</span></div>
+                  <button type="button" className="kio-btn" onClick={() => decidir(p.id, 'entregado', p.pago)}>Entregado</button>
+                </header>
+              </article>
+            ))}
+          </Modal>
+        )}
 
-      {caja && tab === 'carta' && (
-        <section className="kio-forms">
-          <h2>Publicar en un día</h2>
-          <p>Lo marcado como “de siempre” ya sale todos los días. Aquí sumas lo novedoso.</p>
-          <form onSubmit={async (e) => {
-            e.preventDefault();
-            const fd = new FormData(e.target);
-            await api.post('/kiosco/carta', { producto_id: fd.get('producto_id'), fecha: fd.get('fecha') });
-            setAviso('Quedó en la carta de ese día.');
-            cargarCarta(fecha);
-          }}>
-            <select name="producto_id" required>
-              <option value="">Producto</option>
-              {catalogo.productos.filter((p) => Number(p.siempre) !== 1).map((p) => (
-                <option key={p.id} value={p.id}>{p.nombre}</option>
+        {ventana === 'productos' && (
+          <Modal titulo="Productos" onClose={() => setVentana(null)} ancho="kio-modal-ancho">
+            <div className="kio-forms">
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                const fd = new FormData();
+                fd.append('nombre', formCat.nombre);
+                fd.append('emoji', formCat.emoji);
+                if (formCat.imagen) fd.append('imagen', formCat.imagen);
+                await api.post('/kiosco/categorias', fd);
+                setFormCat({ nombre: '', emoji: '🍽️', imagen: null });
+                cargarCatalogo();
+              }}>
+                <h3>Categoría</h3>
+                <input value={formCat.nombre} onChange={(e) => setFormCat({ ...formCat, nombre: e.target.value })} placeholder="Nombre" required />
+                <EmojiCampo value={formCat.emoji} onChange={(emoji) => setFormCat({ ...formCat, emoji })} />
+                <label className="kio-file">Foto<input type="file" accept="image/*" onChange={(e) => setFormCat({ ...formCat, imagen: e.target.files?.[0] || null })} /></label>
+                <button className="kio-btn" type="submit">Crear</button>
+              </form>
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                const fd = new FormData();
+                fd.append('nombre', formProd.nombre);
+                fd.append('precio', String(formProd.precio || '0'));
+                fd.append('emoji', formProd.emoji);
+                fd.append('categoria_id', formProd.categoria_id || '');
+                fd.append('stock', String(formProd.stock || '0'));
+                fd.append('siempre', formProd.siempre ? 'true' : 'false');
+                fd.append('es_comida', formProd.es_comida ? 'true' : 'false');
+                if (formProd.imagen) fd.append('imagen', formProd.imagen);
+                await api.post('/kiosco/productos', fd);
+                setFormProd({ nombre: '', precio: '', emoji: '🥤', categoria_id: '', siempre: true, es_comida: false, stock: '10', imagen: null });
+                cargarCatalogo();
+                cargarCarta(fecha);
+              }}>
+                <h3>Producto</h3>
+                <input value={formProd.nombre} onChange={(e) => setFormProd({ ...formProd, nombre: e.target.value })} placeholder="Nombre" required />
+                <input value={formProd.precio} onChange={(e) => setFormProd({ ...formProd, precio: e.target.value })} placeholder="Precio" required />
+                <EmojiCampo value={formProd.emoji} onChange={(emoji) => setFormProd({ ...formProd, emoji })} />
+                <label className="kio-file">Foto<input type="file" accept="image/*" onChange={(e) => setFormProd({ ...formProd, imagen: e.target.files?.[0] || null })} /></label>
+                <select value={formProd.categoria_id} onChange={(e) => setFormProd({ ...formProd, categoria_id: e.target.value })}>
+                  <option value="">Sin categoría</option>
+                  {catalogo.categorias.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+                <input value={formProd.stock} onChange={(e) => setFormProd({ ...formProd, stock: e.target.value })} placeholder="Stock inicial" />
+                <label><input type="checkbox" checked={formProd.siempre} onChange={(e) => setFormProd({ ...formProd, siempre: e.target.checked })} /> De siempre</label>
+                <label><input type="checkbox" checked={formProd.es_comida} onChange={(e) => setFormProd({ ...formProd, es_comida: e.target.checked })} /> Es comida</label>
+                <button className="kio-btn" type="submit">Publicar</button>
+              </form>
+            </div>
+            <ul className="kio-lista">
+              {catalogo.productos.map((p) => (
+                <li key={p.id}>
+                  <span><Foto src={p.imagen_url} emoji={p.emoji} /> {p.nombre} · S/ {Number(p.precio).toFixed(2)} · {p.stock}</span>
+                  <span className="kio-sumar">
+                    <input type="number" min="1" placeholder="Cant." value={sumar[p.id] || ''} onChange={(e) => setSumar((s) => ({ ...s, [p.id]: e.target.value }))} />
+                    <button type="button" onClick={() => {
+                      const n = parseInt(sumar[p.id], 10);
+                      if (!n) return;
+                      api.post('/kiosco/stock', { producto_id: p.id, cantidad: n }).then(() => {
+                        setSumar((s) => ({ ...s, [p.id]: '' }));
+                        cargarCatalogo();
+                      });
+                    }}>Sumar</button>
+                  </span>
+                </li>
               ))}
-            </select>
-            <input type="date" name="fecha" defaultValue={fecha} required />
-            <button className="kio-btn" type="submit">Poner en ese día</button>
-          </form>
-        </section>
-      )}
+            </ul>
+          </Modal>
+        )}
 
-      {caja && tab === 'caja' && (
-        <section className="kio-cola">
-          <h2>Ventas y pendientes</h2>
-          {pedidos.filter((p) => p.estado === 'aceptado' || p.estado === 'entregado').map((p) => (
-            <article key={p.id} className="kio-pedido">
-              <header>
-                <div>
-                  <strong>{p.alumno}</strong>
-                  <span>{p.grado} · {p.pago} · {p.origen}</span>
-                </div>
-                <b>S/ {Number(p.total).toFixed(2)}</b>
-              </header>
-              {p.pago !== 'pagado' && (
-                <button type="button" className="kio-btn" onClick={() => decidir(p.id, p.estado === 'pedido' ? 'aceptado' : p.estado, 'pagado')}>Marcar pagado</button>
-              )}
-            </article>
-          ))}
-        </section>
-      )}
+        {ventana === 'carta' && (
+          <Modal titulo="Carta del día" onClose={() => setVentana(null)}>
+            <p>Lo de siempre ya sale todos los días. Aquí publicas lo de una fecha.</p>
+            <form className="kio-campo" onSubmit={async (e) => {
+              e.preventDefault();
+              const fd = new FormData(e.target);
+              await api.post('/kiosco/carta', { producto_id: fd.get('producto_id'), fecha: fd.get('fecha') });
+              setAviso('Quedó en la carta de ese día.');
+              cargarCarta(fecha);
+            }}>
+              <select name="producto_id" required>
+                <option value="">Producto</option>
+                {catalogo.productos.filter((p) => Number(p.siempre) !== 1).map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              </select>
+              <input type="date" name="fecha" defaultValue={fecha} required />
+              <button className="kio-btn" type="submit">Publicar</button>
+            </form>
+          </Modal>
+        )}
 
-      {caja && tab === 'ajustes' && config && (
-        <section className="kio-ajustes">
-          <h2>Cómo se pide</h2>
-          <div className="kio-ajuste">
-            <div>
-              <strong>Familia</strong>
-              <p>Quién de la familia puede armar un pedido en línea.</p>
+        {ventana === 'caja' && (
+          <Modal titulo="Caja" onClose={() => setVentana(null)} ancho="kio-modal-ancho">
+            {pedidos.filter((p) => p.estado === 'aceptado' || p.estado === 'entregado').map((p) => (
+              <article key={p.id} className="kio-pedido">
+                <header>
+                  <div><strong>{p.alumno}</strong><span>{p.grado} · {p.pago}</span></div>
+                  <b>S/ {Number(p.total).toFixed(2)}</b>
+                </header>
+                {p.pago !== 'pagado' && (
+                  <button type="button" className="kio-btn" onClick={() => decidir(p.id, p.estado, 'pagado')}>Marcar pagado</button>
+                )}
+              </article>
+            ))}
+          </Modal>
+        )}
+
+        {ventana === 'ajustes' && config && (
+          <Modal titulo="Ajustes" onClose={() => setVentana(null)}>
+            <div className="kio-ajuste">
+              <div><strong>Familia</strong><p>Quién puede pedir en línea.</p></div>
+              <select value={config.quien_pide} onChange={(e) => setConfig({ ...config, quien_pide: e.target.value })}>
+                <option value="AMBOS">Papá y alumno</option>
+                <option value="APODERADO">Solo el papá</option>
+                <option value="ALUMNO">Solo el alumno</option>
+              </select>
             </div>
-            <select value={config.quien_pide} onChange={(e) => setConfig({ ...config, quien_pide: e.target.value })}>
-              <option value="AMBOS">Papá y alumno</option>
-              <option value="APODERADO">Solo el papá</option>
-              <option value="ALUMNO">Solo el alumno</option>
-            </select>
-          </div>
-          <div className="kio-ajuste">
-            <div>
-              <strong>Personal</strong>
-              <p>Docentes y administrativos también pueden pedir en línea.</p>
-            </div>
-            <label className="kio-switch">
-              <input type="checkbox" checked={config.pide_personal !== false} onChange={(e) => setConfig({ ...config, pide_personal: e.target.checked })} />
-              <span>{config.pide_personal !== false ? 'Pueden pedir' : 'No pueden pedir'}</span>
-            </label>
-          </div>
-          <div className="kio-ajuste">
-            <div>
-              <strong>Límite de monto</strong>
-              <p>Si está apagado, el pedido no tiene tope.</p>
-            </div>
-            <div className="kio-ajuste-ctrl">
+            <div className="kio-ajuste">
+              <div><strong>Personal</strong><p>Docentes y administrativos.</p></div>
               <label className="kio-switch">
-                <input type="checkbox" checked={config.limite_activo} onChange={(e) => setConfig({ ...config, limite_activo: e.target.checked })} />
-                <span>{config.limite_activo ? 'Con límite' : 'Sin límite'}</span>
+                <input type="checkbox" checked={config.pide_personal !== false} onChange={(e) => setConfig({ ...config, pide_personal: e.target.checked })} />
+                <span>{config.pide_personal !== false ? 'Pueden pedir' : 'No pueden'}</span>
               </label>
-              {config.limite_activo && (
-                <input type="number" min="0" step="0.5" value={config.limite_monto} onChange={(e) => setConfig({ ...config, limite_monto: e.target.value })} />
-              )}
             </div>
-          </div>
-          <div className="kio-ajuste">
-            <div>
-              <strong>Hora de corte</strong>
-              <p>Si está apagada, se puede pedir hasta el último momento.</p>
+            <div className="kio-ajuste">
+              <div><strong>Límite</strong><p>Tope por pedido. Apagado = sin tope.</p></div>
+              <div className="kio-ajuste-ctrl">
+                <label className="kio-switch">
+                  <input type="checkbox" checked={config.limite_activo} onChange={(e) => setConfig({ ...config, limite_activo: e.target.checked })} />
+                  <span>{config.limite_activo ? 'Con límite' : 'Sin límite'}</span>
+                </label>
+                {config.limite_activo && <input type="number" min="0" step="0.5" value={config.limite_monto} onChange={(e) => setConfig({ ...config, limite_monto: e.target.value })} />}
+              </div>
             </div>
-            <div className="kio-ajuste-ctrl">
-              <label className="kio-switch">
-                <input type="checkbox" checked={config.corte_activo} onChange={(e) => setConfig({ ...config, corte_activo: e.target.checked })} />
-                <span>{config.corte_activo ? 'Con corte' : 'Sin corte'}</span>
-              </label>
-              {config.corte_activo && (
-                <input type="time" value={config.corte_hora || '20:00'} onChange={(e) => setConfig({ ...config, corte_hora: e.target.value })} />
-              )}
+            <div className="kio-ajuste">
+              <div><strong>Corte</strong><p>Apagado = se pide hasta el final.</p></div>
+              <div className="kio-ajuste-ctrl">
+                <label className="kio-switch">
+                  <input type="checkbox" checked={config.corte_activo} onChange={(e) => setConfig({ ...config, corte_activo: e.target.checked })} />
+                  <span>{config.corte_activo ? 'Con corte' : 'Sin corte'}</span>
+                </label>
+                {config.corte_activo && <input type="time" value={config.corte_hora || '20:00'} onChange={(e) => setConfig({ ...config, corte_hora: e.target.value })} />}
+              </div>
             </div>
-          </div>
-          <div className="kio-ajuste">
-            <div>
-              <strong>Comida</strong>
-              <p>Muestra los productos marcados como comida.</p>
+            <div className="kio-ajuste">
+              <div><strong>Comida</strong></div>
+              <label className="kio-switch"><input type="checkbox" checked={config.comida_activa} onChange={(e) => setConfig({ ...config, comida_activa: e.target.checked })} /><span>{config.comida_activa ? 'Visible' : 'Oculta'}</span></label>
             </div>
-            <label className="kio-switch">
-              <input type="checkbox" checked={config.comida_activa} onChange={(e) => setConfig({ ...config, comida_activa: e.target.checked })} />
-              <span>{config.comida_activa ? 'Ofrecer' : 'Ocultar'}</span>
-            </label>
-          </div>
-          <div className="kio-ajuste">
-            <div>
-              <strong>Fiado</strong>
-              <p>Permite dejar el pago pendiente.</p>
+            <div className="kio-ajuste">
+              <div><strong>Fiado</strong></div>
+              <label className="kio-switch"><input type="checkbox" checked={config.fiado_activo} onChange={(e) => setConfig({ ...config, fiado_activo: e.target.checked })} /><span>{config.fiado_activo ? 'Permitido' : 'No'}</span></label>
             </div>
-            <label className="kio-switch">
-              <input type="checkbox" checked={config.fiado_activo} onChange={(e) => setConfig({ ...config, fiado_activo: e.target.checked })} />
-              <span>{config.fiado_activo ? 'Permitido' : 'No permitir'}</span>
-            </label>
-          </div>
-          <button type="button" className="kio-btn" onClick={() => guardarAjustes(config)}>Guardar ajustes</button>
-        </section>
-      )}
-    </div>
+            <button type="button" className="kio-btn" onClick={() => guardarAjustes(config)}>Guardar</button>
+          </Modal>
+        )}
+      </div>
     </DashboardLayout>
   );
 }
