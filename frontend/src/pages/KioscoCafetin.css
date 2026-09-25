@@ -1,9 +1,7 @@
 .kio-page {
   min-height: 100%;
-  padding: 1.4rem 1.2rem 6rem;
-  background:
-    radial-gradient(700px 280px at 0% 0%, rgba(180, 83, 9, 0.16), transparent 55%),
-    linear-gradient(165deg, #1c1410 0%, #2a1d16 28%, #f4efe8 28%);
+  padding: 0 1.2rem 6rem;
+  background: #f4efe8;
   color: #241910;
   font-family: 'Segoe UI', system-ui, sans-serif;
 }
@@ -13,7 +11,7 @@
   display: grid;
   place-items: center;
   text-align: center;
-  color: #f8f1e8;
+  color: #1c1410;
 }
 
 .kio-loading-mark {
@@ -29,9 +27,12 @@
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  align-items: flex-end;
-  margin-bottom: 1.2rem;
-  color: #f8f1e8;
+  align-items: center;
+  margin: 0 -1.2rem 1.15rem;
+  padding: 1.15rem 1.35rem 1.05rem;
+  background: #1c1410;
+  color: #fff8f1;
+  border-bottom-right-radius: 32px;
 }
 
 .kio-kicker {
@@ -51,13 +52,14 @@
 .kio-stats { display: flex; gap: 0.55rem; }
 .kio-stats div {
   background: rgba(255, 248, 240, 0.12);
-  border: 1px solid rgba(255, 236, 214, 0.18);
+  border: 1px solid rgba(255, 236, 214, 0.28);
   border-radius: 14px;
   padding: 0.55rem 0.8rem;
   min-width: 5.6rem;
+  color: #fff8f1;
 }
-.kio-stats span { display: block; font-size: 0.7rem; color: #e8c39a; }
-.kio-stats strong { font-size: 1rem; }
+.kio-stats span { display: block; font-size: 0.7rem; color: #f6d7b0; }
+.kio-stats strong { font-size: 1rem; color: #fff; }
 
 .kio-alert, .kio-ok {
   margin: 0 0 0.8rem;
@@ -398,7 +400,6 @@
 .kio-switch { display: flex; align-items: center; gap: 0.4rem; margin: 0; }
 
 @media (max-width: 720px) {
-  .kio-page { background: linear-gradient(180deg, #1c1410 0 180px, #f4efe8 180px); }
   .kio-hero, .kio-stats { flex-direction: column; align-items: flex-start; }
   .kio-forms { grid-template-columns: 1fr; }
   .kio-ajuste { flex-direction: column; align-items: flex-start; }
