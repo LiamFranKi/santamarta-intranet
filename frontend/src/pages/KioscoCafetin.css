@@ -479,6 +479,14 @@
 .kio-total { font-size: 1.2rem; font-weight: 800; }
 .kio-deuda { color: #9a3412; margin: 0.2rem 0 0.5rem; }
 .kio-vacio { color: #7a6554; }
+.kio-busca {
+  width: 100%;
+  border: 1px solid #eadfd4;
+  border-radius: 12px;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  margin: 0.4rem 0 0.8rem;
+}
 
 .kio-clientes { display: grid; gap: 0.35rem; margin-bottom: 0.7rem; }
 .kio-clientes button {

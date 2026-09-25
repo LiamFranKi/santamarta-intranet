@@ -73,6 +73,11 @@ export default function KioscoCafetin() {
   const [ventana, setVentana] = useState(null);
   const [panel, setPanel] = useState(null);
   const [cartaDias, setCartaDias] = useState([]);
+  const [especiales, setEspeciales] = useState([]);
+  const [buscaEsp, setBuscaEsp] = useState('');
+  const [activarFecha, setActivarFecha] = useState({});
+  const [misPedidos, setMisPedidos] = useState([]);
+  const [deudaMia, setDeudaMia] = useState(0);
   const [editCatId, setEditCatId] = useState(null);
   const [editProdId, setEditProdId] = useState(null);
   const [yo, setYo] = useState(null);
@@ -168,6 +173,13 @@ export default function KioscoCafetin() {
   const cargarCartaDias = useCallback(async () => {
     const { data } = await api.get('/kiosco/carta-dias');
     setCartaDias(data.filas || []);
+    setEspeciales(data.especiales || []);
+  }, []);
+
+  const cargarMios = useCallback(async () => {
+    const { data } = await api.get('/kiosco/mis-pedidos');
+    setMisPedidos(data.pedidos || []);
+    setDeudaMia(Number(data.deuda) || 0);
   }, []);
 
   const productosVisibles = useMemo(() => {
@@ -359,6 +371,9 @@ export default function KioscoCafetin() {
             <button type="button" className={`kio-accion kio-accion-venta${panel === 'pedir' ? ' is-on' : ''}`} onClick={() => setPanel(panel === 'pedir' ? null : 'pedir')}>
               <span>Pedir</span><small>Categoría, foto y cantidad</small>
             </button>
+            <button type="button" className={`kio-accion${panel === 'mios' ? ' is-on' : ''}`} onClick={() => { setPanel('mios'); cargarMios(); }}>
+              <span>Mis pedidos</span><small>Historial y lo que debes</small>
+            </button>
           </div>
         )}
 
@@ -521,9 +536,9 @@ export default function KioscoCafetin() {
           <section className="kio-panel">
             <div className="kio-panel-head">
               <h2>Carta del día</h2>
-              <button type="button" className="kio-btn" onClick={() => setVentana('form-carta')}>Agregar a la carta</button>
             </div>
-            <p className="kio-vacio">Lo marcado como “de siempre” sale todos los días. Aquí ves lo publicado para una fecha.</p>
+            <p className="kio-vacio">Lo de siempre ya sale todos los días. Aquí publicas lo especial y lo vuelves a activar otro día, sin crearlo de nuevo.</p>
+            <h3>Publicado</h3>
             <div className="kio-grilla">
               {cartaDias.map((f) => (
                 <article key={f.id} className="kio-card">
@@ -531,11 +546,53 @@ export default function KioscoCafetin() {
                   <strong>{f.nombre}</strong>
                   <span>{String(f.fecha).slice(0, 10)}</span>
                   <button type="button" className="kio-icono kio-icono-rojo" onClick={() => {
-                    api.delete(`/kiosco/carta/${f.id}`).then(() => { setAviso('Quitado de la carta.'); cargarCartaDias(); cargarCarta(fecha); });
-                  }} title="Quitar" aria-label="Quitar"><Icono tipo="trash" /></button>
+                    api.delete(`/kiosco/carta/${f.id}`).then(() => { setAviso('Quitado de ese día. El producto sigue en el historial.'); cargarCartaDias(); cargarCarta(fecha); });
+                  }} title="Quitar de ese día" aria-label="Quitar de ese día"><Icono tipo="trash" /></button>
                 </article>
               ))}
-              {!cartaDias.length && <p className="kio-vacio">No hay productos especiales publicados.</p>}
+              {!cartaDias.length && <p className="kio-vacio">No hay especiales publicados desde hoy.</p>}
+            </div>
+            <h3>Activar de nuevo</h3>
+            <input className="kio-busca" value={buscaEsp} onChange={(e) => setBuscaEsp(e.target.value)} placeholder="Busca el producto, por ejemplo papa rellena" />
+            <div className="kio-grilla">
+              {especiales.filter((p) => p.nombre.toLowerCase().includes(buscaEsp.trim().toLowerCase())).map((p) => (
+                <article key={p.id} className="kio-card">
+                  <div className="kio-plato-foto kio-mini"><Foto src={p.imagen_url} emoji={p.emoji} /></div>
+                  <strong>{p.nombre}</strong>
+                  <span>{p.ultima ? `Última vez ${String(p.ultima).slice(0, 10)}` : 'Aún no se publicó'}</span>
+                  <input type="date" value={activarFecha[p.id] || fecha} onChange={(e) => setActivarFecha((s) => ({ ...s, [p.id]: e.target.value }))} />
+                  <button type="button" className="kio-btn" onClick={() => {
+                    const dia = activarFecha[p.id] || fecha;
+                    api.post('/kiosco/carta', { producto_id: p.id, fecha: dia }).then(() => {
+                      setAviso(`${p.nombre} quedó en la carta del ${dia}.`);
+                      cargarCartaDias();
+                      cargarCarta(fecha);
+                    }).catch((err) => setError(err.response?.data?.error || 'No se pudo activar.'));
+                  }}>Activar</button>
+                </article>
+              ))}
+              {!especiales.length && <p className="kio-vacio">No hay productos especiales. Créalos en Productos con “De siempre” apagado.</p>}
+            </div>
+          </section>
+        )}
+
+        {!caja && panel === 'mios' && (
+          <section className="kio-panel">
+            <div className="kio-panel-head">
+              <h2>Mis pedidos</h2>
+              <strong>Debes S/ {deudaMia.toFixed(2)}</strong>
+            </div>
+            <div className="kio-grilla">
+              {misPedidos.map((p) => (
+                <article key={p.id} className="kio-card">
+                  <strong>#{p.codigo}</strong>
+                  <span>{String(p.fecha_consumo).slice(0, 10)} · {p.estado} · {p.pago}</span>
+                  {p.alumno ? <span>{p.alumno}</span> : null}
+                  <ul>{(p.items || []).map((it, i) => <li key={i}>{it.cantidad} × {it.nombre}</li>)}</ul>
+                  <b>S/ {Number(p.total).toFixed(2)}</b>
+                </article>
+              ))}
+              {!misPedidos.length && <p className="kio-vacio">Todavía no tienes pedidos.</p>}
             </div>
           </section>
         )}
@@ -820,30 +877,6 @@ export default function KioscoCafetin() {
           </Modal>
         )}
 
-        {ventana === 'form-carta' && (
-          <Modal titulo="Agregar a la carta" onClose={() => setVentana(null)} encima>
-            <form className="kio-campo" onSubmit={async (e) => {
-              e.preventDefault();
-              const fd = new FormData(e.target);
-              try {
-                await api.post('/kiosco/carta', { producto_id: fd.get('producto_id'), fecha: fd.get('fecha') });
-                setAviso('Quedó en la carta de ese día.');
-                setVentana(null);
-                cargarCartaDias();
-                cargarCarta(fecha);
-              } catch (err) {
-                setError(err.response?.data?.error || 'No se pudo publicar.');
-              }
-            }}>
-              <select name="producto_id" required>
-                <option value="">Producto</option>
-                {catalogo.productos.filter((p) => Number(p.siempre) !== 1).map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-              </select>
-              <input type="date" name="fecha" defaultValue={fecha} required />
-              <button className="kio-btn" type="submit">Publicar</button>
-            </form>
-          </Modal>
-        )}
       </div>
     </DashboardLayout>
   );

@@ -406,6 +406,54 @@ router.get('/clientes', async (req, res) => {
   }
 });
 
+router.get('/mis-pedidos', async (req, res) => {
+  if (!(await exigirModulo(res))) return;
+  const colegioId = req.user.colegio_id || DEFAULT_COLEGIO_ID;
+  const tipo = req.user.tipo;
+  try {
+    let where = 'p.usuario_id = ?';
+    const params = [colegioId, req.user.id];
+    if (tipo === 'ALUMNO' && req.user.alumno_id) {
+      where = 'p.alumno_id = ?';
+      params[1] = req.user.alumno_id;
+    } else if (tipo === 'APODERADO' && req.user.apoderado_id) {
+      where = 'p.alumno_id IN (SELECT alumno_id FROM familias WHERE apoderado_id = ?)';
+      params[1] = req.user.apoderado_id;
+    } else if (tipo !== 'KIOSCO') {
+      where = '(p.cliente_usuario_id = ? OR p.usuario_id = ?)';
+      params.push(req.user.id);
+    }
+    const pedidos = await query(
+      `SELECT p.id, p.codigo, p.fecha_consumo, p.estado, p.pago, p.origen, p.total, p.creado_en,
+              a.nombres, a.apellido_paterno
+       FROM kiosco_pedidos p
+       LEFT JOIN alumnos a ON a.id = p.alumno_id
+       WHERE p.colegio_id = ? AND ${where}
+       ORDER BY p.id DESC
+       LIMIT 60`,
+      params
+    );
+    const salida = [];
+    for (const p of pedidos || []) {
+      const items = await query(
+        'SELECT nombre, precio, cantidad FROM kiosco_pedido_items WHERE pedido_id = ?',
+        [p.id]
+      );
+      salida.push({
+        ...p,
+        alumno: `${p.nombres || ''} ${p.apellido_paterno || ''}`.replace(/\s+/g, ' ').trim(),
+        items: items || [],
+      });
+    }
+    const deuda = salida
+      .filter((p) => (p.pago === 'fiado' || p.pago === 'pendiente') && (p.estado === 'aceptado' || p.estado === 'entregado'))
+      .reduce((s, p) => s + Number(p.total), 0);
+    res.json({ pedidos: salida, deuda });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'No se pudieron leer tus pedidos' });
+  }
+});
+
 router.get('/pedidos', async (req, res) => {
   if (!(await exigirModulo(res))) return;
   if (!esCaja(req.user)) return res.status(403).json({ error: 'Solo el perfil Kiosco ve la cola.' });
@@ -675,11 +723,25 @@ router.get('/carta-dias', async (req, res) => {
        FROM kiosco_carta c
        INNER JOIN kiosco_productos p ON p.id = c.producto_id
        LEFT JOIN kiosco_categorias cat ON cat.id = p.categoria_id
-       WHERE p.colegio_id = ? AND p.activo = 1 AND c.fecha >= DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+       WHERE p.colegio_id = ? AND p.activo = 1 AND c.fecha >= CURDATE()
        ORDER BY c.fecha, p.nombre`,
       [colegioId]
     );
-    res.json({ filas: (filas || []).map((f) => ({ ...f, imagen_url: fotoProducto(f) })) });
+    const especiales = await query(
+      `SELECT p.id, p.nombre, p.emoji, p.precio, p.imagen_url, cat.imagen_url AS categoria_imagen,
+              MAX(c.fecha) AS ultima
+       FROM kiosco_productos p
+       LEFT JOIN kiosco_categorias cat ON cat.id = p.categoria_id
+       LEFT JOIN kiosco_carta c ON c.producto_id = p.id
+       WHERE p.colegio_id = ? AND p.activo = 1 AND p.siempre = 0
+       GROUP BY p.id, p.nombre, p.emoji, p.precio, p.imagen_url, cat.imagen_url
+       ORDER BY p.nombre`,
+      [colegioId]
+    );
+    res.json({
+      filas: (filas || []).map((f) => ({ ...f, imagen_url: fotoProducto(f) })),
+      especiales: (especiales || []).map((p) => ({ ...p, imagen_url: fotoProducto(p) })),
+    });
   } catch (e) {
     res.status(500).json({ error: e.message || 'No se pudo leer la carta' });
   }
