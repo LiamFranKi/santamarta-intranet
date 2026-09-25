@@ -184,7 +184,11 @@ export default function KioscoCafetin() {
   const dias = hoy ? [0, 1, 2, 3, 4, 5, 6].map((n) => sumarDias(hoy, n)) : [];
   const esperando = pedidos.filter((p) => p.estado === 'pedido').length;
 
+  const enCarrito = (productoId) => carrito.find((it) => it.producto_id === productoId)?.cantidad || 0;
+
   const abrirPieza = (p) => {
+    const libres = Number(p.stock) - enCarrito(p.id);
+    if (libres <= 0) return;
     setReemplazar(false);
     setPieza(p);
     setCant(1);
@@ -198,28 +202,35 @@ export default function KioscoCafetin() {
       precio: it.precio,
       emoji: it.emoji,
       imagen_url: it.imagen_url,
+      stock: it.stock,
     });
     setCant(it.cantidad);
   };
 
+  const topePieza = pieza
+    ? Math.max(0, Number(pieza.stock) - (reemplazar ? 0 : enCarrito(pieza.id)))
+    : 0;
+
   const confirmarPieza = () => {
-    const n = Math.max(1, cant);
+    const n = Math.max(1, Math.min(cant, topePieza || 1));
+    if (!topePieza) return;
     setCarrito((prev) => {
       const ya = prev.find((it) => it.producto_id === pieza.id);
-      if (reemplazar && ya) {
-        return prev.map((it) => (it.producto_id === pieza.id ? { ...it, cantidad: n } : it));
-      }
-      if (ya) {
-        return prev.map((it) => (it.producto_id === pieza.id ? { ...it, cantidad: it.cantidad + n } : it));
-      }
-      return [...prev, {
+      const base = {
         producto_id: pieza.id,
         nombre: pieza.nombre,
         precio: Number(pieza.precio),
-        cantidad: n,
         emoji: pieza.emoji,
         imagen_url: pieza.imagen_url,
-      }];
+        stock: Number(pieza.stock) || 0,
+      };
+      if (reemplazar && ya) {
+        return prev.map((it) => (it.producto_id === pieza.id ? { ...it, ...base, cantidad: n } : it));
+      }
+      if (ya) {
+        return prev.map((it) => (it.producto_id === pieza.id ? { ...it, ...base, cantidad: it.cantidad + n } : it));
+      }
+      return [...prev, { ...base, cantidad: n }];
     });
     setPieza(null);
     setReemplazar(false);
@@ -250,8 +261,10 @@ export default function KioscoCafetin() {
     try {
       const { data } = await api.post('/kiosco/pedidos', {
         alumno_id: alumnoId ? parseInt(alumnoId, 10) : null,
-        cliente_usuario_id: clienteUsuarioId ? parseInt(clienteUsuarioId, 10) : null,
-        para_mi: Boolean(yo) && !caja,
+        cliente_usuario_id: clienteUsuarioId
+          ? parseInt(clienteUsuarioId, 10)
+          : (yo?.usuario_id ? parseInt(yo.usuario_id, 10) : null),
+        para_mi: !caja && !alumnoId,
         fecha,
         items: carrito.map((it) => ({ producto_id: it.producto_id, cantidad: it.cantidad })),
         origen,
@@ -270,8 +283,14 @@ export default function KioscoCafetin() {
   };
 
   const decidir = async (id, estado, pago) => {
-    await api.post(`/kiosco/pedidos/${id}/estado`, { estado, pago });
-    cargarPedidos().catch(() => {});
+    setError('');
+    try {
+      await api.post(`/kiosco/pedidos/${id}/estado`, { estado, pago });
+      setAviso(estado === 'rechazado' ? 'Pedido rechazado.' : `Pedido aceptado como ${pago === 'fiado' ? 'fiado' : 'pagado'}.`);
+      cargarPedidos().catch(() => {});
+    } catch (e) {
+      setError(e.response?.data?.error || 'No se pudo actualizar el pedido.');
+    }
   };
 
   const guardarAjustes = async (siguiente) => {
@@ -303,14 +322,18 @@ export default function KioscoCafetin() {
       <button type="button" className="kio-atras" onClick={() => setVistaCarta('cats')}>← Categorías</button>
       <h3 className="kio-cat-titulo">{nombreCat}</h3>
       <div className="kio-platos">
-        {productosVisibles.map((p) => (
-          <button key={p.id} type="button" className="kio-plato" onClick={() => abrirPieza(p)}>
-            <div className="kio-plato-foto"><Foto src={p.imagen_url} emoji={p.emoji} /></div>
-            <strong>{p.nombre}</strong>
-            {p.descripcion ? <small className="kio-detalle">{p.descripcion}</small> : null}
-            <em>S/ {Number(p.precio).toFixed(2)}</em>
-          </button>
-        ))}
+        {productosVisibles.map((p) => {
+          const agotado = Number(p.stock) <= 0;
+          return (
+            <button key={p.id} type="button" className={`kio-plato${agotado ? ' is-agotado' : ''}`} onClick={() => abrirPieza(p)}>
+              <div className="kio-plato-foto"><Foto src={p.imagen_url} emoji={p.emoji} /></div>
+              <strong>{p.nombre}</strong>
+              {p.descripcion ? <small className="kio-detalle">{p.descripcion}</small> : null}
+              <em>S/ {Number(p.precio).toFixed(2)}</em>
+              <small className="kio-stock">{agotado ? 'Agotado' : `Quedan ${p.stock}`}</small>
+            </button>
+          );
+        })}
         {!productosVisibles.length && <p className="kio-vacio">{catId === 'carta' ? 'Hoy no hay platos de la carta.' : 'Esta categoría no tiene productos de siempre.'}</p>}
       </div>
     </>
@@ -421,10 +444,10 @@ export default function KioscoCafetin() {
                   <b>S/ {Number(p.total).toFixed(2)}</b>
                   <p className="kio-deuda">Debe S/ {Number(p.deuda).toFixed(2)}</p>
                   {p.estado === 'pedido' && (
-                    <div className="kio-btn-row">
-                      <button type="button" className="kio-icono" title="Aceptar" aria-label="Aceptar" onClick={() => decidir(p.id, 'aceptado', 'pendiente')}><Icono tipo="check" /></button>
-                      {config?.fiado_activo && <button type="button" className="kio-icono kio-icono-oscuro" title="Fiado" aria-label="Fiado" onClick={() => decidir(p.id, 'aceptado', 'fiado')}>F</button>}
-                      <button type="button" className="kio-icono kio-icono-rojo" title="Rechazar" aria-label="Rechazar" onClick={() => decidir(p.id, 'rechazado')}><Icono tipo="x" /></button>
+                    <div className="kio-btn-row kio-decide">
+                      <button type="button" className="kio-btn" onClick={() => decidir(p.id, 'aceptado', 'pagado')}>Pagado</button>
+                      {config?.fiado_activo && <button type="button" className="kio-btn kio-btn-ghost" onClick={() => decidir(p.id, 'aceptado', 'fiado')}>Fiado</button>}
+                      <button type="button" className="kio-btn kio-btn-no" onClick={() => decidir(p.id, 'rechazado')}>Rechazar</button>
                     </div>
                   )}
                   {p.estado === 'aceptado' && (
@@ -449,11 +472,12 @@ export default function KioscoCafetin() {
             </div>
             <div className="kio-platos">
               {catalogo.productos.map((p) => (
-                <article key={p.id} className="kio-plato kio-plato-fijo">
+                <article key={p.id} className={`kio-plato kio-plato-fijo${Number(p.stock) <= 0 ? ' is-agotado' : ''}`}>
                   <div className="kio-plato-foto"><Foto src={p.imagen_url} emoji={p.emoji} /></div>
                   <strong>{p.nombre}</strong>
                   {p.descripcion ? <small className="kio-detalle">{p.descripcion}</small> : null}
-                  <em>S/ {Number(p.precio).toFixed(2)} · stock {p.stock}</em>
+                  <em>S/ {Number(p.precio).toFixed(2)}</em>
+                  <small className="kio-stock">{Number(p.stock) <= 0 ? 'Agotado' : `Quedan ${p.stock}`}</small>
                   <div className="kio-btn-row">
                     <button type="button" className="kio-icono" title="Aumentar stock" aria-label="Aumentar stock" onClick={() => { setStockDe(p); setStockCant(''); }}><Icono tipo="plus" /></button>
                     <button type="button" className="kio-icono kio-icono-oscuro" onClick={() => {
@@ -725,14 +749,16 @@ export default function KioscoCafetin() {
                 </article>
               ))}
             </div>
+            {error && <p className="kio-alert">{error}</p>}
+            <p className="kio-vacio">El kiosco recibe el pedido y elige si queda pagado o fiado.</p>
             <button type="button" className="kio-btn" disabled={enviando || !carrito.length || (!alumnoId && !yo)} onClick={() => pedir('linea', 'pendiente')}>
               {enviando ? 'Enviando…' : `Confirmar pedido · S/ ${total.toFixed(2)}`}
             </button>
           </section>
         )}
 
-        {caja && (
-        <button type="button" className="kio-flotante" onClick={() => setVentana('carrito')}>
+        {(caja || carrito.length > 0) && (
+        <button type="button" className="kio-flotante" onClick={() => setVentana(caja ? 'carrito' : 'pedido')}>
           Carrito <b>{piezas}</b>
           <span>S/ {total.toFixed(2)}</span>
         </button>
@@ -743,14 +769,43 @@ export default function KioscoCafetin() {
             <div className="kio-pieza">
               <div className="kio-pieza-foto"><Foto src={pieza.imagen_url} emoji={pieza.emoji} /></div>
               <p className="kio-precio-lg">S/ {Number(pieza.precio).toFixed(2)}</p>
+              <p className="kio-stock">{topePieza > 0 ? `Quedan ${topePieza}` : 'Agotado'}</p>
               {pieza.descripcion ? <p className="kio-detalle">{pieza.descripcion}</p> : null}
               <div className="kio-stepper">
                 <button type="button" onClick={() => setCant((n) => Math.max(1, n - 1))}>−</button>
                 <strong>{cant}</strong>
-                <button type="button" onClick={() => setCant((n) => n + 1)}>+</button>
+                <button type="button" onClick={() => setCant((n) => Math.min(topePieza || 1, n + 1))}>+</button>
               </div>
-              <button type="button" className="kio-btn" onClick={confirmarPieza}>{reemplazar ? 'Guardar cantidad' : `Agregar S/ ${(Number(pieza.precio) * cant).toFixed(2)}`}</button>
+              <button type="button" className="kio-btn" disabled={!topePieza} onClick={confirmarPieza}>{reemplazar ? 'Guardar cantidad' : `Agregar S/ ${(Number(pieza.precio) * cant).toFixed(2)}`}</button>
             </div>
+          </Modal>
+        )}
+
+        {ventana === 'pedido' && !caja && (
+          <Modal titulo="Tu pedido" onClose={() => setVentana(null)} ancho="kio-modal-ancho">
+            {!carrito.length && <p className="kio-vacio">Todavía no elegiste productos.</p>}
+            <div className="kio-tabs-pedido">
+              {carrito.map((it) => (
+                <article key={it.producto_id} className="kio-tab-item">
+                  <div className="kio-tab-foto"><Foto src={it.imagen_url} emoji={it.emoji} /></div>
+                  <div>
+                    <strong>{it.nombre}</strong>
+                    <span>{it.cantidad} × S/ {Number(it.precio).toFixed(2)}</span>
+                    <b>S/ {(it.precio * it.cantidad).toFixed(2)}</b>
+                    <div className="kio-btn-row">
+                      <button type="button" className="kio-icono kio-icono-oscuro" title="Editar" aria-label="Editar" onClick={() => editarLinea(it)}><Icono tipo="edit" /></button>
+                      <button type="button" className="kio-icono kio-icono-rojo" title="Eliminar" aria-label="Eliminar" onClick={() => setCarrito((prev) => prev.filter((x) => x.producto_id !== it.producto_id))}><Icono tipo="trash" /></button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <p className="kio-total">Total S/ {total.toFixed(2)}</p>
+            <p className="kio-vacio">El kiosco recibe el pedido y elige si queda pagado o fiado.</p>
+            {error && <p className="kio-alert">{error}</p>}
+            <button type="button" className="kio-btn" disabled={enviando || !carrito.length || (!alumnoId && !yo)} onClick={() => pedir('linea', 'pendiente')}>
+              {enviando ? 'Enviando…' : 'Confirmar pedido'}
+            </button>
           </Modal>
         )}
 

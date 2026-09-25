@@ -73,6 +73,11 @@ function esPersonal(user) {
   return TIPOS_PERSONAL.has(user?.tipo);
 }
 
+function idDe(user) {
+  const n = parseInt(user?.usuario_id ?? user?.id, 10);
+  return n > 0 ? n : null;
+}
+
 async function leerConfig(colegioId) {
   const [row] = await query('SELECT * FROM kiosco_config WHERE colegio_id = ? LIMIT 1', [colegioId]);
   if (row) {
@@ -262,7 +267,7 @@ router.get('/hijos', async (req, res) => {
         `SELECT p.nombres, p.apellidos FROM personal p
          INNER JOIN usuarios u ON u.personal_id = p.id
          WHERE u.id = ? LIMIT 1`,
-        [req.user.id]
+        [idDe(req.user)]
       );
       const nombre = p
         ? `${p.nombres || ''} ${p.apellidos || ''}`.replace(/\s+/g, ' ').trim()
@@ -270,9 +275,9 @@ router.get('/hijos', async (req, res) => {
       return res.json({
         hijos: [],
         yo: {
-          usuario_id: req.user.id,
+          usuario_id: idDe(req.user),
           nombre,
-          deuda: await deudaDeCliente(colegioId, null, req.user.id),
+          deuda: await deudaDeCliente(colegioId, null, idDe(req.user)),
         },
       });
     }
@@ -304,14 +309,18 @@ router.post('/pedidos', async (req, res) => {
       }
     }
     const alumnoId = parseInt(req.body?.alumno_id, 10) || null;
-    const clienteUsuarioId = parseInt(req.body?.cliente_usuario_id, 10) || (req.body?.para_mi ? req.user.id : null);
+    const mio = idDe(req.user);
+    let clienteUsuarioId = parseInt(req.body?.cliente_usuario_id, 10) || (req.body?.para_mi ? mio : null);
+    if (!mostrador && !alumnoId && !clienteUsuarioId && esPersonal(req.user) && tipo !== 'KIOSCO') {
+      clienteUsuarioId = mio;
+    }
     const fecha = String(req.body?.fecha || '');
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
     const pago = ['pagado', 'pendiente', 'fiado'].includes(req.body?.pago) ? req.body.pago : 'pendiente';
     if ((!alumnoId && !clienteUsuarioId) || !/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !items.length) {
       return res.status(400).json({ error: 'Elige a la persona, el día y al menos un producto.' });
     }
-    if (clienteUsuarioId && !mostrador && clienteUsuarioId !== req.user.id) {
+    if (clienteUsuarioId && !mostrador && clienteUsuarioId !== mio) {
       return res.status(403).json({ error: 'Solo puedes pedir para ti.' });
     }
     if (!mostrador && config.corte_activo && config.corte_hora && horaLima() >= config.corte_hora && fecha <= hoyLima()) {
@@ -335,7 +344,12 @@ router.post('/pedidos', async (req, res) => {
       if (!p) continue;
       if (!config.comida_activa && Number(p.es_comida) === 1) continue;
       if (Number(p.stock) < cant) {
-        return res.status(400).json({ error: `No hay stock suficiente de ${p.nombre}.` });
+        const quedan = Number(p.stock) || 0;
+        return res.status(400).json({
+          error: quedan > 0
+            ? `De ${p.nombre} solo quedan ${quedan}.`
+            : `${p.nombre} está agotado.`,
+        });
       }
       total += Number(p.precio) * cant;
       lineas.push({ id: p.id, nombre: p.nombre, precio: Number(p.precio), cantidad: cant });
@@ -355,7 +369,7 @@ router.post('/pedidos', async (req, res) => {
         colegioId,
         alumnoId,
         clienteUsuarioId,
-        req.user.id,
+        mio,
         codigo,
         fecha,
         estado,
@@ -367,14 +381,25 @@ router.post('/pedidos', async (req, res) => {
       ]
     );
     const pedidoId = ins.insertId;
+    const descontados = [];
     for (const ln of lineas) {
       await execute(
         'INSERT INTO kiosco_pedido_items (pedido_id, producto_id, nombre, precio, cantidad) VALUES (?, ?, ?, ?, ?)',
         [pedidoId, ln.id, ln.nombre, ln.precio, ln.cantidad]
       );
-      if (mostrador) {
-        await execute('UPDATE kiosco_productos SET stock = GREATEST(stock - ?, 0) WHERE id = ?', [ln.cantidad, ln.id]);
+      const baja = await execute(
+        'UPDATE kiosco_productos SET stock = stock - ? WHERE id = ? AND stock >= ?',
+        [ln.cantidad, ln.id, ln.cantidad]
+      );
+      if (!baja.affectedRows) {
+        for (const prev of descontados) {
+          await execute('UPDATE kiosco_productos SET stock = stock + ? WHERE id = ?', [prev.cantidad, prev.id]);
+        }
+        await execute('DELETE FROM kiosco_pedido_items WHERE pedido_id = ?', [pedidoId]);
+        await execute('DELETE FROM kiosco_pedidos WHERE id = ?', [pedidoId]);
+        return res.status(400).json({ error: `De ${ln.nombre} ya no queda esa cantidad.` });
       }
+      descontados.push(ln);
     }
     if (!mostrador) {
       const cajeros = await query(
@@ -432,7 +457,7 @@ router.get('/mis-pedidos', async (req, res) => {
   const tipo = req.user.tipo;
   try {
     let where = 'p.usuario_id = ?';
-    const params = [colegioId, req.user.id];
+    const params = [colegioId, idDe(req.user)];
     if (tipo === 'ALUMNO' && req.user.alumno_id) {
       where = 'p.alumno_id = ?';
       params[1] = req.user.alumno_id;
@@ -441,7 +466,7 @@ router.get('/mis-pedidos', async (req, res) => {
       params[1] = req.user.apoderado_id;
     } else if (tipo !== 'KIOSCO') {
       where = '(p.cliente_usuario_id = ? OR p.usuario_id = ?)';
-      params.push(req.user.id);
+      params.push(idDe(req.user));
     }
     const pedidos = await query(
       `SELECT p.id, p.codigo, p.fecha_consumo, p.estado, p.pago, p.origen, p.total, p.creado_en,
@@ -531,11 +556,11 @@ router.post('/pedidos/:id/estado', async (req, res) => {
       [id, colegioId]
     );
     if (!ped) return res.status(404).json({ error: 'Pedido no encontrado.' });
-    if (estado === 'aceptado' && ped.estado === 'pedido') {
+    if (estado === 'rechazado' && ped.estado === 'pedido') {
       const items = await query('SELECT producto_id, cantidad FROM kiosco_pedido_items WHERE pedido_id = ?', [id]);
       for (const it of items || []) {
         if (it.producto_id) {
-          await execute('UPDATE kiosco_productos SET stock = GREATEST(stock - ?, 0) WHERE id = ?', [it.cantidad, it.producto_id]);
+          await execute('UPDATE kiosco_productos SET stock = stock + ? WHERE id = ?', [it.cantidad, it.producto_id]);
         }
       }
     }
