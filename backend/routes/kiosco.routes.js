@@ -498,11 +498,11 @@ router.get('/catalogo', async (req, res) => {
   const colegioId = req.user.colegio_id || DEFAULT_COLEGIO_ID;
   try {
     const categorias = await query(
-      'SELECT * FROM kiosco_categorias WHERE colegio_id = ? ORDER BY orden, nombre',
+      'SELECT * FROM kiosco_categorias WHERE colegio_id = ? AND activo = 1 ORDER BY orden, nombre',
       [colegioId]
     );
     const productos = await query(
-      'SELECT * FROM kiosco_productos WHERE colegio_id = ? ORDER BY nombre',
+      'SELECT * FROM kiosco_productos WHERE colegio_id = ? AND activo = 1 ORDER BY nombre',
       [colegioId]
     );
     res.json({ categorias: categorias || [], productos: productos || [] });
@@ -529,6 +529,41 @@ router.post('/categorias', uploadKiosco.single('imagen'), async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message || 'No se pudo crear' });
+  }
+});
+
+router.put('/categorias/:id', uploadKiosco.single('imagen'), async (req, res) => {
+  if (!(await exigirModulo(res))) return;
+  if (!esCaja(req.user)) return res.status(403).json({ error: 'No autorizado' });
+  const id = parseInt(req.params.id, 10);
+  const nombre = String(req.body?.nombre || '').trim();
+  if (!id || !nombre) return res.status(400).json({ error: 'Escribe el nombre de la categoría.' });
+  const colegioId = req.user.colegio_id || DEFAULT_COLEGIO_ID;
+  try {
+    const imagen = urlImagenKiosco(req.file) || null;
+    await execute(
+      `UPDATE kiosco_categorias
+       SET nombre = ?, emoji = ?, imagen_url = IF(? IS NULL, imagen_url, ?)
+       WHERE id = ? AND colegio_id = ?`,
+      [nombre, String(req.body?.emoji || '🍽️').slice(0, 16), imagen, imagen || '', id, colegioId]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'No se pudo guardar la categoría' });
+  }
+});
+
+router.delete('/categorias/:id', async (req, res) => {
+  if (!(await exigirModulo(res))) return;
+  if (!esCaja(req.user)) return res.status(403).json({ error: 'No autorizado' });
+  try {
+    await execute(
+      'UPDATE kiosco_categorias SET activo = 0 WHERE id = ? AND colegio_id = ?',
+      [parseInt(req.params.id, 10), req.user.colegio_id || DEFAULT_COLEGIO_ID]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'No se pudo quitar la categoría' });
   }
 });
 
@@ -559,6 +594,90 @@ router.post('/productos', uploadKiosco.single('imagen'), async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message || 'No se pudo crear el producto' });
+  }
+});
+
+router.put('/productos/:id', uploadKiosco.single('imagen'), async (req, res) => {
+  if (!(await exigirModulo(res))) return;
+  if (!esCaja(req.user)) return res.status(403).json({ error: 'No autorizado' });
+  const id = parseInt(req.params.id, 10);
+  const nombre = String(req.body?.nombre || '').trim();
+  if (!id || !nombre) return res.status(400).json({ error: 'Escribe el nombre del producto.' });
+  const colegioId = req.user.colegio_id || DEFAULT_COLEGIO_ID;
+  try {
+    const imagen = urlImagenKiosco(req.file) || null;
+    await execute(
+      `UPDATE kiosco_productos`
+       SET categoria_id = ?, nombre = ?, precio = ?, emoji = ?,
+           imagen_url = IF(? IS NULL, imagen_url, ?),
+           siempre = ?, es_comida = ?, stock = ?
+       WHERE id = ? AND colegio_id = ?`,
+      [
+        parseInt(req.body?.categoria_id, 10) || null,
+        nombre,
+        Number(req.body?.precio) || 0,
+        String(req.body?.emoji || '🥤').slice(0, 16),
+        imagen,
+        imagen || '',
+        String(req.body?.siempre) === 'false' || req.body?.siempre === false ? 0 : 1,
+        String(req.body?.es_comida) === 'true' || req.body?.es_comida === true ? 1 : 0,
+        parseInt(req.body?.stock, 10) || 0,
+        id,
+        colegioId,
+      ]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'No se pudo guardar el producto' });
+  }
+});
+
+router.delete('/productos/:id', async (req, res) => {
+  if (!(await exigirModulo(res))) return;
+  if (!esCaja(req.user)) return res.status(403).json({ error: 'No autorizado' });
+  try {
+    await execute(
+      'UPDATE kiosco_productos SET activo = 0 WHERE id = ? AND colegio_id = ?',
+      [parseInt(req.params.id, 10), req.user.colegio_id || DEFAULT_COLEGIO_ID]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'No se pudo quitar el producto' });
+  }
+});
+
+router.get('/carta-dias', async (req, res) => {
+  if (!(await exigirModulo(res))) return;
+  if (!esCaja(req.user)) return res.status(403).json({ error: 'No autorizado' });
+  const colegioId = req.user.colegio_id || DEFAULT_COLEGIO_ID;
+  try {
+    const filas = await query(
+      `SELECT c.id, c.fecha, c.producto_id, p.nombre, p.emoji, p.imagen_url, p.precio
+       FROM kiosco_carta c
+       INNER JOIN kiosco_productos p ON p.id = c.producto_id
+       WHERE p.colegio_id = ? AND p.activo = 1 AND c.fecha >= DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+       ORDER BY c.fecha, p.nombre`,
+      [colegioId]
+    );
+    res.json({ filas: filas || [] });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'No se pudo leer la carta' });
+  }
+});
+
+router.delete('/carta/:id', async (req, res) => {
+  if (!(await exigirModulo(res))) return;
+  if (!esCaja(req.user)) return res.status(403).json({ error: 'No autorizado' });
+  try {
+    await execute(
+      `DELETE c FROM kiosco_carta c
+       INNER JOIN kiosco_productos p ON p.id = c.producto_id
+       WHERE c.id = ? AND p.colegio_id = ?`,
+      [parseInt(req.params.id, 10), req.user.colegio_id || DEFAULT_COLEGIO_ID]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'No se pudo quitar de la carta' });
   }
 });
 
