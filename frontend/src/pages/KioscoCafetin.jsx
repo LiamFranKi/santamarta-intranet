@@ -100,7 +100,7 @@ export default function KioscoCafetin() {
   const [resumen, setResumen] = useState(null);
   const [formCat, setFormCat] = useState({ nombre: '', emoji: '🍽️', imagen: null });
   const [formProd, setFormProd] = useState({
-    nombre: '', precio: '', emoji: '🥤', categoria_id: '', siempre: true, es_comida: false, stock: '10', imagen: null,
+    nombre: '', precio: '', detalle: '', emoji: '🥤', categoria_id: '', siempre: true, es_comida: false, stock: '', imagen: null,
   });
   const [sumar, setSumar] = useState({});
 
@@ -293,6 +293,7 @@ export default function KioscoCafetin() {
           <button key={p.id} type="button" className="kio-plato" onClick={() => abrirPieza(p)}>
             <div className="kio-plato-foto"><Foto src={p.imagen_url} emoji={p.emoji} /></div>
             <strong>{p.nombre}</strong>
+            {p.descripcion ? <small className="kio-detalle">{p.descripcion}</small> : null}
             <em>S/ {Number(p.precio).toFixed(2)}</em>
           </button>
         ))}
@@ -425,7 +426,7 @@ export default function KioscoCafetin() {
               <h2>Productos</h2>
               <button type="button" className="kio-btn" onClick={() => {
                 setEditProdId(null);
-                setFormProd({ nombre: '', precio: '', emoji: '🥤', categoria_id: '', siempre: true, es_comida: false, stock: '10', imagen: null });
+                setFormProd({ nombre: '', precio: '', detalle: '', emoji: '🥤', categoria_id: '', siempre: true, es_comida: false, stock: '', imagen: null });
                 setVentana('form-prod');
               }}>Agregar producto</button>
             </div>
@@ -434,6 +435,7 @@ export default function KioscoCafetin() {
                 <article key={p.id} className="kio-plato kio-plato-fijo">
                   <div className="kio-plato-foto"><Foto src={p.imagen_url} emoji={p.emoji} /></div>
                   <strong>{p.nombre}</strong>
+                  {p.descripcion ? <small className="kio-detalle">{p.descripcion}</small> : null}
                   <em>S/ {Number(p.precio).toFixed(2)} · stock {p.stock}</em>
                   <div className="kio-sumar">
                     <input type="number" min="1" placeholder="+ stock" value={sumar[p.id] || ''} onChange={(e) => setSumar((s) => ({ ...s, [p.id]: e.target.value }))} />
@@ -453,11 +455,12 @@ export default function KioscoCafetin() {
                       setFormProd({
                         nombre: p.nombre,
                         precio: String(p.precio),
+                        detalle: p.descripcion || '',
                         emoji: p.emoji || '🥤',
                         categoria_id: p.categoria_id ? String(p.categoria_id) : '',
                         siempre: Number(p.siempre) === 1,
                         es_comida: Number(p.es_comida) === 1,
-                        stock: String(p.stock),
+                        stock: String(p.stock ?? ''),
                         imagen: null,
                       });
                       setVentana('form-prod');
@@ -660,6 +663,7 @@ export default function KioscoCafetin() {
             <div className="kio-pieza">
               <div className="kio-pieza-foto"><Foto src={pieza.imagen_url} emoji={pieza.emoji} /></div>
               <p className="kio-precio-lg">S/ {Number(pieza.precio).toFixed(2)}</p>
+              {pieza.descripcion ? <p className="kio-detalle">{pieza.descripcion}</p> : null}
               <div className="kio-stepper">
                 <button type="button" onClick={() => setCant((n) => Math.max(1, n - 1))}>−</button>
                 <strong>{cant}</strong>
@@ -777,6 +781,7 @@ export default function KioscoCafetin() {
                 const fd = new FormData();
                 fd.append('nombre', formProd.nombre);
                 fd.append('precio', String(formProd.precio || '0'));
+                fd.append('descripcion', formProd.detalle || '');
                 fd.append('emoji', formProd.emoji);
                 fd.append('categoria_id', formProd.categoria_id || '');
                 fd.append('stock', String(formProd.stock || '0'));
@@ -785,7 +790,7 @@ export default function KioscoCafetin() {
                 if (formProd.imagen) fd.append('imagen', formProd.imagen);
                 if (editProdId) await api.put(`/kiosco/productos/${editProdId}`, fd);
                 else await api.post('/kiosco/productos', fd);
-                setFormProd({ nombre: '', precio: '', emoji: '🥤', categoria_id: '', siempre: true, es_comida: false, stock: '10', imagen: null });
+                setFormProd({ nombre: '', precio: '', detalle: '', emoji: '🥤', categoria_id: '', siempre: true, es_comida: false, stock: '', imagen: null });
                 setEditProdId(null);
                 setVentana(null);
                 setAviso(editProdId ? 'Producto actualizado.' : 'Producto guardado.');
@@ -796,6 +801,7 @@ export default function KioscoCafetin() {
               }
             }}>
               <input value={formProd.nombre} onChange={(e) => setFormProd({ ...formProd, nombre: e.target.value })} placeholder="Nombre" required />
+              <textarea value={formProd.detalle} onChange={(e) => setFormProd({ ...formProd, detalle: e.target.value })} placeholder="Detalle: entrada, segundo, postre…" rows={3} maxLength={255} />
               <input value={formProd.precio} onChange={(e) => setFormProd({ ...formProd, precio: e.target.value })} placeholder="Precio" required />
               <EmojiCampo value={formProd.emoji} onChange={(emoji) => setFormProd({ ...formProd, emoji })} />
               <label className="kio-file">Foto del producto

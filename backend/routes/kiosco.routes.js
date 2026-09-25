@@ -34,6 +34,12 @@ function urlImagenKiosco(file) {
   return `${getPublicStaticBaseUrl()}/Static/Image/Kiosco/${file.filename}`;
 }
 
+function fotoProducto(row) {
+  const propia = String(row?.imagen_url || '').trim();
+  if (propia) return propia;
+  return String(row?.categoria_imagen || '').trim();
+}
+
 router.use(authenticateToken);
 
 function hoyLima() {
@@ -182,8 +188,10 @@ router.get('/carta', async (req, res) => {
     );
     const productos = await query(
       `SELECT p.id, p.categoria_id, p.nombre, p.descripcion, p.precio, p.emoji, p.imagen_url,
+              cat.imagen_url AS categoria_imagen,
               p.siempre, p.es_comida, p.stock
        FROM kiosco_productos p
+       LEFT JOIN kiosco_categorias cat ON cat.id = p.categoria_id
        WHERE p.colegio_id = ? AND p.activo = 1
          AND (p.siempre = 1 OR EXISTS (
            SELECT 1 FROM kiosco_carta c WHERE c.producto_id = p.id AND c.fecha = ?
@@ -191,7 +199,9 @@ router.get('/carta', async (req, res) => {
        ORDER BY p.nombre`,
       [colegioId, fecha]
     );
-    const visibles = (productos || []).filter((p) => config.comida_activa || Number(p.es_comida) !== 1);
+    const visibles = (productos || [])
+      .filter((p) => config.comida_activa || Number(p.es_comida) !== 1)
+      .map((p) => ({ ...p, imagen_url: fotoProducto(p) }));
     res.json({ fecha, config, categorias: categorias || [], productos: visibles });
   } catch (e) {
     res.status(500).json({ error: e.message || 'No se pudo cargar la carta' });
@@ -502,10 +512,17 @@ router.get('/catalogo', async (req, res) => {
       [colegioId]
     );
     const productos = await query(
-      'SELECT * FROM kiosco_productos WHERE colegio_id = ? AND activo = 1 ORDER BY nombre',
+      `SELECT p.*, cat.imagen_url AS categoria_imagen
+       FROM kiosco_productos p
+       LEFT JOIN kiosco_categorias cat ON cat.id = p.categoria_id
+       WHERE p.colegio_id = ? AND p.activo = 1
+       ORDER BY p.nombre`,
       [colegioId]
     );
-    res.json({ categorias: categorias || [], productos: productos || [] });
+    res.json({
+      categorias: categorias || [],
+      productos: (productos || []).map((p) => ({ ...p, imagen_url: fotoProducto(p) })),
+    });
   } catch (e) {
     res.status(500).json({ error: e.message || 'No se pudo leer el catálogo' });
   }
@@ -608,13 +625,14 @@ router.put('/productos/:id', uploadKiosco.single('imagen'), async (req, res) => 
     const imagen = urlImagenKiosco(req.file) || null;
     await execute(
       `UPDATE kiosco_productos
-       SET categoria_id = ?, nombre = ?, precio = ?, emoji = ?,
+       SET categoria_id = ?, nombre = ?, descripcion = ?, precio = ?, emoji = ?,
            imagen_url = IF(? IS NULL, imagen_url, ?),
            siempre = ?, es_comida = ?, stock = ?
        WHERE id = ? AND colegio_id = ?`,
       [
         parseInt(req.body?.categoria_id, 10) || null,
         nombre,
+        String(req.body?.descripcion || '').slice(0, 255),
         Number(req.body?.precio) || 0,
         String(req.body?.emoji || '🥤').slice(0, 16),
         imagen,
@@ -652,14 +670,16 @@ router.get('/carta-dias', async (req, res) => {
   const colegioId = req.user.colegio_id || DEFAULT_COLEGIO_ID;
   try {
     const filas = await query(
-      `SELECT c.id, c.fecha, c.producto_id, p.nombre, p.emoji, p.imagen_url, p.precio
+      `SELECT c.id, c.fecha, c.producto_id, p.nombre, p.emoji, p.imagen_url, p.precio,
+              cat.imagen_url AS categoria_imagen
        FROM kiosco_carta c
        INNER JOIN kiosco_productos p ON p.id = c.producto_id
+       LEFT JOIN kiosco_categorias cat ON cat.id = p.categoria_id
        WHERE p.colegio_id = ? AND p.activo = 1 AND c.fecha >= DATE_SUB(CURDATE(), INTERVAL 1 DAY)
        ORDER BY c.fecha, p.nombre`,
       [colegioId]
     );
-    res.json({ filas: filas || [] });
+    res.json({ filas: (filas || []).map((f) => ({ ...f, imagen_url: fotoProducto(f) })) });
   } catch (e) {
     res.status(500).json({ error: e.message || 'No se pudo leer la carta' });
   }
