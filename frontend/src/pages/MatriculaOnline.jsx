@@ -35,6 +35,7 @@ function buildDocUrl(url) {
 }
 
 const emptyAlumno = () => ({
+  tipo_documento: 0,
   nro_documento: '',
   apellido_paterno: '',
   apellido_materno: '',
@@ -47,6 +48,7 @@ const emptyAlumno = () => ({
 });
 
 const emptyApoderado = () => ({
+  tipo_documento: 0,
   nro_documento: '',
   parentesco: 1,
   nombres: '',
@@ -55,6 +57,7 @@ const emptyApoderado = () => ({
   fecha_nacimiento: '',
   email: '',
   telefono_celular: '',
+  direccion: '',
 });
 
 export default function MatriculaOnline() {
@@ -95,6 +98,26 @@ export default function MatriculaOnline() {
     [catalogo, docsAceptados]
   );
   const docsProgressPct = docsTotal > 0 ? Math.round((docsAceptadosCount / docsTotal) * 100) : 0;
+
+  const consultarDni = async (numero, destino) => {
+    const n = String(numero || '').trim();
+    if (n.length < 6) return;
+    try {
+      const { data } = await api.get(`/public/matricula-online/dni/${encodeURIComponent(n)}`);
+      if (!data?.encontrado) return;
+      if (destino === 'alumno' && data.alumno) {
+        setAlumno((p) => ({ ...p, ...data.alumno, nro_documento: p.nro_documento }));
+        if (data.apoderado) {
+          setApoderado((p) => ({ ...p, ...data.apoderado }));
+        }
+      }
+      if (destino === 'apoderado' && data.apoderado) {
+        setApoderado((p) => ({ ...p, ...data.apoderado, nro_documento: p.nro_documento }));
+      }
+    } catch {
+      /* si no está en la base, se llena a mano */
+    }
+  };
 
   const loadCatalogo = useCallback(async () => {
     setLoading(true);
@@ -182,6 +205,7 @@ export default function MatriculaOnline() {
       return 'Indique un correo electrónico válido del apoderado.';
     }
     if (!apoderado.telefono_celular.trim()) return 'Indique el teléfono celular del apoderado.';
+    if (!String(apoderado.direccion || '').trim()) return 'Indique la dirección del apoderado.';
     if (!firmaDataUrl) return 'Debe firmar en el recuadro de firma.';
     const docs = catalogo?.documentos || [];
     for (const d of docs) {
@@ -413,11 +437,26 @@ export default function MatriculaOnline() {
             <p className="matricula-online-hint">Todos los campos marcados con * son obligatorios.</p>
             <div className="matricula-online-grid matricula-online-grid--3">
               <div className="matricula-online-field">
-                <label>DNI / Código *</label>
+                <label>Tipo de documento *</label>
+                <select
+                  value={alumno.tipo_documento}
+                  onChange={(e) => {
+                    const tipo = parseInt(e.target.value, 10);
+                    setAlumno((p) => ({ ...p, tipo_documento: tipo }));
+                  }}
+                >
+                  {(catalogo.tipos_documento || [{ id: 0, label: 'DNI' }]).map((t) => (
+                    <option key={t.id} value={t.id}>{t.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="matricula-online-field">
+                <label>N° de documento *</label>
                 <input
                   required
                   value={alumno.nro_documento}
                   onChange={(e) => setAlumno((p) => ({ ...p, nro_documento: e.target.value }))}
+                  onBlur={() => consultarDni(alumno.nro_documento, 'alumno')}
                   placeholder="Número de documento"
                 />
               </div>
@@ -576,17 +615,26 @@ export default function MatriculaOnline() {
             <p className="matricula-online-hint">Todos los campos marcados con * son obligatorios.</p>
             <div className="matricula-online-grid matricula-online-grid--3">
               <div className="matricula-online-field">
-                <label>Tipo documento *</label>
-                <select disabled value={1}>
-                  <option value={1}>DNI</option>
+                <label>Tipo de documento *</label>
+                <select
+                  value={apoderado.tipo_documento}
+                  onChange={(e) => {
+                    const tipo = parseInt(e.target.value, 10);
+                    setApoderado((p) => ({ ...p, tipo_documento: tipo }));
+                  }}
+                >
+                  {(catalogo.tipos_documento || [{ id: 0, label: 'DNI' }]).map((t) => (
+                    <option key={t.id} value={t.id}>{t.label}</option>
+                  ))}
                 </select>
               </div>
               <div className="matricula-online-field">
-                <label>Núm. documento *</label>
+                <label>N° de documento *</label>
                 <input
                   required
                   value={apoderado.nro_documento}
                   onChange={(e) => setApoderado((p) => ({ ...p, nro_documento: e.target.value }))}
+                  onBlur={() => consultarDni(apoderado.nro_documento, 'apoderado')}
                 />
               </div>
               <div className="matricula-online-field">
@@ -651,6 +699,14 @@ export default function MatriculaOnline() {
                   required
                   value={apoderado.telefono_celular}
                   onChange={(e) => setApoderado((p) => ({ ...p, telefono_celular: e.target.value }))}
+                />
+              </div>
+              <div className="matricula-online-field">
+                <label>Dirección *</label>
+                <input
+                  required
+                  value={apoderado.direccion}
+                  onChange={(e) => setApoderado((p) => ({ ...p, direccion: e.target.value }))}
                 />
               </div>
             </div>

@@ -309,7 +309,10 @@ export default function AdminWebMatricula({ onOpenCorreos, soloLectura = false }
         <header className="rs-matricula-card__head">
           <h3 className="rs-matricula-card__title">Formulario público</h3>
           <p className="rs-matricula-card__lead">
-            Disponible en <code>/matricula_online</code>. Al enviar se crea una matrícula{' '}
+            El formulario que ven los padres está en{' '}
+            <code>https://sistema.vanguardschools.edu.pe/matricula_online</code>.
+            La dirección antigua de <code>nuevo.vanguardschools.edu.pe</code> es el PHP y ya no se usa para esto.
+            Al enviar se crea una matrícula{' '}
             <strong>Temporal</strong>. El año académico se toma de Configuración → Año.
           </p>
         </header>

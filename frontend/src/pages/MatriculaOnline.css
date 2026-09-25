@@ -580,6 +580,11 @@
   background: #fff;
 }
 
+.matricula-online-field input[readonly] {
+  background: #eef2f7;
+  color: #334155;
+}
+
 .mat-foto-upload-wrap {
   margin-top: 1.15rem;
 }

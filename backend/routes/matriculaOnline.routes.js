@@ -30,9 +30,27 @@ function gradosValidos(nivelNombre) {
   return [1, 2, 3, 4, 5, 6];
 }
 
+const TIPOS_DOCUMENTO = [
+  { id: 0, label: 'DNI' },
+  { id: 1, label: 'Pasaporte' },
+  { id: 2, label: 'Partida de Nacimiento' },
+  { id: 3, label: 'Libreta Electoral' },
+  { id: 4, label: 'Libreta Militar' },
+  { id: 5, label: 'Carnet de Extranjeria' },
+  { id: 6, label: 'Licencia de Conducir' },
+  { id: 7, label: 'Tarjeta de Seguro' },
+  { id: 8, label: 'Otro' },
+];
+
+function tipoDocumentoValido(value) {
+  const n = parseInt(value, 10);
+  if (!Number.isFinite(n) || n < 0 || n > 8) return 0;
+  return n;
+}
+
 const ALUMNO_DEFAULTS = {
   estado_civil: 0,
-  tipo_documento: 1,
+  tipo_documento: 0,
   pais_nacimiento_id: 0,
   departamento_nacimiento_id: 0,
   provincia_nacimiento_id: 0,
@@ -190,6 +208,8 @@ router.get('/', async (req, res) => {
       niveles: niveles || [],
       documentos,
       seguros: SEGURO_OPCIONES,
+      tipos_documento: TIPOS_DOCUMENTO,
+      url_publica: 'https://sistema.vanguardschools.edu.pe/matricula_online',
       parentesco: [
         { id: 1, label: 'Padre / tutor' },
         { id: 2, label: 'Madre' },
@@ -200,6 +220,110 @@ router.get('/', async (req, res) => {
   } catch (e) {
     console.error('[matricula-online GET]', e);
     res.status(500).json({ error: e.message || 'Error al cargar formulario' });
+  }
+});
+
+function fechaFormulario(value) {
+  if (!value) return '';
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const s = String(value).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
+}
+
+function filaAlumno(row) {
+  if (!row) return null;
+  return {
+    tipo_documento: tipoDocumentoValido(row.tipo_documento),
+    nro_documento: String(row.nro_documento || '').trim(),
+    apellido_paterno: row.apellido_paterno || '',
+    apellido_materno: row.apellido_materno || '',
+    nombres: row.nombres || '',
+    sexo: row.sexo === 1 || row.sexo === 2 ? row.sexo : '',
+    fecha_nacimiento: fechaFormulario(row.fecha_nacimiento),
+    email: row.email || '',
+    domicilio: row.domicilio || '',
+    seguro_id: row.seguro_id ? String(row.seguro_id) : '',
+  };
+}
+
+function filaApoderado(row) {
+  if (!row) return null;
+  let parentesco = parseInt(row.parentesco, 10);
+  if (!Number.isFinite(parentesco) || parentesco < 1 || parentesco > 4) parentesco = 1;
+  return {
+    tipo_documento: tipoDocumentoValido(row.tipo_documento),
+    nro_documento: String(row.nro_documento || '').trim(),
+    apellido_paterno: row.apellido_paterno || '',
+    apellido_materno: row.apellido_materno || '',
+    nombres: row.nombres || '',
+    parentesco,
+    fecha_nacimiento: fechaFormulario(row.fecha_nacimiento),
+    email: row.email || '',
+    telefono_celular: row.telefono_celular || '',
+    direccion: row.direccion || '',
+  };
+}
+
+/**
+ * GET /dni/:numero — busca en la base del colegio (alumnos y apoderados ya registrados).
+ * No consulta RENIEC. Si no existe, el formulario se llena a mano.
+ */
+router.get('/dni/:numero', async (req, res) => {
+  const numero = String(req.params.numero || '').trim();
+  if (numero.length < 6 || numero.length > 20) {
+    return res.json({ encontrado: false });
+  }
+  try {
+    const colegio_id = DEFAULT_COLEGIO_ID;
+    const [alumno] = await query(
+      `SELECT id, tipo_documento, nro_documento, apellido_paterno, apellido_materno, nombres,
+              sexo, email, domicilio, fecha_nacimiento, seguro_id
+       FROM alumnos
+       WHERE colegio_id = ? AND TRIM(nro_documento) = ?
+       LIMIT 1`,
+      [colegio_id, numero]
+    );
+    let apoderado = null;
+    if (alumno) {
+      const [ap] = await query(
+        `SELECT ap.tipo_documento, ap.nro_documento, ap.apellido_paterno, ap.apellido_materno, ap.nombres,
+                ap.email, ap.telefono_celular, ap.direccion, ap.parentesco, ap.fecha_nacimiento
+         FROM familias f
+         INNER JOIN apoderados ap ON ap.id = f.apoderado_id AND ap.colegio_id = ?
+         WHERE f.alumno_id = ?
+         ORDER BY ap.parentesco ASC, ap.id ASC
+         LIMIT 1`,
+        [colegio_id, alumno.id]
+      );
+      apoderado = ap || null;
+    }
+    if (!apoderado) {
+      const [apDirecto] = await query(
+        `SELECT tipo_documento, nro_documento, apellido_paterno, apellido_materno, nombres,
+                email, telefono_celular, direccion, parentesco, fecha_nacimiento
+         FROM apoderados
+         WHERE colegio_id = ? AND TRIM(nro_documento) = ?
+         LIMIT 1`,
+        [colegio_id, numero]
+      );
+      apoderado = apDirecto || null;
+    }
+    if (!alumno && !apoderado) {
+      return res.json({ encontrado: false });
+    }
+    return res.json({
+      encontrado: true,
+      alumno: filaAlumno(alumno),
+      apoderado: filaApoderado(apoderado),
+    });
+  } catch (e) {
+    console.error('[matricula-online dni]', e);
+    return res.json({ encontrado: false });
   }
 });
 
@@ -235,6 +359,7 @@ router.post('/', uploadMatricula.fields([{ name: 'foto_dni', maxCount: 1 }, { na
     if (Number.isNaN(sexoAl)) sexoAl = 0;
     const emailAl = String(alumnoIn.email || '').trim();
     const domicilioAl = String(alumnoIn.domicilio || '').trim();
+    const tipoDocAl = tipoDocumentoValido(alumnoIn.tipo_documento);
     const seguroId = parseInt(alumnoIn.seguro_id, 10);
     const nivelId = parseInt(payload.nivel_id, 10);
     const grado = parseInt(payload.grado, 10);
@@ -245,6 +370,8 @@ router.post('/', uploadMatricula.fields([{ name: 'foto_dni', maxCount: 1 }, { na
     const nomAp = String(apoderadoIn.nombres || '').trim();
     const emailAp = String(apoderadoIn.email || '').trim();
     const telAp = String(apoderadoIn.telefono_celular || '').trim();
+    const dirAp = String(apoderadoIn.direccion || '').trim();
+    const tipoDocAp = tipoDocumentoValido(apoderadoIn.tipo_documento);
     const fnAp = String(apoderadoIn.fecha_nacimiento || '').slice(0, 10);
     let parentesco = parseInt(apoderadoIn.parentesco, 10);
     if (Number.isNaN(parentesco) || parentesco < 1 || parentesco > 4) parentesco = 1;
@@ -277,6 +404,7 @@ router.post('/', uploadMatricula.fields([{ name: 'foto_dni', maxCount: 1 }, { na
     if (!emailAp) return res.status(400).json({ error: 'Indique el correo del apoderado.' });
     if (!emailOk(emailAp)) return res.status(400).json({ error: 'Correo del apoderado no válido.' });
     if (!telAp) return res.status(400).json({ error: 'Indique el teléfono celular del apoderado.' });
+    if (!dirAp) return res.status(400).json({ error: 'Indique la dirección del apoderado.' });
     if (!req.files?.foto_dni?.[0]) {
       return res.status(400).json({ error: 'Debe adjuntar la foto del DNI del alumno.' });
     }
@@ -332,9 +460,9 @@ router.post('/', uploadMatricula.fields([{ name: 'foto_dni', maxCount: 1 }, { na
         await conn.execute(
           `UPDATE alumnos SET
             apellido_paterno = ?, apellido_materno = ?, nombres = ?, sexo = ?, email = ?,
-            domicilio = ?, fecha_nacimiento = ?, foto_dni = ?, seguro_id = ?
+            domicilio = ?, fecha_nacimiento = ?, foto_dni = ?, seguro_id = ?, tipo_documento = ?
            WHERE id = ? AND colegio_id = ?`,
-          [ap, am, nom, sexoAl, emailAl, domicilioAl, fn, fotoDniFile, seguroId, alumnoId, colegio_id]
+          [ap, am, nom, sexoAl, emailAl, domicilioAl, fn, fotoDniFile, seguroId, tipoDocAl, alumnoId, colegio_id]
         );
 
         const [uAl] = await conn.execute(
@@ -373,7 +501,7 @@ router.post('/', uploadMatricula.fields([{ name: 'foto_dni', maxCount: 1 }, { na
             am,
             nom,
             ALUMNO_DEFAULTS.estado_civil,
-            ALUMNO_DEFAULTS.tipo_documento,
+            tipoDocAl,
             dniAl,
             fn,
             ALUMNO_DEFAULTS.pais_nacimiento_id,
@@ -456,9 +584,9 @@ router.post('/', uploadMatricula.fields([{ name: 'foto_dni', maxCount: 1 }, { na
         await conn.execute(
           `UPDATE apoderados SET
             nombres = ?, apellido_paterno = ?, apellido_materno = ?, email = ?,
-            telefono_celular = ?, parentesco = ?, firma_digital = ?
+            telefono_celular = ?, direccion = ?, tipo_documento = ?, parentesco = ?, firma_digital = ?
            WHERE id = ? AND colegio_id = ?`,
-          [nomAp, apAp, amAp, emailAp, telAp, parentesco, firmaFile, apoderadoId, colegio_id]
+          [nomAp, apAp, amAp, emailAp, telAp, dirAp, tipoDocAp, parentesco, firmaFile, apoderadoId, colegio_id]
         );
       } else {
         await conn.execute(
@@ -473,12 +601,12 @@ router.post('/', uploadMatricula.fields([{ name: 'foto_dni', maxCount: 1 }, { na
             apAp,
             amAp,
             'SI',
-            1,
+            tipoDocAp,
             dniAp,
             0,
             '',
             telAp,
-            '',
+            dirAp,
             '',
             0,
             '',
