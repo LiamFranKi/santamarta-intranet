@@ -565,6 +565,35 @@
   margin-bottom: 0.5rem;
 }
 
+.config-mat-lead { margin: 0 0 0.55rem; color: #4b5563; font-size: 0.88rem; }
+.config-mat-search {
+  width: 100%;
+  margin-bottom: 0.55rem;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+}
+.config-mat-list {
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.config-mat-row {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid #eef2f7;
+  cursor: pointer;
+}
+.config-mat-row:last-child { border-bottom: 0; }
+.config-mat-row.is-on { background: #eff6ff; }
+.config-mat-row strong { display: block; font-size: 0.9rem; }
+.config-mat-row em { display: block; font-style: normal; color: #6b7280; font-size: 0.78rem; }
+.config-mat-empty { margin: 0; padding: 0.8rem; color: #6b7280; font-size: 0.85rem; }
+
 .form-grid--matricula {
   grid-template-columns: repeat(2, 1fr);
 }

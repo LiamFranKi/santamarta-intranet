@@ -43,6 +43,7 @@ import GestionOperativaPage from './pages/admin/GestionOperativaPage';
 import AdminInstitucional from './pages/admin/AdminInstitucional';
 import AgendaInterna from './pages/AgendaInterna';
 import Biblioteca from './pages/Biblioteca';
+import ChatVanguard from './pages/ChatVanguard';
 import AdminPublicaciones from './pages/admin/AdminPublicaciones';
 import AdminConexiones from './pages/admin/AdminConexiones';
 import AdminNotificacionesEnvio from './pages/admin/AdminNotificacionesEnvio';
@@ -422,6 +423,14 @@ function AppRoutes() {
           </PrivateRoute>
         }
       />
+      <Route
+        path="/chat"
+        element={
+          <PrivateRoute>
+            <ChatVanguard />
+          </PrivateRoute>
+        }
+      />
       {/* Comunicaciones — rutas canónicas bajo /admin/comunicaciones/ */}
       <Route
         path="/admin/comunicaciones/publicaciones"
@@ -454,8 +463,8 @@ function AppRoutes() {
       <Route
         path="/admin/comunicaciones/chat-vanguard"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA']}>
-            <Dashboard />
+          <PrivateRoute>
+            <Navigate to="/chat" replace />
           </PrivateRoute>
         }
       />
@@ -737,7 +746,7 @@ function AppRoutes() {
       <Route path="/admin/examenes-personal" element={<Navigate to="/admin/herramientas/examenes" replace />} />
       <Route path="/admin/encuestas" element={<Navigate to="/admin/herramientas/encuestas" replace />} />
       <Route path="/admin/vocabularios" element={<Navigate to="/admin/herramientas/vocabularios" replace />} />
-      <Route path="/admin/chat-vanguard" element={<Navigate to="/admin/comunicaciones/chat-vanguard" replace />} />
+      <Route path="/admin/chat-vanguard" element={<Navigate to="/chat" replace />} />
       <Route
         path="/admin/estadisticas"
         element={

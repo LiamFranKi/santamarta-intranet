@@ -1596,10 +1596,14 @@ router.get('/configuracion', async (req, res) => {
       recaudo_nro_cuenta: configMap['recaudo_nro_cuenta'] || '',
       recaudo_razon_social: configMap['recaudo_razon_social'] || '',
       email_notificacion_matricula_online: configMap['email_notificacion_matricula_online'] || '',
+      matricula_online_personal_ids: configMap['matricula_online_personal_ids'] || '',
       remitente_emails: configMap['remitente_emails'] || '',
       email_matricula_apoderado: configMap['email_matricula_apoderado'] || '',
       email_matricula_interno: configMap['email_matricula_interno'] || '',
       email_matricula_interno_asunto: configMap['email_matricula_interno_asunto'] || '',
+      matricula_fondo: configMap['matricula_fondo']
+        ? `${baseUrl}/Static/Image/Fondos/${configMap['matricula_fondo']}`
+        : null,
       link_consulta_facturas: configMap['link_consulta_facturas'] || '',
       show_birthday_window: configMap['show_birthday_window'] || 'NO',
       cumpleanos_plantilla_push: configMap['cumpleanos_plantilla_push'] || '',
@@ -1641,6 +1645,62 @@ async function anioActivoColegio(colegioId) {
 /**
  * GET /api/admin/configuracion/estructura-temas
  */
+router.get('/configuracion/matricula-personal', async (req, res) => {
+  try {
+    const cid = req.user.colegio_id;
+    const rows = await query(
+      `SELECT p.id, p.nombres, p.apellidos, p.email, p.cargo,
+              (SELECT u.tipo FROM usuarios u
+               WHERE u.personal_id = p.id AND u.colegio_id = p.colegio_id
+                 AND (u.estado = 'ACTIVO' OR u.estado IS NULL)
+                 AND u.tipo <> 'ASISTENCIA'
+               ORDER BY u.id ASC LIMIT 1) AS tipo
+       FROM personal p
+       WHERE p.colegio_id = ?
+         AND p.email IS NOT NULL AND p.email LIKE '%@%'
+       ORDER BY p.apellidos, p.nombres`,
+      [cid]
+    );
+    const personal = (rows || [])
+      .filter((r) => r.tipo)
+      .map((r) => ({
+        id: r.id,
+        nombre: [r.apellidos, r.nombres].filter(Boolean).join(', '),
+        email: String(r.email || '').trim(),
+        cargo: r.cargo || '',
+        tipo: r.tipo,
+      }));
+
+    const cfg = await query(
+      `SELECT clave, valor FROM config WHERE clave IN ('matricula_online_personal_ids', 'email_notificacion_matricula_online')`
+    );
+    const map = Object.fromEntries((cfg || []).map((c) => [c.clave, c.valor]));
+    const guardado = map.matricula_online_personal_ids;
+    let seleccionados = [];
+    if (guardado != null && String(guardado).trim() !== '') {
+      const set = new Set(String(guardado).split(',').map((n) => parseInt(n, 10)).filter(Boolean));
+      seleccionados = personal.filter((p) => set.has(p.id)).map((p) => p.id);
+    } else if (guardado == null) {
+      let emails = String(map.email_notificacion_matricula_online || '')
+        .split(/[,;]+/)
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes('@'));
+      try {
+        const web = await query(
+          `SELECT email FROM web_correos_envio WHERE activo = 1 AND recibe_matricula = 1`
+        );
+        emails = emails.concat((web || []).map((r) => String(r.email || '').trim().toLowerCase()));
+      } catch { /* canal web opcional */ }
+      const setE = new Set(emails.filter(Boolean));
+      seleccionados = personal.filter((p) => setE.has(p.email.toLowerCase())).map((p) => p.id);
+    }
+    res.json({ personal, seleccionados, ya_guardado: guardado != null });
+  } catch (e) {
+    console.error('[config] matricula-personal:', e.message);
+    res.status(500).json({ error: 'No se pudo cargar el personal.' });
+  }
+});
+
 router.get('/configuracion/estructura-temas', async (req, res) => {
   try {
     const { colegio_id } = req.user;
@@ -1707,6 +1767,7 @@ router.put('/configuracion', uploadConfig.fields([
   { name: 'logo_colegio', maxCount: 1 },
   { name: 'logo_blanco', maxCount: 1 },
   { name: 'logo_minedu', maxCount: 1 },
+  { name: 'matricula_fondo', maxCount: 1 },
 ]), async (req, res) => {
   try {
     const { colegio_id } = req.user;
@@ -1866,6 +1927,12 @@ router.put('/configuracion', uploadConfig.fields([
       updateValues.push(Buffer.from(serialized).toString('base64'));
     }
 
+    if (req.files?.matricula_fondo?.[0]) {
+      body.matricula_fondo = req.files.matricula_fondo[0].filename;
+    } else if (String(body.quitar_matricula_fondo || '') === '1') {
+      body.matricula_fondo = '';
+    }
+
     // Manejar archivos subidos
     if (req.files) {
       if (req.files.login_fondo && req.files.login_fondo[0]) {
@@ -1888,7 +1955,8 @@ router.put('/configuracion', uploadConfig.fields([
       'texto_intranet', 'telefono_colegio', 'correo_contacto', 'direccion_contacto',
       'titulo_formulario_matricula', 'recaudo_nro_sucursal',
       'recaudo_nro_cuenta', 'recaudo_razon_social', 'email_notificacion_matricula_online',
-      'remitente_emails', 'email_matricula_apoderado', 'email_matricula_interno', 'email_matricula_interno_asunto', 'link_consulta_facturas',
+      'matricula_online_personal_ids',
+      'remitente_emails', 'email_matricula_apoderado', 'email_matricula_interno', 'email_matricula_interno_asunto', 'matricula_fondo', 'link_consulta_facturas',
       'show_birthday_window',
       'cumpleanos_plantilla_push',
       'cumpleanos_plantilla_ventana',

@@ -113,4 +113,17 @@ async function fetchNotificacionesBandeja(query, destinatarioIds) {
   return slot.inflight;
 }
 
-module.exports = { fetchNotificacionesBandeja };
+function invalidarBandejaUsuarios(ids) {
+  const set = new Set(
+    (Array.isArray(ids) ? ids : [ids])
+      .map((id) => parseInt(id, 10))
+      .filter((n) => Number.isFinite(n) && n > 0)
+  );
+  if (!set.size) return;
+  for (const key of userCache.keys()) {
+    const parts = String(key).split(',').map((n) => parseInt(n, 10));
+    if (parts.some((id) => set.has(id))) userCache.delete(key);
+  }
+}
+
+module.exports = { fetchNotificacionesBandeja, invalidarBandejaUsuarios };

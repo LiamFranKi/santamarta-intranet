@@ -104,6 +104,9 @@ export default function AdminWebMatricula({ onOpenCorreos, soloLectura = false }
   const [docEdit, setDocEdit] = useState(null);
   const [docForm, setDocForm] = useState({ titulo: '', fecha_publicacion: '', fecha_vencimiento: '' });
   const [archivo, setArchivo] = useState(null);
+  const [fondoActual, setFondoActual] = useState('');
+  const [fondoFile, setFondoFile] = useState(null);
+  const [quitarFondo, setQuitarFondo] = useState(false);
 
   const asegurarCategoriaYDocs = useCallback(async () => {
     const { data } = await api.get('/admin/institucional/categorias');
@@ -159,6 +162,9 @@ export default function AdminWebMatricula({ onOpenCorreos, soloLectura = false }
         email_matricula_interno: htmlATextoPlano(data.email_matricula_interno || ''),
         email_matricula_interno_asunto: data.email_matricula_interno_asunto || '',
       });
+      setFondoActual(data.matricula_fondo || '');
+      setFondoFile(null);
+      setQuitarFondo(false);
       await asegurarCategoriaYDocs();
     } catch (e) {
       Swal.fire({
@@ -186,6 +192,8 @@ export default function AdminWebMatricula({ onOpenCorreos, soloLectura = false }
       fd.append('email_matricula_apoderado', form.email_matricula_apoderado);
       fd.append('email_matricula_interno', form.email_matricula_interno);
       fd.append('email_matricula_interno_asunto', form.email_matricula_interno_asunto);
+      if (fondoFile) fd.append('matricula_fondo', fondoFile);
+      if (quitarFondo) fd.append('quitar_matricula_fondo', '1');
       await api.put('/admin/configuracion', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
@@ -196,6 +204,7 @@ export default function AdminWebMatricula({ onOpenCorreos, soloLectura = false }
         showConfirmButton: false,
         ...swalOpts,
       });
+      await cargar();
     } catch (e) {
       Swal.fire({
         icon: 'error',
@@ -334,6 +343,28 @@ export default function AdminWebMatricula({ onOpenCorreos, soloLectura = false }
               placeholder="MATRICULA ONLINE - VANGUARD"
             />
             <span className="rs-field-hint">Texto que ve el apoderado como encabezado del formulario.</span>
+          </div>
+          <div className="rs-field rs-field--full">
+            <label>Fondo del formulario</label>
+            {fondoActual && !quitarFondo && !fondoFile && (
+              <img src={fondoActual} alt="Fondo actual" style={{ display: 'block', width: '100%', maxHeight: 140, objectFit: 'cover', borderRadius: 10, marginBottom: 8 }} />
+            )}
+            <input
+              type="file"
+              accept="image/jpeg,image/png"
+              disabled={soloLectura}
+              onChange={(e) => {
+                setFondoFile(e.target.files?.[0] || null);
+                setQuitarFondo(false);
+              }}
+            />
+            <span className="rs-field-hint">Foto de fondo que ve el apoderado, en computadora y en el celular. JPG o PNG.</span>
+            {fondoActual && !soloLectura && (
+              <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
+                <input type="checkbox" checked={quitarFondo} onChange={(e) => setQuitarFondo(e.target.checked)} />
+                Quitar fondo y usar el color institucional
+              </label>
+            )}
           </div>
         </div>
         </fieldset>

@@ -244,7 +244,11 @@ export default function MatriculaOnline() {
 
   if (loading) {
     return (
-      <div className="matricula-online-page">
+      <div
+      className={`matricula-online-page${catalogo?.fondo_url ? ' matricula-online-page--foto' : ''}`}
+      style={catalogo?.fondo_url ? { backgroundImage: `url(${catalogo.fondo_url})` } : undefined}
+    >
+      <div className="matricula-online-veil" aria-hidden />
         <div className="matricula-online-card matricula-online-card--center">
           <div className="matricula-online-spinner" aria-hidden />
           <p>Cargando formulario…</p>
@@ -255,7 +259,11 @@ export default function MatriculaOnline() {
 
   if (!catalogo?.habilitado) {
     return (
-      <div className="matricula-online-page">
+      <div
+      className={`matricula-online-page${catalogo?.fondo_url ? ' matricula-online-page--foto' : ''}`}
+      style={catalogo?.fondo_url ? { backgroundImage: `url(${catalogo.fondo_url})` } : undefined}
+    >
+      <div className="matricula-online-veil" aria-hidden />
         <div className="matricula-online-card matricula-online-card--center">
           <div className="matricula-online-icon">🔒</div>
           <h1>Formulario no disponible</h1>
@@ -267,7 +275,11 @@ export default function MatriculaOnline() {
 
   if (exito) {
     return (
-      <div className="matricula-online-page">
+      <div
+      className={`matricula-online-page${catalogo?.fondo_url ? ' matricula-online-page--foto' : ''}`}
+      style={catalogo?.fondo_url ? { backgroundImage: `url(${catalogo.fondo_url})` } : undefined}
+    >
+      <div className="matricula-online-veil" aria-hidden />
         <div className="matricula-online-card matricula-online-card--success matricula-online-card--center">
           <div className="matricula-online-icon matricula-online-icon--ok">✓</div>
           <h1>¡Solicitud registrada!</h1>
@@ -283,7 +295,11 @@ export default function MatriculaOnline() {
   }
 
   return (
-    <div className="matricula-online-page">
+    <div
+      className={`matricula-online-page${catalogo?.fondo_url ? ' matricula-online-page--foto' : ''}`}
+      style={catalogo?.fondo_url ? { backgroundImage: `url(${catalogo.fondo_url})` } : undefined}
+    >
+      <div className="matricula-online-veil" aria-hidden />
       <header className="matricula-online-header">
         <div className="matricula-online-header-inner">
           <span className="matricula-online-badge">Matrícula {catalogo.anio_matricula}</span>

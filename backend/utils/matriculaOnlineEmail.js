@@ -128,10 +128,11 @@ function marcoEmailHtml({
             ${sub ? `<div style="font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:500;color:rgba(255,255,255,0.92);margin:10px 0 0;">${escapeHtml(sub)}</div>` : ''}
           </td>
         </tr>
+        <tr><td style="height:4px;background:linear-gradient(90deg,#f0c14b,#1a56db);font-size:0;line-height:0;">&nbsp;</td></tr>
         <tr>
           <td style="padding:28px 32px 8px;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1f2937;font-size:15px;line-height:1.6;">
             ${introHtml || ''}
-            ${camposHtml ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:8px 0 4px;">${camposHtml}</table>` : ''}
+            ${camposHtml ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:16px 0 4px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;"><tr><td style="padding:4px 18px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${camposHtml}</table></td></tr></table>` : ''}
             ${cuerpoExtraHtml || ''}
             ${nota ? `<p style="margin:20px 0 8px;font-size:13px;color:#6b7280;line-height:1.5;">${escapeHtml(nota)}</p>` : ''}
           </td>

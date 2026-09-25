@@ -19,6 +19,7 @@ import ComunicadoHomeModal from './ComunicadoHomeModal';
 import EncuestaActivacionModal from './EncuestaActivacionModal';
 import HerramientasExamenActivacionModal from './HerramientasExamenActivacionModal';
 import SgoiFlotante from './SgoiFlotante';
+import ChatFlotante, { ChatEnLinea } from './ChatFlotante';
 import { usuarioPuedeSgoi } from '../utils/sgoiFormat';
 import { esPaqueteCoordinador, esPaqueteAcademico, esCoordinador } from '../utils/coordinadorAcceso';
 import '../styles/CumpleMarcoFestivo.css';
@@ -87,6 +88,38 @@ function BibliotecaSidebarItem() {
       >
         <span className="sidebar-icon">📚</span>
         <span className="sidebar-label">Biblioteca</span>
+      </NavLink>
+    </div>
+  );
+}
+
+function ChatVanguardSidebarItem() {
+  const { activo } = useModulos();
+  if (!activo('comunicaciones.chat')) return null;
+  return (
+    <div className="sidebar-item">
+      <NavLink
+        className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+        to="/chat"
+      >
+        <span className="sidebar-icon">💬</span>
+        <span className="sidebar-label">Chat Vanguard</span>
+      </NavLink>
+    </div>
+  );
+}
+
+function VanguarcitoSidebarItem() {
+  const { activo } = useModulos();
+  if (!activo('herramientas.vanguarcito')) return null;
+  return (
+    <div className="sidebar-item">
+      <NavLink
+        className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+        to="/admin/vanguarcito"
+      >
+        <span className="sidebar-icon">🤖</span>
+        <span className="sidebar-label">Vanguarcito</span>
       </NavLink>
     </div>
   );
@@ -903,6 +936,7 @@ export default function DashboardLayout({ children }) {
               </div>
               <AgendaInternaSidebarItem />
               <BibliotecaSidebarItem />
+              <ChatVanguardSidebarItem />
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/mensajes">
                   <span className="sidebar-icon">✉️</span>
@@ -937,6 +971,7 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               <BibliotecaSidebarItem />
+              <ChatVanguardSidebarItem />
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/horario">
                   <span className="sidebar-icon">📅</span>
@@ -1055,6 +1090,8 @@ export default function DashboardLayout({ children }) {
               {puedeVerSgoi && <SgoiSidebarItem />}
               <AgendaInternaSidebarItem />
               <BibliotecaSidebarItem />
+              <ChatVanguardSidebarItem />
+              <VanguarcitoSidebarItem />
               <SiModulo id="psicologia">
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/psicologia">
@@ -1225,6 +1262,7 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               <BibliotecaSidebarItem />
+              <ChatVanguardSidebarItem />
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/psicologia">
                   <span className="sidebar-icon">🧠</span>
@@ -1319,6 +1357,8 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               <BibliotecaSidebarItem />
+              <ChatVanguardSidebarItem />
+              <VanguarcitoSidebarItem />
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -1472,9 +1512,9 @@ export default function DashboardLayout({ children }) {
                   {activo('comunicaciones.chat') && (
                   <NavLink
                     className={({ isActive }) =>
-                      `sidebar-sublink ${isActive || location.pathname === '/admin/vanguarcito' ? 'active' : ''}`
+                      `sidebar-sublink ${isActive || location.pathname === '/chat' ? 'active' : ''}`
                     }
-                    to="/admin/comunicaciones/chat-vanguard"
+                    to="/chat"
                   >
                     <span className="sidebar-icon" aria-hidden>
                       💬
@@ -1549,6 +1589,7 @@ export default function DashboardLayout({ children }) {
               </SiModulo>
               <AgendaInternaSidebarItem />
               <BibliotecaSidebarItem />
+              <ChatVanguardSidebarItem />
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -1720,6 +1761,12 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>🔔</span>
                     <span className="sidebar-label">Notificaciones</span>
                   </NavLink>
+                  {activo('comunicaciones.chat') && (
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/chat">
+                    <span className="sidebar-icon" aria-hidden>💬</span>
+                    <span className="sidebar-label">Chat Vanguard</span>
+                  </NavLink>
+                  )}
                 </div>
               </div>
               {rolesAdicionales.es_apoderado && (
@@ -1765,6 +1812,18 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>📋</span>
                     <span className="sidebar-label">Deudores</span>
                   </NavLink>
+                  {activo('reportes.estadisticas') && (
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/estadisticas">
+                    <span className="sidebar-icon" aria-hidden>📈</span>
+                    <span className="sidebar-label">Estadísticas</span>
+                  </NavLink>
+                  )}
+                  {activo('reportes.incidencias') && (
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/incidencias">
+                    <span className="sidebar-icon" aria-hidden>⚠️</span>
+                    <span className="sidebar-label">Incidencias</span>
+                  </NavLink>
+                  )}
                 </div>
               </div>
               {esCoordinador(role) && activo('config.pagos') && (
@@ -1841,6 +1900,7 @@ export default function DashboardLayout({ children }) {
               )}
               {role === 'ADMINISTRADOR' && <AgendaInternaSidebarItem />}
               <BibliotecaSidebarItem />
+              <ChatVanguardSidebarItem />
               {activo('reportes.estadisticas') && (
                 <div className="sidebar-item">
                   <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/estadisticas">
@@ -2036,7 +2096,7 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-label">Conexiones</span>
                   </NavLink>
                   {activo('comunicaciones.chat') && (
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/chat-vanguard">
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/chat">
                     <span className="sidebar-icon" aria-hidden>💬</span>
                     <span className="sidebar-label">Chat Vanguard</span>
                   </NavLink>
@@ -2324,7 +2384,8 @@ export default function DashboardLayout({ children }) {
 
         <div
           className={`dashboard-main-wrapper ${
-            role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA' || role === 'PSICOLOGA'
+            location.pathname === '/chat' || location.pathname.startsWith('/chat/')
+              || role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA' || role === 'PSICOLOGA'
               || role === 'COORDINADOR' || role === 'DIRECTOR'
               ? 'dashboard-main-wrapper-no-sidebar'
               : ''
@@ -2333,7 +2394,7 @@ export default function DashboardLayout({ children }) {
           <main className="dashboard-main">{children}</main>
           
           {/* Columna derecha: solo se monta en web/tablet para evitar requests ocultos en móvil */}
-          {!isMobile && (role === 'DOCENTE' || role === 'CONTADOR' || role === 'ALUMNO' || role === 'APODERADO') && (
+          {!isMobile && location.pathname !== '/chat' && !location.pathname.startsWith('/chat/') && (role === 'DOCENTE' || role === 'CONTADOR' || role === 'ALUMNO' || role === 'APODERADO') && (
             <aside className="dashboard-sidebar-right">
               {role === 'ALUMNO' && activo('academico.gamificacion') && <AlumnoAvatarWidget />}
               <CalendarioWidget />
@@ -2378,6 +2439,12 @@ export default function DashboardLayout({ children }) {
         )}
 
         {puedeVerSgoi && activo('sgoi') && <SgoiFlotante />}
+        {activo('comunicaciones.chat') && role !== 'ASISTENCIA' && (
+          <>
+            <ChatEnLinea />
+            <ChatFlotante levantado={puedeVerSgoi && activo('sgoi')} />
+          </>
+        )}
       </div>
     </div>
   );

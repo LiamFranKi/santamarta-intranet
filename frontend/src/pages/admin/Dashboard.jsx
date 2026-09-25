@@ -85,7 +85,7 @@ function rutaAdminPermitidaPsicologa(pathname) {
   if (pathname === '/admin/reportes/incidencias' || pathname.startsWith('/admin/reportes/incidencias/')) {
     return true;
   }
-  if (pathname === '/admin/vanguarcito' || pathname === '/admin/comunicaciones/chat-vanguard') return true;
+  if (pathname === '/admin/vanguarcito' || pathname === '/admin/comunicaciones/chat-vanguard' || pathname === '/chat') return true;
   if (pathname === '/admin/notificaciones' || pathname.startsWith('/admin/notificaciones/')) return true;
   return PSICOLOGA_RUTAS_ADMIN.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }

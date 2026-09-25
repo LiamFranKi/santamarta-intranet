@@ -13,7 +13,7 @@ const { ensureGrupoConn } = require('../utils/matriculaGrupoCosto');
 const { MATRICULA_ESTADO } = require('../utils/matriculaEstados');
 const { SEGURO_OPCIONES, esSeguroIdValido } = require('../utils/seguroOpciones');
 const { enviarEmailsMatriculaOnline, gradoLabel } = require('../utils/matriculaOnlineEmail');
-const { staticFsSubdir } = require('../utils/staticStorage');
+const { staticFsSubdir, getPublicStaticBaseUrl } = require('../utils/staticStorage');
 const { fechaMySQLLima } = require('../utils/fechaHoraLima');
 
 function resolverAniosMatricula(colegio) {
@@ -93,7 +93,8 @@ async function loadConfigMatricula() {
     `SELECT clave, valor FROM config WHERE clave IN (
       'enable_enrollment_form', 'titulo_formulario_matricula', 'remitente_emails',
       'email_notificacion_matricula_online', 'email_matricula_apoderado',
-      'email_matricula_interno', 'email_matricula_interno_asunto'
+      'email_matricula_interno', 'email_matricula_interno_asunto',
+      'matricula_online_personal_ids', 'matricula_fondo'
     )`
   );
   const configMap = {};
@@ -180,6 +181,9 @@ router.get('/', async (req, res) => {
     res.json({
       habilitado,
       titulo: configMap.titulo_formulario_matricula || 'Matrícula online',
+      fondo_url: configMap.matricula_fondo
+        ? `${getPublicStaticBaseUrl()}/Static/Image/Fondos/${configMap.matricula_fondo}`
+        : null,
       colegio_nombre: colegio.titulo_intranet || configMap.remitente_emails || 'Vanguard Schools',
       /** Año Matrículas de configuración (visible en formulario y correos). */
       anio_matricula: anioDisplay,

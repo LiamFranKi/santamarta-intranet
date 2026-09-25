@@ -159,15 +159,6 @@ const CONFIG_TABS = [
     help: 'RUC, razón social, dirección y enlace de consulta de comprobantes.',
   },
   {
-    id: 'matricula',
-    label: 'Matrícula online',
-    icon: 'matricula',
-    tone: 'rose',
-    helpTitle: 'Formulario web',
-    help: 'Activa o desactiva la matrícula online, correos de notificación y plantillas HTML del mensaje.',
-    oculto: true,
-  },
-  {
     id: 'tutoria',
     label: 'Tutoría',
     icon: 'tutoria',
@@ -503,6 +494,71 @@ function PanelBibliotecaPersonal() {
   );
 }
 
+function MatriculaDestinatarios({ value, onChange }) {
+  const [personal, setPersonal] = useState([]);
+  const [q, setQ] = useState('');
+  const [listo, setListo] = useState(false);
+
+  useEffect(() => {
+    let cancel = false;
+    api.get('/admin/configuracion/matricula-personal')
+      .then(({ data }) => {
+        if (cancel) return;
+        setPersonal(data.personal || []);
+        if (!String(value || '').trim() && (data.seleccionados || []).length) {
+          onChange((data.seleccionados || []).join(','));
+        }
+        setListo(true);
+      })
+      .catch(() => { if (!cancel) setListo(true); });
+    return () => { cancel = true; };
+  }, []);
+
+  const elegidos = new Set(
+    String(value || '').split(',').map((n) => parseInt(n, 10)).filter(Boolean)
+  );
+  const filtrados = personal.filter((p) => {
+    const t = q.trim().toLowerCase();
+    if (!t) return true;
+    return `${p.nombre} ${p.email} ${p.cargo} ${p.tipo}`.toLowerCase().includes(t);
+  });
+
+  const toggle = (id) => {
+    const next = new Set(elegidos);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onChange([...next].join(','));
+  };
+
+  return (
+    <div className="form-group full-width">
+      <label>Notificación al colegio</label>
+      <p className="config-mat-lead">Marque al personal que recibirá el aviso institucional, con los datos, la foto del DNI y la firma.</p>
+      <input
+        type="search"
+        className="config-mat-search"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Buscar por nombre o correo…"
+      />
+      <div className="config-mat-list">
+        {!listo && <p className="config-mat-empty">Cargando personal…</p>}
+        {listo && !filtrados.length && <p className="config-mat-empty">No hay personal con correo.</p>}
+        {filtrados.map((p) => (
+          <label key={p.id} className={`config-mat-row ${elegidos.has(p.id) ? 'is-on' : ''}`}>
+            <input type="checkbox" checked={elegidos.has(p.id)} onChange={() => toggle(p.id)} />
+            <span>
+              <strong>{p.nombre}</strong>
+              <em>{p.cargo || p.tipo} · {p.email}</em>
+            </span>
+          </label>
+        ))}
+      </div>
+      <small>{elegidos.size} seleccionado{elegidos.size === 1 ? '' : 's'}.</small>
+    </div>
+  );
+}
+
 function PanelCajerosCajaChica() {
   const [list, setList] = useState([]);
   const [q, setQ] = useState('');
@@ -646,7 +702,7 @@ function AdminConfiguracion() {
   const visibleTabs = useMemo(
     () =>
       CONFIG_TABS.filter((tab) => {
-        if (tab.id === 'matricula') return activo('config.matricula_online');
+        if (tab.id === 'matricula') return false;
         if (tab.oculto) return false;
         if (!activo(`config.${tab.id}`)) return false;
         if (user?.tipo === 'COORDINADOR') return tab.id === 'pagos';
@@ -2501,17 +2557,10 @@ function AdminConfiguracion() {
                   placeholder="Nombre del colegio"
                 />
               </div>
-              <div className="form-group full-width">
-                <label>Correos internos (notificación al colegio)</label>
-                <textarea
-                  name="email_notificacion_matricula_online"
-                  value={config.email_notificacion_matricula_online}
-                  onChange={handleInputChange}
-                  rows="2"
-                  placeholder="correo1@colegio.edu.pe, correo2@colegio.edu.pe"
-                />
-                <small>Separe varios correos con coma. Reciben el resumen con datos, foto DNI y firma.</small>
-              </div>
+              <MatriculaDestinatarios
+                value={config.matricula_online_personal_ids || ''}
+                onChange={(ids) => setConfig((prev) => ({ ...prev, matricula_online_personal_ids: ids }))}
+              />
               <div className="form-group full-width">
                 <label>Mensaje para el apoderado</label>
                 <div className="config-quill-wrap">
@@ -2534,49 +2583,13 @@ function AdminConfiguracion() {
                   Si deja vacío, se usa el texto predeterminado.
                 </small>
               </div>
-              <div className="form-group full-width">
-                <label>Asunto correo interno (opcional)</label>
-                <input
-                  type="text"
-                  name="email_matricula_interno_asunto"
-                  value={config.email_matricula_interno_asunto || ''}
-                  onChange={handleInputChange}
-                  placeholder="Nueva matrícula online — {{nombre_alumno}} ({{anio_matricula}})"
-                />
-              </div>
-              <div className="form-group full-width">
-                <label>Mensaje correo interno</label>
-                <div className="config-quill-wrap">
-                  <ReactQuill
-                    ref={quillMatriculaInternoRef}
-                    theme="snow"
-                    value={config.email_matricula_interno || ''}
-                    onChange={handleMatriculaInternoChange}
-                    modules={quillModulesMatricula}
-                    formats={QUILL_FORMATS_MATRICULA}
-                    placeholder="Resumen para el equipo administrativo..."
-                    className="config-quill-editor"
-                  />
-                </div>
-                <small>
-                  Intro del aviso interno (el sistema añade marco, campos y Reply-To del apoderado).
-                  Etiquetas: <code>{'{{nombre_alumno}}'}</code>, <code>{'{{nombre_apoderado}}'}</code>,{' '}
-                  <code>{'{{nivel}}'}</code>, <code>{'{{grado}}'}</code>, <code>{'{{nivel_grado}}'}</code>,{' '}
-                  <code>{'{{anio_matricula}}'}</code>, <code>{'{{seguro}}'}</code>, <code>{'{{dni_alumno}}'}</code>,{' '}
-                  <code>{'{{dni_apoderado}}'}</code>, <code>{'{{email_apoderado}}'}</code>,{' '}
-                  <code>{'{{telefono_apoderado}}'}</code>, <code>{'{{domicilio}}'}</code>,{' '}
-                  <code>{'{{fecha_registro}}'}</code>, <code>{'{{documentos_aceptados_html}}'}</code>.
-                  Foto DNI y firma se adjuntan automáticamente.
-                </small>
-              </div>
             </div>
             <div className="card-actions">
               <button 
                 type="button" 
                 onClick={() => handleSaveSection([
                   'enable_enrollment_form', 'remitente_emails',
-                  'email_notificacion_matricula_online', 'email_matricula_apoderado',
-                  'email_matricula_interno', 'email_matricula_interno_asunto'
+                  'matricula_online_personal_ids', 'email_matricula_apoderado'
                 ], 'Matrícula Online')}
                 disabled={saving}
                 className="btn-submit-card"

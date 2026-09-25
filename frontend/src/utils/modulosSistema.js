@@ -40,7 +40,7 @@ export const MODULOS = [
   { clave: 'comunicaciones.actividades', grupo: 'Comunicaciones', nombre: 'Actividades', defecto: true, rutas: ['/admin/comunicaciones/actividades', '/docente/actividades', '/alumno/actividades', '/apoderado/actividades'] },
   { clave: 'comunicaciones.eventos', grupo: 'Comunicaciones', nombre: 'Eventos', defecto: true, rutas: ['/admin/comunicaciones/eventos'] },
   { clave: 'comunicaciones.notificaciones', grupo: 'Comunicaciones', nombre: 'Notificaciones', defecto: true, rutas: ['/admin/comunicaciones/notificaciones'] },
-  { clave: 'comunicaciones.chat', grupo: 'Comunicaciones', nombre: 'Chat Vanguard', defecto: false, rutas: ['/admin/comunicaciones/chat-vanguard'] },
+  { clave: 'comunicaciones.chat', grupo: 'Comunicaciones', nombre: 'Chat Vanguard', defecto: false, rutas: ['/chat', '/admin/comunicaciones/chat-vanguard'] },
 
   { clave: 'pagos.escolares', grupo: 'Pagos y facturas', nombre: 'Pagos escolares', defecto: true, rutas: ['/admin/pagos-facturas/buscar-pagos'] },
   { clave: 'pagos.productos', grupo: 'Pagos y facturas', nombre: 'Productos', defecto: true, rutas: ['/admin/pagos-facturas/productos'] },
@@ -80,7 +80,6 @@ export const MODULOS = [
   { clave: 'config.biblioteca', grupo: 'Configuración', nombre: 'Biblioteca', defecto: true, rutas: [] },
   { clave: 'config.cumpleanos', grupo: 'Configuración', nombre: 'Cumpleaños', defecto: true, rutas: ['/admin/config/cumpleanos'] },
   { clave: 'config.indicadores', grupo: 'Configuración', nombre: 'Indicadores', defecto: true, rutas: ['/admin/config/indicadores'] },
-  { clave: 'config.matricula_online', grupo: 'Configuración', nombre: 'Matrícula online', defecto: false, rutas: [] },
 ];
 
 const FABRICA = Object.fromEntries(MODULOS.map((m) => [m.clave, m.defecto !== false]));
@@ -96,7 +95,6 @@ export const CLAVES_CONFIG_PAGINA = [
   'config.tutoria',
   'config.cajero',
   'config.biblioteca',
-  'config.matricula_online',
 ];
 
 const RUTAS = MODULOS

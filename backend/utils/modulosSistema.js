@@ -85,7 +85,6 @@ const MODULOS = [
   { clave: 'config.biblioteca', grupo: 'Configuración', nombre: 'Biblioteca', defecto: true },
   { clave: 'config.cumpleanos', grupo: 'Configuración', nombre: 'Cumpleaños', defecto: true },
   { clave: 'config.indicadores', grupo: 'Configuración', nombre: 'Indicadores', defecto: true },
-  { clave: 'config.matricula_online', grupo: 'Configuración', nombre: 'Matrícula online', defecto: false },
 ];
 
 const POR_CLAVE = new Map(MODULOS.map((m) => [m.clave, m]));
