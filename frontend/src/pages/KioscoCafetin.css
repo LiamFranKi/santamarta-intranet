@@ -240,6 +240,20 @@
   background: #1c1410;
   color: #fff8f1;
 }
+.kio-portada {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #fff;
+  border-radius: 18px;
+  padding: 0.85rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 8px 18px rgba(60, 36, 16, 0.08);
+}
+.kio-portada-foto { width: 120px; flex: 0 0 120px; }
+.kio-portada strong { display: block; margin-bottom: 0.2rem; }
+.kio-portada p { margin: 0 0 0.55rem; color: #6b5344; font-size: 0.9rem; }
+
 .kio-cats-lg {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));

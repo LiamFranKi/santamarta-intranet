@@ -288,7 +288,7 @@ export default function KioscoCafetin() {
   const cartaBloque = vistaCarta === 'cats' ? (
     <div className="kio-cats-lg">
       <button type="button" onClick={() => { setCatId('carta'); setVistaCarta('prods'); }}>
-        <span>🍽️</span>
+        <Foto src={config?.carta_imagen_url} emoji="🍽️" />
         <span>Carta del día</span>
       </button>
       {carta.categorias.map((c) => (
@@ -528,6 +528,29 @@ export default function KioscoCafetin() {
             <div className="kio-panel-head">
               <h2>Carta del día</h2>
             </div>
+            <article className="kio-portada">
+              <div className="kio-plato-foto kio-portada-foto"><Foto src={config?.carta_imagen_url} emoji="🍽️" /></div>
+              <div>
+                <strong>Foto que ven al pedir</strong>
+                <p>Cuadrada. Es la imagen de la ficha Carta del día.</p>
+                <label className="kio-file">Cambiar foto
+                  <input type="file" accept="image/*" onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (!file) return;
+                    try {
+                      const fd = new FormData();
+                      fd.append('imagen', file);
+                      const { data } = await api.post('/kiosco/carta-portada', fd);
+                      setConfig(data.config);
+                      setAviso('Foto de la carta del día guardada.');
+                    } catch (err) {
+                      setError(err.response?.data?.error || 'No se pudo guardar la foto.');
+                    }
+                  }} />
+                </label>
+              </div>
+            </article>
             <p className="kio-vacio">Lo de siempre ya sale todos los días. Aquí publicas lo especial y lo vuelves a activar otro día, sin crearlo de nuevo.</p>
             <h3>Publicado</h3>
             <div className="kio-grilla">

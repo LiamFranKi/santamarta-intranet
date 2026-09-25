@@ -85,6 +85,7 @@ async function leerConfig(colegioId) {
       corte_hora: row.corte_hora ? String(row.corte_hora).slice(0, 5) : '',
       comida_activa: Number(row.comida_activa) === 1,
       fiado_activo: Number(row.fiado_activo) === 1,
+      carta_imagen_url: String(row.carta_imagen_url || '').trim(),
     };
   }
   return {
@@ -96,6 +97,7 @@ async function leerConfig(colegioId) {
     corte_hora: '',
     comida_activa: true,
     fiado_activo: true,
+    carta_imagen_url: '',
   };
 }
 
@@ -173,6 +175,24 @@ router.put('/config', async (req, res) => {
     res.json({ config: await leerConfig(colegioId) });
   } catch (e) {
     res.status(500).json({ error: e.message || 'No se pudo guardar' });
+  }
+});
+
+router.post('/carta-portada', uploadKiosco.single('imagen'), async (req, res) => {
+  if (!(await exigirModulo(res))) return;
+  if (!esCaja(req.user)) return res.status(403).json({ error: 'Solo el perfil Kiosco cambia la foto de la carta.' });
+  const url = urlImagenKiosco(req.file);
+  if (!url) return res.status(400).json({ error: 'Elige una foto.' });
+  const colegioId = req.user.colegio_id || DEFAULT_COLEGIO_ID;
+  try {
+    await execute(
+      `INSERT INTO kiosco_config (colegio_id, carta_imagen_url) VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE carta_imagen_url = VALUES(carta_imagen_url)`,
+      [colegioId, url]
+    );
+    res.json({ config: await leerConfig(colegioId) });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'No se pudo guardar la foto' });
   }
 });
 
