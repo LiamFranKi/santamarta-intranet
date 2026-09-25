@@ -10,6 +10,21 @@ function sumarDias(iso, dias) {
   return d.toISOString().slice(0, 10);
 }
 
+const EMOJIS = ['🥤', '🧃', '💧', '☕', '🍪', '🍫', '🍬', '🍩', '🍔', '🍟', '🌭', '🍕', '🥪', '🌮', '🥗', '🍚', '🍗', '🍦', '🍎', '🍌'];
+
+function EmojiCampo({ value, onChange }) {
+  return (
+    <div className="kio-emoji">
+      <div className="kio-emoji-grid">
+        {EMOJIS.map((e) => (
+          <button key={e} type="button" className={value === e ? 'is-on' : ''} onClick={() => onChange(e)}>{e}</button>
+        ))}
+      </div>
+      <input value={value} onChange={(ev) => onChange(ev.target.value)} placeholder="O pega otro emoji" />
+    </div>
+  );
+}
+
 function etiquetaDia(iso, hoy) {
   if (iso === hoy) return 'Hoy';
   if (iso === sumarDias(hoy, 1)) return 'Mañana';
@@ -40,10 +55,11 @@ export default function KioscoCafetin() {
   const [pedidos, setPedidos] = useState([]);
   const [catalogo, setCatalogo] = useState({ categorias: [], productos: [] });
   const [resumen, setResumen] = useState(null);
-  const [formCat, setFormCat] = useState({ nombre: '', emoji: '🍽️' });
+  const [formCat, setFormCat] = useState({ nombre: '', emoji: '🍽️', imagen: null });
   const [formProd, setFormProd] = useState({
-    nombre: '', precio: '', emoji: '🥤', categoria_id: '', siempre: true, es_comida: false, stock: '10',
+    nombre: '', precio: '', emoji: '🥤', categoria_id: '', siempre: true, es_comida: false, stock: '10', imagen: null,
   });
+  const [sumar, setSumar] = useState({});
 
   const cargarBase = useCallback(async () => {
     const { data } = await api.get('/kiosco/config');
@@ -266,7 +282,7 @@ export default function KioscoCafetin() {
             <button type="button" className={catId === 'todas' ? 'is-on' : ''} onClick={() => setCatId('todas')}>Todo</button>
             {carta.categorias.map((c) => (
               <button key={c.id} type="button" className={String(catId) === String(c.id) ? 'is-on' : ''} onClick={() => setCatId(String(c.id))}>
-                {c.emoji} {c.nombre}
+                {c.imagen_url ? <img src={c.imagen_url} alt="" /> : c.emoji} {c.nombre}
               </button>
             ))}
           </div>
@@ -348,28 +364,52 @@ export default function KioscoCafetin() {
 
       {caja && tab === 'productos' && (
         <section className="kio-forms">
-          <form onSubmit={async (e) => { e.preventDefault(); await api.post('/kiosco/categorias', formCat); setFormCat({ nombre: '', emoji: '🍽️' }); cargarCatalogo(); }}>
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            const fd = new FormData();
+            fd.append('nombre', formCat.nombre);
+            fd.append('emoji', formCat.emoji);
+            if (formCat.imagen) fd.append('imagen', formCat.imagen);
+            await api.post('/kiosco/categorias', fd);
+            setFormCat({ nombre: '', emoji: '🍽️', imagen: null });
+            cargarCatalogo();
+          }}>
             <h2>Categoría</h2>
             <input value={formCat.nombre} onChange={(e) => setFormCat({ ...formCat, nombre: e.target.value })} placeholder="Bebidas, snacks, menú…" required />
-            <input value={formCat.emoji} onChange={(e) => setFormCat({ ...formCat, emoji: e.target.value })} placeholder="Emoji" />
+            <EmojiCampo value={formCat.emoji} onChange={(emoji) => setFormCat({ ...formCat, emoji })} />
+            <label className="kio-file">Foto de la categoría
+              <input type="file" accept="image/*" onChange={(e) => setFormCat({ ...formCat, imagen: e.target.files?.[0] || null })} />
+            </label>
             <button className="kio-btn" type="submit">Crear categoría</button>
           </form>
           <form onSubmit={async (e) => {
             e.preventDefault();
-            await api.post('/kiosco/productos', { ...formProd, precio: Number(formProd.precio), stock: Number(formProd.stock) });
-            setFormProd({ nombre: '', precio: '', emoji: '🥤', categoria_id: '', siempre: true, es_comida: false, stock: '10' });
+            const fd = new FormData();
+            fd.append('nombre', formProd.nombre);
+            fd.append('precio', String(formProd.precio || '0'));
+            fd.append('emoji', formProd.emoji);
+            fd.append('categoria_id', formProd.categoria_id || '');
+            fd.append('stock', String(formProd.stock || '0'));
+            fd.append('siempre', formProd.siempre ? 'true' : 'false');
+            fd.append('es_comida', formProd.es_comida ? 'true' : 'false');
+            if (formProd.imagen) fd.append('imagen', formProd.imagen);
+            await api.post('/kiosco/productos', fd);
+            setFormProd({ nombre: '', precio: '', emoji: '🥤', categoria_id: '', siempre: true, es_comida: false, stock: '10', imagen: null });
             cargarCatalogo();
             cargarCarta(fecha);
           }}>
             <h2>Producto</h2>
             <input value={formProd.nombre} onChange={(e) => setFormProd({ ...formProd, nombre: e.target.value })} placeholder="Nombre" required />
             <input value={formProd.precio} onChange={(e) => setFormProd({ ...formProd, precio: e.target.value })} placeholder="Precio" required />
-            <input value={formProd.emoji} onChange={(e) => setFormProd({ ...formProd, emoji: e.target.value })} placeholder="Emoji" />
+            <EmojiCampo value={formProd.emoji} onChange={(emoji) => setFormProd({ ...formProd, emoji })} />
+            <label className="kio-file">Foto del producto
+              <input type="file" accept="image/*" onChange={(e) => setFormProd({ ...formProd, imagen: e.target.files?.[0] || null })} />
+            </label>
             <select value={formProd.categoria_id} onChange={(e) => setFormProd({ ...formProd, categoria_id: e.target.value })}>
               <option value="">Sin categoría</option>
               {catalogo.categorias.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select>
-            <input value={formProd.stock} onChange={(e) => setFormProd({ ...formProd, stock: e.target.value })} placeholder="Stock" />
+            <input value={formProd.stock} onChange={(e) => setFormProd({ ...formProd, stock: e.target.value })} placeholder="Stock inicial" />
             <label><input type="checkbox" checked={formProd.siempre} onChange={(e) => setFormProd({ ...formProd, siempre: e.target.checked })} /> De siempre</label>
             <label><input type="checkbox" checked={formProd.es_comida} onChange={(e) => setFormProd({ ...formProd, es_comida: e.target.checked })} /> Es comida</label>
             <button className="kio-btn" type="submit">Publicar producto</button>
@@ -377,10 +417,23 @@ export default function KioscoCafetin() {
           <ul className="kio-lista">
             {catalogo.productos.map((p) => (
               <li key={p.id}>
-                <span>{p.emoji} {p.nombre} · S/ {Number(p.precio).toFixed(2)} · stock {p.stock}</span>
-                <span>
-                  <button type="button" onClick={() => api.post('/kiosco/stock', { producto_id: p.id, cantidad: 1 }).then(cargarCatalogo)}>+1</button>
-                  <button type="button" onClick={() => api.post('/kiosco/stock', { producto_id: p.id, cantidad: -1 }).then(cargarCatalogo)}>−1</button>
+                <span>{p.imagen_url ? <img className="kio-mini" src={p.imagen_url} alt="" /> : p.emoji} {p.nombre} · S/ {Number(p.precio).toFixed(2)} · stock {p.stock}</span>
+                <span className="kio-sumar">
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="Cant."
+                    value={sumar[p.id] || ''}
+                    onChange={(e) => setSumar((s) => ({ ...s, [p.id]: e.target.value }))}
+                  />
+                  <button type="button" onClick={() => {
+                    const n = parseInt(sumar[p.id], 10);
+                    if (!n) return;
+                    api.post('/kiosco/stock', { producto_id: p.id, cantidad: n }).then(() => {
+                      setSumar((s) => ({ ...s, [p.id]: '' }));
+                      cargarCatalogo();
+                    });
+                  }}>Sumar</button>
                 </span>
               </li>
             ))}

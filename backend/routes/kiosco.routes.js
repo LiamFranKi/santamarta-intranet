@@ -2,6 +2,9 @@
  * Kiosco cafetín. Montaje: /api/kiosco
  */
 const express = require('express');
+const crypto = require('crypto');
+const path = require('path');
+const multer = require('multer');
 const router = express.Router();
 const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
@@ -9,6 +12,27 @@ const { DEFAULT_COLEGIO_ID } = require('../utils/defaultColegio');
 const { moduloActivo } = require('../utils/modulosSistema');
 const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
+const { staticFsSubdir, getPublicStaticBaseUrl } = require('../utils/staticStorage');
+
+const uploadKiosco = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, staticFsSubdir('Image', 'Kiosco')),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname || '').toLowerCase() || '.jpg';
+      cb(null, `kiosco-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (/^image\/(jpeg|jpg|png|webp|gif)$/i.test(file.mimetype || '')) return cb(null, true);
+    cb(new Error('La imagen debe ser JPG, PNG o WEBP'));
+  },
+});
+
+function urlImagenKiosco(file) {
+  if (!file) return '';
+  return `${getPublicStaticBaseUrl()}/Static/Image/Kiosco/${file.filename}`;
+}
 
 router.use(authenticateToken);
 
@@ -153,7 +177,7 @@ router.get('/carta', async (req, res) => {
   try {
     const config = await leerConfig(colegioId);
     const categorias = await query(
-      'SELECT id, nombre, emoji FROM kiosco_categorias WHERE colegio_id = ? AND activo = 1 ORDER BY orden, nombre',
+      'SELECT id, nombre, emoji, imagen_url FROM kiosco_categorias WHERE colegio_id = ? AND activo = 1 ORDER BY orden, nombre',
       [colegioId]
     );
     const productos = await query(
@@ -487,15 +511,20 @@ router.get('/catalogo', async (req, res) => {
   }
 });
 
-router.post('/categorias', async (req, res) => {
+router.post('/categorias', uploadKiosco.single('imagen'), async (req, res) => {
   if (!(await exigirModulo(res))) return;
   if (!esCaja(req.user)) return res.status(403).json({ error: 'No autorizado' });
   const nombre = String(req.body?.nombre || '').trim();
   if (!nombre) return res.status(400).json({ error: 'Escribe el nombre de la categoría.' });
   try {
     await execute(
-      'INSERT INTO kiosco_categorias (colegio_id, nombre, emoji) VALUES (?, ?, ?)',
-      [req.user.colegio_id || DEFAULT_COLEGIO_ID, nombre, String(req.body?.emoji || '🍽️').slice(0, 8)]
+      'INSERT INTO kiosco_categorias (colegio_id, nombre, emoji, imagen_url) VALUES (?, ?, ?, ?)',
+      [
+        req.user.colegio_id || DEFAULT_COLEGIO_ID,
+        nombre,
+        String(req.body?.emoji || '🍽️').slice(0, 16),
+        urlImagenKiosco(req.file),
+      ]
     );
     res.json({ ok: true });
   } catch (e) {
@@ -503,7 +532,7 @@ router.post('/categorias', async (req, res) => {
   }
 });
 
-router.post('/productos', async (req, res) => {
+router.post('/productos', uploadKiosco.single('imagen'), async (req, res) => {
   if (!(await exigirModulo(res))) return;
   if (!esCaja(req.user)) return res.status(403).json({ error: 'No autorizado' });
   const nombre = String(req.body?.nombre || '').trim();
@@ -520,10 +549,10 @@ router.post('/productos', async (req, res) => {
         nombre,
         String(req.body?.descripcion || '').slice(0, 255),
         Number(req.body?.precio) || 0,
-        String(req.body?.emoji || '🥤').slice(0, 8),
-        String(req.body?.imagen_url || '').slice(0, 500),
-        req.body?.siempre === false ? 0 : 1,
-        req.body?.es_comida ? 1 : 0,
+        String(req.body?.emoji || '🥤').slice(0, 16),
+        urlImagenKiosco(req.file) || String(req.body?.imagen_url || '').slice(0, 500),
+        String(req.body?.siempre) === 'false' || req.body?.siempre === false ? 0 : 1,
+        String(req.body?.es_comida) === 'true' || req.body?.es_comida === true ? 1 : 0,
         parseInt(req.body?.stock, 10) || 0,
       ]
     );

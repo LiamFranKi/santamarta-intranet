@@ -79,7 +79,45 @@
   padding: 0.45rem 0.85rem;
   cursor: pointer;
   color: #4a382c;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
+
+.kio-cats button img, .kio-mini {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.kio-emoji-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.kio-emoji-grid button {
+  border: 1px solid #e4d5c3;
+  background: white;
+  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+}
+
+.kio-cats button img, .kio-mini {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  object-fit: cover;
+  vertical-align: middle;
+}
+
+.kio-emoji-grid button.is-on { outline: 2px solid #c45c26; }
+.kio-file { font-size: 0.85rem; color: #6d5c4d; display: flex; flex-direction: column; gap: 0.25rem; }
+.kio-sumar { display: flex; gap: 0.3rem; align-items: center; }
+.kio-sumar input { width: 4.5rem; }
 
 .kio-tabs button.is-on, .kio-dias button.is-on, .kio-cats button.is-on {
   background: #2f241c;
