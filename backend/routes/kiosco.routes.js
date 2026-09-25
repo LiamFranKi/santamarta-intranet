@@ -607,7 +607,7 @@ router.put('/productos/:id', uploadKiosco.single('imagen'), async (req, res) => 
   try {
     const imagen = urlImagenKiosco(req.file) || null;
     await execute(
-      `UPDATE kiosco_productos`
+      `UPDATE kiosco_productos
        SET categoria_id = ?, nombre = ?, precio = ?, emoji = ?,
            imagen_url = IF(? IS NULL, imagen_url, ?),
            siempre = ?, es_comida = ?, stock = ?
