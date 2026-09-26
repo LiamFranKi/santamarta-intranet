@@ -1851,3 +1851,180 @@
   margin-left: 0;
 }
 
+.cneb-sesion-editor {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+.cneb-sesion-editor .cneb-map-toolbar {
+  background: #fff;
+  border: 1px solid #e6edf5;
+  border-radius: 16px;
+  padding: 1rem 1.1rem;
+  margin-bottom: 0.85rem;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+}
+
+.cneb-sesion-editor .cneb-map-toolbar h2 {
+  font-size: 1.35rem;
+  margin-bottom: 0.3rem;
+}
+
+.cneb-sesion-editor .cneb-map-toolbar p {
+  font-size: 0.98rem;
+  line-height: 1.45;
+  max-width: 46rem;
+}
+
+.cneb-bloque {
+  background: #fff;
+  border: 1px solid #e6edf5;
+  border-radius: 16px;
+  padding: 1rem 1.05rem 1.05rem;
+  margin-bottom: 0.85rem;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+}
+
+.cneb-bloque-kicker {
+  margin: 0 0 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0f766e;
+}
+
+.cneb-sesion-editor .cneb-select-wrap {
+  font-size: 0.84rem;
+  letter-spacing: 0.03em;
+}
+
+.cneb-sesion-editor .cneb-select-wrap select,
+.cneb-sesion-editor .cneb-select-wrap input,
+.cneb-sesion-editor .cneb-unidad-tema input,
+.cneb-sesion-editor .cneb-unidad-tema select,
+.cneb-sesion-editor .cneb-full textarea {
+  font-size: 1rem;
+  min-height: 2.65rem;
+  border-color: #d5deea;
+  background: #fff;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
+}
+
+.cneb-sesion-editor .cneb-full textarea {
+  min-height: 4.6rem;
+  height: auto;
+}
+
+.cneb-sesion-editor .cneb-unidad-tema > label,
+.cneb-sesion-editor .cneb-lote-accion > label {
+  font-size: 0.84rem;
+}
+
+.cneb-sesion-editor .cneb-hint-corta {
+  font-size: 0.92rem;
+  margin-top: 0.35rem;
+}
+
+.cneb-sesion-editor .cneb-lote {
+  background: #fff;
+  border: 1px solid #e6edf5;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+  padding: 1rem 1.05rem;
+}
+
+.cneb-sesion-editor .cneb-lote h3 {
+  font-size: 1.05rem;
+}
+
+.cneb-sesion-editor .cneb-lote > div > p,
+.cneb-sesion-editor .cneb-muted {
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.cneb-sesion-editor .cneb-comp-checks label {
+  background: #f8fafc;
+  border: 1px solid #e6edf5;
+  border-radius: 12px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.98rem;
+}
+
+.cneb-sesion-editor .cneb-comp-checks label:has(input:checked) {
+  background: #f0fdfa;
+  border-color: #5eead4;
+}
+
+.cneb-generar-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin: 0.2rem 0 0.9rem;
+  padding: 0.9rem 1rem;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f0fdfa 0%, #fff 70%);
+  border: 1px solid #99f6e4;
+  box-shadow: 0 10px 24px rgba(15, 118, 110, 0.08);
+}
+
+.cneb-generar-bar strong {
+  display: block;
+  font-size: 1.05rem;
+  color: #115e59;
+}
+
+.cneb-generar-bar p {
+  margin: 0.15rem 0 0;
+  font-size: 0.92rem;
+  color: #475569;
+  max-width: 36rem;
+}
+
+.cneb-generar-bar__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cneb-sesion-editor .cneb-btn.primary {
+  padding: 0.7rem 1.2rem;
+  font-size: 1rem;
+  border-radius: 12px;
+  box-shadow: 0 8px 16px rgba(15, 118, 110, 0.22);
+}
+
+.cneb-sesion-editor .cneb-momento {
+  background: #fff;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
+  border-left-width: 4px;
+  border-left-style: solid;
+  padding: 0.9rem 1rem 1rem;
+}
+
+.cneb-sesion-editor .cneb-momento--inicio { border-left-color: #0f766e; }
+.cneb-sesion-editor .cneb-momento--desarrollo { border-left-color: #0369a1; }
+.cneb-sesion-editor .cneb-momento--cierre { border-left-color: #7c3aed; }
+
+.cneb-sesion-editor .cneb-momento-head h3 {
+  font-size: 1.08rem;
+}
+
+.cneb-sesion-editor .cneb-dua-panel {
+  box-shadow: 0 8px 22px rgba(91, 33, 182, 0.06);
+}
+
+.cneb-sesion-editor .cneb-dua-panel__head h3 {
+  font-size: 1.12rem;
+}
+
+.cneb-sesion-editor .cneb-dua-panel__head p,
+.cneb-sesion-editor .cneb-dua-tile {
+  font-size: 0.92rem;
+}
+

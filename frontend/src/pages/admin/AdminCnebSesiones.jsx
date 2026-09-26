@@ -612,6 +612,18 @@ export default function AdminCnebSesiones({
     setCompsMarcadas((prev) => (prev.includes(sid) ? prev.filter((x) => x !== sid) : [...prev, sid]));
   };
 
+  const proponerConIa = () => {
+    const lineas = String(titulosLote || '')
+      .split(/\n/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+    const n = lineas.length
+      ? Math.min(6, lineas.length)
+      : Math.min(6, Math.max(1, parseInt(cantidadIa, 10) || 1));
+    if (n > 1) return generarLote();
+    return generarConIa();
+  };
+
   const generarLote = async () => {
     if (!String(form.unidad || '').trim()) {
       await Swal.fire({
@@ -904,14 +916,13 @@ export default function AdminCnebSesiones({
   }
 
   return (
-    <section className="cneb-panel">
+    <section className="cneb-panel cneb-sesion-editor">
       <div className="cneb-map-toolbar">
         <div>
           <h2>{form.id ? 'Editar sesión' : 'Nueva sesión'}</h2>
           <p>
-            Los tres momentos viven en la base. Puede editar, borrar o imprimir la ficha del
-            estudiante (evidencia física). Si deja el área vacía, es un taller interno: cotejo en el
-            registro, sin SIAGIE.
+            Escriba la unidad y el tema, marque las competencias y pulse Generar con IA.
+            Si pide una sesión, la ve aquí para revisarla. Si pide varias, quedan en borrador.
           </p>
         </div>
         <div className="cneb-map-actions">
@@ -956,6 +967,8 @@ export default function AdminCnebSesiones({
         </div>
       </div>
 
+      <div className="cneb-bloque">
+        <p className="cneb-bloque-kicker">Datos de la sesión</p>
       <div className="cneb-ses-grid">
         <label className="cneb-select-wrap">
           <span>Aula</span>
@@ -1098,15 +1111,15 @@ export default function AdminCnebSesiones({
         </label>
       </div>
       <p className="cneb-hint-corta">
-        La unidad ya viene escrita desde la unidad madre. Si la borra o la cambia, solo cambia esta sesión.
-        Si el tema está escrito, la IA arma la sesión sobre ese título.
+        La unidad ya viene escrita. Si la cambia, solo cambia esta sesión. Si escribe el tema, la IA no lo cambia.
       </p>
+      </div>
 
       {mostrarIaSesiones && comps.length > 0 ? (
         <div className="cneb-lote">
           <div>
             <h3>Competencias de esta unidad</h3>
-            <p>Marque las que usará. Una competencia y 1 sesión es ir de una en una.</p>
+            <p>Marque las que entran en esta unidad. El número de sesiones lo usa el botón Generar con IA.</p>
           </div>
           <div className="cneb-comp-checks">
             {comps.map((c) => (
@@ -1131,9 +1144,6 @@ export default function AdminCnebSesiones({
                 onChange={(e) => setCantidadIa(e.target.value)}
               />
             </label>
-            <button type="button" className="cneb-btn primary" onClick={generarLote} disabled={generating}>
-              {generating ? 'Generando…' : `Generar ${Math.min(6, Math.max(1, parseInt(cantidadIa, 10) || 1))}`}
-            </button>
           </div>
         </div>
       ) : null}
@@ -1168,14 +1178,6 @@ export default function AdminCnebSesiones({
                 />
               </label>
             ) : null}
-            <button type="button" className="cneb-btn primary" onClick={generarLote} disabled={generating}>
-              {generating
-                ? 'Generando…'
-                : `Generar ${
-                    String(titulosLote || '').split(/\n/).map((t) => t.trim()).filter(Boolean).slice(0, 6).length
-                    || Math.min(6, Math.max(1, parseInt(cantidadIa, 10) || 1))
-                  }`}
-            </button>
           </div>
         </div>
       ) : null}
@@ -1255,7 +1257,12 @@ export default function AdminCnebSesiones({
         </p>
       ) : null}
 
-      <div className="cneb-map-actions" style={{ margin: '0.85rem 0' }}>
+      <div className="cneb-generar-bar">
+        <div>
+          <strong>Generar la sesión</strong>
+          <p>Si la cantidad es 1, la propuesta aparece en esta pantalla. Si son más, quedan en borrador.</p>
+        </div>
+        <div className="cneb-generar-bar__acciones">
         <button type="button" className="cneb-btn ghost" onClick={armarBorrador}>
           Armar borrador
         </button>
@@ -1263,7 +1270,7 @@ export default function AdminCnebSesiones({
           <button
             type="button"
             className="cneb-btn primary"
-            onClick={generarConIa}
+            onClick={proponerConIa}
             disabled={generating}
           >
             {generating ? 'Generando con IA…' : 'Generar con IA'}
@@ -1272,6 +1279,7 @@ export default function AdminCnebSesiones({
         <span className={`cneb-suma${sumaOk ? ' is-ok' : ' is-bad'}`}>
           Minutos: {suma} / {form.duracion_min}
         </span>
+        </div>
       </div>
 
       <CnebInclusivoPanel
@@ -1282,7 +1290,7 @@ export default function AdminCnebSesiones({
       />
 
       {['inicio', 'desarrollo', 'cierre'].map((tipo) => (
-        <div key={tipo} className="cneb-momento">
+        <div key={tipo} className={`cneb-momento cneb-momento--${tipo}`}>
           <div className="cneb-momento-head">
             <h3>{tipo === 'inicio' ? 'Inicio' : tipo === 'desarrollo' ? 'Desarrollo' : 'Cierre'}</h3>
             <label>
