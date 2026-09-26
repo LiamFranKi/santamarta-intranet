@@ -145,6 +145,7 @@ export default function AulaCnebSesiones({
         : areaResuelta?.nombre || meta.mapa?.area_nombre || meta.curso_nombre || '',
       corte,
       aula_label: `${aula} · ${corteLabel}`,
+      curso_nombre: meta.curso_nombre || '',
     };
   }, [meta, areasCat]);
 

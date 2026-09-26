@@ -168,6 +168,8 @@ async function varsGenerarSesionIa(cid, body, anio) {
     titulo: body?.titulo || '',
     proposito: body?.proposito || '',
     unidad: body?.unidad || '',
+    taller: body?.taller === true,
+    evitar_titulos: body?.evitar_titulos || '',
     apoyos_aula: [textoApoyosParaPrompt(activos), textoDuaMarcado(body?.dua)].filter(Boolean).join('\n\n'),
   };
 }

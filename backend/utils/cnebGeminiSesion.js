@@ -171,8 +171,22 @@ async function generarSesionConIa({ plantilla, vars, duracionMin }) {
     plantillaUso +=
       '\n\nUNIDAD DEL BIMESTRE: {{unidad}}\nEl tema, el propósito, las actividades, la ficha y el cotejo deben tratar de esta unidad. No cambie de tema ni de competencia.';
   }
+  if (String(vars?.titulo || '').trim()) {
+    plantillaUso +=
+      '\n\nTEMA YA ELEGIDO: el titulo de esta sesión es exactamente «{{titulo}}». Devuélvelo igual, sin otro tema. El propósito, las actividades, la ficha y el cotejo tratan de ese tema, dentro de la unidad.';
+  } else if (String(vars?.evitar_titulos || '').trim()) {
+    plantillaUso +=
+      '\n\nPropón un titulo concreto, distinto de estos: {{evitar_titulos}}. Sigue dentro de la misma unidad.';
+  }
+  if (vars?.taller) {
+    plantillaUso +=
+      '\n\nCURSO COMPLEMENTARIO (no SIAGIE): el curso es «{{area}}». No hay competencia del Currículo Nacional. No inventes un área ni una competencia oficial. Arma la sesión del tema, dentro de la unidad. El cotejo es para el registro del colegio, sin AD/A/B/C.';
+  }
   const proponerDesempenos = vars?.proponer_desempenos === true && !String(vars?.desempenos || '').trim();
-  if (proponerDesempenos) {
+  if (proponerDesempenos && vars?.taller) {
+    plantillaUso +=
+      '\n\nNo hay desempeños de catálogo. Propón de 3 a 5 observables de ESTE tema, en lenguaje de aula, y un ítem de cotejo por cada uno. No los presentes como competencia oficial del Ministerio.\nAñade al JSON la clave "desempenos": ["frase 1", "frase 2"].';
+  } else if (proponerDesempenos) {
     plantillaUso +=
       '\n\nESTE GRADO NO TIENE DESEMPEÑOS EN EL CATÁLOGO:\n- Propón de 3 a 5 desempeños observables para {{corte_label}}, dentro de la competencia y las capacidades dadas. Son una propuesta de ESTA sesión, en lenguaje de aula. No los presentes como cita oficial del Ministerio.\n- Añade al JSON la clave "desempenos": ["frase 1", "frase 2"] aunque el ejemplo no la tenga.\n- La lista "cotejo" lleva un ítem observable por cada desempeño propuesto y como máximo un ítem de proceso. El docente podrá editar desempeños y cotejo antes de guardar.';
   }

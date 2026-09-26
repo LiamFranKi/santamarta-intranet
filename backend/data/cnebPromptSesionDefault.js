@@ -19,6 +19,7 @@ DATOS:
 - Capacidades: {{capacidades}}
 - Desempeños: {{desempenos}}
 - Tema (puede estar vacío): {{titulo}}
+- Si el tema ya viene escrito, consérvalo tal cual. Propósito, actividades, ficha y cotejo tratan de ese tema.
 - Unidad del bimestre (puede estar vacía): {{unidad}}
 - Propósito sugerido (puede estar vacío): {{proposito}}
 
