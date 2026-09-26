@@ -1326,6 +1326,8 @@ export default function AdminCnebSesiones({
         </div>
       ))}
 
+      <div className="cneb-bloque">
+        <p className="cneb-bloque-kicker">Ficha y cotejo</p>
       <div className="cneb-ficha-grid">
         <label className="cneb-select-wrap cneb-full">
           <span>Ficha del estudiante (editar)</span>
@@ -1402,6 +1404,7 @@ export default function AdminCnebSesiones({
         <button type="button" className="cneb-btn primary" onClick={() => guardar('aprobada')} disabled={saving}>
           Aprobar sesión
         </button>
+      </div>
       </div>
     </section>
   );
