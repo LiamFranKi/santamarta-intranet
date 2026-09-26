@@ -174,7 +174,7 @@ async function listarSesionesAula(cid, ctx) {
   }
   try {
     return await query(
-      `SELECT s.id, s.titulo, s.proposito, s.duracion_min, s.estado, s.fecha_sesion,
+      `SELECT s.id, s.titulo, s.unidad, s.proposito, s.duracion_min, s.estado, s.fecha_sesion,
               s.corte, s.grupo_id, s.area_id, s.asignatura_id, s.competencia_id,
               ar.nombre AS area_nombre, cp.nombre AS competencia_nombre
        FROM cneb_sesiones s
@@ -185,6 +185,19 @@ async function listarSesionesAula(cid, ctx) {
       params
     );
   } catch (e) {
+    if (e.code === 'ER_BAD_FIELD_ERROR') {
+      return query(
+        `SELECT s.id, s.titulo, s.proposito, s.duracion_min, s.estado, s.fecha_sesion,
+                s.corte, s.grupo_id, s.area_id, s.asignatura_id, s.competencia_id,
+                ar.nombre AS area_nombre, cp.nombre AS competencia_nombre
+         FROM cneb_sesiones s
+         LEFT JOIN cneb_areas ar ON ar.id = s.area_id
+         LEFT JOIN cneb_competencias cp ON cp.id = s.competencia_id
+         WHERE s.colegio_id = ? AND s.grupo_id = ? AND s.anio = ? AND s.nivel_cneb = ?${extra}
+         ORDER BY COALESCE(s.fecha_sesion, s.creado_en) DESC, s.id DESC`,
+        params
+      );
+    }
     if (e.code === 'ER_NO_SUCH_TABLE') return [];
     throw e;
   }

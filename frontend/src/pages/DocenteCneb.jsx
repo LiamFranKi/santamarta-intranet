@@ -145,6 +145,7 @@ export default function DocenteCneb() {
             nivel={nivel}
             areas={areas}
             etiquetaNivel={etiquetaNivel}
+            bimestre={inicio?.bimestre || 4}
           />
         ) : (
           <AdminCnebRegistro

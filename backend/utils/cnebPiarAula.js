@@ -167,6 +167,7 @@ async function varsGenerarSesionIa(cid, body, anio) {
     proponer_desempenos: body?.proponer_desempenos === true,
     titulo: body?.titulo || '',
     proposito: body?.proposito || '',
+    unidad: body?.unidad || '',
     apoyos_aula: [textoApoyosParaPrompt(activos), textoDuaMarcado(body?.dua)].filter(Boolean).join('\n\n'),
   };
 }

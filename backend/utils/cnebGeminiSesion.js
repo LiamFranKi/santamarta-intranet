@@ -167,6 +167,10 @@ async function generarSesionConIa({ plantilla, vars, duracionMin }) {
     plantillaUso +=
       '\nIncluye "procedimientos": [{"piar_id":n,"alumno_id":n,"texto":"qué hará el docente HOY con ese niño"}] cuando haya PIAR. Sin diagnóstico. Si el docente ya escribió el texto, cópielo igual.';
   }
+  if (String(vars?.unidad || '').trim() && !/\{\{unidad\}\}/.test(plantillaUso)) {
+    plantillaUso +=
+      '\n\nUNIDAD DEL BIMESTRE: {{unidad}}\nEl tema, el propósito, las actividades, la ficha y el cotejo deben tratar de esta unidad. No cambie de tema ni de competencia.';
+  }
   const proponerDesempenos = vars?.proponer_desempenos === true && !String(vars?.desempenos || '').trim();
   if (proponerDesempenos) {
     plantillaUso +=

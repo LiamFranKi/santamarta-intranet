@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
+import AdminCnebUnidades from './AdminCnebUnidades';
 import AdminCnebSesiones from './AdminCnebSesiones';
 import AdminCnebRegistro from './AdminCnebRegistro';
 import AdminCnebPrompt from './AdminCnebPrompt';
@@ -13,6 +14,7 @@ const NIVELES_UI = [
 ];
 
 const TABS = [
+  { id: 'unidades', label: 'Unidades', hint: 'Tema de cada bimestre' },
   { id: 'sesiones', label: 'Sesiones', hint: 'Inicio, desarrollo y cierre' },
   { id: 'registro', label: 'Registro', hint: 'Cotejo y corte AD/A/B/C' },
   { id: 'catalogo', label: 'Catálogo CNEB', hint: 'Áreas y competencias oficiales' },
@@ -448,8 +450,15 @@ export default function AdminCnebPiloto() {
         ))}
       </nav>
 
+      {tab === 'unidades' && <AdminCnebUnidades nivel={nivel} etiquetaNivel={etiquetaNivel} />}
+
       {tab === 'sesiones' && (
-        <AdminCnebSesiones nivel={nivel} areas={areas} etiquetaNivel={etiquetaNivel} />
+        <AdminCnebSesiones
+          nivel={nivel}
+          areas={areas}
+          etiquetaNivel={etiquetaNivel}
+          bimestre={usoDraft.bimestre}
+        />
       )}
 
       {tab === 'registro' && (

@@ -231,6 +231,7 @@ function formVacio(nivel, ctx = null) {
     asignatura_id: ctx?.asignatura_id != null ? ctx.asignatura_id : null,
     area_id: ctx?.area_id != null && ctx.area_id !== '' ? String(ctx.area_id) : '',
     competencia_id: '',
+    unidad: '',
     corte: Number.isFinite(corteCtx) && corteCtx > 0 ? corteCtx : nivel === 'INICIAL' ? 5 : 1,
     fecha_sesion: hoyISO(),
     estado: 'borrador',
@@ -252,6 +253,7 @@ export default function AdminCnebSesiones({
   areas,
   etiquetaNivel,
   apiBase = '/admin/cneb',
+  bimestre = 4,
   embebido = false,
   contextoAula = null,
   sesionId = null,
@@ -265,6 +267,11 @@ export default function AdminCnebSesiones({
   const [gradoSel, setGradoSel] = useState('');
   const [aulaSel, setAulaSel] = useState('');
   const [cursoSel, setCursoSel] = useState('');
+  const [compsMarcadas, setCompsMarcadas] = useState([]);
+  const [cantidadIa, setCantidadIa] = useState(1);
+  const [unidadesBim, setUnidadesBim] = useState([]);
+  const unidadPrecargada = useRef(false);
+  const areaMarcadaRef = useRef('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -307,7 +314,29 @@ export default function AdminCnebSesiones({
     setGradoSel('');
     setAulaSel('');
     setCursoSel('');
+    unidadPrecargada.current = false;
+    areaMarcadaRef.current = '';
   }, [nivel, loadLista, embebido, sesionId]);
+
+  useEffect(() => {
+    if (!nivel || form.id) return undefined;
+    let vivo = true;
+    api
+      .get(`${apiBase}/unidades`, { params: { nivel, bimestre } })
+      .then(({ data }) => {
+        const listaUni = data?.unidades || [];
+        if (!vivo) return;
+        setUnidadesBim(listaUni);
+        const nombre = listaUni[0]?.nombre || '';
+        if (!nombre || unidadPrecargada.current) return;
+        unidadPrecargada.current = true;
+        setForm((f) => (f.id || f.unidad ? f : { ...f, unidad: nombre }));
+      })
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, [nivel, bimestre, apiBase, form.id]);
 
   useEffect(() => {
     if (!embebido || !sesionId) return;
@@ -384,6 +413,7 @@ export default function AdminCnebSesiones({
       desempeno_ids: [],
       desempenos_libre: [],
     });
+    setCompsMarcadas((a?.competencias || []).map((c) => String(c.id)));
   };
 
   useEffect(() => {
@@ -405,6 +435,14 @@ export default function AdminCnebSesiones({
     });
   }, [embebido, form.id, areas, contextoAula]);
 
+  useEffect(() => {
+    const areaId = String(form.area_id || '');
+    if (!areaId || !comps.length) return;
+    if (areaMarcadaRef.current === areaId) return;
+    areaMarcadaRef.current = areaId;
+    setCompsMarcadas(comps.map((c) => String(c.id)));
+  }, [form.area_id, comps]);
+
   const toggleDes = (id) => {
     const sid = String(id);
     patch({
@@ -416,7 +454,9 @@ export default function AdminCnebSesiones({
 
   const abrirNueva = () => {
     lastMarcoRef.current = '';
-    setForm(formVacio(nivel, embebido ? contextoAula : null));
+    const base = formVacio(nivel, embebido ? contextoAula : null);
+    if (unidadesBim[0]?.nombre) base.unidad = unidadesBim[0].nombre;
+    setForm(base);
     setEditing(true);
   };
 
@@ -437,6 +477,7 @@ export default function AdminCnebSesiones({
         asignatura_id: s.asignatura_id != null ? s.asignatura_id : null,
         area_id: s.area_id != null ? String(s.area_id) : '',
         competencia_id: s.competencia_id != null ? String(s.competencia_id) : '',
+        unidad: s.unidad || '',
         corte: s.corte != null ? Number(s.corte) : nivel === 'INICIAL' ? 5 : 1,
         fecha_sesion: s.fecha_sesion ? String(s.fecha_sesion).slice(0, 10) : '',
         estado: s.estado || 'borrador',
@@ -532,6 +573,7 @@ export default function AdminCnebSesiones({
           proponer_desempenos: !desempenosCorte.length && !textos.length,
           duracion_min: form.duracion_min,
           corte_label: cortes.find((c) => c.v === Number(form.corte))?.label,
+          unidad: form.unidad,
           grupo_id: form.grupo_id,
           dua: form.dua,
         },
@@ -552,6 +594,68 @@ export default function AdminCnebSesiones({
       Swal.fire({
         icon: 'error',
         title: 'No se pudo generar con IA',
+        text: e.response?.data?.error || e.message,
+      });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const toggleCompLote = (id) => {
+    const sid = String(id);
+    setCompsMarcadas((prev) => (prev.includes(sid) ? prev.filter((x) => x !== sid) : [...prev, sid]));
+  };
+
+  const generarLote = async () => {
+    if (!String(form.unidad || '').trim()) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Falta la unidad',
+        text: 'Escriba la unidad del bimestre. Todas las sesiones salen sobre ese tema.',
+      });
+      return;
+    }
+    if (!compsMarcadas.length) {
+      await Swal.fire({ icon: 'warning', title: 'Marque al menos una competencia de esta unidad' });
+      return;
+    }
+    const n = Math.min(6, Math.max(1, parseInt(cantidadIa, 10) || 1));
+    setGenerating(true);
+    abrirSwalGenerandoCneb();
+    try {
+      const { data } = await api.post(
+        `${apiBase}/sesiones/generar-lote`,
+        {
+          nivel,
+          cantidad: n,
+          competencia_ids: compsMarcadas,
+          unidad: form.unidad,
+          corte: form.corte,
+          corte_label: cortes.find((c) => c.v === Number(form.corte))?.label,
+          duracion_min: form.duracion_min,
+          grupo_id: form.grupo_id || null,
+          asignatura_id: form.asignatura_id || null,
+          fecha_sesion: form.fecha_sesion || null,
+          dua: form.dua,
+        },
+        { timeout: 420000 }
+      );
+      Swal.close();
+      await loadLista();
+      if (typeof onGuardado === 'function') onGuardado();
+      if (embebido && typeof onCerrar === 'function') onCerrar();
+      else setEditing(false);
+      const creadas = data?.creadas || [];
+      await Swal.fire({
+        icon: 'success',
+        title: `${creadas.length} sesiones en borrador`,
+        text: 'Revise cada una antes de aprobar. La unidad madre del nivel no se modificó.',
+      });
+    } catch (e) {
+      Swal.close();
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudieron generar las sesiones',
         text: e.response?.data?.error || e.message,
       });
     } finally {
@@ -747,6 +851,7 @@ export default function AdminCnebSesiones({
                 <div>
                   <p className="cneb-kicker">{s.estado === 'aprobada' ? 'Aprobada' : 'Borrador'}</p>
                   <h3>{s.titulo}</h3>
+                  {s.unidad ? <p className="cneb-kicker">{s.unidad}</p> : null}
                   <p>
                     {s.area_nombre || 'Taller interno'}
                     {s.grado != null ? ` · ${s.grado} ${s.seccion || ''}`.trim() : ''}
@@ -936,6 +1041,72 @@ export default function AdminCnebSesiones({
           </select>
         </label>
       </div>
+
+      <label className="cneb-select-wrap cneb-full">
+        <span>Unidad del bimestre</span>
+        {unidadesBim.length > 1 ? (
+          <select
+            value={unidadesBim.some((u) => u.nombre === form.unidad) ? form.unidad : ''}
+            onChange={(e) => {
+              if (e.target.value) patch({ unidad: e.target.value });
+            }}
+          >
+            <option value="">Elegir una unidad de este bimestre…</option>
+            {unidadesBim.map((u) => (
+              <option key={u.id} value={u.nombre}>
+                {u.nombre}
+              </option>
+            ))}
+          </select>
+        ) : null}
+        <input
+          type="text"
+          className="cneb-search cneb-input-wide"
+          maxLength={220}
+          placeholder="Tema de la unidad, por ejemplo Medio ambiente"
+          value={form.unidad}
+          onChange={(e) => patch({ unidad: e.target.value })}
+        />
+      </label>
+      <p className="cneb-muted">
+        Viene de la unidad madre de este bimestre. Si la cambia aquí, solo cambia esta sesión o este curso.
+      </p>
+
+      {mostrarIaSesiones && comps.length > 0 ? (
+        <div className="cneb-cotejo-bloque">
+          <h3 className="cneb-uso-title">Competencias de esta unidad</h3>
+          <p className="cneb-muted">
+            Marque las que usará en la unidad. Luego indique cuántas sesiones completas crear. Si son
+            más sesiones que competencias, se repite alguna con otra actividad, siempre sobre la misma unidad.
+            Quedan en borrador.
+          </p>
+          <div className="cneb-comp-checks">
+            {comps.map((c) => (
+              <label key={c.id}>
+                <input
+                  type="checkbox"
+                  checked={compsMarcadas.includes(String(c.id))}
+                  onChange={() => toggleCompLote(c.id)}
+                />
+                <span>{c.nombre}</span>
+              </label>
+            ))}
+          </div>
+          <label className="cneb-select-wrap">
+            <span>Cuántas sesiones</span>
+            <input
+              type="number"
+              min={1}
+              max={6}
+              value={cantidadIa}
+              onChange={(e) => setCantidadIa(e.target.value)}
+            />
+          </label>
+          <button type="button" className="cneb-btn primary" onClick={generarLote} disabled={generating}>
+            {generating ? 'Generando…' : `Generar ${Math.min(6, Math.max(1, parseInt(cantidadIa, 10) || 1))} sesiones de la unidad`}
+          </button>
+        </div>
+      ) : null}
 
       {form.area_id && compForm ? (
         <MarcoCnebVista

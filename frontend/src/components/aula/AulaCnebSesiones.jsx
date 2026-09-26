@@ -366,6 +366,7 @@ export default function AulaCnebSesiones({
             apiBase="/docente/cneb"
             embebido
             contextoAula={contextoAula}
+            bimestre={bimestre}
             sesionId={editor.sesionId}
             onCerrar={() => {
               setEditor(null);
@@ -402,6 +403,7 @@ export default function AulaCnebSesiones({
                 {` · ${fechaCorta(sesion.fecha_sesion)}`}
               </p>
               <h4>{sesion.titulo}</h4>
+              {sesion.unidad ? <p className="aula-cneb-proposito">{sesion.unidad}</p> : null}
               {esDocente && sesion.proposito ? <p className="aula-cneb-proposito">{sesion.proposito}</p> : null}
             </header>
 
@@ -574,6 +576,7 @@ export default function AulaCnebSesiones({
                 <tr key={s.id}>
                   <td>
                     <strong>{s.titulo}</strong>
+                    {s.unidad ? <div className="aula-cneb-row-sub">{s.unidad}</div> : null}
                     {esDocente && s.proposito ? <div className="aula-cneb-row-sub">{s.proposito}</div> : null}
                   </td>
                   <td>{fechaCorta(s.fecha_sesion)}</td>

@@ -25,6 +25,7 @@ function leerCuerpoSesion(body, nivel) {
     asignatura_id: parseIntOrNull(body?.asignatura_id),
     area_id: parseIntOrNull(body?.area_id),
     competencia_id: parseIntOrNull(body?.competencia_id),
+    unidad: String(body?.unidad || '').trim().slice(0, 220) || null,
     corte: parseIntOrNull(body?.corte),
     fecha_sesion: body?.fecha_sesion ? String(body.fecha_sesion).slice(0, 10) : null,
     estado,
@@ -216,9 +217,9 @@ async function insertarSesion(cid, usuarioId, body) {
     ins = await execute(
       `INSERT INTO cneb_sesiones
         (colegio_id, anio, nivel_cneb, grupo_id, asignatura_id, area_id, competencia_id,
-         titulo, proposito, ficha_estudiante, dua_json, duracion_min, corte, fecha_sesion, estado, creado_por)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [...cols.slice(0, 9), body.ficha_estudiante, duaStr, ...cols.slice(9)]
+         titulo, unidad, proposito, ficha_estudiante, dua_json, duracion_min, corte, fecha_sesion, estado, creado_por)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [...cols.slice(0, 8), body.unidad, ...cols.slice(8, 9), body.ficha_estudiante, duaStr, ...cols.slice(9)]
     );
   } catch (e) {
     if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
@@ -251,7 +252,7 @@ async function actualizarSesion(cid, id, body) {
     await execute(
       `UPDATE cneb_sesiones SET
          grupo_id = ?, asignatura_id = ?, area_id = ?, competencia_id = ?,
-         titulo = ?, proposito = ?, ficha_estudiante = ?, dua_json = ?, duracion_min = ?, corte = ?, fecha_sesion = ?, estado = ?
+         titulo = ?, unidad = ?, proposito = ?, ficha_estudiante = ?, dua_json = ?, duracion_min = ?, corte = ?, fecha_sesion = ?, estado = ?
        WHERE id = ? AND colegio_id = ?`,
       [
         body.grupo_id,
@@ -259,6 +260,7 @@ async function actualizarSesion(cid, id, body) {
         body.area_id,
         body.competencia_id,
         body.titulo,
+        body.unidad,
         body.proposito,
         body.ficha_estudiante,
         duaStr,
@@ -350,19 +352,31 @@ async function listarSesiones(cid, { nivel, anio, grupoIds }) {
     extra = ` AND s.grupo_id IN (${grupoIds.map(() => '?').join(',')})`;
     params.push(...grupoIds);
   }
-  return query(
-    `SELECT s.id, s.titulo, s.duracion_min, s.estado, s.fecha_sesion, s.corte, s.grupo_id,
-            s.area_id, s.competencia_id, s.asignatura_id, s.actualizado_en, s.creado_en, s.nivel_cneb,
-            ar.nombre AS area_nombre, cu.nombre AS asignatura_nombre, g.grado, g.seccion
-     FROM cneb_sesiones s
+  const sqlBase = `FROM cneb_sesiones s
      LEFT JOIN cneb_areas ar ON ar.id = s.area_id
      LEFT JOIN asignaturas asg ON asg.id = s.asignatura_id
      LEFT JOIN cursos cu ON cu.id = asg.curso_id
      LEFT JOIN grupos g ON g.id = s.grupo_id AND g.colegio_id = s.colegio_id
      WHERE s.colegio_id = ? AND s.nivel_cneb = ? AND s.anio = ?${extra}
-     ORDER BY COALESCE(s.fecha_sesion, s.creado_en) DESC, s.id DESC`,
-    params
-  );
+     ORDER BY COALESCE(s.fecha_sesion, s.creado_en) DESC, s.id DESC`;
+  try {
+    return await query(
+      `SELECT s.id, s.titulo, s.unidad, s.duracion_min, s.estado, s.fecha_sesion, s.corte, s.grupo_id,
+            s.area_id, s.competencia_id, s.asignatura_id, s.actualizado_en, s.creado_en, s.nivel_cneb,
+            ar.nombre AS area_nombre, cu.nombre AS asignatura_nombre, g.grado, g.seccion
+     ${sqlBase}`,
+      params
+    );
+  } catch (e) {
+    if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+    return query(
+      `SELECT s.id, s.titulo, s.duracion_min, s.estado, s.fecha_sesion, s.corte, s.grupo_id,
+            s.area_id, s.competencia_id, s.asignatura_id, s.actualizado_en, s.creado_en, s.nivel_cneb,
+            ar.nombre AS area_nombre, cu.nombre AS asignatura_nombre, g.grado, g.seccion
+     ${sqlBase}`,
+      params
+    );
+  }
 }
 
 module.exports = {

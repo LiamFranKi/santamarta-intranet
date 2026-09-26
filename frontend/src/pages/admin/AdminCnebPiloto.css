@@ -1049,7 +1049,58 @@
   font: inherit;
 }
 
+.cneb-unidades {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.cneb-unidad-card {
+  border: 1px solid var(--cneb-line);
+  border-radius: 14px;
+  padding: 0.8rem;
+  background: #fff;
+}
+
+.cneb-unidad-card h3 {
+  margin: 0 0 0.55rem;
+  font-size: 0.95rem;
+}
+
+.cneb-unidad-row {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.cneb-unidad-row input {
+  flex: 1;
+  border: 1px solid var(--cneb-line);
+  border-radius: 10px;
+  padding: 0.45rem 0.6rem;
+  font: inherit;
+}
+
+.cneb-comp-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.4rem 0 0.7rem;
+}
+
+.cneb-comp-checks label {
+  display: flex;
+  gap: 0.45rem;
+  align-items: flex-start;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--cneb-ink);
+}
+
 @media (max-width: 860px) {
+  .cneb-unidades,
   .cneb-ses-grid,
   .cneb-elige {
     grid-template-columns: 1fr;

@@ -19,6 +19,7 @@ DATOS:
 - Capacidades: {{capacidades}}
 - Desempeños: {{desempenos}}
 - Tema (puede estar vacío): {{titulo}}
+- Unidad del bimestre (puede estar vacía): {{unidad}}
 - Propósito sugerido (puede estar vacío): {{proposito}}
 
 INCLUSIÓN (DUA + PIAR, si hay datos):

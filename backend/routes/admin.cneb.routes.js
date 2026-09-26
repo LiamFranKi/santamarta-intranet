@@ -40,6 +40,7 @@ const {
 } = require('../utils/cnebAuxiliar');
 const { informePdfBuffer, libretaPdfBuffer, sesionPdfBuffer } = require('../utils/cnebPdfs');
 const { piarActivosDelGrupo, varsGenerarSesionIa } = require('../utils/cnebPiarAula');
+const { listarUnidades, guardarUnidades, generarLoteSesiones, nivelOk } = require('../utils/cnebLoteSesiones');
 const { tiposPorNivelCneb } = require('../utils/cnebTipoNivel');
 
 router.use(authenticateToken);
@@ -597,6 +598,54 @@ router.post('/sesiones/generar-ia', async (req, res) => {
   } catch (e) {
     console.error('[cneb/sesiones/generar-ia]', e);
     res.status(500).json({ error: e.message || 'No se pudo generar con IA.' });
+  }
+});
+
+router.get('/unidades', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const nivel = nivelOk(req.query.nivel);
+    if (!cid || !nivel) return res.status(400).json({ error: 'Indique el nivel.' });
+    const data = await listarUnidades(cid, nivel, req.query.bimestre);
+    res.json(data);
+  } catch (e) {
+    console.error('[cneb/unidades GET]', e);
+    const msg = e.code === 'ER_NO_SUCH_TABLE'
+      ? 'Falta aplicar la migración 115_cneb_unidades_mysql.sql'
+      : e.message || 'No se pudieron cargar las unidades.';
+    res.status(500).json({ error: msg });
+  }
+});
+
+router.put('/unidades', async (req, res) => {
+  try {
+    if (!puedeEscribir(req.user?.tipo)) return res.status(403).json({ error: 'Sin permiso.' });
+    const cid = colegio(req);
+    const nivel = nivelOk(req.body?.nivel);
+    if (!cid || !nivel) return res.status(400).json({ error: 'Indique el nivel.' });
+    const out = await guardarUnidades(cid, nivel, req.body?.items || []);
+    res.json({ success: true, ...out });
+  } catch (e) {
+    console.error('[cneb/unidades PUT]', e);
+    const msg = e.code === 'ER_NO_SUCH_TABLE'
+      ? 'Falta aplicar la migración 115_cneb_unidades_mysql.sql'
+      : e.message || 'No se pudieron guardar las unidades.';
+    res.status(500).json({ error: msg });
+  }
+});
+
+router.post('/sesiones/generar-lote', async (req, res) => {
+  try {
+    if (!puedeEscribir(req.user?.tipo)) return res.status(403).json({ error: 'Sin permiso.' });
+    if (!(await moduloActivo('academico.cneb-ia'))) {
+      return res.status(403).json({ error: 'La IA de sesiones CNEB está apagada.' });
+    }
+    const cid = colegio(req);
+    const out = await generarLoteSesiones(cid, req.user?.usuario_id || req.user?.id || null, req.body || {});
+    res.json({ success: true, ...out });
+  } catch (e) {
+    console.error('[cneb/sesiones/generar-lote]', e);
+    res.status(e.status || 500).json({ error: e.message || 'No se pudieron generar las sesiones.' });
   }
 });
 

@@ -32,6 +32,7 @@ const {
 const { informePdfBuffer, libretaPdfBuffer, sesionPdfBuffer } = require('../utils/cnebPdfs');
 const { contextoAulaCneb, listarSesionesAula } = require('../utils/cnebAulaAsignatura');
 const { piarActivosDelGrupo, varsGenerarSesionIa } = require('../utils/cnebPiarAula');
+const { listarUnidades, generarLoteSesiones, nivelOk } = require('../utils/cnebLoteSesiones');
 const { esPaqueteCoordinador } = require('../utils/coordinadorAcceso');
 const { esTutoriaGeneralUsuario } = require('../utils/tutoriaGrupoAcceso');
 
@@ -427,6 +428,40 @@ router.post('/sesiones/generar-ia', async (req, res) => {
   } catch (e) {
     console.error('[docente/cneb/generar-ia]', e);
     res.status(500).json({ error: e.message || 'No se pudo generar con IA.' });
+  }
+});
+
+router.get('/unidades', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const nivel = nivelOk(req.query.nivel);
+    if (!cid || !nivel) return res.status(400).json({ error: 'Indique el nivel.' });
+    res.json(await listarUnidades(cid, nivel, req.query.bimestre));
+  } catch (e) {
+    console.error('[docente/cneb/unidades]', e);
+    res.status(500).json({
+      error: e.code === 'ER_NO_SUCH_TABLE'
+        ? 'Falta aplicar la migración 115_cneb_unidades_mysql.sql'
+        : e.message || 'No se pudieron cargar las unidades.',
+    });
+  }
+});
+
+router.post('/sesiones/generar-lote', async (req, res) => {
+  try {
+    if (!(await moduloActivo('academico.cneb-ia'))) {
+      return res.status(403).json({ error: 'La IA de sesiones CNEB está apagada.' });
+    }
+    const cid = colegio(req);
+    const grupoId = parseInt(req.body?.grupo_id, 10);
+    if (grupoId && !(await puedeEscribirGrupo(req, grupoId))) {
+      return res.status(403).json({ error: 'Solo puede armar sesiones de sus aulas.' });
+    }
+    const out = await generarLoteSesiones(cid, req.user?.usuario_id || req.user?.id || null, req.body || {});
+    res.json({ success: true, ...out });
+  } catch (e) {
+    console.error('[docente/cneb/generar-lote]', e);
+    res.status(e.status || 500).json({ error: e.message || 'No se pudieron generar las sesiones.' });
   }
 });
 
