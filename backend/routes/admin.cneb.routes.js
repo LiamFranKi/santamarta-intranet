@@ -409,7 +409,7 @@ router.get('/sesiones', async (req, res) => {
     const nivel = parseNivel(req.query.nivel);
     if (!nivel) return res.status(400).json({ error: 'Indique el nivel.' });
     const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
-    const rows = await listarSesiones(cid, { nivel, anio });
+    const rows = await listarSesiones(cid, { nivel, anio, bimestre: req.query.bimestre });
     res.json({ anio, sesiones: rows || [] });
   } catch (e) {
     console.error('[cneb/sesiones]', e);

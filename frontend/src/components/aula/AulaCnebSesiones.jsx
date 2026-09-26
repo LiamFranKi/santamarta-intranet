@@ -82,7 +82,9 @@ export default function AulaCnebSesiones({
     if (!asignaturaId) return;
     setLoading(true);
     try {
-      const { data } = await api.get(`${apiBase}/aula/${asignaturaId}`);
+      const { data } = await api.get(`${apiBase}/aula/${asignaturaId}`, {
+        params: { bimestre },
+      });
       setMeta(data);
       if (data?.areas?.length) setAreasCat(data.areas);
       if (onActivoRef.current) {
@@ -97,7 +99,7 @@ export default function AulaCnebSesiones({
     } finally {
       setLoading(false);
     }
-  }, [apiBase, asignaturaId]);
+  }, [apiBase, asignaturaId, bimestre]);
 
   useEffect(() => {
     loadLista();
@@ -275,7 +277,11 @@ export default function AulaCnebSesiones({
 
   if (!loading && !meta?.es_inicial) return null;
 
-  const sesiones = meta?.sesiones || [];
+  const sesiones = (meta?.sesiones || []).filter((s) => {
+    const b = Number(s.bimestre);
+    const tag = b >= 1 && b <= 4 ? b : 4;
+    return tag === Number(bimestre);
+  });
   const taller = meta?.mapa?.tipo === 'complementario';
   const areaLabel = taller
     ? 'Taller interno'

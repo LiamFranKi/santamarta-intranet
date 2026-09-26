@@ -12,6 +12,11 @@ import {
   gradosDe,
 } from './cnebElegirAula';
 
+function bimestreDeSesion(s) {
+  const b = Number(s?.bimestre);
+  return b >= 1 && b <= 4 ? b : 4;
+}
+
 export default function AdminCnebRegistro({
   apiBase = '/admin/cneb',
   nivel,
@@ -50,8 +55,12 @@ export default function AdminCnebRegistro({
   const grados = useMemo(() => gradosDe(grupos), [grupos]);
   const aulas = useMemo(() => aulasDe(grupos, gradoSel), [grupos, gradoSel]);
   const sesionesAula = useMemo(
-    () => sesiones.filter((s) => String(s.grupo_id) === String(aulaSel)),
-    [sesiones, aulaSel]
+    () =>
+      sesiones.filter(
+        (s) =>
+          String(s.grupo_id) === String(aulaSel) && bimestreDeSesion(s) === Number(bimestreDefault)
+      ),
+    [sesiones, aulaSel, bimestreDefault]
   );
   const cursos = useMemo(() => cursosDe(sesionesAula), [sesionesAula]);
   const sesionesCurso = useMemo(
@@ -157,7 +166,7 @@ export default function AdminCnebRegistro({
           </label>
         </div>
         {aulaSel && cursos.length === 0 ? (
-          <p className="cneb-muted">En esta aula todavía no hay sesiones.</p>
+          <p className="cneb-muted">En esta aula todavía no hay sesiones de este bimestre.</p>
         ) : !listo ? (
           <p className="cneb-muted">
             Elija el grado, el aula, el curso y la sesión de {etiquetaNivel ? etiquetaNivel(nivel) : nivel}. Ahí

@@ -158,7 +158,7 @@ async function contextoAulaCneb(cid, asignaturaId) {
   };
 }
 
-async function listarSesionesAula(cid, ctx) {
+async function listarSesionesAula(cid, ctx, bimestre) {
   if (!ctx?.grupo_id || !ctx.es_cneb) return [];
   const params = [cid, ctx.grupo_id, ctx.anio, ctx.nivel_cneb || 'INICIAL'];
   let extra = '';
@@ -172,17 +172,20 @@ async function listarSesionesAula(cid, ctx) {
     extra = ' AND s.asignatura_id = ?';
     params.push(ctx.asignatura_id);
   }
+  const b = parseInt(bimestre, 10);
+  const filtrar = b >= 1 && b <= 4;
+  const where = `WHERE s.colegio_id = ? AND s.grupo_id = ? AND s.anio = ? AND s.nivel_cneb = ?${extra}`;
+  const order = ' ORDER BY COALESCE(s.fecha_sesion, s.creado_en) DESC, s.id DESC';
   try {
     return await query(
       `SELECT s.id, s.titulo, s.unidad, s.proposito, s.duracion_min, s.estado, s.fecha_sesion,
-              s.corte, s.grupo_id, s.area_id, s.asignatura_id, s.competencia_id,
+              s.corte, s.bimestre, s.grupo_id, s.area_id, s.asignatura_id, s.competencia_id,
               ar.nombre AS area_nombre, cp.nombre AS competencia_nombre
        FROM cneb_sesiones s
        LEFT JOIN cneb_areas ar ON ar.id = s.area_id
        LEFT JOIN cneb_competencias cp ON cp.id = s.competencia_id
-       WHERE s.colegio_id = ? AND s.grupo_id = ? AND s.anio = ? AND s.nivel_cneb = ?${extra}
-       ORDER BY COALESCE(s.fecha_sesion, s.creado_en) DESC, s.id DESC`,
-      params
+       ${where}${filtrar ? ' AND s.bimestre = ?' : ''}${order}`,
+      filtrar ? [...params, b] : params
     );
   } catch (e) {
     if (e.code === 'ER_BAD_FIELD_ERROR') {

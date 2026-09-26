@@ -484,6 +484,16 @@ function dibujarAlumnoInforme(doc, { alumno, competencias, valores, meta, startY
   filaDato(doc, y, 'PERIODO', `${bimRoman(meta.bimestre)} bimestre · ${meta.anio}`, 28 + inner * 0.68, inner * 0.32);
   y += 22;
 
+  if (!(competencias || []).length) {
+    doc.fillColor('#334155').font('Helvetica').fontSize(9).text(
+      'En este bimestre todavía no hay competencias trabajadas en sesiones de esta aula.',
+      28,
+      y,
+      { width: inner }
+    );
+    y += 28;
+  }
+
   agruparAreas(competencias).forEach(([area, comps]) => {
     y = ensure(doc, y, 22);
     doc.rect(28, y, inner, 16).fill(COLOR.teal);
@@ -620,10 +630,22 @@ function dibujarAlumnoLibreta(doc, { alumno, competencias, valores, meta, startY
 async function cargarDatosPdfCneb(cid, { anio, bimestre, grupoId, nivel, matriculaId }) {
   const colegio = await getColegioData(cid);
   const grupo = await metaGrupo(cid, grupoId);
-  const { alumnos, competencias, valores } = await cargarCorte(cid, { anio, bimestre, grupoId, nivel });
+  const { alumnos, competencias, valores, sesiones } = await cargarCorte(cid, {
+    anio,
+    bimestre,
+    grupoId,
+    nivel,
+  });
+  const idsTrabajadas = new Set(
+    (sesiones || [])
+      .map((s) => s.competencia_id)
+      .filter((id) => id != null && id !== '')
+      .map((id) => String(id))
+  );
+  const trabajadas = (competencias || []).filter((c) => idsTrabajadas.has(String(c.id)));
   const corte = Number(grupo?.grado);
   const edadLabel = etiquetaCorte(nivel, corte);
-  const competenciasMarco = await cargarMarcoCompetencias(competencias, { nivel, corte });
+  const competenciasMarco = await cargarMarcoCompetencias(trabajadas, { nivel, corte });
   const lista = matriculaId
     ? (alumnos || []).filter((a) => Number(a.matricula_id) === Number(matriculaId))
     : alumnos || [];

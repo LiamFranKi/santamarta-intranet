@@ -222,16 +222,26 @@ async function cargarCorte(cid, { anio, bimestre, grupoId, nivel, areaId, asigna
     sesExtra += ' AND s.area_id = ?';
     sesParams.push(arId);
   }
-  const sesiones = await query(
+  const b = parseInt(bimestre, 10);
+  const filtrarBim = b >= 1 && b <= 4;
+  const sqlSes = (conBim) =>
     `SELECT s.id, s.titulo, s.fecha_sesion, s.area_id, s.competencia_id, s.asignatura_id,
             ar.nombre AS area_nombre, cp.nombre AS competencia_nombre
      FROM cneb_sesiones s
      LEFT JOIN cneb_areas ar ON ar.id = s.area_id
      LEFT JOIN cneb_competencias cp ON cp.id = s.competencia_id
-     WHERE s.colegio_id = ? AND s.anio = ? AND s.nivel_cneb = ? AND s.grupo_id = ?${sesExtra}
-     ORDER BY COALESCE(s.fecha_sesion, s.creado_en) ASC, s.id ASC`,
-    sesParams
-  ).catch(() => []);
+     WHERE s.colegio_id = ? AND s.anio = ? AND s.nivel_cneb = ? AND s.grupo_id = ?${sesExtra}${
+       conBim ? ' AND s.bimestre = ?' : ''
+     }
+     ORDER BY COALESCE(s.fecha_sesion, s.creado_en) ASC, s.id ASC`;
+  let sesiones = [];
+  try {
+    sesiones = await query(sqlSes(filtrarBim), filtrarBim ? [...sesParams, b] : sesParams);
+  } catch (e) {
+    if (e.code === 'ER_BAD_FIELD_ERROR' && filtrarBim) {
+      sesiones = await query(sqlSes(false), sesParams).catch(() => []);
+    }
+  }
   return { alumnos, competencias, valores, sesiones: sesiones || [] };
 }
 
@@ -259,16 +269,28 @@ async function guardarCorte(cid, { anio, bimestre, items }) {
 async function cargarConsolidado(cid, { anio, bimestre, grupoId, nivel }) {
   const alumnosRaw = await listarAlumnosGrupo(cid, grupoId);
   const alumnos = await anexarPiarAAlumnos(cid, anio, grupoId, alumnosRaw);
-  const sesiones = await query(
+  const b = parseInt(bimestre, 10);
+  const filtrarBim = b >= 1 && b <= 4;
+  const sqlCons = (conBim) =>
     `SELECT s.id, s.titulo, s.fecha_sesion, s.duracion_min, s.estado, s.area_id, s.competencia_id,
             s.asignatura_id, ar.nombre AS area_nombre, cp.nombre AS competencia_nombre
      FROM cneb_sesiones s
      LEFT JOIN cneb_areas ar ON ar.id = s.area_id
      LEFT JOIN cneb_competencias cp ON cp.id = s.competencia_id
-     WHERE s.colegio_id = ? AND s.anio = ? AND s.nivel_cneb = ? AND s.grupo_id = ?
-     ORDER BY COALESCE(s.fecha_sesion, s.creado_en) ASC, s.id ASC`,
-    [cid, anio, nivel, grupoId]
-  );
+     WHERE s.colegio_id = ? AND s.anio = ? AND s.nivel_cneb = ? AND s.grupo_id = ?${
+       conBim ? ' AND s.bimestre = ?' : ''
+     }
+     ORDER BY COALESCE(s.fecha_sesion, s.creado_en) ASC, s.id ASC`;
+  let sesiones = [];
+  try {
+    sesiones = await query(sqlCons(filtrarBim), filtrarBim ? [cid, anio, nivel, grupoId, b] : [cid, anio, nivel, grupoId]);
+  } catch (e) {
+    if (e.code === 'ER_BAD_FIELD_ERROR' && filtrarBim) {
+      sesiones = await query(sqlCons(false), [cid, anio, nivel, grupoId]);
+    } else if (e.code !== 'ER_BAD_FIELD_ERROR') {
+      throw e;
+    }
+  }
   const sesIds = (sesiones || []).map((s) => s.id);
   let items = [];
   let valoresCotejo = [];

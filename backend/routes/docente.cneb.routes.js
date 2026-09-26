@@ -254,7 +254,7 @@ router.get('/aula/:asignaturaId', async (req, res) => {
     const ctx = await contextoAulaCneb(cid, asignaturaId);
     if (!ctx) return res.status(404).json({ error: 'Asignatura no encontrada.' });
     if (!(await gateGrupo(req, res, ctx.grupo_id))) return;
-    const sesiones = ctx.es_cneb ? await listarSesionesAula(cid, ctx) : [];
+    const sesiones = ctx.es_cneb ? await listarSesionesAula(cid, ctx, req.query.bimestre) : [];
     let areas = [];
     if (ctx.es_cneb) {
       try {
@@ -280,8 +280,8 @@ router.get('/sesiones', async (req, res) => {
     if (faltaPersonal(req)) return res.status(400).json({ error: 'Faltan datos.' });
     const anio = (await getAnioActivo(cid)) || new Date().getFullYear();
     const filtro = esStaffReq(req)
-      ? { nivel, anio }
-      : { nivel, anio, grupoIds: [...(await idsPermitidos(cid, pid, anio))] };
+      ? { nivel, anio, bimestre: req.query.bimestre }
+      : { nivel, anio, grupoIds: [...(await idsPermitidos(cid, pid, anio))], bimestre: req.query.bimestre };
     const rows = await listarSesiones(cid, filtro);
     res.json({ anio, sesiones: rows || [] });
   } catch (e) {

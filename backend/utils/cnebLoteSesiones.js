@@ -196,6 +196,7 @@ async function generarLoteSesiones(cid, usuarioId, body) {
       ficha_estudiante: b.ficha || '',
       duracion_min: duracion,
       corte,
+      bimestre: body?.bimestre,
       fecha_sesion: body?.fecha_sesion || fecha,
       estado: 'borrador',
       desempeno_ids: pieza.textos.length ? pieza.des.map((d) => d.id) : [],

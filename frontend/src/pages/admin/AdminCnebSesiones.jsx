@@ -284,7 +284,7 @@ export default function AdminCnebSesiones({
     setLoading(true);
     try {
       const [sRes, mRes] = await Promise.all([
-        api.get(`${apiBase}/sesiones`, { params: { nivel } }),
+        api.get(`${apiBase}/sesiones`, { params: { nivel, bimestre } }),
         api.get(`${apiBase}/sesiones/meta`, { params: { nivel } }),
       ]);
       setLista(sRes.data?.sesiones || []);
@@ -298,7 +298,7 @@ export default function AdminCnebSesiones({
     } finally {
       setLoading(false);
     }
-  }, [nivel, apiBase]);
+  }, [nivel, apiBase, bimestre]);
 
   useEffect(() => {
     loadLista();
@@ -659,6 +659,7 @@ export default function AdminCnebSesiones({
           titulo: form.titulo,
           proposito: form.proposito,
           unidad: form.unidad,
+          bimestre,
           curso_nombre: contextoAula?.curso_nombre || '',
           corte: form.corte,
           corte_label: cortes.find((c) => c.v === Number(form.corte))?.label,
@@ -712,6 +713,7 @@ export default function AdminCnebSesiones({
       const payload = {
         ...form,
         nivel,
+        bimestre,
         estado: estado || form.estado,
         cotejo: (form.cotejo || []).filter((c) => String(c.item || '').trim()),
         desempenos_libre: desempenosCorte.length

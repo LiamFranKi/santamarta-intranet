@@ -48,6 +48,11 @@ async function descargarExcel(apiBase, params) {
   );
 }
 
+function bimestreDeSesion(s) {
+  const b = Number(s?.bimestre);
+  return b >= 1 && b <= 4 ? b : 4;
+}
+
 export default function AdminCnebCorte({
   apiBase = '/admin/cneb',
   nivel,
@@ -58,14 +63,12 @@ export default function AdminCnebCorte({
   areaId = null,
   areaNombre = '',
   asignaturaId = null,
-  sesionIdFiltro = '',
   haySesiones = true,
   sesiones = [],
 }) {
   const [gradoSel, setGradoSel] = useState('');
   const [aulaSel, setAulaSel] = useState('');
   const [cursoSel, setCursoSel] = useState('');
-  const [sesionLocal, setSesionLocal] = useState('');
   const [grupoId, setGrupoId] = useState(grupoFijo ? String(grupoFijo) : '');
   const [bimestre, setBimestre] = useState(Number(bimestreDefault) || 4);
   const [loading, setLoading] = useState(false);
@@ -77,19 +80,21 @@ export default function AdminCnebCorte({
   const grados = useMemo(() => gradosDe(grupos), [grupos]);
   const aulas = useMemo(() => aulasDe(grupos, gradoSel), [grupos, gradoSel]);
   const sesionesAula = useMemo(
-    () => (sesiones || []).filter((s) => String(s.grupo_id) === String(aulaSel)),
-    [sesiones, aulaSel]
+    () =>
+      (sesiones || []).filter(
+        (s) => String(s.grupo_id) === String(aulaSel) && bimestreDeSesion(s) === Number(bimestre)
+      ),
+    [sesiones, aulaSel, bimestre]
   );
   const cursos = useMemo(() => cursosDe(sesionesAula), [sesionesAula]);
   const sesionesCurso = useMemo(
     () => sesionesAula.filter((s) => claveCurso(s) === cursoSel),
     [sesionesAula, cursoSel]
   );
-  const sesionElegida = sesionLocal && sesionLocal !== 'todas' ? sesionLocal : '';
-  const listoLocal = Boolean(gradoSel && aulaSel && cursoSel && sesionLocal);
+  const listoLocal = Boolean(gradoSel && aulaSel && cursoSel);
   const areaEfectivo = grupoFijo ? areaId : areaIdDeCurso(cursoSel, sesionesCurso);
   const asignaturaEfectiva = grupoFijo ? asignaturaId : asignaturaIdDeCurso(cursoSel, sesionesCurso);
-  const sesionEfectiva = grupoFijo ? sesionIdFiltro : sesionElegida;
+  const sesionEfectiva = '';
   const nombreCurso = cursos.find((c) => c.id === cursoSel)?.nombre || areaNombre;
 
   useEffect(() => {
@@ -270,9 +275,9 @@ export default function AdminCnebCorte({
         <div>
           <h2>Corte bimestral · {etiquetaNivel ? etiquetaNivel(nivel) : nivel}</h2>
           <p>
-            {soloSesionesElegidas
-              ? `Solo las sesiones que ya creó en ${nombreCurso || 'este curso'}. Las competencias que no trabajó en una sesión no aparecen.`
-              : 'Letra por competencia (AD, A, B, C) al cierre del bimestre. El PDF lleva el logo MINEDU como referencia curricular; no sustituye el reporte oficial de SIAGIE.'}
+            {grupoFijo
+              ? `La letra es de cada competencia trabajada en este bimestre, en ${nombreCurso || 'este curso'}.`
+              : `La letra es de cada competencia que tuvo sesión en este curso y en este bimestre. No se elige una sesión.`}
           </p>
         </div>
         <div className="cneb-map-actions">
@@ -301,7 +306,6 @@ export default function AdminCnebCorte({
                   setGradoSel(e.target.value);
                   setAulaSel('');
                   setCursoSel('');
-                  setSesionLocal('');
                 }}
               >
                 <option value="">Elegir grado…</option>
@@ -320,7 +324,6 @@ export default function AdminCnebCorte({
                 onChange={(e) => {
                   setAulaSel(e.target.value);
                   setCursoSel('');
-                  setSesionLocal('');
                 }}
               >
                 <option value="">Elegir aula…</option>
@@ -336,27 +339,12 @@ export default function AdminCnebCorte({
               <select
                 value={cursoSel}
                 disabled={!aulaSel}
-                onChange={(e) => {
-                  setCursoSel(e.target.value);
-                  setSesionLocal('');
-                }}
+                onChange={(e) => setCursoSel(e.target.value)}
               >
                 <option value="">Elegir curso…</option>
                 {cursos.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.nombre}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="cneb-select-wrap">
-              <span>Sesión</span>
-              <select value={sesionLocal} disabled={!cursoSel} onChange={(e) => setSesionLocal(e.target.value)}>
-                <option value="">Elegir sesión…</option>
-                <option value="todas">Todas las sesiones de este curso</option>
-                {sesionesCurso.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.titulo}
                   </option>
                 ))}
               </select>
@@ -377,13 +365,13 @@ export default function AdminCnebCorte({
       {loading ? (
         <p className="cneb-muted">Cargando corte…</p>
       ) : !grupoFijo && !listoLocal ? (
-        <div className="cneb-empty">Elija el grado, el aula, el curso y la sesión para ver el corte.</div>
+        <div className="cneb-empty">Elija el grado, el aula y el curso para ver el corte de este bimestre.</div>
       ) : !grupoId ? (
         <div className="cneb-empty">Elija un aula para ver el corte.</div>
       ) : !haySesiones || (soloSesionesElegidas && !sesionesVista.length) ? (
         <div className="cneb-empty">
-          Todavía no hay sesiones en este curso. Primero cree una sesión (inicio, desarrollo y
-          cierre) y observe a los niños. El corte solo muestra las sesiones que usted eligió.
+          Todavía no hay sesiones de este curso en este bimestre. Créelas en la pestaña del bimestre
+          y vuelva al corte. Solo aparecen las competencias que sí trabajó.
         </div>
       ) : !(data?.alumnos || []).length ? (
         <div className="cneb-empty">No hay alumnos regulares en esta aula.</div>

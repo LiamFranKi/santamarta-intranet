@@ -26,6 +26,11 @@ function etiquetaAula(g) {
   return [g.grado != null ? String(g.grado) : '', String(g.seccion || '').trim()].filter(Boolean).join(' ') || `Aula ${g.id}`;
 }
 
+function bimestreDeSesion(s) {
+  const b = Number(s?.bimestre);
+  return b >= 1 && b <= 4 ? b : 4;
+}
+
 export default function AdminCnebConsolidado({
   apiBase = '/admin/cneb',
   nivel,
@@ -35,7 +40,6 @@ export default function AdminCnebConsolidado({
   grupoInicial = '',
   areaId = null,
   asignaturaId = null,
-  sesionIdFiltro = '',
   sesiones = [],
 }) {
   const [gradoSel, setGradoSel] = useState('');
@@ -53,8 +57,11 @@ export default function AdminCnebConsolidado({
   const grados = useMemo(() => gradosDe(grupos), [grupos]);
   const aulas = useMemo(() => aulasDe(grupos, gradoSel), [grupos, gradoSel]);
   const sesionesAula = useMemo(
-    () => (sesiones || []).filter((s) => String(s.grupo_id) === String(aulaSel)),
-    [sesiones, aulaSel]
+    () =>
+      (sesiones || []).filter(
+        (s) => String(s.grupo_id) === String(aulaSel) && bimestreDeSesion(s) === Number(bimestre)
+      ),
+    [sesiones, aulaSel, bimestre]
   );
   const cursos = useMemo(() => cursosDe(sesionesAula), [sesionesAula]);
   const sesionesCurso = useMemo(
@@ -65,7 +72,7 @@ export default function AdminCnebConsolidado({
   const listoLocal = Boolean(gradoSel && aulaSel && cursoSel && sesionLocal);
   const areaEfectivo = grupoInicial ? areaId : areaIdDeCurso(cursoSel, sesionesCurso);
   const asignaturaEfectiva = grupoInicial ? asignaturaId : asignaturaIdDeCurso(cursoSel, sesionesCurso);
-  const sesionEfectiva = grupoInicial ? sesionIdFiltro : sesionElegida;
+  const sesionEfectiva = grupoInicial ? '' : sesionElegida;
 
   useEffect(() => {
     if (grupoInicial) {
