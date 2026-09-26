@@ -60,9 +60,8 @@ export default function CnebInclusivoPanel({ apiBase, grupoId, dua, onChangeDua 
       <header className="cneb-dua-panel__head">
         <h3>Inclusión en esta sesión</h3>
         <p>
-          El DUA es para <strong>todo el aula</strong>. Si hay un niño con PIAR, escriba aquí el{' '}
-          <strong>procedimiento de hoy</strong> (qué hará con él en esta clase). Misma competencia y mismo
-          cotejo. Queda en el PDF de la sesión. No cambia SIAGIE ni la ficha de la familia.
+          Estas opciones son para todo el aula. Si las marca antes de generar, la IA las usa tal cual.
+          Si no marca ninguna, la IA igual arma la inclusión del grupo.
         </p>
       </header>
 

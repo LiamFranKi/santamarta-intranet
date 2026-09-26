@@ -271,7 +271,7 @@ export default function AdminCnebSesiones({
   const [cantidadIa, setCantidadIa] = useState(1);
   const [titulosLote, setTitulosLote] = useState('');
   const [unidadesBim, setUnidadesBim] = useState([]);
-  const unidadPrecargada = useRef(false);
+  const unidadesBimRef = useRef([]);
   const areaMarcadaRef = useRef('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -306,16 +306,20 @@ export default function AdminCnebSesiones({
     if (embebido) {
       if (sesionId) return;
       const f = formVacio(nivel, contextoAula);
+      const nombre = unidadesBimRef.current[0]?.nombre || '';
+      if (nombre) f.unidad = nombre;
       setForm(f);
       setEditing(true);
       return;
     }
     setEditing(false);
-    setForm(formVacio(nivel));
+    const base = formVacio(nivel);
+    const nombre = unidadesBimRef.current[0]?.nombre || '';
+    if (nombre) base.unidad = nombre;
+    setForm(base);
     setGradoSel('');
     setAulaSel('');
     setCursoSel('');
-    unidadPrecargada.current = false;
     areaMarcadaRef.current = '';
   }, [nivel, loadLista, embebido, sesionId]);
 
@@ -327,11 +331,11 @@ export default function AdminCnebSesiones({
       .then(({ data }) => {
         const listaUni = data?.unidades || [];
         if (!vivo) return;
+        unidadesBimRef.current = listaUni;
         setUnidadesBim(listaUni);
         const nombre = listaUni[0]?.nombre || '';
-        if (!nombre || unidadPrecargada.current) return;
-        unidadPrecargada.current = true;
-        setForm((f) => (f.id || f.unidad ? f : { ...f, unidad: nombre }));
+        if (!nombre) return;
+        setForm((f) => (f.id || String(f.unidad || '').trim() ? f : { ...f, unidad: nombre }));
       })
       .catch(() => {});
     return () => {
@@ -1056,60 +1060,54 @@ export default function AdminCnebSesiones({
         </label>
       </div>
 
-      <label className="cneb-select-wrap cneb-full">
-        <span>Unidad del bimestre</span>
-        {unidadesBim.length > 1 ? (
-          <select
-            value={unidadesBim.some((u) => u.nombre === form.unidad) ? form.unidad : ''}
-            onChange={(e) => {
-              if (e.target.value) patch({ unidad: e.target.value });
-            }}
-          >
-            <option value="">Elegir una unidad de este bimestre…</option>
-            {unidadesBim.map((u) => (
-              <option key={u.id} value={u.nombre}>
-                {u.nombre}
-              </option>
-            ))}
-          </select>
-        ) : null}
-        <input
-          type="text"
-          className="cneb-search cneb-input-wide"
-          maxLength={220}
-          placeholder="Tema de la unidad, por ejemplo Medio ambiente"
-          value={form.unidad}
-          onChange={(e) => patch({ unidad: e.target.value })}
-        />
-      </label>
-      <p className="cneb-muted">
-        Viene de la unidad madre de este bimestre. Si la cambia aquí, solo cambia esta sesión o este curso.
-      </p>
-
-      <label className="cneb-select-wrap cneb-full">
-        <span>Tema / título</span>
-        <input
-          type="text"
-          className="cneb-search cneb-input-wide"
-          maxLength={220}
-          placeholder="Escriba el tema de la sesión"
-          value={form.titulo}
-          onChange={(e) => patch({ titulo: e.target.value })}
-        />
-      </label>
-      <p className="cneb-muted">
-        Si genera con IA y este título ya está escrito, la sesión sale sobre ese tema y no lo cambia.
+      <div className="cneb-unidad-tema">
+        <label>
+          <span>Unidad del bimestre</span>
+          {unidadesBim.length > 1 ? (
+            <select
+              value={unidadesBim.some((u) => u.nombre === form.unidad) ? form.unidad : ''}
+              onChange={(e) => {
+                if (e.target.value) patch({ unidad: e.target.value });
+              }}
+            >
+              <option value="">Elegir unidad…</option>
+              {unidadesBim.map((u) => (
+                <option key={u.id} value={u.nombre}>
+                  {u.nombre}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          <input
+            type="text"
+            maxLength={220}
+            placeholder="Unidad madre de este bimestre"
+            value={form.unidad}
+            onChange={(e) => patch({ unidad: e.target.value })}
+          />
+        </label>
+        <label>
+          <span>Tema / título</span>
+          <input
+            type="text"
+            maxLength={220}
+            placeholder="Tema de esta sesión"
+            value={form.titulo}
+            onChange={(e) => patch({ titulo: e.target.value })}
+          />
+        </label>
+      </div>
+      <p className="cneb-hint-corta">
+        La unidad ya viene escrita desde la unidad madre. Si la borra o la cambia, solo cambia esta sesión.
+        Si el tema está escrito, la IA arma la sesión sobre ese título.
       </p>
 
       {mostrarIaSesiones && comps.length > 0 ? (
-        <div className="cneb-cotejo-bloque">
-          <h3 className="cneb-uso-title">Competencias de esta unidad</h3>
-          <p className="cneb-muted">
-            Marque las que usará. Para ir de una en una, marque una sola y deje la cantidad en 1.
-            Si escribió el tema y pide una sesión, se respeta ese título. Si pide varias, la primera
-            usa ese título y las demás proponen otro, siempre dentro de la unidad. Si el tema está
-            vacío, la IA propone uno distinto en cada sesión. Quedan en borrador.
-          </p>
+        <div className="cneb-lote">
+          <div>
+            <h3>Competencias de esta unidad</h3>
+            <p>Marque las que usará. Una competencia y 1 sesión es ir de una en una.</p>
+          </div>
           <div className="cneb-comp-checks">
             {comps.map((c) => (
               <label key={c.id}>
@@ -1122,44 +1120,9 @@ export default function AdminCnebSesiones({
               </label>
             ))}
           </div>
-          <label className="cneb-select-wrap">
-            <span>Cuántas sesiones</span>
-            <input
-              type="number"
-              min={1}
-              max={6}
-              value={cantidadIa}
-              onChange={(e) => setCantidadIa(e.target.value)}
-            />
-          </label>
-          <button type="button" className="cneb-btn primary" onClick={generarLote} disabled={generating}>
-            {generating ? 'Generando…' : `Generar ${Math.min(6, Math.max(1, parseInt(cantidadIa, 10) || 1))} sesiones de la unidad`}
-          </button>
-        </div>
-      ) : null}
-
-      {mostrarIaSesiones && !form.area_id ? (
-        <div className="cneb-cotejo-bloque">
-          <h3 className="cneb-uso-title">Sesiones de este curso</h3>
-          <p className="cneb-muted">
-            Este curso no tiene competencias de SIAGIE. La unidad orienta el bimestre. Escriba un
-            título por línea si quiere decidir los temas. Si la lista está vacía, indique cuántas
-            sesiones: la IA propone los temas dentro de la unidad y de este curso. Si solo quiere una
-            y ya escribió el tema de arriba, deje la lista vacía y la cantidad en 1. El cotejo queda
-            en el colegio y no entra al corte ni al informe SIAGIE.
-          </p>
-          <label className="cneb-select-wrap cneb-full">
-            <span>Un título por sesión</span>
-            <textarea
-              rows={4}
-              value={titulosLote}
-              onChange={(e) => setTitulosLote(e.target.value)}
-              placeholder={'Arduino\nPartes del robot\nSemáforo con sensores'}
-            />
-          </label>
-          {String(titulosLote || '').split(/\n/).map((t) => t.trim()).filter(Boolean).length === 0 ? (
-            <label className="cneb-select-wrap">
-              <span>Cuántas sesiones</span>
+          <div className="cneb-lote-accion">
+            <label>
+              <span>Sesiones</span>
               <input
                 type="number"
                 min={1}
@@ -1168,15 +1131,52 @@ export default function AdminCnebSesiones({
                 onChange={(e) => setCantidadIa(e.target.value)}
               />
             </label>
-          ) : null}
-          <button type="button" className="cneb-btn primary" onClick={generarLote} disabled={generating}>
-            {generating
-              ? 'Generando…'
-              : `Generar ${
-                  String(titulosLote || '').split(/\n/).map((t) => t.trim()).filter(Boolean).slice(0, 6).length
-                  || Math.min(6, Math.max(1, parseInt(cantidadIa, 10) || 1))
-                } sesiones`}
-          </button>
+            <button type="button" className="cneb-btn primary" onClick={generarLote} disabled={generating}>
+              {generating ? 'Generando…' : `Generar ${Math.min(6, Math.max(1, parseInt(cantidadIa, 10) || 1))}`}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {mostrarIaSesiones && !form.area_id ? (
+        <div className="cneb-lote">
+          <div>
+            <h3>Sesiones de este curso</h3>
+            <p>
+              Sin competencia de SIAGIE. Un título por línea, o deje la lista vacía e indique cuántas.
+            </p>
+          </div>
+          <label className="cneb-lote-titulos">
+            <span>Un título por sesión</span>
+            <textarea
+              rows={3}
+              value={titulosLote}
+              onChange={(e) => setTitulosLote(e.target.value)}
+              placeholder={'Arduino\nPartes del robot'}
+            />
+          </label>
+          <div className="cneb-lote-accion">
+            {String(titulosLote || '').split(/\n/).map((t) => t.trim()).filter(Boolean).length === 0 ? (
+              <label>
+                <span>Sesiones</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={6}
+                  value={cantidadIa}
+                  onChange={(e) => setCantidadIa(e.target.value)}
+                />
+              </label>
+            ) : null}
+            <button type="button" className="cneb-btn primary" onClick={generarLote} disabled={generating}>
+              {generating
+                ? 'Generando…'
+                : `Generar ${
+                    String(titulosLote || '').split(/\n/).map((t) => t.trim()).filter(Boolean).slice(0, 6).length
+                    || Math.min(6, Math.max(1, parseInt(cantidadIa, 10) || 1))
+                  }`}
+            </button>
+          </div>
         </div>
       ) : null}
 
