@@ -11,6 +11,14 @@ import { htmlVacio } from '../../utils/cnebTextoRico';
 import '../../pages/admin/AdminCnebPiloto.css';
 import './AulaCnebSesiones.css';
 
+function aulaMuestraCneb(meta, bimestre) {
+  if (!meta) return false;
+  if (meta.es_cneb_anio || meta.es_inicial) return true;
+  const prueba = Number(meta.bimestre_prueba);
+  if (prueba >= 1 && prueba <= 4) return Number(bimestre) === prueba;
+  return Boolean(meta.es_cneb);
+}
+
 function fechaCorta(v) {
   if (!v) return 'Sin fecha';
   const d = new Date(String(v).slice(0, 10) + 'T12:00:00');
@@ -278,7 +286,7 @@ export default function AulaCnebSesiones({
     }
   };
 
-  if (!loading && !meta?.es_inicial) return null;
+  if (!loading && !aulaMuestraCneb(meta, bimestre)) return null;
 
   const sesiones = (meta?.sesiones || []).filter((s) => {
     const b = Number(s.bimestre);
