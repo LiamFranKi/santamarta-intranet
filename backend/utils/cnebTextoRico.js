@@ -113,10 +113,14 @@ function htmlATextoPlano(html) {
 }
 
 function extraerPartes(inner) {
+  const limpio = String(inner || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|h[1-6]|li|ul|ol)>/gi, ' ')
+    .replace(/<(p|div|h[1-6]|ul|ol|li)[^>]*>/gi, '');
   const parts = [];
   const re = /<(strong|b|em|i)>([\s\S]*?)<\/\1>|([^<]+)/gi;
   let m;
-  while ((m = re.exec(String(inner || '')))) {
+  while ((m = re.exec(limpio))) {
     if (m[1]) {
       const text = decodeEnt(String(m[2] || '').replace(/<[^>]+>/g, ''));
       if (text) parts.push({ text, bold: /strong|b/i.test(m[1]) });

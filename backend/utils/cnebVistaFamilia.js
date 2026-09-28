@@ -114,8 +114,9 @@ function crearRouterCnebFamilia({ resolverAlumno, logTag = 'cneb-familia' }) {
       if (!cid || !id) return res.status(400).json({ error: 'Datos inválidos.' });
       const vis = await sesionVisibleFamilia(cid, alumnoId, id, anio);
       if (vis.error) return res.status(vis.error).json({ error: vis.mensaje });
+      const partePedida = String(req.query?.parte || 'ficha').toLowerCase();
       const out = await sesionPdfBuffer(cid, id, {
-        parte: 'ficha',
+        parte: partePedida === 'teoria' ? 'teoria' : 'ficha',
         formato: req.query?.formato || 'colegio',
       });
       if (!out) return res.status(404).json({ error: 'No se pudo generar el PDF.' });

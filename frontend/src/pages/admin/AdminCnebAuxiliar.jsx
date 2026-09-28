@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import CnebPiarMarca from '../../components/aula/CnebPiarMarca';
+import { textoErrorDescarga } from './cnebElegirAula';
 
 const LOGROS = [
   { v: 'si', label: 'Sí' },
@@ -13,6 +14,7 @@ export default function AdminCnebAuxiliar({ apiBase = '/admin/cneb', sesionId, o
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [bajando, setBajando] = useState(false);
   const [grid, setGrid] = useState({});
   const [notas, setNotas] = useState({});
 
@@ -80,6 +82,36 @@ export default function AdminCnebAuxiliar({ apiBase = '/admin/cneb', sesionId, o
     }
   };
 
+  const descargar = async () => {
+    setBajando(true);
+    try {
+      const res = await api.get(`${apiBase}/auxiliar/${sesionId}/excel`, {
+        responseType: 'blob',
+        timeout: 60000,
+      });
+      const href = URL.createObjectURL(
+        new Blob([res.data], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+      );
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = `auxiliar_sesion_${sesionId}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo descargar el auxiliar',
+        text: await textoErrorDescarga(e),
+      });
+    } finally {
+      setBajando(false);
+    }
+  };
+
   const stats = useMemo(() => {
     let si = 0;
     let no = 0;
@@ -127,8 +159,8 @@ export default function AdminCnebAuxiliar({ apiBase = '/admin/cneb', sesionId, o
         <div>
           <h2>Registro auxiliar</h2>
           <p>
-            {data.sesion?.titulo || 'Sesión'} · Sí / En proceso / No por cada ítem. No es la letra
-            AD/A/B/C del bimestre.
+            {data.sesion?.titulo || 'Sesión'} · Sí / En proceso / No por cada ítem. Evidencia del
+            docente: no se sube a SIAGIE y no es la letra AD/A/B/C. Guarde antes de descargar.
           </p>
         </div>
         <div className="cneb-map-actions">
@@ -137,6 +169,9 @@ export default function AdminCnebAuxiliar({ apiBase = '/admin/cneb', sesionId, o
               Volver
             </button>
           ) : null}
+          <button type="button" className="cneb-btn ghost" onClick={descargar} disabled={bajando}>
+            {bajando ? 'Descargando…' : 'Descargar auxiliar'}
+          </button>
           <button type="button" className="cneb-btn primary" onClick={guardar} disabled={saving}>
             {saving ? 'Guardando…' : 'Guardar auxiliar'}
           </button>

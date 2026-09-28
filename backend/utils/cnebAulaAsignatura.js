@@ -214,6 +214,7 @@ function vistaAlumnoSesion(ses) {
     fecha_sesion: ses.fecha_sesion,
     area_nombre: ses.area_nombre,
     ficha_estudiante: ses.ficha_estudiante || '',
+    material_teoria: ses.material_teoria || '',
   };
 }
 

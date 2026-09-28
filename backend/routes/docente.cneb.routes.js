@@ -28,6 +28,7 @@ const {
   guardarConsolidado,
   excelSiagieBuffer,
   excelConsolidadoBuffer,
+  excelAuxiliarSesionBuffer,
 } = require('../utils/cnebAuxiliar');
 const { informePdfBuffer, libretaPdfBuffer, sesionPdfBuffer } = require('../utils/cnebPdfs');
 const { contextoAulaCneb, listarSesionesAula } = require('../utils/cnebAulaAsignatura');
@@ -462,6 +463,24 @@ router.post('/sesiones/generar-lote', async (req, res) => {
   } catch (e) {
     console.error('[docente/cneb/generar-lote]', e);
     res.status(e.status || 500).json({ error: e.message || 'No se pudieron generar las sesiones.' });
+  }
+});
+
+router.get('/auxiliar/:sesionId/excel', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const sesionId = parseInt(req.params.sesionId, 10);
+    const ses = await cargarSesion(cid, sesionId);
+    if (!ses) return res.status(404).json({ error: 'Sesión no encontrada.' });
+    if (!(await gateGrupo(req, res, ses.grupo_id))) return;
+    const out = await excelAuxiliarSesionBuffer(cid, sesionId);
+    if (!out) return res.status(404).json({ error: 'Sesión no encontrada.' });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
+    res.send(Buffer.from(out.buffer));
+  } catch (e) {
+    console.error('[docente/cneb/auxiliar excel]', e);
+    res.status(500).json({ error: e.message || 'No se pudo descargar el auxiliar.' });
   }
 });
 

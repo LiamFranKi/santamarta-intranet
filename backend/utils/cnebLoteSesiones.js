@@ -193,6 +193,7 @@ async function generarLoteSesiones(cid, usuarioId, body) {
       titulo: tituloFinal,
       unidad,
       proposito: b.proposito || '',
+      material_teoria: b.teoria || '',
       ficha_estudiante: b.ficha || '',
       duracion_min: duracion,
       corte,

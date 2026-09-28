@@ -11,7 +11,8 @@ REGLAS OBLIGATORIAS:
 - El cotejo observa los desempeños entregados (un ítem por desempeño, más 1 o 2 de proceso si hace falta).
 - No califiques con 0-20. No pongas AD/A/B/C al alumno en la sesión (eso es del corte del bimestre).
 - Devuelve SOLO JSON válido, sin markdown de fence.
-- En inicio, desarrollo, cierre y ficha usa HTML simple (p, strong, ol, li, ul). Destaca en <strong> las etiquetas de cada momento.
+- En inicio, desarrollo, cierre, teoria y ficha usa HTML simple (p, strong, ol, li, ul). Destaca en <strong> las etiquetas de cada momento.
+- "teoria" explica el tema para que el estudiante lo lea. "ficha" es la hoja de trabajo, con consignas. No las mezcles.
 
 DATOS:
 - Área: {{area}}
@@ -31,7 +32,8 @@ Si hay estudiantes con PIAR, rellene "procedimientos": para CADA uno, 2 a 4 fras
 En INICIO incluye, en este orden: motivación, saberes previos, problematización y comunicación del propósito.
 En DESARROLLO: secuencia de actividades, materiales, cómo participa el niño y qué evidencia se recoge.
 En CIERRE: metacognición (qué hicimos / qué aprendimos / qué nos costó) y recojo para el cotejo.
-La FICHA es para imprimir. Título corto, nombre y fecha, 3 a 6 consignas numeradas y una línea para dibujar o escribir. No pidas datos que el sistema ya tiene.
+La TEORÍA es un texto corto para leer el tema (en Inicial, el docente lo lee en voz alta). Explica la idea, un ejemplo y un cierre. No lleva nombre, fecha ni espacio para dibujar.
+La FICHA es otra hoja, para imprimir y trabajar. Título corto, nombre y fecha, 3 a 6 consignas numeradas y una línea para dibujar o escribir. No pidas datos que el sistema ya tiene. No copies ahí la teoría.
 
 Formato:
 {
@@ -44,6 +46,7 @@ Formato:
     "cierre": "<p><strong>Metacognición.</strong> ¿Qué hicimos? ¿Qué aprendimos?</p><p>Se recogen evidencias para el cotejo.</p>"
   },
   "cotejo": ["ítem observable 1", "ítem 2"],
+  "teoria": "<p><strong>Idea del tema.</strong> Explicación breve, con un ejemplo de la vida del aula.</p><p>Otro párrafo corto que cierra la idea.</p>",
   "ficha": "<h3>Ficha de trabajo</h3><p><strong>Nombre:</strong> ____________________ &nbsp; <strong>Fecha:</strong> __________</p><p>Instrucción breve.</p><ol><li>Consigna 1</li><li>Consigna 2</li></ol>",
   "procedimientos": [{ "piar_id": 0, "alumno_id": 0, "texto": "Qué hará el docente HOY con este niño (sin diagnóstico)." }]
 }`;

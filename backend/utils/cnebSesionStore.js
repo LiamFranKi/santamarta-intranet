@@ -20,6 +20,7 @@ function leerCuerpoSesion(body, nivel) {
     titulo,
     proposito: String(body?.proposito || '').trim() || null,
     ficha_estudiante: String(body?.ficha_estudiante || body?.ficha || '').trim() || null,
+    material_teoria: String(body?.material_teoria || body?.teoria || '').trim().slice(0, 20000) || null,
     duracion_min: duracion,
     grupo_id: parseIntOrNull(body?.grupo_id),
     asignatura_id: parseIntOrNull(body?.asignatura_id),
@@ -221,9 +222,9 @@ async function insertarSesion(cid, usuarioId, body) {
     ins = await execute(
       `INSERT INTO cneb_sesiones
         (colegio_id, anio, nivel_cneb, grupo_id, asignatura_id, area_id, competencia_id,
-         titulo, unidad, proposito, ficha_estudiante, dua_json, duracion_min, corte, bimestre, fecha_sesion, estado, creado_por)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [...cols.slice(0, 8), body.unidad, ...cols.slice(8, 9), body.ficha_estudiante, duaStr, ...cols.slice(9, 11), body.bimestre, ...cols.slice(11)]
+         titulo, unidad, proposito, ficha_estudiante, material_teoria, dua_json, duracion_min, corte, bimestre, fecha_sesion, estado, creado_por)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [...cols.slice(0, 8), body.unidad, ...cols.slice(8, 9), body.ficha_estudiante, body.material_teoria, duaStr, ...cols.slice(9, 11), body.bimestre, ...cols.slice(11)]
     );
   } catch (e) {
     if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
@@ -267,7 +268,7 @@ async function actualizarSesion(cid, id, body) {
     await execute(
       `UPDATE cneb_sesiones SET
          grupo_id = ?, asignatura_id = ?, area_id = ?, competencia_id = ?,
-         titulo = ?, unidad = ?, proposito = ?, ficha_estudiante = ?, dua_json = ?, duracion_min = ?, corte = ?, bimestre = ?, fecha_sesion = ?, estado = ?
+         titulo = ?, unidad = ?, proposito = ?, ficha_estudiante = ?, material_teoria = ?, dua_json = ?, duracion_min = ?, corte = ?, bimestre = ?, fecha_sesion = ?, estado = ?
        WHERE id = ? AND colegio_id = ?`,
       [
         body.grupo_id,
@@ -278,6 +279,7 @@ async function actualizarSesion(cid, id, body) {
         body.unidad,
         body.proposito,
         body.ficha_estudiante,
+        body.material_teoria,
         duaStr,
         body.duracion_min,
         body.corte,

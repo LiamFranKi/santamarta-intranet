@@ -58,6 +58,7 @@ const PIE_SESION = 'Para el docente titular o el suplente. No modifica el aula v
 const PIE_FICHA_MINEDU =
   'Ficha de aplicación alineada al CNEB. No reemplaza el informe oficial de SIAGIE ni las notas 0–20.';
 const PIE_FICHA_COLEGIO = 'Ficha de trabajo del colegio. El niño dibuja o escribe; se archiva en el portafolio.';
+const PIE_TEORIA = 'Texto para leer el tema. No es la ficha de trabajo ni una nota.';
 
 function logoColegioPath() {
   const { rutaLogoColegioSync } = require('./logoColegio');
@@ -876,6 +877,28 @@ function dibujarFichaPagina(doc, { colegio, ses, grupo, fecha, formato }) {
   dibujarFirmasFicha(doc, y, inner);
 }
 
+function dibujarTeoriaPagina(doc, { colegio, ses, grupo, fecha }) {
+  const inner = doc.page.width - 72;
+  let y = dibujarMembrete(doc, {
+    colegioNombre: colegio?.nombre,
+    subtitulo: `${etiquetaNivel(ses.nivel_cneb)} · ${aulaLabel(grupo) || 'Aula'} · ${fecha}`,
+    tituloOficial: 'PARA LEER · TEORÍA DEL TEMA',
+  });
+  doc.fillColor(COLOR.ink).font('Helvetica-Bold').fontSize(12).text(ses.titulo || 'Sesión', 36, y, { width: inner });
+  y += 18;
+  const texto = String(ses.material_teoria || '').trim();
+  if (!texto) {
+    doc.fillColor(COLOR.muted).font('Helvetica').fontSize(9).text(
+      'Esta sesión todavía no tiene texto de teoría.',
+      36,
+      y,
+      { width: inner }
+    );
+    return;
+  }
+  dibujarTextoRico(doc, texto, 36, y, inner, { fontSize: 11 });
+}
+
 async function sesionPdfBuffer(cid, sesionId, { parte = 'sesion', formato = 'colegio' } = {}) {
   const ses = await cargarSesion(cid, sesionId);
   if (!ses) return null;
@@ -886,6 +909,12 @@ async function sesionPdfBuffer(cid, sesionId, { parte = 'sesion', formato = 'col
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
     .slice(0, 40);
+  if (String(parte || '').toLowerCase() === 'teoria') {
+    const buf = await pdfToBuffer(async (doc) => {
+      dibujarTeoriaPagina(doc, { colegio, ses, grupo, fecha });
+    }, { title: 'Teoría del tema', pie: PIE_TEORIA });
+    return { buffer: buf, filename: `teoria_cneb_${ses.id}_${slug}.pdf` };
+  }
   if (String(parte || '').toLowerCase() === 'ficha') {
     const minedu = String(formato || '').toLowerCase() === 'minedu';
     const buf = await pdfToBuffer(async (doc) => {

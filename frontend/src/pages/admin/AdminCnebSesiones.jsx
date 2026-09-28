@@ -226,6 +226,7 @@ function formVacio(nivel, ctx = null) {
     titulo: '',
     proposito: '',
     ficha_estudiante: '',
+    material_teoria: '',
     duracion_min,
     grupo_id: ctx?.grupo_id != null && ctx.grupo_id !== '' ? String(ctx.grupo_id) : '',
     asignatura_id: ctx?.asignatura_id != null ? ctx.asignatura_id : null,
@@ -477,6 +478,7 @@ export default function AdminCnebSesiones({
         titulo: s.titulo || '',
         proposito: s.proposito || '',
         ficha_estudiante: textoCnebAHtml(s.ficha_estudiante),
+        material_teoria: textoCnebAHtml(s.material_teoria),
         duracion_min: Number(s.duracion_min) || 60,
         grupo_id: s.grupo_id != null ? String(s.grupo_id) : '',
         asignatura_id: s.asignatura_id != null ? s.asignatura_id : null,
@@ -529,6 +531,7 @@ export default function AdminCnebSesiones({
       titulo: (forzarTitulo || !form.titulo) && b.titulo ? b.titulo : form.titulo,
       proposito: forzarProposito || !form.proposito ? b.proposito || form.proposito : form.proposito,
       ficha_estudiante: textoCnebAHtml(b.ficha || b.ficha_estudiante || form.ficha_estudiante),
+      material_teoria: textoCnebAHtml(b.teoria || b.material_teoria || form.material_teoria),
       minutos: b.minutos || form.minutos,
       momentos: {
         inicio: textoCnebAHtml(b.momentos?.inicio || form.momentos.inicio),
@@ -1327,6 +1330,22 @@ export default function AdminCnebSesiones({
           />
         </div>
       ))}
+
+      <div className="cneb-bloque">
+        <p className="cneb-bloque-kicker">Teoría del tema</p>
+        <p className="cneb-muted">
+          Lo que el estudiante lee sobre el tema, o lo que usted lee en voz alta. Va aparte de la ficha.
+        </p>
+        <ReactQuill
+          theme="snow"
+          className="cneb-quill"
+          modules={QUILL_CNEB}
+          formats={QUILL_FORMATS}
+          value={form.material_teoria || ''}
+          onChange={(html) => setForm((f) => ({ ...f, material_teoria: html }))}
+          placeholder="Idea del tema, un ejemplo y un cierre. Sin consignas ni espacio para dibujar."
+        />
+      </div>
 
       <div className="cneb-bloque">
         <p className="cneb-bloque-kicker">Ficha y cotejo</p>

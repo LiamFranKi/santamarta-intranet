@@ -191,6 +191,129 @@ async function guardarAuxiliar(cid, sesionId, filas) {
   return { ok: true, guardados: n };
 }
 
+function etiquetaLogroAux(v) {
+  if (v === 'si') return 'Sí';
+  if (v === 'no') return 'No';
+  if (v === 'en_proceso') return 'En proceso';
+  return '';
+}
+
+async function excelAuxiliarSesionBuffer(cid, sesionId) {
+  const data = await cargarAuxiliar(cid, sesionId);
+  if (!data) return null;
+  const [meta] = await query(
+    `SELECT s.titulo, s.fecha_sesion, s.nivel_cneb, ar.nombre AS area_nombre, g.grado, g.seccion
+     FROM cneb_sesiones s
+     LEFT JOIN cneb_areas ar ON ar.id = s.area_id
+     LEFT JOIN grupos g ON g.id = s.grupo_id AND g.colegio_id = s.colegio_id
+     WHERE s.id = ? AND s.colegio_id = ? LIMIT 1`,
+    [sesionId, cid]
+  );
+  const colegio = await getColegioData(cid).catch(() => null);
+  const items = data.items || [];
+  const alumnos = data.alumnos || [];
+  const mapa = new Map();
+  const nota = new Map();
+  (data.valores || []).forEach((v) => {
+    mapa.set(`${v.matricula_id}_${v.cotejo_id}`, v.logro || '');
+    if (v.observacion && !nota.has(v.matricula_id)) nota.set(v.matricula_id, v.observacion);
+  });
+  const totalCols = Math.max(3, 2 + items.length + 1);
+  const wb = new ExcelJS.Workbook();
+  wb.creator = `${await marcaCreadorExcel(cid)} · CNEB`;
+  const ws = wb.addWorksheet('Auxiliar', {
+    views: [{ state: 'frozen', xSplit: 2, ySplit: 4, showGridLines: false }],
+    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 1, paperSize: 9 },
+  });
+  const borde = xlBorde();
+  xlMerge(ws, 1, 1, 1, totalCols);
+  const t = ws.getCell(1, 1);
+  t.value = 'REGISTRO AUXILIAR DE LA SESIÓN';
+  t.font = { bold: true, size: 14, color: { argb: XL.white }, name: 'Calibri' };
+  t.fill = xlFill(XL.title);
+  t.alignment = { horizontal: 'center', vertical: 'middle' };
+  ws.getRow(1).height = 24;
+  xlMerge(ws, 2, 1, 2, totalCols);
+  const aula = [meta?.grado, meta?.seccion].filter((x) => x != null && String(x).trim()).join(' ');
+  const fecha = meta?.fecha_sesion ? String(meta.fecha_sesion).slice(0, 10) : '';
+  const sub = ws.getCell(2, 1);
+  sub.value = xlTexto(
+    [colegio?.nombre, etiquetaNivelXl(meta?.nivel_cneb), aula, meta?.area_nombre, meta?.titulo || data.sesion?.titulo, fecha]
+      .filter(Boolean)
+      .join('  ·  ')
+  );
+  sub.font = { size: 10, color: { argb: XL.muted }, name: 'Calibri' };
+  sub.fill = xlFill('FFE2E8F0');
+  sub.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  ws.getRow(2).height = 20;
+  xlMerge(ws, 3, 1, 3, totalCols);
+  const aviso = ws.getCell(3, 1);
+  aviso.value = 'Evidencia del docente. No se sube a SIAGIE y no es la letra AD/A/B/C del bimestre.';
+  aviso.font = { italic: true, size: 9, color: { argb: XL.muted }, name: 'Calibri' };
+  aviso.alignment = { horizontal: 'left', vertical: 'middle' };
+  ws.getRow(3).height = 18;
+
+  const head = ws.getRow(4);
+  const titulos = ['N.º', 'Estudiante', ...items.map((it) => it.item || 'Ítem'), 'Nota breve'];
+  while (titulos.length < totalCols) titulos.push('');
+  titulos.forEach((txt, i) => {
+    const cell = head.getCell(i + 1);
+    cell.value = xlTexto(txt);
+    cell.fill = xlFill(XL.head);
+    cell.font = { bold: true, size: 9, color: { argb: XL.white }, name: 'Calibri' };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    cell.border = borde;
+  });
+  head.height = 36;
+  ws.getColumn(1).width = 6;
+  ws.getColumn(2).width = 32;
+  for (let c = 3; c < totalCols; c += 1) ws.getColumn(c).width = 18;
+  ws.getColumn(totalCols).width = 28;
+
+  const pintarLogro = (cell, logro) => {
+    const et = etiquetaLogroAux(logro);
+    cell.value = et;
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    cell.border = borde;
+    cell.font = { bold: true, size: 10, name: 'Calibri', color: { argb: XL.ink } };
+    if (logro === 'si') {
+      cell.fill = xlFill(XL.ADbg);
+      cell.font = { bold: true, size: 10, name: 'Calibri', color: { argb: XL.AD } };
+    } else if (logro === 'no') {
+      cell.fill = xlFill(XL.Cbg);
+      cell.font = { bold: true, size: 10, name: 'Calibri', color: { argb: XL.C } };
+    } else if (logro === 'en_proceso') {
+      cell.fill = xlFill(XL.Bbg);
+      cell.font = { bold: true, size: 10, name: 'Calibri', color: { argb: XL.B } };
+    }
+  };
+
+  alumnos.forEach((al, i) => {
+    const row = ws.getRow(5 + i);
+    row.getCell(1).value = i + 1;
+    row.getCell(2).value = xlTexto(al.nombre);
+    items.forEach((it, k) => {
+      pintarLogro(row.getCell(3 + k), mapa.get(`${al.matricula_id}_${it.id}`) || '');
+    });
+    const notaCell = row.getCell(totalCols);
+    notaCell.value = xlTexto(nota.get(al.matricula_id) || '');
+    notaCell.alignment = { wrapText: true, vertical: 'middle' };
+    for (let c = 1; c <= totalCols; c += 1) {
+      const cell = row.getCell(c);
+      cell.border = borde;
+      if (c <= 2 || c === totalCols) {
+        cell.fill = cell.fill || (i % 2 ? xlFill(XL.alt) : xlFill(XL.white));
+        cell.font = cell.font || { name: 'Calibri', size: 10, color: { argb: XL.ink } };
+        cell.alignment = cell.alignment || { vertical: 'middle', horizontal: c === 2 ? 'left' : 'center' };
+      }
+    }
+    row.height = 20;
+  });
+
+  const buf = await wb.xlsx.writeBuffer();
+  return { buffer: buf, filename: `auxiliar_sesion_${sesionId}.xlsx` };
+}
+
 async function cargarCorte(cid, { anio, bimestre, grupoId, nivel, areaId, asignaturaId, sesionId }) {
   const alumnosRaw = await listarAlumnosGrupo(cid, grupoId);
   const alumnos = await anexarPiarAAlumnos(cid, anio, grupoId, alumnosRaw);
@@ -725,4 +848,5 @@ module.exports = {
   guardarConsolidado,
   excelSiagieBuffer,
   excelConsolidadoBuffer,
+  excelAuxiliarSesionBuffer,
 };

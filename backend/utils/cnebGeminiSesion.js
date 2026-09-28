@@ -136,6 +136,7 @@ function normalizarSalida(parsed, duracionMin) {
     },
     cotejo,
     ficha: textoCnebAHtml(parsed?.ficha),
+    teoria: textoCnebAHtml(String(parsed?.teoria || '').slice(0, 12000)),
     procedimientos: Array.isArray(parsed?.procedimientos) ? parsed.procedimientos : [],
   };
 }
@@ -154,6 +155,10 @@ async function generarSesionConIa({ plantilla, vars, duracionMin }) {
   if (!/"titulo"/i.test(plantillaUso)) {
     plantillaUso +=
       '\nSi el tema ({{titulo}}) viene vacío, propone un "titulo" concreto dentro de la competencia.';
+  }
+  if (!/"teoria"/i.test(plantillaUso)) {
+    plantillaUso +=
+      '\n\nTEXTO DE TEORÍA, APARTE DE LA FICHA:\nIncluye la clave "teoria": un texto corto para que el estudiante lea el tema (en Inicial, para que el docente se lo lea). Explica la idea con palabras de su edad, ejemplos concretos y un cierre. No es la ficha: no pongas nombre, fecha, líneas en blanco ni consignas para dibujar. No copies el plan ni el cotejo. HTML simple: <p> y <strong>. De 4 a 8 párrafos breves.';
   }
   if (!/<p|<strong|html/i.test(plantillaUso)) {
     plantillaUso +=
