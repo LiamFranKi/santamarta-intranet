@@ -1392,6 +1392,7 @@ export default function AdminCnebSesiones({
       <div className="cneb-bloque">
         <p className="cneb-bloque-kicker">Ficha y cotejo</p>
       {mostrarIaSesiones ? (
+      <>
       <div className="cneb-ficha-grid">
         <label className="cneb-select-wrap cneb-full">
           <span>Ficha del estudiante (editar)</span>
@@ -1425,6 +1426,7 @@ export default function AdminCnebSesiones({
         Hoja para archivar evidencia física. Use negrita y listas; el PDF respeta ese formato. Puede
         descargar la versión colegio o con membrete MINEDU.
       </p>
+      </>
       ) : (
         <p className="cneb-muted">
           La IA está apagada. Suba la teoría y la ficha en las tarjetas de arriba para que las vea el padre.
