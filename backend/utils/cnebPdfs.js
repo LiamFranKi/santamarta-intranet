@@ -7,6 +7,7 @@ const { cargarCorte } = require('./cnebAuxiliar');
 const { cargarSesion } = require('./cnebSesionStore');
 const { listarDesempenosCatalogo } = require('./cnebCatalogoSeed');
 const { htmlABloques, htmlATextoPlano } = require('./cnebTextoRico');
+const { bufferArchivoPropio, bufferPdfBonito } = require('./cnebMaterialArchivo');
 const { DUA_CAT_LABEL, DUA_OPCIONES, leerDua, duaTieneAlgo } = require('./cnebDua');
 
 const ESCALA = [
@@ -910,18 +911,36 @@ async function sesionPdfBuffer(cid, sesionId, { parte = 'sesion', formato = 'col
     .replace(/[^a-z0-9]+/g, '_')
     .slice(0, 40);
   if (String(parte || '').toLowerCase() === 'teoria') {
+    const propio = bufferArchivoPropio(ses, 'teoria');
+    if (propio) return propio;
+    try {
+      const bonito = await bufferPdfBonito({ ses, colegio, grupo, fecha, parte: 'teoria' });
+      if (bonito) return bonito;
+    } catch (e) {
+      console.error('[cneb/pdf teoria]', e.message);
+    }
     const buf = await pdfToBuffer(async (doc) => {
       dibujarTeoriaPagina(doc, { colegio, ses, grupo, fecha });
     }, { title: 'Teoría del tema', pie: PIE_TEORIA });
-    return { buffer: buf, filename: `teoria_cneb_${ses.id}_${slug}.pdf` };
+    return { buffer: buf, filename: `teoria_cneb_${ses.id}_${slug}.pdf`, contentType: 'application/pdf' };
   }
   if (String(parte || '').toLowerCase() === 'ficha') {
     const minedu = String(formato || '').toLowerCase() === 'minedu';
+    if (!minedu) {
+      const propio = bufferArchivoPropio(ses, 'ficha');
+      if (propio) return propio;
+      try {
+        const bonito = await bufferPdfBonito({ ses, colegio, grupo, fecha, parte: 'ficha' });
+        if (bonito) return bonito;
+      } catch (e) {
+        console.error('[cneb/pdf ficha]', e.message);
+      }
+    }
     const buf = await pdfToBuffer(async (doc) => {
       dibujarFichaPagina(doc, { colegio, ses, grupo, fecha, formato });
     }, { title: 'Ficha CNEB', pie: minedu ? PIE_FICHA_MINEDU : PIE_FICHA_COLEGIO });
     const pref = minedu ? 'ficha_minedu' : 'ficha_cneb';
-    return { buffer: buf, filename: `${pref}_${ses.id}_${slug}.pdf` };
+    return { buffer: buf, filename: `${pref}_${ses.id}_${slug}.pdf`, contentType: 'application/pdf' };
   }
   const subtitulo = `Sesión de aprendizaje · ${etiquetaNivel(ses.nivel_cneb)} · ${ses.duracion_min} min`;
   const buf = await pdfToBuffer(async (doc) => {

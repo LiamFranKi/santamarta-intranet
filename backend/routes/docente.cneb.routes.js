@@ -31,6 +31,7 @@ const {
   excelAuxiliarSesionBuffer,
 } = require('../utils/cnebAuxiliar');
 const { informePdfBuffer, libretaPdfBuffer, sesionPdfBuffer } = require('../utils/cnebPdfs');
+const { subirMaterial, guardarMaterial, quitarMaterial } = require('../utils/cnebMaterialArchivo');
 const { contextoAulaCneb, listarSesionesAula } = require('../utils/cnebAulaAsignatura');
 const { piarActivosDelGrupo, varsGenerarSesionIa } = require('../utils/cnebPiarAula');
 const { listarUnidades, generarLoteSesiones, nivelOk } = require('../utils/cnebLoteSesiones');
@@ -703,6 +704,40 @@ router.get('/export/libreta.pdf', async (req, res) => {
   }
 });
 
+router.post('/sesiones/:id/material', subirMaterial, async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const id = parseInt(req.params.id, 10);
+    const tipo = req.body?.tipo === 'ficha' ? 'ficha' : 'teoria';
+    if (!cid || !id || !req.file) return res.status(400).json({ error: 'Falta el archivo.' });
+    const ses = await cargarSesion(cid, id);
+    if (!ses) return res.status(404).json({ error: 'Sesión no encontrada.' });
+    if (!(await gateGrupo(req, res, ses.grupo_id, { escribir: true }))) return;
+    const out = await guardarMaterial(cid, id, tipo, req.file);
+    res.json({ success: true, ...out });
+  } catch (e) {
+    console.error('[docente/cneb/material POST]', e);
+    res.status(e.status || 500).json({ error: e.message || 'No se pudo guardar el archivo.' });
+  }
+});
+
+router.delete('/sesiones/:id/material', async (req, res) => {
+  try {
+    const cid = colegio(req);
+    const id = parseInt(req.params.id, 10);
+    const tipo = req.query?.tipo === 'ficha' ? 'ficha' : 'teoria';
+    if (!cid || !id) return res.status(400).json({ error: 'Datos inválidos.' });
+    const ses = await cargarSesion(cid, id);
+    if (!ses) return res.status(404).json({ error: 'Sesión no encontrada.' });
+    if (!(await gateGrupo(req, res, ses.grupo_id, { escribir: true }))) return;
+    const out = await quitarMaterial(cid, id, tipo);
+    res.json({ success: true, ...out });
+  } catch (e) {
+    console.error('[docente/cneb/material DELETE]', e);
+    res.status(e.status || 500).json({ error: e.message || 'No se pudo quitar el archivo.' });
+  }
+});
+
 router.get('/sesiones/:id/pdf', async (req, res) => {
   try {
     const cid = colegio(req);
@@ -715,7 +750,7 @@ router.get('/sesiones/:id/pdf', async (req, res) => {
       formato: req.query?.formato,
     });
     if (!out) return res.status(404).json({ error: 'Sesión no encontrada.' });
-    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Type', out.contentType || 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
     res.send(Buffer.from(out.buffer));
   } catch (e) {

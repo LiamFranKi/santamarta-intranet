@@ -215,6 +215,8 @@ function vistaAlumnoSesion(ses) {
     area_nombre: ses.area_nombre,
     ficha_estudiante: ses.ficha_estudiante || '',
     material_teoria: ses.material_teoria || '',
+    archivo_teoria: Boolean(ses.archivo_teoria),
+    archivo_ficha: Boolean(ses.archivo_ficha),
   };
 }
 

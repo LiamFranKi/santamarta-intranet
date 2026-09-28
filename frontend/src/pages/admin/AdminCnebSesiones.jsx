@@ -4,6 +4,7 @@ import 'react-quill/dist/quill.snow.css';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import CnebHtmlVista from '../../components/aula/CnebHtmlVista';
+import CnebMaterialTarjetas from '../../components/aula/CnebMaterialTarjetas';
 import CnebInclusivoPanel from '../../components/aula/CnebInclusivoPanel';
 import { htmlVacio, textoCnebAHtml } from '../../utils/cnebTextoRico';
 import { emptyDua, fusionarProcedimientos, leerDua } from '../../utils/cnebDua';
@@ -227,6 +228,8 @@ function formVacio(nivel, ctx = null) {
     proposito: '',
     ficha_estudiante: '',
     material_teoria: '',
+    archivo_teoria: '',
+    archivo_ficha: '',
     duracion_min,
     grupo_id: ctx?.grupo_id != null && ctx.grupo_id !== '' ? String(ctx.grupo_id) : '',
     asignatura_id: ctx?.asignatura_id != null ? ctx.asignatura_id : null,
@@ -479,6 +482,8 @@ export default function AdminCnebSesiones({
         proposito: s.proposito || '',
         ficha_estudiante: textoCnebAHtml(s.ficha_estudiante),
         material_teoria: textoCnebAHtml(s.material_teoria),
+        archivo_teoria: s.archivo_teoria || '',
+        archivo_ficha: s.archivo_ficha || '',
         duracion_min: Number(s.duracion_min) || 60,
         grupo_id: s.grupo_id != null ? String(s.grupo_id) : '',
         asignatura_id: s.asignatura_id != null ? s.asignatura_id : null,
@@ -1331,6 +1336,7 @@ export default function AdminCnebSesiones({
         </div>
       ))}
 
+      {mostrarIaSesiones ? (
       <div className="cneb-bloque">
         <p className="cneb-bloque-kicker">Teoría del tema</p>
         <p className="cneb-muted">
@@ -1346,9 +1352,46 @@ export default function AdminCnebSesiones({
           placeholder="Idea del tema, un ejemplo y un cierre. Sin consignas ni espacio para dibujar."
         />
       </div>
+      ) : null}
+
+      <CnebMaterialTarjetas
+        apiBase={apiBase}
+        sesionId={form.id}
+        iaActiva={mostrarIaSesiones}
+        archivoTeoria={form.archivo_teoria}
+        archivoFicha={form.archivo_ficha}
+        tieneTextoTeoria={!htmlVacio(form.material_teoria)}
+        tieneTextoFicha={!htmlVacio(form.ficha_estudiante)}
+        onCambio={(tipo, archivo) =>
+          patch(tipo === 'ficha' ? { archivo_ficha: archivo } : { archivo_teoria: archivo })
+        }
+        onVerPdf={(tipo) => {
+          if (!form.id) return;
+          api
+            .get(`${apiBase}/sesiones/${form.id}/pdf`, {
+              params: { parte: tipo },
+              responseType: 'blob',
+              timeout: 120000,
+            })
+            .then((res) => {
+              const href = URL.createObjectURL(new Blob([res.data], { type: res.headers['content-type'] || 'application/pdf' }));
+              const a = document.createElement('a');
+              a.href = href;
+              a.download = `${tipo}_sesion_${form.id}`;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(href);
+            })
+            .catch(() => {
+              Swal.fire({ icon: 'error', title: 'No se pudo abrir el archivo' });
+            });
+        }}
+      />
 
       <div className="cneb-bloque">
         <p className="cneb-bloque-kicker">Ficha y cotejo</p>
+      {mostrarIaSesiones ? (
       <div className="cneb-ficha-grid">
         <label className="cneb-select-wrap cneb-full">
           <span>Ficha del estudiante (editar)</span>
@@ -1382,6 +1425,11 @@ export default function AdminCnebSesiones({
         Hoja para archivar evidencia física. Use negrita y listas; el PDF respeta ese formato. Puede
         descargar la versión colegio o con membrete MINEDU.
       </p>
+      ) : (
+        <p className="cneb-muted">
+          La IA está apagada. Suba la teoría y la ficha en las tarjetas de arriba para que las vea el padre.
+        </p>
+      )}
 
       <div className="cneb-cotejo-bloque">
       <h3 className="cneb-uso-title">Lista de cotejo</h3>

@@ -6,6 +6,7 @@ import AdminCnebSesiones, { hallarAreaCneb, MarcoCnebVista } from '../../pages/a
 import AdminCnebCorte from '../../pages/admin/AdminCnebCorte';
 import EvidenciasGaleria from './EvidenciasGaleria';
 import CnebHtmlVista from './CnebHtmlVista';
+import CnebMaterialTarjetas from './CnebMaterialTarjetas';
 import { htmlVacio } from '../../utils/cnebTextoRico';
 import '../../pages/admin/AdminCnebPiloto.css';
 import './AulaCnebSesiones.css';
@@ -21,7 +22,7 @@ async function bajarPdf(apiBase, id, parte, formato = 'colegio') {
   const res = await api.get(`${apiBase}/sesiones/${id}/pdf`, {
     params: { parte, formato },
     responseType: 'blob',
-    timeout: 60000,
+    timeout: 120000,
   });
   const href = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
   const a = document.createElement('a');
@@ -490,7 +491,7 @@ export default function AulaCnebSesiones({
                   <button type="button" className="card-action-btn card-action-btn-secondary" onClick={() => pdf(sesion.id, 'sesion')}>
                     PDF de la sesión
                   </button>
-                  {!htmlVacio(sesion.material_teoria) ? (
+                  {!htmlVacio(sesion.material_teoria) || sesion.archivo_teoria ? (
                     <button type="button" className="card-action-btn" onClick={() => pdf(sesion.id, 'teoria')}>
                       Teoría del tema
                     </button>
@@ -506,12 +507,32 @@ export default function AulaCnebSesiones({
                     Ficha MINEDU
                   </button>
                 </div>
+                <CnebMaterialTarjetas
+                  apiBase={apiBase}
+                  sesionId={sesion.id}
+                  iaActiva
+                  archivoTeoria={sesion.archivo_teoria}
+                  archivoFicha={sesion.archivo_ficha}
+                  tieneTextoTeoria={!htmlVacio(sesion.material_teoria)}
+                  tieneTextoFicha={!htmlVacio(sesion.ficha_estudiante)}
+                  onCambio={(tipo, archivo) =>
+                    setSesion((s) =>
+                      s
+                        ? {
+                            ...s,
+                            ...(tipo === 'ficha' ? { archivo_ficha: archivo } : { archivo_teoria: archivo }),
+                          }
+                        : s
+                    )
+                  }
+                  onVerPdf={(tipo) => pdf(sesion.id, tipo)}
+                />
               </>
             ) : null}
 
             {!esDocente ? (
               <>
-                {!htmlVacio(sesion.material_teoria) ? (
+                {!sesion.archivo_teoria && !htmlVacio(sesion.material_teoria) ? (
                   <article className="aula-cneb-momento">
                     <h5>{esApoderado ? 'Teoría del tema' : 'Para leer'}</h5>
                     <p className="aula-cneb-row-sub">
@@ -522,7 +543,7 @@ export default function AulaCnebSesiones({
                     <CnebHtmlVista html={sesion.material_teoria} />
                   </article>
                 ) : null}
-                {!htmlVacio(sesion.ficha_estudiante) ? (
+                {!sesion.archivo_ficha && !htmlVacio(sesion.ficha_estudiante) ? (
                   <article className="aula-cneb-momento aula-cneb-ficha-vista">
                     <h5>{esApoderado ? 'Ficha del estudiante' : 'Tu ficha'}</h5>
                     <p className="aula-cneb-row-sub">
@@ -537,18 +558,27 @@ export default function AulaCnebSesiones({
                       </div>
                     </div>
                   </article>
-                ) : (
-                  <p className="aula-cneb-row-sub">Aún no hay ficha en esta sesión.</p>
-                )}
+                ) : null}
+                {sesion.archivo_teoria ? (
+                  <p className="aula-cneb-row-sub">Hay una teoría preparada por el maestro.</p>
+                ) : null}
+                {sesion.archivo_ficha ? (
+                  <p className="aula-cneb-row-sub">Hay una ficha preparada por el maestro.</p>
+                ) : null}
+                {!sesion.archivo_ficha && htmlVacio(sesion.ficha_estudiante) && !sesion.archivo_teoria && htmlVacio(sesion.material_teoria) ? (
+                  <p className="aula-cneb-row-sub">Aún no hay ficha ni teoría en esta sesión.</p>
+                ) : null}
                 <div className="aula-cneb-pdfs">
-                  {!htmlVacio(sesion.material_teoria) ? (
+                  {sesion.archivo_teoria || !htmlVacio(sesion.material_teoria) ? (
                     <button type="button" className="card-action-btn card-action-btn-secondary" onClick={() => pdf(sesion.id, 'teoria')}>
-                      {esApoderado ? 'Descargar teoría (PDF)' : 'Descargar para leer (PDF)'}
+                      {esApoderado ? 'Descargar teoría' : 'Descargar para leer'}
                     </button>
                   ) : null}
-                  <button type="button" className="card-action-btn" onClick={() => pdf(sesion.id, 'ficha')}>
-                    {esApoderado ? 'Descargar ficha (PDF)' : 'Descargar mi ficha (PDF)'}
-                  </button>
+                  {sesion.archivo_ficha || !htmlVacio(sesion.ficha_estudiante) ? (
+                    <button type="button" className="card-action-btn" onClick={() => pdf(sesion.id, 'ficha')}>
+                      {esApoderado ? 'Descargar ficha' : 'Descargar mi ficha'}
+                    </button>
+                  ) : null}
                 </div>
               </>
             ) : null}

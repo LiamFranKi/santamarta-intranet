@@ -120,7 +120,7 @@ function crearRouterCnebFamilia({ resolverAlumno, logTag = 'cneb-familia' }) {
         formato: req.query?.formato || 'colegio',
       });
       if (!out) return res.status(404).json({ error: 'No se pudo generar el PDF.' });
-      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Type', out.contentType || 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
       res.send(Buffer.from(out.buffer));
     } catch (e) {
