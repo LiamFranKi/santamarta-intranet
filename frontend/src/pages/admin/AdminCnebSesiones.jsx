@@ -43,7 +43,7 @@ function abrirSwalGenerandoCneb() {
         <h3 class="cneb-ia-titulo">Vanguarcito está armando la sesión</h3>
         <p class="cneb-ia-texto">Redacta inicio, desarrollo, cierre y la ficha del estudiante con el catálogo CNEB.</p>
         <div class="cneb-ia-bar"><div class="cneb-ia-bar-inner"></div></div>
-        <p class="cneb-ia-hint">Puede tardar un minuto · no cierre esta ventana</p>
+        <p class="cneb-ia-hint">Puede tardar unos minutos · no cierre esta ventana</p>
         <p class="cneb-ia-dots"><span>●</span><span> ●</span><span> ●</span></p>
       </div>
     `,
@@ -307,6 +307,9 @@ export default function AdminCnebSesiones({
 
   useEffect(() => {
     loadLista();
+  }, [loadLista]);
+
+  useEffect(() => {
     lastMarcoRef.current = '';
     if (embebido) {
       if (sesionId) return;
@@ -326,10 +329,10 @@ export default function AdminCnebSesiones({
     setAulaSel('');
     setCursoSel('');
     areaMarcadaRef.current = '';
-  }, [nivel, loadLista, embebido, sesionId]);
+  }, [nivel, embebido, sesionId]);
 
   useEffect(() => {
-    if (!nivel || form.id) return undefined;
+    if (!nivel) return undefined;
     let vivo = true;
     api
       .get(`${apiBase}/unidades`, { params: { nivel, bimestre } })
@@ -346,7 +349,7 @@ export default function AdminCnebSesiones({
     return () => {
       vivo = false;
     };
-  }, [nivel, bimestre, apiBase, form.id]);
+  }, [nivel, bimestre, apiBase]);
 
   useEffect(() => {
     if (!embebido || !sesionId) return;
@@ -563,11 +566,11 @@ export default function AdminCnebSesiones({
           .filter((d) => form.desempeno_ids.map(String).includes(String(d.id)))
           .map((d) => d.texto)
       : libres;
-    if (!compForm?.nombre && !form.titulo.trim()) {
+    if (form.area_id && !compForm?.nombre && !form.titulo.trim()) {
       await Swal.fire({
         icon: 'warning',
         title: 'Falta un ancla',
-        text: 'Elija área y competencia del catálogo, o escriba un tema si es un taller interno.',
+        text: 'Elija la competencia, o escriba el tema de la sesión.',
       });
       return;
     }
@@ -608,7 +611,7 @@ export default function AdminCnebSesiones({
           grupo_id: form.grupo_id,
           dua: form.dua,
         },
-        { timeout: 180000 }
+        { timeout: 240000 }
       );
       aplicarBorrador(data.borrador, {
         forzarProposito: !form.proposito,
@@ -673,36 +676,49 @@ export default function AdminCnebSesiones({
       : Math.min(6, Math.max(1, parseInt(cantidadIa, 10) || 1));
     setGenerating(true);
     abrirSwalGenerandoCneb();
+    const creadas = [];
+    const usados = [];
     try {
-      const { data } = await api.post(
-        `${apiBase}/sesiones/generar-lote`,
-        {
-          nivel,
-          cantidad: n,
-          competencia_ids: taller ? [] : compsMarcadas,
-          titulos: taller ? lineasTitulo : [],
-          titulo: form.titulo,
-          proposito: form.proposito,
-          unidad: form.unidad,
-          indicacion_ia: form.indicacion_ia,
-          bimestre,
-          curso_nombre: contextoAula?.curso_nombre || '',
-          corte: form.corte,
-          corte_label: cortes.find((c) => c.v === Number(form.corte))?.label,
-          duracion_min: form.duracion_min,
-          grupo_id: form.grupo_id || null,
-          asignatura_id: form.asignatura_id || null,
-          fecha_sesion: form.fecha_sesion || null,
-          dua: form.dua,
-        },
-        { timeout: 420000 }
-      );
+      for (let i = 0; i < n; i += 1) {
+        const aviso = document.querySelector('.cneb-ia-hint');
+        if (aviso) aviso.textContent = `Sesión ${i + 1} de ${n} · no cierre esta ventana`;
+        const compId = taller ? null : compsMarcadas[i % compsMarcadas.length];
+        const tituloPieza = lineasTitulo[i] || (i === 0 ? form.titulo : '');
+        const { data } = await api.post(
+          `${apiBase}/sesiones/generar-lote`,
+          {
+            nivel,
+            cantidad: 1,
+            competencia_ids: compId ? [compId] : [],
+            titulos: tituloPieza ? [tituloPieza] : [],
+            titulo: tituloPieza,
+            proposito: i === 0 ? form.proposito : '',
+            unidad: form.unidad,
+            indicacion_ia: form.indicacion_ia,
+            bimestre,
+            curso_nombre: contextoAula?.curso_nombre || '',
+            corte: form.corte,
+            corte_label: cortes.find((c) => c.v === Number(form.corte))?.label,
+            duracion_min: form.duracion_min,
+            grupo_id: form.grupo_id || null,
+            asignatura_id: form.asignatura_id || null,
+            fecha_sesion: form.fecha_sesion || null,
+            dua: form.dua,
+            evitar_titulos: usados.join('; '),
+          },
+          { timeout: 240000 }
+        );
+        const hecha = (data?.creadas || [])[0];
+        if (hecha) {
+          creadas.push(hecha);
+          if (hecha.titulo) usados.push(hecha.titulo);
+        }
+      }
       Swal.close();
       await loadLista();
       if (typeof onGuardado === 'function') onGuardado();
       if (embebido && typeof onCerrar === 'function') onCerrar();
       else setEditing(false);
-      const creadas = data?.creadas || [];
       await Swal.fire({
         icon: 'success',
         title: `${creadas.length} sesiones en borrador`,
@@ -710,9 +726,11 @@ export default function AdminCnebSesiones({
       });
     } catch (e) {
       Swal.close();
+      await loadLista();
+      if (typeof onGuardado === 'function') onGuardado();
       Swal.fire({
         icon: 'error',
-        title: 'No se pudieron generar las sesiones',
+        title: creadas.length ? `Quedaron ${creadas.length} de ${n}` : 'No se pudieron generar las sesiones',
         text: e.response?.data?.error || e.message,
       });
     } finally {
@@ -1063,8 +1081,15 @@ export default function AdminCnebSesiones({
           )}
         </label>
         <label className="cneb-select-wrap">
-          <span>Área CNEB</span>
-          {embebido && areaForm ? (
+          <span>{embebido && contextoAula?.curso_nombre ? 'Curso' : 'Área CNEB'}</span>
+          {embebido && contextoAula?.curso_nombre ? (
+            <input
+              type="text"
+              className="cneb-search"
+              readOnly
+              value={contextoAula.curso_nombre}
+            />
+          ) : embebido && areaForm ? (
             <input
               type="text"
               className="cneb-search"

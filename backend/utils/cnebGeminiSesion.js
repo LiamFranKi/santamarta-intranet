@@ -20,15 +20,6 @@ function extraerJson(text) {
   }
 }
 
-function sePuedeReintentar(err) {
-  const status = err.response?.status;
-  const msg = String(err.response?.data?.error?.message || err.message || '');
-  if (!status || status === 404 || status === 400) return true;
-  if (/JSON mode is not enabled/i.test(msg)) return true;
-  if (/not found|not supported/i.test(msg)) return true;
-  return false;
-}
-
 async function llamarGeminiJson(prompt, { maxOutputTokens = 8192 } = {}) {
   const apiKey = String(process.env.GOOGLE_AI_API_KEY || '').trim();
   if (!apiKey) {
@@ -36,56 +27,62 @@ async function llamarGeminiJson(prompt, { maxOutputTokens = 8192 } = {}) {
     e.code = 'GEMINI_NO_KEY';
     throw e;
   }
+  const modelos = modelosAProbar();
   const genBase = { temperature: 0.4, maxOutputTokens };
-  const intentos = [
-    { ver: 'v1beta', json: true },
-    { ver: 'v1beta', json: false },
-    { ver: 'v1', json: false },
-  ];
   let ultimo;
-  for (const modelo of modelosAProbar()) {
-    for (const intento of intentos) {
-      const url = `https://generativelanguage.googleapis.com/${intento.ver}/models/${modelo}:generateContent?key=${encodeURIComponent(apiKey)}`;
-      const generationConfig = intento.json
-        ? { ...genBase, responseMimeType: 'application/json' }
-        : genBase;
-      try {
-        const res = await axios.post(
-          url,
-          { contents: [{ parts: [{ text: prompt }] }], generationConfig },
-          { timeout: 90000, headers: { 'Content-Type': 'application/json' } }
+  for (let i = 0; i < modelos.length && i < 2; i += 1) {
+    const modelo = modelos[i];
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    try {
+      const res = await axios.post(
+        url,
+        {
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { ...genBase, responseMimeType: 'application/json' },
+        },
+        { timeout: 170000, headers: { 'Content-Type': 'application/json' } }
+      );
+      const text = res.data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '';
+      const parsed = extraerJson(text);
+      const usage = res.data?.usageMetadata || {};
+      return {
+        parsed,
+        modelo,
+        raw: text,
+        tokens_entrada: usage.promptTokenCount || null,
+        tokens_salida: usage.candidatesTokenCount || null,
+      };
+    } catch (err) {
+      ultimo = err;
+      if (err.code === 'ECONNABORTED') {
+        const e = new Error('La IA tardó demasiado en esta sesión. Espere un momento y vuelva a generar una sola.');
+        e.code = 'GEMINI_TIMEOUT';
+        throw e;
+      }
+      if (err.response?.status === 429) {
+        const e = new Error('Gemini llegó al límite de uso. Espere un minuto e intente de nuevo.');
+        e.code = 'GEMINI_RATE_LIMIT';
+        throw e;
+      }
+      if (err.response?.status === 403) {
+        const e = new Error(
+          err.response?.data?.error?.message || 'Gemini rechazó la clave. Revise GOOGLE_AI_API_KEY.'
         );
-        const text = res.data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '';
-        const parsed = extraerJson(text);
-        const usage = res.data?.usageMetadata || {};
-        return {
-          parsed,
-          modelo,
-          raw: text,
-          tokens_entrada: usage.promptTokenCount || null,
-          tokens_salida: usage.candidatesTokenCount || null,
-        };
-      } catch (err) {
-        ultimo = err;
-        if (err.response?.status === 429) {
-          const e = new Error(`Gemini llegó al límite de uso (429). Espere un minuto e intente de nuevo.`);
-          e.code = 'GEMINI_RATE_LIMIT';
-          throw e;
-        }
-        if (err.response?.status === 403) {
-          const e = new Error(
-            err.response?.data?.error?.message ||
-              'Gemini rechazó la clave (403). Revise GOOGLE_AI_API_KEY.'
-          );
-          e.code = 'GEMINI_FORBIDDEN';
-          throw e;
-        }
-        if (!sePuedeReintentar(err)) {
-          const msg = err.response?.data?.error?.message || err.message;
-          const e = new Error(`Gemini (${err.response?.status || '?'}) en ${modelo}: ${msg}`);
-          e.code = 'GEMINI_ERROR';
-          throw e;
-        }
+        e.code = 'GEMINI_FORBIDDEN';
+        throw e;
+      }
+      if (!err.response) {
+        const e = new Error(err.message || 'La IA no devolvió JSON válido.');
+        e.code = 'GEMINI_ERROR';
+        throw e;
+      }
+      const status = err.response.status;
+      const modeloMal = status === 404 || status === 400;
+      if (!modeloMal || i === 1) {
+        const msg = err.response?.data?.error?.message || err.message || 'No se pudo generar con IA.';
+        const e = new Error(msg);
+        e.code = 'GEMINI_ERROR';
+        throw e;
       }
     }
   }
@@ -187,7 +184,7 @@ Esta sesión se presenta a supervisión. Amplía inicio, desarrollo y cierre. La
 En momentos.inicio, un bloque <p><strong>…</strong> por proceso, cada uno con preguntas literales y lo que dice o hace el docente:
 Motivación (situación concreta del grado), Saberes previos, Problematización (conflicto cognitivo), Propósito (se comunica a los estudiantes), Criterios de evaluación (2 o 3, observables, atados a los desempeños de esta sesión) y Evidencia (el producto de hoy).
 
-En momentos.desarrollo, de 3 a 5 actividades. En cada <li>: minutos, qué hace el docente, qué hacen los estudiantes, materiales y producto parcial. Incluye el acompañamiento durante la actividad.
+En momentos.desarrollo, 3 actividades. En cada <li>: minutos, qué hace el docente, qué hacen los estudiantes, materiales y producto parcial. Incluye el acompañamiento durante la actividad. No repita la misma idea en varios párrafos.
 Si el área es Matemática: familiarización con el problema, búsqueda de estrategias, socialización, reflexión y formalización.
 Si el área es Comunicación: antes, durante y después (lectura, escritura u oralidad, según el tema).
 Si el área es Ciencia y Tecnología: problema, hipótesis o idea, plan, registro y explicación.
@@ -197,7 +194,7 @@ Añade <strong>Preparación.</strong> Qué debe tener listo el docente antes de 
 
 En momentos.cierre: socialización del producto, metacognición con 3 preguntas escritas, y cómo se usa hoy la lista de cotejo. No pongas AD, A, B ni C.
 
-La teoría, en este nivel, es para que el estudiante la lea: 4 a 7 párrafos, con la idea, un ejemplo del grado y un cierre. Sigue aparte de la ficha.
+La teoría, en este nivel, es para que el estudiante la lea: 4 párrafos, con la idea, un ejemplo del grado y un cierre. Sigue aparte de la ficha.
 La ficha sigue siendo la hoja de trabajo, con consignas. No copies ahí la teoría ni el plan.`;
   }
   const indicacion = String(vars?.indicacion || '').replace(/\s+/g, ' ').trim().slice(0, 800);
@@ -211,9 +208,13 @@ Tómelas al redactar momentos, teoría y ficha. El área, la competencia, los de
   if (String(vars?.titulo || '').trim()) {
     plantillaUso +=
       '\n\nTEMA YA ELEGIDO: el titulo de esta sesión es exactamente «{{titulo}}». Devuélvelo igual, sin otro tema. El propósito, las actividades, la ficha y el cotejo tratan de ese tema, dentro de la unidad.';
-  } else if (String(vars?.evitar_titulos || '').trim()) {
+  } else {
+    const evitar = String(vars?.evitar_titulos || '').trim();
     plantillaUso +=
-      '\n\nPropón un titulo concreto, distinto de estos: {{evitar_titulos}}. Sigue dentro de la misma unidad.';
+      '\n\nEl titulo viene vacío. Propón un titulo concreto, corto y distinto, dentro de la unidad. Devuélvelo en la clave "titulo". El propósito, las actividades, la ficha y el cotejo tratan de ese titulo.';
+    if (evitar) {
+      plantillaUso += ` No repitas estos títulos: ${evitar}.`;
+    }
   }
   if (vars?.taller) {
     plantillaUso +=
@@ -229,7 +230,7 @@ Tómelas al redactar momentos, teoría y ficha. El área, la competencia, los de
   }
   const prompt = aplicarPlantilla(plantillaUso, vars);
   const { parsed, modelo, raw, tokens_entrada, tokens_salida } = await llamarGeminiJson(prompt, {
-    maxOutputTokens: supervision ? 16384 : 8192,
+    maxOutputTokens: supervision ? 10240 : 8192,
   });
   const borrador = normalizarSalida(parsed, duracionMin);
   if (!proponerDesempenos) borrador.desempenos = [];

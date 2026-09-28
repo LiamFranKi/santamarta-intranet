@@ -154,7 +154,7 @@ export default function AulaCnebSesiones({
       asignatura_id: meta.asignatura_id,
       area_id: tallerMapa ? '' : areaResuelta?.id || meta.mapa?.area_id || '',
       area_nombre: tallerMapa
-        ? 'Taller interno'
+        ? meta.curso_nombre || 'Taller interno'
         : areaResuelta?.nombre || meta.mapa?.area_nombre || meta.curso_nombre || '',
       corte,
       aula_label: `${aula} · ${corteLabel}`,
@@ -295,7 +295,7 @@ export default function AulaCnebSesiones({
   });
   const taller = meta?.mapa?.tipo === 'complementario';
   const areaLabel = taller
-    ? 'Taller interno'
+    ? meta?.curso_nombre || 'Curso'
     : meta?.mapa?.area_nombre || meta?.curso_nombre || 'Área CNEB';
 
   return (

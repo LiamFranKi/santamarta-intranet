@@ -63,10 +63,13 @@ async function cargarSesion(cid, id) {
   const [ses] = await query(
     `SELECT s.*, ar.nombre AS area_nombre, ar.codigo AS area_codigo,
             cp.nombre AS competencia_nombre, cp.estandar_ciclo,
+            cu.nombre AS curso_nombre,
             g.grado, g.seccion
      FROM cneb_sesiones s
      LEFT JOIN cneb_areas ar ON ar.id = s.area_id
      LEFT JOIN cneb_competencias cp ON cp.id = s.competencia_id
+     LEFT JOIN asignaturas ag ON ag.id = s.asignatura_id AND ag.colegio_id = s.colegio_id
+     LEFT JOIN cursos cu ON cu.id = ag.curso_id AND cu.colegio_id = s.colegio_id
      LEFT JOIN grupos g ON g.id = s.grupo_id AND g.colegio_id = s.colegio_id
      WHERE s.id = ? AND s.colegio_id = ? LIMIT 1`,
     [id, cid]

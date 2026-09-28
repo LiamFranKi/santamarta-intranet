@@ -3,23 +3,12 @@ const os = require('os');
 const path = require('path');
 const multer = require('multer');
 const { execute } = require('./mysql');
-const { htmlABloques, htmlATextoPlano } = require('./cnebTextoRico');
 const { assetsDir } = require('./fichasIaPaths');
 const { htmlStringToPdf } = require('../services/fichasIa/renderFichaPdf');
 
 const DIR = path.join(__dirname, '..', 'uploads', 'cneb-material');
 const TIPOS = new Set(['teoria', 'ficha']);
 const EXT_OK = new Set(['.pdf', '.png', '.jpg', '.jpeg', '.webp', '.doc', '.docx']);
-const MASCOTAS = [
-  'vanguarcito.png',
-  'avatar-nino1.png',
-  'avatar-nina1.png',
-  'avatar-nino2.png',
-  'avatar-nina2.png',
-  'avatar-nino3.png',
-  'avatar-nina3.png',
-];
-const CAJAS = ['caja-verde', 'caja-azul', 'caja-amarilla', 'caja-lila', 'caja-coral'];
 
 function asegurarDir() {
   if (!fs.existsSync(DIR)) fs.mkdirSync(DIR, { recursive: true });
@@ -181,10 +170,6 @@ function logoData() {
   return uriAsset('logo-vanguard.png');
 }
 
-function mascotasDisponibles() {
-  return MASCOTAS.map(uriAsset).filter(Boolean);
-}
-
 function esc(s) {
   return String(s || '')
     .replace(/&/g, '&amp;')
@@ -192,96 +177,86 @@ function esc(s) {
     .replace(/>/g, '&gt;');
 }
 
-function partesHtml(parts) {
-  return (parts || [])
-    .map((p) => {
-      const t = esc(p.text);
-      return p.bold ? `<strong>${t}</strong>` : t;
-    })
-    .join('');
-}
-
-function bloquesDe(html) {
-  const bloques = htmlABloques(html).filter((b) => partesHtml(b.parts).trim());
-  if (bloques.length) return bloques;
-  const plano = htmlATextoPlano(html);
-  if (!plano) return [];
-  return plano
-    .split(/\n+/)
-    .map((t) => t.trim())
-    .filter(Boolean)
-    .map((t) => ({ type: 'p', parts: [{ text: t, bold: false }] }));
+function htmlSeguro(raw) {
+  const src = String(raw || '').trim();
+  if (!src) return '';
+  if (!/<(p|div|h[1-6]|ul|ol|li|strong|b|em|i|br)\b/i.test(src)) {
+    return src
+      .split(/\n+/)
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .map((t) => `<p>${esc(t)}</p>`)
+      .join('');
+  }
+  return src
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<(p|br|strong|b|em|i|ul|ol|li|h[1-3])(?:\s[^>]*)?>/gi, '<$1>')
+    .replace(/<(?!\/?(?:p|br|strong|b|em|i|ul|ol|li|h[1-3])\b)[^>]+>/gi, '')
+    .replace(/<p>\s*(?:<br>\s*)*<\/p>/gi, '');
 }
 
 function htmlMaterial({ ses, colegio, grupo, fecha, parte }) {
   const esFicha = parte === 'ficha';
-  const crudo = esFicha ? ses.ficha_estudiante : ses.material_teoria;
-  const bloques = bloquesDe(crudo);
-  if (!bloques.length) return '';
-  const mascotas = mascotasDisponibles();
+  const cuerpo = htmlSeguro(esFicha ? ses.ficha_estudiante : ses.material_teoria);
+  if (!cuerpo.trim()) return '';
   const logo = logoData();
+  const vanguarcito = uriAsset('vanguarcito.png');
   const aula = [grupo?.grado, grupo?.seccion].filter((x) => x != null && String(x).trim()).join(' ');
+  const curso = ses.curso_nombre || ses.area_nombre || '';
   const kicker = esFicha ? 'Ficha de trabajo' : 'Para leer';
   const titulo = esc(ses.titulo || 'Sesión');
-  const meta = esc([colegio?.nombre, aula, fecha].filter(Boolean).join('  ·  '));
-  const cajas = bloques
-    .map((b, i) => {
-      const conMascota = esFicha ? i < 4 && i % 2 === 0 : i === 0 || i === 2;
-      const mascota = conMascota && mascotas.length ? mascotas[i % mascotas.length] : '';
-      const caja = CAJAS[i % CAJAS.length];
-      const num = b.type === 'li' || esFicha ? `<span class="num">${i + 1}</span>` : '';
-      const img = mascota ? `<img class="mascota" src="${mascota}" alt="" />` : '';
-      return `<article class="caja ${caja}">${num}<div class="txt">${partesHtml(b.parts)}</div>${img}</article>`;
-    })
-    .join('');
-  const dibujo = esFicha
-    ? `<section class="dibujo"><p>Dibuja o escribe aquí</p><div class="hoja"></div></section>`
+  const unidad = esc(ses.unidad || '');
+  const meta = esc([curso, colegio?.nombre, aula, fecha].filter(Boolean).join('  ·  '));
+  const datos = esFicha
+    ? `<div class="datos"><span>Nombre: <i></i></span><span>Fecha: <i></i></span></div>`
     : '';
-  const vanguarcito = uriAsset('vanguarcito.png');
+  const dibujo = esFicha
+    ? `<section class="dibujo"><p>Espacio para dibujar o escribir</p><div class="hoja"></div></section>`
+    : '';
   return `<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8" />
 <style>
-  @page { size: A4; margin: 8mm; }
+  @page { size: A4; margin: 10mm; }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; }
+  body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; }
   .marco { border: 3px solid #059669; }
-  .banda { height: 7px; background: linear-gradient(90deg, #059669, #2563eb, #059669); }
-  .inner { padding: 14px 16px 18px; }
-  .cab { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 14px;
-    background: linear-gradient(135deg, #ecfdf5, #eff6ff); border: 1px solid #a7f3d0; }
-  .cab img.logo { height: 52px; max-width: 120px; object-fit: contain; }
-  .cab img.van { height: 64px; width: 64px; object-fit: contain; }
-  .kicker { margin: 0; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #047857; font-weight: 800; }
-  h1 { margin: 2px 0 0; font-size: 20px; line-height: 1.25; color: #065f46; }
-  .meta { margin: 4px 0 0; font-size: 11px; color: #64748b; }
-  .cuerpo { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
-  .caja { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; }
-  .caja-verde { background: #f0fdf4; border-left: 5px solid #22c55e; }
-  .caja-azul { background: #eff6ff; border-left: 5px solid #3b82f6; }
-  .caja-amarilla { background: #fffbeb; border-left: 5px solid #eab308; }
-  .caja-lila { background: #faf5ff; border-left: 5px solid #a855f7; }
-  .caja-coral { background: #fff7ed; border-left: 5px solid #f97316; }
-  .num { flex: 0 0 26px; height: 26px; border-radius: 8px; background: #047857; color: #fff;
-    font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; }
-  .txt { flex: 1; font-size: 13px; line-height: 1.55; }
-  .mascota { width: 58px; height: 64px; object-fit: contain; flex: 0 0 58px; }
+  .banda { height: 6px; background: linear-gradient(90deg, #059669, #2563eb, #059669); }
+  .inner { padding: 14px 16px 16px; }
+  .cab { display: grid; grid-template-columns: 72px 1fr 72px; gap: 10px; align-items: center;
+    padding: 10px 12px; border-radius: 12px; background: linear-gradient(135deg, #ecfdf5, #eff6ff);
+    border: 1px solid #a7f3d0; }
+  .cab img { height: 58px; width: 72px; object-fit: contain; }
+  .kicker { margin: 0; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #047857; font-weight: 800; }
+  h1 { margin: 2px 0 0; font-size: 18px; line-height: 1.25; color: #065f46; }
+  .unidad { margin: 3px 0 0; font-size: 12px; color: #1d4ed8; font-weight: 700; }
+  .meta { margin: 3px 0 0; font-size: 11px; color: #64748b; }
+  .datos { display: flex; gap: 18px; margin-top: 12px; font-size: 13px; }
+  .datos i { display: inline-block; width: 180px; border-bottom: 1px solid #94a3b8; }
+  .prosa { margin-top: 12px; font-size: 13.5px; line-height: 1.55; }
+  .prosa p { margin: 0 0 8px; }
+  .prosa ul, .prosa ol { margin: 4px 0 10px; padding-left: 1.25em; }
+  .prosa li { margin: 0 0 6px; }
+  .prosa strong, .prosa b { color: #065f46; }
   .dibujo { margin-top: 14px; }
   .dibujo p { margin: 0 0 6px; font-size: 12px; font-weight: 700; color: #047857; }
-  .hoja { height: 220px; border: 2px dashed #86efac; border-radius: 12px; background:
+  .hoja { height: 200px; border: 2px dashed #86efac; border-radius: 12px; background:
     repeating-linear-gradient(#fff, #fff 27px, #d1fae5 28px); }
   .pie { margin-top: 12px; font-size: 10px; color: #64748b; }
 </style></head>
 <body><div class="marco"><div class="banda"></div><div class="inner">
   <header class="cab">
-    ${logo ? `<img class="logo" src="${logo}" alt="" />` : ''}
-    <div style="flex:1">
+    ${logo ? `<img src="${logo}" alt="" />` : '<span></span>'}
+    <div>
       <p class="kicker">${kicker}</p>
       <h1>${titulo}</h1>
+      ${unidad ? `<p class="unidad">${unidad}</p>` : ''}
       <p class="meta">${meta}</p>
     </div>
-    ${vanguarcito ? `<img class="van" src="${vanguarcito}" alt="" />` : ''}
+    ${vanguarcito ? `<img src="${vanguarcito}" alt="" />` : '<span></span>'}
   </header>
-  <div class="cuerpo">${cajas}</div>
+  ${datos}
+  <div class="prosa">${cuerpo}</div>
   ${dibujo}
   <p class="pie">${esFicha ? 'Hoja de trabajo. No es una nota.' : 'Texto para leer el tema. No es la ficha ni una nota.'}</p>
 </div></div></body></html>`;

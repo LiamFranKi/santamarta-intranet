@@ -177,7 +177,7 @@ async function generarLoteSesiones(cid, usuarioId, body) {
         grupo_id: body?.grupo_id,
         dua: body?.dua,
         taller: pieza.taller,
-        evitar_titulos: usados.filter(Boolean).join('; '),
+        evitar_titulos: [body?.evitar_titulos, usados.filter(Boolean).join('; ')].filter(Boolean).join('; '),
       },
       anio
     );
