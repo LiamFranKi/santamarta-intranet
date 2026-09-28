@@ -30,6 +30,36 @@ function rutasChromium() {
   return lista;
 }
 
+let navegadorCompartido = null;
+let colaPdf = Promise.resolve();
+
+function navegadorSigue(browser) {
+  if (!browser) return false;
+  try {
+    return typeof browser.isConnected === 'function' ? browser.isConnected() : browser.connected !== false;
+  } catch {
+    return false;
+  }
+}
+
+function encolarPdf(trabajo) {
+  const siguiente = colaPdf.then(trabajo, trabajo);
+  colaPdf = siguiente.then(
+    () => {},
+    () => {}
+  );
+  return siguiente;
+}
+
+async function obtenerNavegador(puppeteer) {
+  if (navegadorSigue(navegadorCompartido)) return navegadorCompartido;
+  navegadorCompartido = await lanzarNavegador(puppeteer);
+  navegadorCompartido.once('disconnected', () => {
+    navegadorCompartido = null;
+  });
+  return navegadorCompartido;
+}
+
 async function lanzarNavegador(puppeteer) {
   const launchArgs = {
     headless: true,
@@ -80,30 +110,49 @@ async function htmlStringToPdf(html, pdfPath, opts = {}) {
     throw err;
   }
 
-  const browser = await lanzarNavegador(puppeteer);
-
+  const reutilizar = opts.reutilizar === true;
   const marginZero = Boolean(opts.marginZero);
   const margin = marginZero
     ? { top: '0', right: '0', bottom: '0', left: '0' }
     : opts.margin || { top: '6mm', right: '6mm', bottom: '8mm', left: '6mm' };
   // Escala 2 = tipografía nítida en PDF (evita texto “pixelado”)
   const deviceScaleFactor = Number(opts.deviceScaleFactor) > 0 ? Number(opts.deviceScaleFactor) : 2;
+  const waitUntil = opts.waitUntil || 'load';
 
-  try {
-    const page = await browser.newPage();
-    await page.setViewport({ width: 794, height: 1123, deviceScaleFactor });
-    await page.setContent(html, { waitUntil: 'load', timeout: 90000 });
-    await page.emulateMediaType('print');
-    await page.pdf({
-      path: pdfPath,
-      format: 'A4',
-      printBackground: true,
-      preferCSSPageSize: true,
-      margin,
-    });
-  } finally {
-    await browser.close();
-  }
+  const unaVez = async () => {
+    const browser = reutilizar ? await obtenerNavegador(puppeteer) : await lanzarNavegador(puppeteer);
+    let page;
+    try {
+      page = await browser.newPage();
+      await page.setViewport({ width: 794, height: 1123, deviceScaleFactor });
+      await page.setContent(html, { waitUntil, timeout: opts.timeout || 45000 });
+      await page.emulateMediaType('print');
+      await page.pdf({
+        path: pdfPath,
+        format: 'A4',
+        printBackground: true,
+        preferCSSPageSize: opts.preferCSSPageSize !== false,
+        margin,
+      });
+    } finally {
+      if (page) await page.close().catch(() => {});
+      if (!reutilizar && browser) await browser.close().catch(() => {});
+    }
+  };
+
+  const trabajo = async () => {
+    try {
+      await unaVez();
+    } catch (e) {
+      if (!reutilizar) throw e;
+      if (navegadorCompartido) await navegadorCompartido.close().catch(() => {});
+      navegadorCompartido = null;
+      await unaVez();
+    }
+  };
+
+  if (reutilizar) return encolarPdf(trabajo);
+  return trabajo();
 }
 
 /**

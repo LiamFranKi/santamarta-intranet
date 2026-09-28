@@ -213,7 +213,7 @@ function Dashboard() {
     },
     '/admin/cneb': {
       title: 'Evaluación CNEB',
-      description: 'Sesiones, cotejo, corte AD/A/B/C y catálogo MINEDU',
+      description: 'Sesiones, cotejo, conclusión AD/A/B/C y catálogo MINEDU',
       icon: '📗'
     },
     '/admin/avatares': {

@@ -99,8 +99,8 @@ export default function DocenteCneb() {
             </div>
             <h1>Evaluación CNEB</h1>
             <p>
-              Arme la sesión (inicio, desarrollo y cierre), marque el cotejo y registre el corte
-              AD/A/B/C. No cambia las notas 0–20 ni la libreta vigente.
+              Arme la sesión (inicio, desarrollo y cierre), marque el cotejo y registre la conclusión
+              descriptiva AD/A/B/C. No cambia las notas 0–20 ni la libreta vigente.
             </p>
           </div>
         </header>
@@ -135,7 +135,7 @@ export default function DocenteCneb() {
             onClick={() => setTab('registro')}
           >
             <strong>Registro</strong>
-            <span>Auxiliar y corte</span>
+            <span>Auxiliar y conclusión</span>
           </button>
         </nav>
 

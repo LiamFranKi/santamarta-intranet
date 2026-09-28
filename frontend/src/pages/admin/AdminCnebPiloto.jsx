@@ -16,7 +16,7 @@ const NIVELES_UI = [
 const TABS = [
   { id: 'unidades', label: 'Unidades', hint: 'Tema de cada bimestre' },
   { id: 'sesiones', label: 'Sesiones', hint: 'Inicio, desarrollo y cierre' },
-  { id: 'registro', label: 'Registro', hint: 'Cotejo y corte AD/A/B/C' },
+  { id: 'registro', label: 'Registro', hint: 'Cotejo y conclusión AD/A/B/C' },
   { id: 'catalogo', label: 'Catálogo CNEB', hint: 'Áreas y competencias oficiales' },
   { id: 'mapeo', label: 'Cursos del colegio', hint: 'Principal o complementario' },
 ];
@@ -633,7 +633,7 @@ export default function AdminCnebPiloto() {
                 <strong>{etiquetaNivel(nivel)}:</strong> las áreas oficiales son las del programa
                 curricular (Comunicación, Matemática, Ciencia y Tecnología, Educación Física, etc.).
                 Un taller (natación, ajedrez, finanzas) se marca complementario: se observa en el
-                cotejo del colegio, no en el corte AD/A/B/C ni en SIAGIE.
+                cotejo del colegio, no en la conclusión AD/A/B/C ni en SIAGIE.
               </p>
             )}
             <p>

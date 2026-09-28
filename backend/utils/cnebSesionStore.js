@@ -44,7 +44,19 @@ function leerCuerpoSesion(body, nivel) {
     suma,
     cotejo: Array.isArray(body?.cotejo) ? body.cotejo : [],
     dua: leerDua(body?.dua || body?.dua_json),
+    indicacion_ia: String(body?.indicacion_ia || '').trim().slice(0, 800) || null,
   };
+}
+
+async function guardarIndicacionIa(cid, sesionId, texto) {
+  try {
+    await execute(
+      'UPDATE cneb_sesiones SET indicacion_ia = ? WHERE id = ? AND colegio_id = ?',
+      [texto || null, sesionId, cid]
+    );
+  } catch (e) {
+    if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+  }
 }
 
 async function cargarSesion(cid, id) {
@@ -259,6 +271,7 @@ async function insertarSesion(cid, usuarioId, body) {
     }
   }
   await reemplazarHijos(ins.insertId, body);
+  await guardarIndicacionIa(cid, ins.insertId, body.indicacion_ia);
   return cargarSesion(cid, ins.insertId);
 }
 
@@ -366,6 +379,7 @@ async function actualizarSesion(cid, id, body) {
     }
   }
   await reemplazarHijos(id, body);
+  await guardarIndicacionIa(cid, id, body.indicacion_ia);
   return cargarSesion(cid, id);
 }
 

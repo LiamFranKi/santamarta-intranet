@@ -183,7 +183,7 @@ export default function AdminCnebConsolidado({
       await Swal.fire({
         icon: 'success',
         title: 'Consolidado guardado',
-        text: 'Se actualizó el cotejo de las sesiones y el corte AD/A/B/C. No se tocaron notas 0–20.',
+        text: 'Se actualizó el cotejo de las sesiones y la conclusión AD/A/B/C. No se tocaron notas 0–20.',
       });
     } catch (e) {
       Swal.fire({
@@ -236,7 +236,7 @@ export default function AdminCnebConsolidado({
           <h2>Registro auxiliar consolidado · {etiquetaNivel ? etiquetaNivel(nivel) : nivel}</h2>
           <p>
             Una sola grilla del aula: a la izquierda el cotejo de cada sesión (incluye talleres
-            internos); a la derecha el corte AD/A/B/C solo de las áreas oficiales del nivel, que es
+            internos); a la derecha la conclusión AD/A/B/C solo de las áreas oficiales del nivel, que es
             lo que viaja a SIAGIE.
           </p>
         </div>
@@ -323,7 +323,7 @@ export default function AdminCnebConsolidado({
           </>
         )}
         <label className="cneb-select-wrap">
-          <span>Bimestre (corte)</span>
+          <span>Bimestre</span>
           <select value={bimestre} onChange={(e) => setBimestre(Number(e.target.value))}>
             {[1, 2, 3, 4].map((b) => (
               <option key={b} value={b}>
@@ -359,7 +359,7 @@ export default function AdminCnebConsolidado({
                 ))}
                 {areasAgrupadas.map(([area, comps]) => (
                   <th key={area} colSpan={comps.length} className="cneb-th-corte">
-                    Corte · {area}
+                    Conclusión · {area}
                   </th>
                 ))}
               </tr>

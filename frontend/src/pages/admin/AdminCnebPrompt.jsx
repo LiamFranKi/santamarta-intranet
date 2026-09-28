@@ -65,9 +65,10 @@ export default function AdminCnebPrompt({ apiBase = '/admin/cneb' }) {
           <h2>Prompt de la sesión (Gemini)</h2>
           <p>
             Es un solo texto para Inicial, Primaria y Secundaria. El nivel, el grado y los
-            desempeños los pone cada sesión. La IA no inventa competencias: usa las que eligió el
-            docente. Si el tema viene vacío, propone uno. Redacta la ficha y formatea inicio,
-            desarrollo y cierre con negritas y listas.
+            desempeños los pone cada sesión. En Primaria y Secundaria el servidor amplía los
+            momentos para supervisión, sin que usted reescriba este prompt. El docente puede sumar
+            una nota en la sesión; no reemplaza este texto. La IA no inventa competencias: usa las
+            que eligió el docente.
           </p>
         </div>
         <div className="cneb-map-actions">

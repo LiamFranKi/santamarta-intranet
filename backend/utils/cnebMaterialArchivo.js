@@ -152,11 +152,17 @@ function bufferArchivoPropio(ses, parte) {
   };
 }
 
+const uriCache = new Map();
+
 function dataUri(archivo) {
   if (!archivo || !fs.existsSync(archivo)) return null;
+  const key = `${archivo}:${fs.statSync(archivo).mtimeMs}`;
+  if (uriCache.has(key)) return uriCache.get(key);
   const ext = path.extname(archivo).toLowerCase();
   const mime = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : ext === '.webp' ? 'image/webp' : 'image/png';
-  return `data:${mime};base64,${fs.readFileSync(archivo).toString('base64')}`;
+  const uri = `data:${mime};base64,${fs.readFileSync(archivo).toString('base64')}`;
+  uriCache.set(key, uri);
+  return uri;
 }
 
 function uriAsset(nombre) {
@@ -220,7 +226,8 @@ function htmlMaterial({ ses, colegio, grupo, fecha, parte }) {
   const meta = esc([colegio?.nombre, aula, fecha].filter(Boolean).join('  ·  '));
   const cajas = bloques
     .map((b, i) => {
-      const mascota = mascotas.length ? mascotas[i % mascotas.length] : '';
+      const conMascota = esFicha ? i < 4 && i % 2 === 0 : i === 0 || i === 2;
+      const mascota = conMascota && mascotas.length ? mascotas[i % mascotas.length] : '';
       const caja = CAJAS[i % CAJAS.length];
       const num = b.type === 'li' || esFicha ? `<span class="num">${i + 1}</span>` : '';
       const img = mascota ? `<img class="mascota" src="${mascota}" alt="" />` : '';
@@ -234,9 +241,10 @@ function htmlMaterial({ ses, colegio, grupo, fecha, parte }) {
   return `<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8" />
 <style>
+  @page { size: A4; margin: 8mm; }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; }
-  .marco { border: 3px solid #059669; min-height: 270mm; display: flex; flex-direction: column; }
+  .marco { border: 3px solid #059669; }
   .banda { height: 7px; background: linear-gradient(90deg, #059669, #2563eb, #059669); }
   .inner { padding: 14px 16px 18px; }
   .cab { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 14px;
@@ -247,8 +255,7 @@ function htmlMaterial({ ses, colegio, grupo, fecha, parte }) {
   h1 { margin: 2px 0 0; font-size: 20px; line-height: 1.25; color: #065f46; }
   .meta { margin: 4px 0 0; font-size: 11px; color: #64748b; }
   .cuerpo { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
-  .caja { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px;
-    break-inside: avoid; page-break-inside: avoid; }
+  .caja { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; }
   .caja-verde { background: #f0fdf4; border-left: 5px solid #22c55e; }
   .caja-azul { background: #eff6ff; border-left: 5px solid #3b82f6; }
   .caja-amarilla { background: #fffbeb; border-left: 5px solid #eab308; }
@@ -284,7 +291,14 @@ async function bufferPdfBonito({ ses, colegio, grupo, fecha, parte }) {
   const html = htmlMaterial({ ses, colegio, grupo, fecha, parte });
   if (!html) return null;
   const pdfPath = path.join(os.tmpdir(), `cneb-${parte}-${ses.id}-${Date.now()}.pdf`);
-  await htmlStringToPdf(html, pdfPath, { marginZero: true, deviceScaleFactor: 2 });
+  await htmlStringToPdf(html, pdfPath, {
+    marginZero: true,
+    deviceScaleFactor: 1,
+    reutilizar: true,
+    waitUntil: 'domcontentloaded',
+    preferCSSPageSize: true,
+    timeout: 25000,
+  });
   const buffer = fs.readFileSync(pdfPath);
   fs.unlink(pdfPath, () => {});
   const slug = String(ses.titulo || 'sesion')

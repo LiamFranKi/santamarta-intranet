@@ -569,7 +569,7 @@ async function excelConsolidadoBuffer(cid, { anio, bimestre, grupoId, nivel, gru
     }
     if (comps.length > 1) xlMerge(ws, rA, col, rA, col + comps.length - 1);
     const cell = ws.getCell(rA, col);
-    cell.value = xlTexto(`Corte · ${area}`);
+    cell.value = xlTexto(`Conclusión · ${area}`);
     comps.forEach((c) => {
       const c2 = ws.getCell(rB, col);
       c2.value = xlTexto(c.nombre);
@@ -655,7 +655,7 @@ async function excelSiagieBuffer(cid, { anio, bimestre, grupoId, nivel, grupoLab
   const wb = new ExcelJS.Workbook();
   wb.creator = `${await marcaCreadorExcel(cid)} · CNEB`;
   wb.created = new Date();
-  const ws = wb.addWorksheet('Corte CNEB', {
+  const ws = wb.addWorksheet('Conclusión CNEB', {
     views: [{ state: 'frozen', xSplit: 3, ySplit: 4, showGridLines: false }],
     pageSetup: {
       orientation: 'landscape',
@@ -669,7 +669,7 @@ async function excelSiagieBuffer(cid, { anio, bimestre, grupoId, nivel, grupoLab
 
   xlMerge(ws, 1, 1, 1, totalCols);
   const title = ws.getCell(1, 1);
-  title.value = 'CORTE BIMESTRAL CNEB  ·  CALIFICATIVOS AD / A / B / C';
+  title.value = 'CONCLUSIÓN DESCRIPTIVA  ·  CALIFICATIVOS AD / A / B / C';
   title.font = { bold: true, size: 14, color: { argb: XL.white }, name: 'Calibri' };
   title.fill = xlFill(XL.title);
   title.alignment = { horizontal: 'center', vertical: 'middle' };

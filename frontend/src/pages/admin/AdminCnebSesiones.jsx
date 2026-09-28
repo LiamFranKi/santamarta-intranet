@@ -230,6 +230,7 @@ function formVacio(nivel, ctx = null) {
     material_teoria: '',
     archivo_teoria: '',
     archivo_ficha: '',
+    indicacion_ia: '',
     duracion_min,
     grupo_id: ctx?.grupo_id != null && ctx.grupo_id !== '' ? String(ctx.grupo_id) : '',
     asignatura_id: ctx?.asignatura_id != null ? ctx.asignatura_id : null,
@@ -484,6 +485,7 @@ export default function AdminCnebSesiones({
         material_teoria: textoCnebAHtml(s.material_teoria),
         archivo_teoria: s.archivo_teoria || '',
         archivo_ficha: s.archivo_ficha || '',
+        indicacion_ia: s.indicacion_ia || '',
         duracion_min: Number(s.duracion_min) || 60,
         grupo_id: s.grupo_id != null ? String(s.grupo_id) : '',
         asignatura_id: s.asignatura_id != null ? s.asignatura_id : null,
@@ -569,6 +571,20 @@ export default function AdminCnebSesiones({
       });
       return;
     }
+    const yaEscrita = ['inicio', 'desarrollo', 'cierre'].some((t) => !htmlVacio(form.momentos?.[t]))
+      || !htmlVacio(form.material_teoria)
+      || !htmlVacio(form.ficha_estudiante);
+    if (yaEscrita) {
+      const ok = await Swal.fire({
+        icon: 'question',
+        title: 'Volver a generar',
+        text: 'Se reemplazan inicio, desarrollo, cierre, teoría y ficha. El tema y la competencia se mantienen. Si escribió indicaciones, la IA las toma junto con el prompt del colegio.',
+        showCancelButton: true,
+        confirmButtonText: 'Generar de nuevo',
+        cancelButtonText: 'Cancelar',
+      });
+      if (!ok.isConfirmed) return;
+    }
     setGenerating(true);
     abrirSwalGenerandoCneb();
     try {
@@ -587,11 +603,12 @@ export default function AdminCnebSesiones({
           duracion_min: form.duracion_min,
           corte_label: cortes.find((c) => c.v === Number(form.corte))?.label,
           unidad: form.unidad,
+          indicacion_ia: form.indicacion_ia,
           taller: !form.area_id,
           grupo_id: form.grupo_id,
           dua: form.dua,
         },
-        { timeout: 120000 }
+        { timeout: 180000 }
       );
       aplicarBorrador(data.borrador, {
         forzarProposito: !form.proposito,
@@ -667,6 +684,7 @@ export default function AdminCnebSesiones({
           titulo: form.titulo,
           proposito: form.proposito,
           unidad: form.unidad,
+          indicacion_ia: form.indicacion_ia,
           bimestre,
           curso_nombre: contextoAula?.curso_nombre || '',
           corte: form.corte,
@@ -1263,8 +1281,24 @@ export default function AdminCnebSesiones({
       {!form.area_id ? (
         <p className="cneb-muted">
           Sin área CNEB: el cotejo queda en el registro auxiliar y el consolidado del colegio. No
-          entra al corte AD/A/B/C ni al informe / SIAGIE.
+          entra a la conclusión descriptiva AD/A/B/C ni al informe / SIAGIE.
         </p>
+      ) : null}
+
+      {mostrarIaSesiones ? (
+        <label className="cneb-select-wrap cneb-full">
+          <span>Indicaciones para esta sesión</span>
+          <textarea
+            rows={3}
+            maxLength={800}
+            value={form.indicacion_ia || ''}
+            onChange={(e) => patch({ indicacion_ia: e.target.value })}
+            placeholder="Opcional. Ejemplo: use un caso del mercado del barrio y, en desarrollo, detalle el trabajo en pares."
+          />
+          <p className="cneb-muted">
+            Se suman al prompt del colegio solo en esta sesión. No lo reemplazan. Al volver a generar, la IA las usa.
+          </p>
+        </label>
       ) : null}
 
       <div className="cneb-generar-bar">
@@ -1283,7 +1317,11 @@ export default function AdminCnebSesiones({
             onClick={proponerConIa}
             disabled={generating}
           >
-            {generating ? 'Generando con IA…' : 'Generar con IA'}
+            {generating
+              ? 'Generando con IA…'
+              : ['inicio', 'desarrollo', 'cierre'].some((t) => !htmlVacio(form.momentos?.[t]))
+                ? 'Volver a generar'
+                : 'Generar con IA'}
           </button>
         )}
         <span className={`cneb-suma${sumaOk ? ' is-ok' : ' is-bad'}`}>

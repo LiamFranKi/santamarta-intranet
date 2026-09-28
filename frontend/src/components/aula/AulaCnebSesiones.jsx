@@ -326,7 +326,7 @@ export default function AulaCnebSesiones({
                     setVista('corte');
                   }}
                 >
-                  Corte AD/A/B/C
+                  Conclusión AD/A/B/C
                 </button>
               ) : null}
               <button

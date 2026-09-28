@@ -133,7 +133,7 @@ export default function AdminCnebCorte({
     } catch (e) {
       Swal.fire({
         icon: 'error',
-        title: 'No se pudo cargar el corte',
+        title: 'No se pudo cargar la conclusión',
         text: e.response?.data?.error || e.message,
       });
     } finally {
@@ -198,13 +198,13 @@ export default function AdminCnebCorte({
       await api.put(`${apiBase}/corte`, { bimestre, grupo_id: Number(grupoId), items });
       await Swal.fire({
         icon: 'success',
-        title: 'Corte guardado',
+        title: 'Conclusión guardada',
         text: 'Calificativos AD/A/B/C del bimestre. No se convirtió ninguna nota 0–20.',
       });
     } catch (e) {
       Swal.fire({
         icon: 'error',
-        title: 'No se pudo guardar el corte',
+        title: 'No se pudo guardar la conclusión',
         text: e.response?.data?.error || e.message,
       });
     } finally {
@@ -273,7 +273,7 @@ export default function AdminCnebCorte({
     <section className="cneb-panel">
       <div className="cneb-map-toolbar">
         <div>
-          <h2>Corte bimestral · {etiquetaNivel ? etiquetaNivel(nivel) : nivel}</h2>
+          <h2>Conclusión descriptiva · {etiquetaNivel ? etiquetaNivel(nivel) : nivel}</h2>
           <p>
             {grupoFijo
               ? `La letra es de cada competencia trabajada en este bimestre, en ${nombreCurso || 'este curso'}.`
@@ -291,7 +291,7 @@ export default function AdminCnebCorte({
             Informe PDF
           </button>
           <button type="button" className="cneb-btn primary" onClick={guardar} disabled={saving || !data || !haySesiones}>
-            {saving ? 'Guardando…' : 'Guardar corte'}
+            {saving ? 'Guardando…' : 'Guardar conclusión'}
           </button>
         </div>
       </div>
@@ -363,28 +363,28 @@ export default function AdminCnebCorte({
         </label>
       </div>
       {loading ? (
-        <p className="cneb-muted">Cargando corte…</p>
+        <p className="cneb-muted">Cargando conclusión…</p>
       ) : !grupoFijo && !listoLocal ? (
-        <div className="cneb-empty">Elija el grado, el aula y el curso para ver el corte de este bimestre.</div>
+        <div className="cneb-empty">Elija el grado, el aula y el curso para ver la conclusión de este bimestre.</div>
       ) : !grupoId ? (
-        <div className="cneb-empty">Elija un aula para ver el corte.</div>
+        <div className="cneb-empty">Elija un aula para ver la conclusión.</div>
       ) : !haySesiones || (soloSesionesElegidas && !sesionesVista.length) ? (
         <div className="cneb-empty">
           Todavía no hay sesiones de este curso en este bimestre. Créelas en la pestaña del bimestre
-          y vuelva al corte. Solo aparecen las competencias que sí trabajó.
+          y vuelva a la conclusión. Solo aparecen las competencias que sí trabajó.
         </div>
       ) : !(data?.alumnos || []).length ? (
         <div className="cneb-empty">No hay alumnos regulares en esta aula.</div>
       ) : !competenciasVista.length ? (
         <div className="cneb-empty">
           Las sesiones de este curso aún no tienen competencia CNEB. Ábralas, elija la competencia
-          y vuelva al corte.
+          y vuelva a la conclusión.
         </div>
       ) : (
         <div className="cneb-table-wrap">
           {soloSesionesElegidas && sesionesVista.length ? (
             <div className="cneb-corte-sesiones">
-              <p className="cneb-kicker">Sesiones de este curso que entran al corte</p>
+              <p className="cneb-kicker">Sesiones de este curso que entran a la conclusión</p>
               <ul>
                 {sesionesVista.map((s) => (
                   <li key={s.id}>

@@ -29,14 +29,14 @@ function sePuedeReintentar(err) {
   return false;
 }
 
-async function llamarGeminiJson(prompt) {
+async function llamarGeminiJson(prompt, { maxOutputTokens = 8192 } = {}) {
   const apiKey = String(process.env.GOOGLE_AI_API_KEY || '').trim();
   if (!apiKey) {
     const e = new Error('No hay clave de Gemini configurada (GOOGLE_AI_API_KEY).');
     e.code = 'GEMINI_NO_KEY';
     throw e;
   }
-  const genBase = { temperature: 0.4, maxOutputTokens: 8192 };
+  const genBase = { temperature: 0.4, maxOutputTokens };
   const intentos = [
     { ver: 'v1beta', json: true },
     { ver: 'v1beta', json: false },
@@ -176,6 +176,38 @@ async function generarSesionConIa({ plantilla, vars, duracionMin }) {
     plantillaUso +=
       '\n\nUNIDAD DEL BIMESTRE: {{unidad}}\nEl tema, el propósito, las actividades, la ficha y el cotejo deben tratar de esta unidad. No cambie de tema ni de competencia.';
   }
+  const nivelNombre = String(vars?.nivel || '').toUpperCase();
+  const supervision = nivelNombre === 'PRIMARIA' || nivelNombre === 'SECUNDARIA';
+  if (supervision && !/SESIÓN PARA SUPERVISIÓN/.test(plantillaUso)) {
+    plantillaUso += `
+
+SESIÓN PARA SUPERVISIÓN (Primaria o Secundaria):
+Esta sesión se presenta a supervisión. Amplía inicio, desarrollo y cierre. La consigna de texto corto de Inicial no aplica aquí. No inventes competencias, capacidades ni desempeños: usa solo los entregados. No cites páginas de cuadernos ni números de normas.
+
+En momentos.inicio, un bloque <p><strong>…</strong> por proceso, cada uno con preguntas literales y lo que dice o hace el docente:
+Motivación (situación concreta del grado), Saberes previos, Problematización (conflicto cognitivo), Propósito (se comunica a los estudiantes), Criterios de evaluación (2 o 3, observables, atados a los desempeños de esta sesión) y Evidencia (el producto de hoy).
+
+En momentos.desarrollo, de 3 a 5 actividades. En cada <li>: minutos, qué hace el docente, qué hacen los estudiantes, materiales y producto parcial. Incluye el acompañamiento durante la actividad.
+Si el área es Matemática: familiarización con el problema, búsqueda de estrategias, socialización, reflexión y formalización.
+Si el área es Comunicación: antes, durante y después (lectura, escritura u oralidad, según el tema).
+Si el área es Ciencia y Tecnología: problema, hipótesis o idea, plan, registro y explicación.
+En otra área, una secuencia clara de procesos de esa área, sin inventar un nombre oficial.
+Cierra el desarrollo con un párrafo <strong>Enfoque transversal.</strong> Elige uno y dile cómo se vive en la actividad: derechos, inclusivo, intercultural, igualdad de género, ambiental, bien común o búsqueda de la excelencia.
+Añade <strong>Preparación.</strong> Qué debe tener listo el docente antes de la clase.
+
+En momentos.cierre: socialización del producto, metacognición con 3 preguntas escritas, y cómo se usa hoy la lista de cotejo. No pongas AD, A, B ni C.
+
+La teoría, en este nivel, es para que el estudiante la lea: 4 a 7 párrafos, con la idea, un ejemplo del grado y un cierre. Sigue aparte de la ficha.
+La ficha sigue siendo la hoja de trabajo, con consignas. No copies ahí la teoría ni el plan.`;
+  }
+  const indicacion = String(vars?.indicacion || '').replace(/\s+/g, ' ').trim().slice(0, 800);
+  if (indicacion) {
+    plantillaUso += `
+
+INDICACIONES DEL DOCENTE PARA ESTA SESIÓN:
+${indicacion}
+Tómelas al redactar momentos, teoría y ficha. El área, la competencia, los desempeños y el tema ya elegido no cambian. El formato JSON y las reglas del prompt madre siguen mandando.`;
+  }
   if (String(vars?.titulo || '').trim()) {
     plantillaUso +=
       '\n\nTEMA YA ELEGIDO: el titulo de esta sesión es exactamente «{{titulo}}». Devuélvelo igual, sin otro tema. El propósito, las actividades, la ficha y el cotejo tratan de ese tema, dentro de la unidad.';
@@ -196,7 +228,9 @@ async function generarSesionConIa({ plantilla, vars, duracionMin }) {
       '\n\nESTE GRADO NO TIENE DESEMPEÑOS EN EL CATÁLOGO:\n- Propón de 3 a 5 desempeños observables para {{corte_label}}, dentro de la competencia y las capacidades dadas. Son una propuesta de ESTA sesión, en lenguaje de aula. No los presentes como cita oficial del Ministerio.\n- Añade al JSON la clave "desempenos": ["frase 1", "frase 2"] aunque el ejemplo no la tenga.\n- La lista "cotejo" lleva un ítem observable por cada desempeño propuesto y como máximo un ítem de proceso. El docente podrá editar desempeños y cotejo antes de guardar.';
   }
   const prompt = aplicarPlantilla(plantillaUso, vars);
-  const { parsed, modelo, raw, tokens_entrada, tokens_salida } = await llamarGeminiJson(prompt);
+  const { parsed, modelo, raw, tokens_entrada, tokens_salida } = await llamarGeminiJson(prompt, {
+    maxOutputTokens: supervision ? 16384 : 8192,
+  });
   const borrador = normalizarSalida(parsed, duracionMin);
   if (!proponerDesempenos) borrador.desempenos = [];
   return {
