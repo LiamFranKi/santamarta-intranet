@@ -4,7 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
-const { esCualitativoNivel } = require('../utils/cnebTipoNivel');
+const { esCualitativoNivel, anexarPruebaEnNiveles, bimestrePruebaCneb } = require('../utils/cnebTipoNivel');
 const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
 const {
   verificarAccesoGrupoTutoria,
@@ -4636,6 +4636,9 @@ router.get('/cursos/:cursoId/notas', async (req, res) => {
       criterios: criteriosConIndicadores,
       alumnos: alumnosConNotas,
       ciclo: cicloInt,
+      cneb_bimestre: esCualitativoNivel(cursoInfo.tipo_calificacion, cursoInfo.nivel_nombre)
+        ? null
+        : await bimestrePruebaCneb(colegio_id, cursoInfo.anio, cursoInfo.nivel_nombre),
       rangos_letras_primaria: cursoInfo.tipo_calificacion === 0 ? rangosLetrasPrimaria : []
     });
   } catch (error) {
@@ -4668,11 +4671,19 @@ router.post('/cursos/:cursoId/notas', async (req, res) => {
       req,
       res,
       cursoId,
-      `a.*, g.id as grupo_id, g.nivel_id, n.tipo_calificacion,
+      `a.*, g.id as grupo_id, g.anio, g.nivel_id, n.nombre as nivel_nombre, n.tipo_calificacion,
               c.peso_examen_mensual, c.examen_mensual`
     );
     if (!cursoInfo) return;
     const esCualitativa = cursoInfo.tipo_calificacion === 0;
+    if (!esCualitativa) {
+      const prueba = await bimestrePruebaCneb(colegio_id, cursoInfo.anio, cursoInfo.nivel_nombre);
+      if (prueba && prueba === cicloInt) {
+        return res.status(409).json({
+          error: `El ${cicloInt}.º bimestre de este nivel se evalúa con CNEB: cotejo y letras AD, A, B o C, desde el aula. Las notas 0–20 de los otros bimestres no se modifican.`,
+        });
+      }
+    }
 
     let rangosLetras = [];
     if (esCualitativa) {
@@ -13543,6 +13554,7 @@ router.get('/hijos/:hijoId/libreta-anios', async (req, res) => {
         inicial: esCualitativoNivel(r.tipo_calificacion, r.nivel_nombre),
       };
     });
+    await anexarPruebaEnNiveles(colegio_id, niveles);
     return res.json({ anios, niveles });
   } catch (error) {
     console.error('Error listando años libreta:', error);

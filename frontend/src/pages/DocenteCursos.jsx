@@ -2505,6 +2505,9 @@ function DocenteCursos() {
     if (tipo === 1 || tipo === '1') return false;
     return (datosNotas?.curso?.nivel_nombre || '').toUpperCase().includes('INICIAL');
   })();
+  const bimestreCnebNotas = Number(datosNotas?.cneb_bimestre);
+  const notasEnCneb = bimestreCnebNotas >= 1 && bimestreCnebNotas <= 4
+    && Number(cicloSeleccionadoNotas) === bimestreCnebNotas;
   const rangosLetras = datosNotas?.rangos_letras_primaria || [];
 
   // Puntaje mayor por letra para promediar: AD=20, A=19, B=18, C=17
@@ -3333,6 +3336,15 @@ function DocenteCursos() {
     }
 
     if (guardandoNotas) {
+      return;
+    }
+
+    if (notasEnCneb) {
+      await Swal.fire({
+        icon: 'info',
+        title: 'Este bimestre es CNEB',
+        text: 'Las letras se registran en el aula, con el cotejo y la conclusión. Las notas 0–20 de los otros bimestres no se tocan.',
+      });
       return;
     }
 
@@ -5417,7 +5429,7 @@ function DocenteCursos() {
                         <button
                           className="btn-guardar-notas"
                           onClick={guardarNotas}
-                          disabled={guardandoNotas}
+                          disabled={guardandoNotas || notasEnCneb}
                         >
                           {guardandoNotas ? '⏳ Guardando...' : '💾 Guardar Datos'}
                         </button>
@@ -5431,7 +5443,12 @@ function DocenteCursos() {
                       </div>
                     </div>
 
-                    {/* Barra azul informativa */}
+                    {notasEnCneb ? (
+                      <div className="blue-bar-notas">
+                        Este bimestre se evalúa con CNEB. En el aula se trabaja el cotejo y la letra AD, A, B o C. Elija otro bimestre arriba para ver las notas 0–20. Esas notas siguen guardadas.
+                      </div>
+                    ) : (
+                    <>
                     <div className="blue-bar-notas">
                       {esCualitativa
                         ? `Ingrese notas en letras (${rangosLetras.length > 0 ? rangosLetras.map(r => r.letra).join(', ') : 'A, B, C, AD'}).`
@@ -5875,6 +5892,8 @@ function DocenteCursos() {
                         </tbody>
                       </table>
                     </div>
+                    </>
+                    )}
                   </div>
                 </>
               ) : (

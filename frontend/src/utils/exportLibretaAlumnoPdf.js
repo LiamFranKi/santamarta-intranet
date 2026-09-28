@@ -31,8 +31,8 @@ export async function fetchYExportarLibretaAlumno(hijoId, ciclo = 1, anio = null
 
 /**
  * Selector año/bimestre + PDF de un solo alumno (Tutoría, Admin → Lista de alumnos, hijos).
- * Informe y libreta CNEB si ese año es cualitativo (Inicial, o un nivel con calificación por letras).
- * La boleta numérica de antes se usa cuando el año es cuantitativo.
+ * Informe y libreta CNEB si ese año es cualitativo, o si el bimestre elegido es la prueba CNEB.
+ * La boleta numérica se usa en los demás bimestres. No borra notas.
  */
 export async function promptYExportarLibretaAlumno(
   alumnoId,
@@ -60,19 +60,36 @@ export async function promptYExportarLibretaAlumno(
     const niveles = data?.niveles || {};
     const pref = parseInt(anioDefault, 10);
     const anioSel = anios.includes(pref) ? pref : anios[0];
-    const inicialDeAnio = (y) => {
+    const anioCualitativo = (y) => {
       if (grupoEsInicial === true) return true;
       if (grupoEsInicial === false) return false;
       return esInicialEnAnio(niveles, y);
     };
-    const puedeCnebAlgunaVez = grupoEsInicial !== false && anios.some((y) => inicialDeAnio(y));
+    const cnebBimestreDe = (y) => {
+      const n = niveles?.[String(y)] || niveles?.[y];
+      const b = Number(n?.cneb_bimestre);
+      return b >= 1 && b <= 4 ? b : null;
+    };
+    const usaCnebDoc = (y, ciclo) => anioCualitativo(y) || cnebBimestreDe(y) === Number(ciclo);
+    const puedeCnebAlgunaVez = anios.some((y) => anioCualitativo(y) || cnebBimestreDe(y));
+    const textoHint = (y, ciclo) => {
+      if (anioCualitativo(y)) {
+        return 'En un nivel cualitativo puede descargar la <b>libreta</b> (resumen para la familia) o el <b>informe de progreso</b> (detalle CNEB).';
+      }
+      const b = cnebBimestreDe(y);
+      if (b && Number(ciclo) === b) {
+        return `El <b>${b}.º bimestre</b> de este nivel se evalúa con CNEB. Los otros bimestres descargan la boleta numérica, con las notas que ya tienen.`;
+      }
+      if (b) {
+        return `Este bimestre descarga la boleta numérica. El ${b}.º bimestre descarga la libreta CNEB.`;
+      }
+      return 'Se descargará la libreta de este alumno.';
+    };
     const { isConfirmed, value } = await Swal.fire({
-      title: inicialDeAnio(anioSel) ? 'Libreta e informe' : 'Ver Libreta',
+      title: usaCnebDoc(anioSel, 1) ? 'Libreta e informe' : 'Ver Libreta',
       html: `
         <p id="swal-libreta-alumno-hint" style="text-align:left;margin:0 0 12px;color:#475569;font-size:0.92rem">
-          ${inicialDeAnio(anioSel)
-            ? 'En un nivel cualitativo puede descargar la <b>libreta</b> (resumen para la familia) o el <b>informe de progreso</b> (detalle CNEB). Un nivel cuantitativo descarga la boleta numérica de antes.'
-            : 'Se descargará la libreta de este alumno.'}
+          ${textoHint(anioSel, 1)}
         </p>
         <label style="display:block;text-align:left;font-weight:600;margin-bottom:4px">Año</label>
         <select id="swal-libreta-alumno-anio" class="swal2-input" style="width:100%;margin-bottom:12px">
@@ -86,7 +103,7 @@ export async function promptYExportarLibretaAlumno(
           <option value="4">IV Bimestre</option>
         </select>
         ${puedeCnebAlgunaVez
-          ? `<div id="swal-cneb-doc-box" style="text-align:left;margin-top:14px;padding:10px 12px;background:#f0fdfa;border-radius:10px;border:1px solid #99f6e4;${inicialDeAnio(anioSel) ? '' : 'display:none'}">
+          ? `<div id="swal-cneb-doc-box" style="text-align:left;margin-top:14px;padding:10px 12px;background:#f0fdfa;border-radius:10px;border:1px solid #99f6e4;${usaCnebDoc(anioSel, 1) ? '' : 'display:none'}">
               <label style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;cursor:pointer;font-size:0.92rem">
                 <input type="radio" name="swal-cneb-doc" value="libreta" checked style="margin-top:3px">
                 <span><b>Libreta</b> — resumen con letras AD/A/B/C, para el hogar.</span>
@@ -104,21 +121,20 @@ export async function promptYExportarLibretaAlumno(
       focusConfirm: false,
       didOpen: () => {
         const sel = document.getElementById('swal-libreta-alumno-anio');
+        const cicloSel = document.getElementById('swal-libreta-alumno-ciclo');
         const box = document.getElementById('swal-cneb-doc-box');
         const hint = document.getElementById('swal-libreta-alumno-hint');
         const sync = () => {
           const y = parseInt(sel?.value, 10);
-          const ini = inicialDeAnio(y);
-          if (box) box.style.display = ini ? 'block' : 'none';
-          if (hint) {
-            hint.innerHTML = ini
-              ? 'En un nivel cualitativo puede descargar la <b>libreta</b> (resumen para la familia) o el <b>informe de progreso</b> (detalle CNEB). Un nivel cuantitativo descarga la boleta numérica de antes.'
-              : 'Se descargará la libreta de este alumno.';
-          }
+          const ciclo = parseInt(cicloSel?.value, 10) || 1;
+          const cneb = usaCnebDoc(y, ciclo);
+          if (box) box.style.display = cneb ? 'block' : 'none';
+          if (hint) hint.innerHTML = textoHint(y, ciclo);
           const popup = document.querySelector('.swal2-title');
-          if (popup) popup.textContent = ini ? 'Libreta e informe' : 'Ver Libreta';
+          if (popup) popup.textContent = cneb ? 'Libreta e informe' : 'Ver Libreta';
         };
         sel?.addEventListener('change', sync);
+        cicloSel?.addEventListener('change', sync);
         sync();
       },
       preConfirm: () => ({
@@ -128,7 +144,7 @@ export async function promptYExportarLibretaAlumno(
       }),
     });
     if (!isConfirmed || !value) return false;
-    const usarCneb = inicialDeAnio(value.anio);
+    const usarCneb = usaCnebDoc(value.anio, value.ciclo);
     if (usarCneb) {
       return descargarCnebHijoConAviso({
         apiBase: base,

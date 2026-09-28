@@ -220,8 +220,8 @@ export default function AdminCnebPiloto() {
       const lineas = cambios
         .map((n) =>
           usoDraft.niveles[n.id]
-            ? `${n.label} mostrará CNEB solo en el ${usoDraft.bimestre}.º bimestre. El nivel sigue como está en Niveles.`
-            : `${n.label} deja la prueba. El aula vuelve a números en todos los bimestres.`
+            ? `${n.label} usará CNEB solo en el ${usoDraft.bimestre}.º bimestre: aula, cotejo, letras y libreta. Los otros bimestres siguen numéricos. El nivel no cambia en Niveles.`
+            : `${n.label} deja la prueba. El aula y la libreta vuelven a números en todos los bimestres. No se borra nada.`
         )
         .join(' ');
       const ok = await Swal.fire({
@@ -382,8 +382,8 @@ export default function AdminCnebPiloto() {
             <div>
               <strong>Probar CNEB en un bimestre · {etiquetaNivel(nivel)}</strong>
               <span>
-                No cambia el tipo en Niveles. Solo el bimestre elegido muestra CNEB. Los otros
-                siguen con números. Quitar la prueba no borra nada.
+                No cambia el tipo en Niveles. Solo el bimestre elegido pasa a CNEB: aula, cotejo,
+                letras y libreta. Los otros siguen con notas 0–20. Quitar la prueba no borra nada.
               </span>
             </div>
             <label className="cneb-uso-check">

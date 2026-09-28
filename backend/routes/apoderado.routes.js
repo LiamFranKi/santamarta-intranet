@@ -4,7 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
-const { esCualitativoNivel } = require('../utils/cnebTipoNivel');
+const { esCualitativoNivel, anexarPruebaEnNiveles } = require('../utils/cnebTipoNivel');
 const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
 const { requireMatriculaPortalActiva } = require('../middleware/matriculaPortal');
@@ -2515,6 +2515,7 @@ router.get('/hijos/:hijoId/libreta-anios', async (req, res) => {
         inicial: esCualitativoNivel(r.tipo_calificacion, r.nivel_nombre),
       };
     });
+    await anexarPruebaEnNiveles(colegio_id, niveles);
     return res.json({ anios, niveles });
   } catch (error) {
     console.error('Error listando años libreta:', error);

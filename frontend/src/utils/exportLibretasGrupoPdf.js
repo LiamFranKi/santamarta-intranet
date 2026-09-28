@@ -144,6 +144,61 @@ export async function exportLibretasGrupoPdf({
     return false;
   }
 
+  const nivelCneb = (() => {
+    const u = String(grupo?.nivel_nombre || '').toUpperCase();
+    if (u.includes('SECUNDARIA')) return 'SECUNDARIA';
+    if (u.includes('PRIMARIA')) return 'PRIMARIA';
+    return null;
+  })();
+  const primero = alumnos.find((a) => a.alumno_id || a.id);
+  let bimestrePrueba = null;
+  if (nivelCneb && primero) {
+    try {
+      const { data: aniosData } = await api.get(`/docente/hijos/${primero.alumno_id ?? primero.id}/libreta-anios`);
+      const info = aniosData?.niveles?.[String(anio)];
+      const b = Number(info?.cneb_bimestre);
+      if (b >= 1 && b <= 4) bimestrePrueba = b;
+    } catch {
+      bimestrePrueba = null;
+    }
+  }
+  if (nivelCneb && bimestrePrueba && Number(ciclo) === bimestrePrueba && grupo?.id) {
+    SwalInst.update({ title: 'Generando libretas CNEB…' });
+    try {
+      const res = await api.get(`${String(cnebApiBase).replace(/\/$/, '')}/export/libreta.pdf`, {
+        params: { nivel: nivelCneb, grupo_id: grupo.id, bimestre: ciclo },
+        responseType: 'blob',
+        timeout: 120000,
+      });
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = `libretas_cneb_${etiquetaGrupoArchivo(grupo)}_b${ciclo}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+      SwalInst.close();
+      await SwalInst.fire({ icon: 'success', title: 'Libretas listas', text: 'El PDF del aula se descargó.' });
+      return true;
+    } catch (e) {
+      SwalInst.close();
+      let msg = e.response?.data?.error || e.message || 'No se pudo generar la libreta CNEB.';
+      if (typeof Blob !== 'undefined' && e.response?.data instanceof Blob) {
+        try {
+          const t = await e.response.data.text();
+          const j = JSON.parse(t);
+          msg = j.error || msg;
+        } catch {
+          /* keep */
+        }
+      }
+      await SwalInst.fire({ icon: 'error', title: 'Error', text: msg });
+      return false;
+    }
+  }
+
   SwalInst.update({ title: `Generando libretas (0 / ${alumnos.length})…` });
 
   let doc = null;

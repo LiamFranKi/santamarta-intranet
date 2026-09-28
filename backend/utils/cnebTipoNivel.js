@@ -60,6 +60,60 @@ async function aplicarUsoCneb(cid, anio, nivel, activo) {
   );
 }
 
+/** Bimestre de la prueba CNEB, si el nivel sigue cuantitativo y la prueba está activa. */
+async function bimestrePruebaCneb(cid, anio, nivelNombre) {
+  const nivel = nivelDesdeNombre(nivelNombre);
+  if (!cid || !nivel || nivel === 'INICIAL') return null;
+  const year = parseInt(anio, 10);
+  if (!Number.isFinite(year)) return null;
+  try {
+    const [uso] = await query(
+      `SELECT activo, bimestre FROM cneb_uso_colegio
+       WHERE colegio_id = ? AND anio = ? AND nivel_cneb = ? LIMIT 1`,
+      [cid, year, nivel]
+    );
+    if (Number(uso?.activo) !== 1) return null;
+    const b = Number(uso.bimestre);
+    return b >= 1 && b <= 4 ? b : 4;
+  } catch (e) {
+    if (e.code === 'ER_NO_SUCH_TABLE' || e.code === 'ER_BAD_FIELD_ERROR') return null;
+    throw e;
+  }
+}
+
+/** Añade cneb_bimestre a cada año de libreta. Null si el año entero ya es cualitativo. */
+async function anexarPruebaEnNiveles(cid, niveles) {
+  const anios = Object.keys(niveles || {}).map((y) => parseInt(y, 10)).filter((y) => y > 0);
+  if (!cid || !anios.length) return niveles;
+  let rows = [];
+  try {
+    rows = await query(
+      `SELECT anio, nivel_cneb, activo, bimestre FROM cneb_uso_colegio
+       WHERE colegio_id = ? AND anio IN (${anios.map(() => '?').join(',')})`,
+      [cid, ...anios]
+    );
+  } catch (e) {
+    if (e.code === 'ER_NO_SUCH_TABLE' || e.code === 'ER_BAD_FIELD_ERROR') return niveles;
+    throw e;
+  }
+  Object.entries(niveles).forEach(([y, info]) => {
+    if (!info) return;
+    info.cneb_bimestre = null;
+    if (info.inicial) return;
+    const nivel = nivelDesdeNombre(info.nivel_nombre);
+    if (!nivel) return;
+    const uso = (rows || []).find(
+      (r) => Number(r.anio) === Number(y)
+        && String(r.nivel_cneb || '').toUpperCase() === nivel
+        && Number(r.activo) === 1
+    );
+    if (!uso) return;
+    const b = Number(uso.bimestre);
+    info.cneb_bimestre = b >= 1 && b <= 4 ? b : 4;
+  });
+  return niveles;
+}
+
 async function sincronizarDesdeTipo(cid, nombre, tipo) {
   const nivel = nivelDesdeNombre(nombre);
   if (!nivel || !cid) return;
@@ -77,4 +131,6 @@ module.exports = {
   tiposPorNivelCneb,
   aplicarTipoNivel,
   sincronizarDesdeTipo,
+  bimestrePruebaCneb,
+  anexarPruebaEnNiveles,
 };
