@@ -686,7 +686,6 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Dashboard</span>
                 </NavLink>
               </div>
-              <VanguarcitoSidebarItem />
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/perfil">
                   <span className="sidebar-icon">👤</span>
@@ -726,6 +725,7 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               )}
+              <VanguarcitoSidebarItem />
               {activo('mis-asistencias') && (
               <div className="sidebar-item">
                 <button 
@@ -988,7 +988,6 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Dashboard</span>
                 </NavLink>
               </div>
-              <VanguarcitoSidebarItem />
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/perfil">
                   <span className="sidebar-icon">👤</span>
@@ -1015,6 +1014,7 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Mi Horario</span>
                 </NavLink>
               </div>
+              <VanguarcitoSidebarItem />
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/avatar">
                   <span className="sidebar-icon">🎭</span>
@@ -1659,6 +1659,7 @@ export default function DashboardLayout({ children }) {
               <AgendaInternaSidebarItem />
               <BibliotecaSidebarItem />
               <ChatVanguardSidebarItem />
+              <VanguarcitoSidebarItem />
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -1978,6 +1979,7 @@ export default function DashboardLayout({ children }) {
               {role === 'ADMINISTRADOR' && <AgendaInternaSidebarItem />}
               <BibliotecaSidebarItem />
               <ChatVanguardSidebarItem />
+              {role !== 'ADMINISTRADOR' && <VanguarcitoSidebarItem />}
               {activo('reportes.estadisticas') && (
                 <div className="sidebar-item">
                   <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/estadisticas">
@@ -2144,7 +2146,7 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>🤝</span>
                     <span className="sidebar-label">Reuniones</span>
                   </NavLink>
-                  {activo('herramientas.vanguarcito') && (
+                  {role === 'ADMINISTRADOR' && activo('herramientas.vanguarcito') && (
                   <NavLink
                     className={({ isActive }) =>
                       `sidebar-sublink ${isActive || location.pathname === '/vanguarcito' ? 'active' : ''}`

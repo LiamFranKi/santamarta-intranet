@@ -2,7 +2,15 @@ const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
 const { moduloActivo } = require('../utils/modulosSistema');
 const { guardarCupos, paraCliente, leerMascota } = require('../utils/mascotaColegio');
-const { estadoChat, responder, exportar, perfilDe } = require('../services/vanguarcitoChat');
+const {
+  estadoChat,
+  responder,
+  exportar,
+  perfilDe,
+  abrirConversacion,
+  renombrarConversacion,
+  eliminarConversacion,
+} = require('../services/vanguarcitoChat');
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -27,7 +35,7 @@ router.get('/estado', async (req, res) => {
 
 router.post('/preguntar', async (req, res) => {
   try {
-    const data = await responder(req.user, req.body?.texto);
+    const data = await responder(req.user, req.body?.texto, req.body?.conversacion_id);
     res.json(data);
   } catch (e) {
     if (e.causa) console.error('[vanguarcito]', e.causa);
@@ -51,6 +59,42 @@ router.post('/archivo', async (req, res) => {
     const status = e.status || 500;
     if (status >= 500) console.error('[vanguarcito archivo]', e);
     res.status(status).json({ error: e.message || 'No se pudo crear el archivo.' });
+  }
+});
+
+router.get('/conversacion/:id', async (req, res) => {
+  try {
+    if (!(await moduloActivo('herramientas.vanguarcito'))) {
+      return res.status(403).json({ error: 'El asistente está apagado.' });
+    }
+    const data = await abrirConversacion(req.user, req.params.id);
+    res.json(data);
+  } catch (e) {
+    const status = e.status || 500;
+    if (status >= 500) console.error('[vanguarcito conversacion]', e);
+    res.status(status).json({ error: e.message || 'No se pudo abrir la conversación.' });
+  }
+});
+
+router.put('/conversacion/:id', async (req, res) => {
+  try {
+    const data = await renombrarConversacion(req.user, req.params.id, req.body?.titulo);
+    res.json(data);
+  } catch (e) {
+    const status = e.status || 500;
+    if (status >= 500) console.error('[vanguarcito renombrar]', e);
+    res.status(status).json({ error: e.message || 'No se pudo cambiar el título.' });
+  }
+});
+
+router.delete('/conversacion/:id', async (req, res) => {
+  try {
+    const data = await eliminarConversacion(req.user, req.params.id);
+    res.json(data);
+  } catch (e) {
+    const status = e.status || 500;
+    if (status >= 500) console.error('[vanguarcito eliminar]', e);
+    res.status(status).json({ error: e.message || 'No se pudo eliminar la conversación.' });
   }
 });
 

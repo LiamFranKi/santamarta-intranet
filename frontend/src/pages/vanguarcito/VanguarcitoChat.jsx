@@ -23,6 +23,11 @@ export default function VanguarcitoChat() {
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [mensajes, setMensajes] = useState([]);
+  const [conversaciones, setConversaciones] = useState([]);
+  const [conversacionId, setConversacionId] = useState(null);
+  const [tituloChat, setTituloChat] = useState('');
+  const [editandoId, setEditandoId] = useState(null);
+  const [tituloEdit, setTituloEdit] = useState('');
   const listaRef = useRef(null);
   const cajaRef = useRef(null);
 
@@ -31,6 +36,9 @@ export default function VanguarcitoChat() {
       const { data } = await api.get('/vanguarcito/estado');
       setEstado(data);
       setMensajes(data.mensajes || []);
+      setConversaciones(data.conversaciones || []);
+      setConversacionId(data.conversacion_id || null);
+      setTituloChat(data.titulo || '');
       setError('');
     } catch (e) {
       setError(e.response?.data?.error || 'No se pudo abrir el asistente.');
@@ -57,8 +65,24 @@ export default function VanguarcitoChat() {
     setError('');
     setMensajes((prev) => [...prev, { id: `local-${Date.now()}`, rol: 'usuario', texto: pregunta }]);
     try {
-      const { data } = await api.post('/vanguarcito/preguntar', { texto: pregunta }, { timeout: 70000 });
+      const { data } = await api.post(
+        '/vanguarcito/preguntar',
+        { texto: pregunta, conversacion_id: conversacionId },
+        { timeout: 70000 }
+      );
       setMensajes((prev) => [...prev, { id: data.id || `r-${Date.now()}`, rol: 'modelo', texto: data.respuesta }]);
+      if (data.conversacion_id) {
+        setConversacionId(data.conversacion_id);
+        setTituloChat(data.titulo || '');
+        setConversaciones((prev) => {
+          const item = {
+            id: data.conversacion_id,
+            titulo: data.titulo || 'Chat',
+            actualizado_en: new Date().toISOString(),
+          };
+          return [item, ...prev.filter((c) => c.id !== item.id)];
+        });
+      }
       setEstado((prev) => ({
         ...prev,
         cupo: data.cupo,
@@ -89,6 +113,58 @@ export default function VanguarcitoChat() {
       URL.revokeObjectURL(url);
     } catch (e) {
       setError('No se pudo crear el archivo.');
+    }
+  };
+
+  const nuevo = () => {
+    if (enviando) return;
+    setConversacionId(null);
+    setTituloChat('');
+    setMensajes([]);
+    setError('');
+    setEditandoId(null);
+    cajaRef.current?.focus();
+  };
+
+  const abrir = async (id) => {
+    if (enviando || id === conversacionId) return;
+    setError('');
+    try {
+      const { data } = await api.get(`/vanguarcito/conversacion/${id}`);
+      setConversacionId(data.id);
+      setTituloChat(data.titulo || '');
+      setMensajes(data.mensajes || []);
+      setEditandoId(null);
+    } catch (e) {
+      setError(e.response?.data?.error || 'No se pudo abrir esa conversación.');
+    }
+  };
+
+  const guardarTitulo = async (id) => {
+    const titulo = String(tituloEdit || '').trim();
+    setEditandoId(null);
+    if (!titulo) return;
+    try {
+      const { data } = await api.put(`/vanguarcito/conversacion/${id}`, { titulo });
+      setConversaciones((prev) => prev.map((c) => (c.id === id ? { ...c, titulo: data.titulo } : c)));
+      if (id === conversacionId) setTituloChat(data.titulo);
+    } catch (e) {
+      setError(e.response?.data?.error || 'No se pudo cambiar el título.');
+    }
+  };
+
+  const eliminar = async (id) => {
+    if (!window.confirm('¿Eliminar esta conversación?')) return;
+    try {
+      await api.delete(`/vanguarcito/conversacion/${id}`);
+      setConversaciones((prev) => prev.filter((c) => c.id !== id));
+      if (id === conversacionId) {
+        setConversacionId(null);
+        setTituloChat('');
+        setMensajes([]);
+      }
+    } catch (e) {
+      setError(e.response?.data?.error || 'No se pudo eliminar.');
     }
   };
 
@@ -141,12 +217,58 @@ export default function VanguarcitoChat() {
             )}
           </div>
           <p className="vg-nota">Solo texto. Puede bajar la respuesta en PDF, Excel o Word. No crea imágenes ni videos.</p>
+          <button type="button" className="vg-nuevo" onClick={nuevo} disabled={enviando}>
+            Nuevo chat
+          </button>
+          <div className="vg-hist">
+            {conversaciones.map((c) => (
+              <div key={c.id} className={`vg-item ${c.id === conversacionId ? 'vg-item--on' : ''}`}>
+                {editandoId === c.id ? (
+                  <input
+                    className="vg-renombrar"
+                    value={tituloEdit}
+                    maxLength={80}
+                    autoFocus
+                    onChange={(e) => setTituloEdit(e.target.value)}
+                    onBlur={() => guardarTitulo(c.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        guardarTitulo(c.id);
+                      }
+                      if (e.key === 'Escape') setEditandoId(null);
+                    }}
+                  />
+                ) : (
+                  <button type="button" className="vg-item-titulo" onClick={() => abrir(c.id)}>
+                    {c.titulo}
+                  </button>
+                )}
+                <span className="vg-item-acc">
+                  <button
+                    type="button"
+                    title="Renombrar"
+                    aria-label="Renombrar"
+                    onClick={() => {
+                      setEditandoId(c.id);
+                      setTituloEdit(c.titulo);
+                    }}
+                  >
+                    ✎
+                  </button>
+                  <button type="button" title="Eliminar" aria-label="Eliminar" onClick={() => eliminar(c.id)}>
+                    🗑
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
         </aside>
 
         <section className="vg-chat">
           <header className="vg-top">
             <div>
-              <h2>{nombre}</h2>
+              <h2>{tituloChat || nombre}</h2>
               <p>
                 {estado?.ilimitado
                   ? 'Preguntas ilimitadas'
