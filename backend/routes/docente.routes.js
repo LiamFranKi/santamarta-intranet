@@ -93,6 +93,8 @@ const { enriquecerTareasConArchivos } = require('../utils/tareasArchivosEnriquec
 const { staticFsSubdir, joinStaticFs, getPublicStaticBaseUrl, urlStaticFotos, buildStaticArchivoUrl } = require('../utils/staticStorage');
 const { mergeTemasPdfsToFile, sendMergedPdf } = require('../utils/temasMergePdf');
 const { resolverTemaDestinoId } = require('../utils/copiarContenidoAsignatura');
+const { contextoAulaCneb, listarSesionesAula } = require('../utils/cnebAulaAsignatura');
+const { copiarSesionCneb } = require('../utils/cnebSesionStore');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 const { findAlternativaMarcadaVF } = require('../utils/examenRespuestaIds');
 const { assertDocentePuedeEditarContenidoExamenVirtual, examenBloqueaEdicionContenidoDocente } = require('../utils/examenBloqueoEdicionContenido');
@@ -6008,6 +6010,24 @@ router.get('/cursos/:cursoId/copiar-contenido', async (req, res) => {
       [cursoId]
     );
 
+    let sesionesCneb = [];
+    let esCneb = false;
+    try {
+      const ctxCneb = await contextoAulaCneb(colegio_id, cursoId);
+      esCneb = Boolean(ctxCneb?.es_cneb);
+      if (esCneb) {
+        const filasCneb = await listarSesionesAula(colegio_id, ctxCneb, null);
+        sesionesCneb = (filasCneb || []).map((s) => ({
+          id: s.id,
+          nombre: `B${s.bimestre || '?'} - ${s.titulo || 'Sesión'}${s.estado === 'borrador' ? ' (borrador)' : ''}`,
+        }));
+      }
+    } catch (e) {
+      if (e.code !== 'ER_NO_SUCH_TABLE' && e.code !== 'ER_BAD_FIELD_ERROR') {
+        console.error('[copiar contenido sesiones cneb]', e);
+      }
+    }
+
     res.json({
       otrasAsignaturas: otrasAsignaturas.map(a => ({
         id: a.id,
@@ -6036,7 +6056,9 @@ router.get('/cursos/:cursoId/copiar-contenido', async (req, res) => {
       sesiones: sesiones.map((s) => ({
         id: s.id,
         nombre: `B${s.ciclo} - ${s.titulo || 'Sesión'} (${s.tema_nombre || 'tema'})`
-      }))
+      })),
+      sesiones_cneb: sesionesCneb,
+      es_cneb: esCneb,
     });
   } catch (error) {
     console.error('Error obteniendo datos para copiar contenido:', error);
@@ -6049,7 +6071,7 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
   try {
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { cursoId } = req.params;
-    const { asignatura_destino_id, temas_id, tareas_id, examenes_id, videos_id, enlaces_id, sesiones_id } = req.body;
+    const { asignatura_destino_id, temas_id, tareas_id, examenes_id, videos_id, enlaces_id, sesiones_id, cneb_sesiones_id } = req.body;
 
     if (!asignatura_destino_id) {
       return res.status(400).json({ error: 'Debe seleccionar una asignatura destino' });
@@ -6091,6 +6113,7 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
       videos: 0,
       enlaces: 0,
       sesiones: 0,
+      sesiones_cneb: 0,
     };
     const omitidos = {
       temas: 0,
@@ -6099,6 +6122,7 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
       videos: 0,
       enlaces: 0,
       sesiones: 0,
+      sesiones_cneb: 0,
     };
 
     /** Mapea id de tema en origen → id de tema copiado en destino (para sesiones PDF). */
@@ -6443,6 +6467,40 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
       }
     }
 
+    if (Array.isArray(cneb_sesiones_id) && cneb_sesiones_id.length > 0) {
+      let permitidas = new Set();
+      try {
+        const ctxCneb = await contextoAulaCneb(colegio_id, cursoId);
+        if (ctxCneb?.es_cneb) {
+          const filasCneb = await listarSesionesAula(colegio_id, ctxCneb, null);
+          permitidas = new Set((filasCneb || []).map((s) => Number(s.id)));
+        }
+      } catch (e) {
+        if (e.code !== 'ER_NO_SUCH_TABLE' && e.code !== 'ER_BAD_FIELD_ERROR') {
+          console.error('[copiar sesiones cneb lista]', e);
+        }
+      }
+      const grupoDestino = asignaturaDestino[0].grupo_id;
+      for (const rawId of cneb_sesiones_id) {
+        const id = Number(rawId);
+        if (!permitidas.has(id)) {
+          omitidos.sesiones_cneb += 1;
+          continue;
+        }
+        try {
+          const nuevoId = await copiarSesionCneb(colegio_id, usuario_id, id, {
+            grupo_id: grupoDestino,
+            asignatura_id: asignatura_destino_id,
+          });
+          if (nuevoId) copiados.sesiones_cneb += 1;
+          else omitidos.sesiones_cneb += 1;
+        } catch (e) {
+          console.error('[copiar sesion cneb]', e);
+          omitidos.sesiones_cneb += 1;
+        }
+      }
+    }
+
     // Registrar auditoría
     req.skipAudit = true;
     registrarAccion({
@@ -6453,7 +6511,7 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
       modulo: 'Cursos Asignados',
       entidad: 'Contenido Aula Virtual',
       entidad_id: cursoId,
-      descripcion: `Copió contenido de asignatura (ID: ${cursoId}) a asignatura (ID: ${asignatura_destino_id}). Temas: ${copiados.temas}, Tareas: ${copiados.tareas}, Exámenes: ${copiados.examenes}, Videos: ${copiados.videos}, Enlaces: ${copiados.enlaces}, Sesiones: ${copiados.sesiones}`,
+      descripcion: `Copió contenido de asignatura (ID: ${cursoId}) a asignatura (ID: ${asignatura_destino_id}). Temas: ${copiados.temas}, Tareas: ${copiados.tareas}, Exámenes: ${copiados.examenes}, Videos: ${copiados.videos}, Enlaces: ${copiados.enlaces}, Sesiones: ${copiados.sesiones}, Sesiones CNEB: ${copiados.sesiones_cneb}`,
       url: req.originalUrl,
       metodo_http: req.method,
       ip_address: req.ip,

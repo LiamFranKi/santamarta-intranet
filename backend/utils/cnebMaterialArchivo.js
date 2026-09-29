@@ -300,6 +300,36 @@ async function bufferPdfBonito({ ses, colegio, grupo, fecha, parte }) {
   };
 }
 
+function clonarArchivoMaterial(nombre) {
+  const full = rutaSegura(nombre);
+  if (!full) return null;
+  const ext = path.extname(full);
+  const nuevo = `cneb-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+  try {
+    fs.copyFileSync(full, path.join(asegurarDir(), nuevo));
+    return nuevo;
+  } catch (e) {
+    console.error('[clonar material cneb]', e);
+    return null;
+  }
+}
+
+async function duplicarArchivosEnSesion(cid, sesionOrigen, sesionDestinoId) {
+  const teoria = clonarArchivoMaterial(sesionOrigen?.archivo_teoria);
+  const ficha = clonarArchivoMaterial(sesionOrigen?.archivo_ficha);
+  if (!teoria && !ficha) return;
+  try {
+    await execute(
+      `UPDATE cneb_sesiones SET archivo_teoria = ?, archivo_ficha = ? WHERE id = ? AND colegio_id = ?`,
+      [teoria, ficha, sesionDestinoId, cid]
+    );
+  } catch (e) {
+    if (teoria) fs.unlink(path.join(DIR, teoria), () => {});
+    if (ficha) fs.unlink(path.join(DIR, ficha), () => {});
+    if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+  }
+}
+
 module.exports = {
   uploadMaterial,
   subirMaterial,
@@ -307,6 +337,7 @@ module.exports = {
   quitarMaterial,
   bufferArchivoPropio,
   bufferPdfBonito,
+  duplicarArchivosEnSesion,
 };
 
 function subirMaterial(req, res, next) {

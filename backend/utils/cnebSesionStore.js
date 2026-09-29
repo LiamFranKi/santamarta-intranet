@@ -1,6 +1,7 @@
 const { query, execute, getAnioActivo } = require('./mysql');
 const { partirMinutos } = require('./cnebSesionBorrador');
 const { leerDua } = require('./cnebDua');
+const { duplicarArchivosEnSesion } = require('./cnebMaterialArchivo');
 
 const MOMENTOS = ['inicio', 'desarrollo', 'cierre'];
 
@@ -443,6 +444,126 @@ async function listarSesiones(cid, { nivel, anio, grupoIds, bimestre }) {
   }
 }
 
+function fechaSql(v) {
+  if (!v) return null;
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    const y = v.getFullYear();
+    const m = String(v.getMonth() + 1).padStart(2, '0');
+    const d = String(v.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const s = String(v).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+}
+
+async function copiarSesionCneb(cid, usuarioId, sesionId, destino) {
+  const ses = await cargarSesion(cid, sesionId);
+  if (!ses) return null;
+  const grupoDestino = parseInt(destino?.grupo_id, 10);
+  const asignaturaDestino = parseInt(destino?.asignatura_id, 10);
+  if (!grupoDestino || !asignaturaDestino) return null;
+
+  let filas = [];
+  try {
+    filas = await query(
+      `SELECT d.id, d.texto, d.origen, d.sesion_id, d.edad, d.grado, d.orden
+       FROM cneb_sesion_desempenos sd
+       INNER JOIN cneb_desempenos d ON d.id = sd.desempeno_id
+       WHERE sd.sesion_id = ?
+       ORDER BY d.orden ASC, d.id ASC`,
+      [sesionId]
+    );
+  } catch (e) {
+    if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+    filas = (ses.desempenos || []).map((d) => ({
+      id: d.id,
+      texto: d.texto,
+      origen: 'catalogo',
+      sesion_id: null,
+      edad: d.edad,
+      grado: d.grado,
+      orden: d.orden,
+    }));
+  }
+
+  const catalogo = [];
+  const propios = [];
+  for (const d of filas || []) {
+    if (d.origen === 'sesion' && Number(d.sesion_id) === Number(sesionId)) propios.push(d);
+    else if (d.id) catalogo.push(d.id);
+  }
+
+  const nueva = await insertarSesion(cid, usuarioId, {
+    nivel_cneb: ses.nivel_cneb,
+    grupo_id: grupoDestino,
+    asignatura_id: asignaturaDestino,
+    area_id: ses.area_id,
+    competencia_id: ses.competencia_id,
+    titulo: ses.titulo,
+    unidad: ses.unidad,
+    proposito: ses.proposito,
+    ficha_estudiante: ses.ficha_estudiante,
+    material_teoria: ses.material_teoria,
+    duracion_min: ses.duracion_min,
+    corte: ses.corte,
+    bimestre: ses.bimestre,
+    fecha_sesion: fechaSql(ses.fecha_sesion),
+    estado: ses.estado === 'aprobada' ? 'aprobada' : 'borrador',
+    dua: ses.dua,
+    indicacion_ia: ses.indicacion_ia,
+    momentos: ses.momentos,
+    minutos: ses.minutos,
+    desempeno_ids: catalogo,
+    cotejo: (ses.cotejo || []).map((c) => ({
+      item: c.item,
+      desempeno_id: c.desempeno_id,
+    })),
+  });
+  const nuevoId = nueva?.id;
+  if (!nuevoId) return null;
+  if (ses.anio && Number(ses.anio) !== Number(nueva.anio)) {
+    await execute(
+      'UPDATE cneb_sesiones SET anio = ? WHERE id = ? AND colegio_id = ?',
+      [ses.anio, nuevoId, cid]
+    );
+  }
+
+  const mapa = {};
+  for (let i = 0; i < propios.length; i += 1) {
+    const d = propios[i];
+    try {
+      const ins = await execute(
+        `INSERT INTO cneb_desempenos (competencia_id, edad, grado, texto, orden, origen, sesion_id)
+         VALUES (?, ?, ?, ?, ?, 'sesion', ?)`,
+        [ses.competencia_id, d.edad ?? null, d.grado ?? null, d.texto, d.orden || i + 1, nuevoId]
+      );
+      if (ins?.insertId) {
+        mapa[d.id] = ins.insertId;
+        await execute(
+          'INSERT INTO cneb_sesion_desempenos (sesion_id, desempeno_id) VALUES (?, ?)',
+          [nuevoId, ins.insertId]
+        );
+      }
+    } catch (e) {
+      if (e.code !== 'ER_BAD_FIELD_ERROR' && e.code !== 'ER_NO_SUCH_TABLE') throw e;
+    }
+  }
+  if (Object.keys(mapa).length) {
+    const cotejos = await query(
+      'SELECT id, desempeno_id FROM cneb_sesion_cotejo WHERE sesion_id = ?',
+      [nuevoId]
+    );
+    for (const c of cotejos || []) {
+      const nuevoDes = mapa[c.desempeno_id];
+      if (!nuevoDes) continue;
+      await execute('UPDATE cneb_sesion_cotejo SET desempeno_id = ? WHERE id = ?', [nuevoDes, c.id]);
+    }
+  }
+
+  await duplicarArchivosEnSesion(cid, ses, nuevoId);
+  return nuevoId;
+}
+
 module.exports = {
   MOMENTOS,
   parseIntOrNull,
@@ -453,4 +574,5 @@ module.exports = {
   actualizarSesion,
   eliminarSesion,
   listarSesiones,
+  copiarSesionCneb,
 };

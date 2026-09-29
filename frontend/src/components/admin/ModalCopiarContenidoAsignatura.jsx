@@ -13,6 +13,7 @@ function emptyForm() {
     videos_id: [],
     enlaces_id: [],
     sesiones_id: [],
+    cneb_sesiones_id: [],
   };
 }
 
@@ -46,6 +47,8 @@ export default function ModalCopiarContenidoAsignatura({
         videos: d.videos || [],
         enlaces: d.enlaces || [],
         sesiones: d.sesiones || [],
+        sesiones_cneb: d.sesiones_cneb || [],
+        es_cneb: Boolean(d.es_cneb),
       });
       setFormCopiarContenido(emptyForm());
     } catch (error) {
@@ -64,6 +67,8 @@ export default function ModalCopiarContenidoAsignatura({
         videos: [],
         enlaces: [],
         sesiones: [],
+        sesiones_cneb: [],
+        es_cneb: false,
       });
     } finally {
       setLoading(false);
@@ -97,7 +102,8 @@ export default function ModalCopiarContenidoAsignatura({
       formCopiarContenido.examenes_id.length +
       formCopiarContenido.videos_id.length +
       formCopiarContenido.enlaces_id.length +
-      formCopiarContenido.sesiones_id.length;
+      formCopiarContenido.sesiones_id.length +
+      (formCopiarContenido.cneb_sesiones_id || []).length;
 
     if (totalSeleccionado === 0) {
       Swal.fire('Error', 'Debe seleccionar al menos un elemento para copiar', 'error');
@@ -115,14 +121,15 @@ export default function ModalCopiarContenidoAsignatura({
       const { copiados, omitidos = {} } = response.data;
       const totalOmitidos = Object.values(omitidos).reduce((a, b) => a + (b || 0), 0);
       const omitHtml = totalOmitidos
-        ? `<br><br><span style="color:#b45309">Omitidos (no se encontró en destino):<br>
-           Temas: ${omitidos.temas || 0} · Sesiones: ${omitidos.sesiones || 0} · Proyectos: ${omitidos.tareas || 0} · Exámenes: ${omitidos.examenes || 0}</span>`
+        ? `<br><br><span style="color:#b45309">Omitidos:<br>
+           Temas: ${omitidos.temas || 0} · Sesiones PDF: ${omitidos.sesiones || 0} · Sesiones CNEB: ${omitidos.sesiones_cneb || 0} · Proyectos: ${omitidos.tareas || 0} · Exámenes: ${omitidos.examenes || 0}</span>`
         : '';
       Swal.fire({
         title: totalOmitidos ? 'Copiado con advertencias' : '¡Éxito!',
         html: `${response.data.message || 'Contenido copiado.'}<br>
                <strong>Temas:</strong> ${copiados.temas}<br>
                <strong>Sesiones (PDF):</strong> ${copiados.sesiones ?? 0}<br>
+               <strong>Sesiones CNEB:</strong> ${copiados.sesiones_cneb ?? 0}<br>
                <strong>Proyectos:</strong> ${copiados.tareas}<br>
                <strong>Exámenes:</strong> ${copiados.examenes}<br>
                <strong>Videos:</strong> ${copiados.videos}<br>
@@ -351,6 +358,69 @@ export default function ModalCopiarContenidoAsignatura({
                   )}
                 </div>
               </div>
+
+              {datosCopiarContenido.es_cneb ? (
+              <div className="form-group-copiar">
+                <label className="form-label-copiar">Sesiones CNEB</label>
+                <p style={{ fontSize: '0.85rem', color: '#6b7280', margin: '0 0 0.5rem 0' }}>
+                  Copia la sesión a la otra sección: teoría, ficha y archivos. No copia notas ni evidencias de los alumnos.
+                </p>
+                <div className="checkbox-list-container">
+                  {(datosCopiarContenido.sesiones_cneb || []).length > 0 ? (
+                    <>
+                      <div className="checkbox-list-header">
+                        <button
+                          type="button"
+                          className="btn-select-all"
+                          onClick={() => {
+                            const lista = datosCopiarContenido.sesiones_cneb || [];
+                            const allSelected = lista.every((s) =>
+                              (formCopiarContenido.cneb_sesiones_id || []).includes(s.id)
+                            );
+                            setFormCopiarContenido((prev) => ({
+                              ...prev,
+                              cneb_sesiones_id: allSelected ? [] : lista.map((s) => s.id),
+                            }));
+                          }}
+                        >
+                          {(datosCopiarContenido.sesiones_cneb || []).every((s) =>
+                            (formCopiarContenido.cneb_sesiones_id || []).includes(s.id)
+                          )
+                            ? '☑ Deseleccionar Todos'
+                            : '☐ Seleccionar Todos'}
+                        </button>
+                      </div>
+                      <div className="checkbox-list">
+                        {(datosCopiarContenido.sesiones_cneb || []).map((sesion) => (
+                          <label key={sesion.id} className="checkbox-item">
+                            <input
+                              type="checkbox"
+                              checked={(formCopiarContenido.cneb_sesiones_id || []).includes(sesion.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormCopiarContenido((prev) => ({
+                                    ...prev,
+                                    cneb_sesiones_id: [...(prev.cneb_sesiones_id || []), sesion.id],
+                                  }));
+                                } else {
+                                  setFormCopiarContenido((prev) => ({
+                                    ...prev,
+                                    cneb_sesiones_id: (prev.cneb_sesiones_id || []).filter((id) => id !== sesion.id),
+                                  }));
+                                }
+                              }}
+                            />
+                            <span>{sesion.nombre}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="empty-list-text">No hay sesiones CNEB en esta sección</p>
+                  )}
+                </div>
+              </div>
+              ) : null}
 
               <div className="form-group-copiar">
                 <label htmlFor="tareas-id" className="form-label-copiar">
