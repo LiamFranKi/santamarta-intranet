@@ -9,6 +9,7 @@ import CnebInclusivoPanel from '../../components/aula/CnebInclusivoPanel';
 import { htmlVacio, textoCnebAHtml } from '../../utils/cnebTextoRico';
 import { emptyDua, fusionarProcedimientos, leerDua } from '../../utils/cnebDua';
 import { useModulos } from '../../context/ModulosContext';
+import { useColegio } from '../../context/ColegioContext';
 import { aulasDe, claveCurso, cursosDe, etiquetaGrado, gradosDe } from './cnebElegirAula';
 
 const QUILL_CNEB = {
@@ -32,15 +33,25 @@ function urlVanguarcito() {
   return `${protocol}//${hostname}/assets/fichas-ia/vanguarcito.png`;
 }
 
-function abrirSwalGenerandoCneb() {
+function escHtml(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function abrirSwalGenerandoCneb(nombre, imagenUrl) {
+  const quien = escHtml(String(nombre || '').trim() || 'Vanguarcito');
+  const src = imagenUrl || urlVanguarcito();
   Swal.fire({
     html: `
       <div class="cneb-ia-carga">
         <div class="cneb-ia-mascota-wrap">
           <div class="cneb-ia-aura" aria-hidden="true"></div>
-          <img src="${urlVanguarcito()}" alt="" class="cneb-ia-mascota" />
+          <img src="${src}" alt="" class="cneb-ia-mascota" />
         </div>
-        <h3 class="cneb-ia-titulo">Vanguarcito está armando la sesión</h3>
+        <h3 class="cneb-ia-titulo">${quien} está armando la sesión</h3>
         <p class="cneb-ia-texto">Redacta inicio, desarrollo, cierre y la ficha del estudiante con el catálogo CNEB.</p>
         <div class="cneb-ia-bar"><div class="cneb-ia-bar-inner"></div></div>
         <p class="cneb-ia-hint">Puede tardar unos minutos · no cierre esta ventana</p>
@@ -266,6 +277,7 @@ export default function AdminCnebSesiones({
   onGuardado = null,
 }) {
   const { activo } = useModulos();
+  const { mascotaNombre, mascotaImagen } = useColegio();
   const mostrarIaSesiones = activo('academico.cneb-ia');
   const [lista, setLista] = useState([]);
   const [grupos, setGrupos] = useState([]);
@@ -589,7 +601,7 @@ export default function AdminCnebSesiones({
       if (!ok.isConfirmed) return;
     }
     setGenerating(true);
-    abrirSwalGenerandoCneb();
+    abrirSwalGenerandoCneb(mascotaNombre, mascotaImagen);
     try {
       const { data } = await api.post(
         `${apiBase}/sesiones/generar-ia`,
@@ -675,7 +687,7 @@ export default function AdminCnebSesiones({
       ? lineasTitulo.length
       : Math.min(6, Math.max(1, parseInt(cantidadIa, 10) || 1));
     setGenerating(true);
-    abrirSwalGenerandoCneb();
+    abrirSwalGenerandoCneb(mascotaNombre, mascotaImagen);
     const creadas = [];
     const usados = [];
     try {

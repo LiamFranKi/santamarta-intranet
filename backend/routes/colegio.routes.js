@@ -3,6 +3,7 @@ const router = express.Router();
 const { query } = require('../utils/mysql');
 const { getColegioData } = require('../utils/colegio');
 const { resolverLogoVariante } = require('../utils/logoColegio');
+const { leerMascota } = require('../utils/mascotaColegio');
 
 /**
  * GET /api/colegio/:colegioId
@@ -27,6 +28,7 @@ router.get('/:colegioId', async (req, res) => {
       textoIntranet = '';
     }
 
+    const mascota = await leerMascota(colegioId);
     res.json({
       ...colegioData,
       logo: logo.urlPath,
@@ -34,6 +36,8 @@ router.get('/:colegioId', async (req, res) => {
       logo_blanco: logoBlanco.urlPath,
       logo_blanco_desde_config: logoBlanco.desdeConfig,
       texto_intranet: textoIntranet,
+      mascota_nombre: mascota.nombre,
+      mascota_imagen: mascota.imagen_url,
     });
   } catch (error) {
     console.error('Error obteniendo datos del colegio:', error);

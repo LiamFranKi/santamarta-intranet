@@ -1,0 +1,106 @@
+.mascota-bloque h2 {
+  margin: 1rem 0 0.25rem;
+  font-size: 1rem;
+  color: #0f172a;
+}
+
+.mascota-parte p {
+  margin: 0;
+  color: #475569;
+  line-height: 1.45;
+}
+
+.mascota-row {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.mascota-row input {
+  flex: 1 1 220px;
+  min-height: 42px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0 0.75rem;
+  font: inherit;
+}
+
+.mascota-row button,
+.mascota-file,
+.mascota-sec,
+.mascota-grid button {
+  border: 0;
+  border-radius: 10px;
+  min-height: 42px;
+  padding: 0 0.9rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  background: #059669;
+  color: #fff;
+}
+
+.mascota-sec,
+.mascota-grid button {
+  background: #e2e8f0;
+  color: #0f172a;
+  margin-top: 0.5rem;
+}
+
+.mascota-file {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.75rem;
+}
+
+.mascota-file input {
+  display: none;
+}
+
+.mascota-principal {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.mascota-principal img {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+}
+
+.mascota-grid {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0.9rem 0 0;
+  padding: 0;
+}
+
+.mascota-grid li {
+  width: 110px;
+  text-align: center;
+}
+
+.mascota-grid img {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.mascota-nota {
+  color: #64748b;
+  margin: 0.6rem 0 0;
+}
+
+.mascota-bloque button:disabled,
+.mascota-file:has(input:disabled) {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

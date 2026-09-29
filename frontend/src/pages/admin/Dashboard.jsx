@@ -30,6 +30,7 @@ import AdminReportesGeneral from './AdminReportesGeneral';
 import AdminReportesTemas from './AdminReportesTemas';
 import AdminReportesNotas from './AdminReportesNotas';
 import DashboardCharts from './DashboardCharts';
+import { useColegio } from '../../context/ColegioContext';
 const PSICOLOGA_RUTAS_ADMIN = [
   '/admin/psicologia',
   '/admin/usuarios/alumnos',
@@ -103,6 +104,7 @@ const coloresPasteles = [
 
 function Dashboard() {
   const { user } = useAuth();
+  const { mascotaNombre } = useColegio();
   const [stats, setStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [kpis, setKpis] = useState(null);
@@ -557,10 +559,10 @@ function Dashboard() {
         <div className="dashboard-container">
           <div className="dashboard-welcome">
             <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
-              {currentRouteInfo.icon} {currentRouteInfo.title}
+              {currentRouteInfo.icon} {String(currentRouteInfo.title || '').split('Vanguarcito').join(mascotaNombre)}
             </h1>
             <p style={{ fontSize: '1.1rem', color: '#6b7280' }}>
-              {currentRouteInfo.description}
+              {String(currentRouteInfo.description || '').split('Vanguarcito').join(mascotaNombre)}
             </p>
           </div>
 

@@ -44,8 +44,23 @@ function listMascotaAssets() {
     .filter((x) => x.url);
 }
 
-function seleccionarMascotasUnicas(trabajoId, cantidad) {
-  const all = listMascotaAssets();
+function dataUriDeRuta(fsPath) {
+  if (!fsPath || !fs.existsSync(fsPath)) return null;
+  const ext = path.extname(fsPath).toLowerCase();
+  const mime = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : ext === '.webp' ? 'image/webp' : 'image/png';
+  return `data:${mime};base64,${fs.readFileSync(fsPath).toString('base64')}`;
+}
+
+function poolPorDefecto() {
+  return listMascotaAssets().map((x) => ({
+    archivo: x.archivo,
+    fsPath: path.join(assetsDir, x.archivo),
+    url: x.url,
+  }));
+}
+
+function seleccionarMascotasUnicas(trabajoId, cantidad, poolExterno) {
+  const all = Array.isArray(poolExterno) && poolExterno.length ? poolExterno : poolPorDefecto();
   if (!all.length) return [];
 
   const seed = Number(trabajoId) || 1;
@@ -62,9 +77,18 @@ function seleccionarMascotasUnicas(trabajoId, cantidad) {
   return elegidas;
 }
 
+function srcMascotaItem(item, inlineAssets) {
+  if (!item) return null;
+  const fsPath = item.fsPath || (item.archivo ? path.join(assetsDir, item.archivo) : null);
+  if (inlineAssets) return dataUriDeRuta(fsPath);
+  if (item.url) return item.url;
+  if (item.archivo && fsPath && fs.existsSync(fsPath)) return urlAssets(item.archivo);
+  return null;
+}
+
 /** Asigna mascotas sin repetir archivo en toda la ficha. */
-function crearAsignadorMascotas(trabajoId) {
-  const pool = seleccionarMascotasUnicas(trabajoId, MAX_MASCOTAS_POOL);
+function crearAsignadorMascotas(trabajoId, poolExterno) {
+  const pool = seleccionarMascotasUnicas(trabajoId, MAX_MASCOTAS_POOL, poolExterno);
   let cursor = 0;
   const usados = new Set();
 
@@ -217,16 +241,21 @@ function enriquecerTeoriaMatematica(teoria, ctx) {
 /**
  * @param {object} ctx — titulo, actividades, trabajoId, usoVanguarcito, inlineAssets, grupoEtiqueta
  */
-function renderFichaHtml(ctx, archivoPlantilla) {
+function renderFichaHtml(ctxIn, archivoPlantilla) {
+  const ctx = {
+    ...ctxIn,
+    nombreMascota: String(ctxIn?.nombreMascota || '').trim() || 'Vanguarcito',
+    colegioNombre: String(ctxIn?.colegioNombre || '').trim() || 'Vanguard Schools',
+  };
   const plantilla =
     archivoPlantilla ||
     (ctx.esMatematica ? 'plantilla-vanguard-matematica.hbs' : DEFAULT_TEMPLATE);
   const compile = loadTemplate(plantilla);
   const inline = ctx.inlineAssets !== false;
   const logoUrl = assetSrc('logo-vanguard.png', inline);
-  const mascotas = crearAsignadorMascotas(ctx.trabajoId);
+  const mascotas = crearAsignadorMascotas(ctx.trabajoId, ctx.mascotasPool);
 
-  const urlMascota = (m) => (m?.archivo ? assetSrc(m.archivo, inline) : null);
+  const urlMascota = (m) => srcMascotaItem(m, inline);
 
   // Plantilla tipada GUÍA + PRÁCTICA
   if (esPlantillaGuiaPractica(plantilla) && !ctx.esMatematica) {

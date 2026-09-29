@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
+import { useAuth } from './AuthContext';
 
 const ColegioContext = createContext();
 
@@ -12,15 +13,20 @@ export const useColegio = () => {
 };
 
 export const ColegioProvider = ({ children, colegioId = 1 }) => {
+  const { user } = useAuth();
+  const id = Number(user?.colegio_id) || Number(colegioId) || 1;
   const [colegioData, setColegioData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [tick, setTick] = useState(0);
+
+  const recargarColegio = useCallback(() => setTick((n) => n + 1), []);
 
   useEffect(() => {
     const obtenerDatosColegio = async () => {
       try {
         setLoading(true);
-        const response = await api.get(`/colegio/${colegioId}`);
+        const response = await api.get(`/colegio/${id}`);
         setColegioData(response.data);
         setError(null);
       } catch (err) {
@@ -38,6 +44,8 @@ export const ColegioProvider = ({ children, colegioId = 1 }) => {
           logo: null,
           color_principal: null,
           color_secundario: null,
+          mascota_nombre: 'Vanguarcito',
+          mascota_imagen: null,
         });
       } finally {
         setLoading(false);
@@ -45,7 +53,7 @@ export const ColegioProvider = ({ children, colegioId = 1 }) => {
     };
 
     obtenerDatosColegio();
-  }, [colegioId]);
+  }, [id, tick]);
 
   // Aplicar variables CSS globales basadas en configuración del colegio
   useEffect(() => {
@@ -99,6 +107,9 @@ export const ColegioProvider = ({ children, colegioId = 1 }) => {
     colorPrincipal: colegioData?.color_principal || null,
     colorSecundario: colegioData?.color_secundario || null,
     anioActivo: colegioData?.anio_activo || null,
+    mascotaNombre: String(colegioData?.mascota_nombre || '').trim() || 'Vanguarcito',
+    mascotaImagen: colegioData?.mascota_imagen || null,
+    recargarColegio,
   };
 
   return (

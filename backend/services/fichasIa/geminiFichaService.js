@@ -73,17 +73,18 @@ async function llamarGemini(apiKey, modelo, body, timeout = 120000) {
   throw ultimoErr;
 }
 
-function errorGeminiAmigable(err, modelo) {
+function errorGeminiAmigable(err, modelo, nombreMascota) {
   const status = err.response?.status;
   const googleMsg = extraerErrorGoogle(err);
+  const quien = String(nombreMascota || '').trim() || 'Vanguarcito';
   if (status === 429) {
-    const e = new Error(`Vanguarcito: límite (429). ${googleMsg}`);
+    const e = new Error(`${quien}: límite (429). ${googleMsg}`);
     e.code = 'GEMINI_RATE_LIMIT';
     return e;
   }
   if (status === 403) {
     const e = new Error(
-      `Vanguarcito rechazó la clave (403) con modelo ${modelo}. ${googleMsg} Active «Generative Language API» en Google Cloud para el proyecto de la API key.`
+      `${quien} rechazó la clave (403) con modelo ${modelo}. ${googleMsg} Active «Generative Language API» en Google Cloud para el proyecto de la API key.`
     );
     e.code = 'GEMINI_FORBIDDEN';
     return e;
@@ -98,7 +99,7 @@ function errorGeminiAmigable(err, modelo) {
     e.code = 'GEMINI_BAD_REQUEST';
     return e;
   }
-  const e = new Error(`Vanguarcito (${status || 'sin código'}) en ${modelo}: ${googleMsg}`);
+  const e = new Error(`${quien} (${status || 'sin código'}) en ${modelo}: ${googleMsg}`);
   e.code = 'GEMINI_ERROR';
   return e;
 }
@@ -107,12 +108,18 @@ function errorGeminiAmigable(err, modelo) {
  * Pide a Vanguarcito (Gemini) GUÍA tipada (7 bloques) + FICHA DE APLICACIÓN tipada (7 actividades).
  * La maquetación visual la hace la plantilla; aquí solo contenido.
  */
-function buildPromptGeneral({ titulo, grado, area, unidad, puntosClave, textoOrigen, instruccionesDocente }) {
+function lineaMascota(nombreMascota) {
+  const n = String(nombreMascota || '').trim() || 'Vanguarcito';
+  return `La mascota del colegio se llama ${n}. Si el texto nombra una mascota, usa solo ese nombre.`;
+}
+
+function buildPromptGeneral({ titulo, grado, area, unidad, puntosClave, textoOrigen, instruccionesDocente, nombreMascota }) {
   const bloqueInstrucciones = instruccionesDocente
     ? `\nInstrucciones del docente (prioridad alta):\n${instruccionesDocente.slice(0, 4000)}\n`
     : '';
 
-  return `Eres Vanguarcito, didáctica para colegios en Perú. Genera SOLO JSON válido (sin markdown).
+  return `Eres ${String(nombreMascota || '').trim() || 'Vanguarcito'}, didáctica para colegios en Perú. Genera SOLO JSON válido (sin markdown).
+${lineaMascota(nombreMascota)}
 
 Debes armar DOS hojas escolares tipadas (como ficha institucional de alta calidad):
 1) GUÍA (infografía de estudio, 7 bloques fijos)
@@ -245,12 +252,13 @@ ${(textoOrigen || '').slice(0, 12000)}
 ---`;
 }
 
-function buildPromptMatematica({ titulo, grado, area, unidad, puntosClave, textoOrigen, instruccionesDocente }) {
+function buildPromptMatematica({ titulo, grado, area, unidad, puntosClave, textoOrigen, instruccionesDocente, nombreMascota }) {
   const bloqueInstrucciones = instruccionesDocente
     ? `\nInstrucciones del docente:\n${instruccionesDocente.slice(0, 4000)}\n`
     : '';
 
-  return `Eres especialista en didáctica de MATEMÁTICA para colegios en Perú (Vanguarcito). Genera SOLO JSON válido.
+  return `Eres especialista en didáctica de MATEMÁTICA para colegios en Perú (${String(nombreMascota || '').trim() || 'Vanguarcito'}). Genera SOLO JSON válido.
+${lineaMascota(nombreMascota)}
 
 La HOJA 2 es ficha de MATEMÁTICA: mínimo 10 ejercicios numéricos en esta misma ficha (nunca cuaderno ni libreta).
 
@@ -321,6 +329,7 @@ async function estructurarContenidoConGemini({
   puntosClave,
   instruccionesDocente,
   estiloFicha = 'general',
+  nombreMascota,
 }) {
   const apiKey = process.env.GOOGLE_AI_API_KEY;
   if (!apiKey) {
@@ -338,6 +347,7 @@ async function estructurarContenidoConGemini({
         puntosClave,
         textoOrigen,
         instruccionesDocente,
+        nombreMascota,
       })
     : buildPromptGeneral({
         titulo,
@@ -347,6 +357,7 @@ async function estructurarContenidoConGemini({
         puntosClave,
         textoOrigen,
         instruccionesDocente,
+        nombreMascota,
       });
 
   const body = {
@@ -368,7 +379,7 @@ async function estructurarContenidoConGemini({
       modeloUsado = res.modelo;
       break;
     } catch (err) {
-      const amig = errorGeminiAmigable(err, modelo);
+      const amig = errorGeminiAmigable(err, modelo, nombreMascota);
       errores.push(amig.message);
       if (amig.code !== 'GEMINI_MODEL_NOT_FOUND' && amig.code !== 'GEMINI_BAD_REQUEST') {
         throw amig;
@@ -393,7 +404,7 @@ async function estructurarContenidoConGemini({
     const cleaned = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
     parsed = JSON.parse(cleaned);
   } catch (e) {
-    const err = new Error('Vanguarcito no devolvió una respuesta válida');
+    const err = new Error(`${String(nombreMascota || '').trim() || 'Vanguarcito'} no devolvió una respuesta válida`);
     err.code = 'GEMINI_JSON_INVALID';
     err.raw = text.slice(0, 500);
     throw err;
@@ -777,7 +788,7 @@ function contenidoDesdeFormulario({ titulo, puntosClave, textoOrigen, area, esti
 }
 
 /** Prueba real contra la API (no solo que exista la variable en .env). */
-async function probarConexionVanguarcito() {
+async function probarConexionVanguarcito(nombreMascota) {
   const key = String(process.env.GOOGLE_AI_API_KEY || '').trim();
   if (!key) {
     return {
@@ -799,13 +810,13 @@ async function probarConexionVanguarcito() {
       return {
         ok: true,
         codigo: 'OK',
-        mensaje: 'Vanguarcito respondió correctamente. Puede generar fichas con IA.',
+        mensaje: `${String(nombreMascota || '').trim() || 'Vanguarcito'} respondió correctamente. Puede generar fichas con IA.`,
         modelo,
         clave_sufijo: sufijo,
         modelos_probados: modelosAProbar(),
       };
     } catch (err) {
-      const amig = errorGeminiAmigable(err, modelo);
+      const amig = errorGeminiAmigable(err, modelo, nombreMascota);
       errores.push(amig.message);
       if (amig.code !== 'GEMINI_MODEL_NOT_FOUND' && amig.code !== 'GEMINI_BAD_REQUEST') {
         return {

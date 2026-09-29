@@ -319,6 +319,7 @@ const herramientasExamenesRoutes = require('./routes/herramientasExamenes.routes
 const vocabulariosRoutes = require('./routes/vocabularios.routes');
 const eleccionesRoutes = require('./routes/elecciones.routes');
 const fichasIaRoutes = require('./routes/fichasIa.routes');
+const mascotaColegioRoutes = require('./routes/mascotaColegio.routes');
 
 const docentePsicologiaRoutes = require('./routes/docente.psicologia.routes');
 const { mountTutoriaGeneral } = require('./routes/tutoriaGeneral.mount');
@@ -399,6 +400,7 @@ app.use('/api/herramientas-examenes', herramientasExamenesRoutes);
 app.use('/api/vocabularios', vocabulariosRoutes);
 app.use('/api/elecciones', eleccionesRoutes);
 app.use('/api/fichas-ia', fichasIaRoutes);
+app.use('/api/mascota-colegio', mascotaColegioRoutes);
 const reunionesRoutes = require('./routes/reuniones.routes');
 app.use('/api/reuniones', reunionesRoutes);
 

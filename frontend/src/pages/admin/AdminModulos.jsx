@@ -1,11 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import api from '../../services/api';
 import { useModulos } from '../../context/ModulosContext';
+import { useColegio } from '../../context/ColegioContext';
 import { MODULOS } from '../../utils/modulosSistema';
 import './AdminModulos.css';
 
 export default function AdminModulos() {
   const { estados, activo, setEstados } = useModulos();
+  const { mascotaNombre } = useColegio();
   const [guardando, setGuardando] = useState('');
   const [error, setError] = useState('');
 
@@ -51,7 +53,7 @@ export default function AdminModulos() {
               const on = activo(item.clave);
               return (
                 <li key={item.clave}>
-                  <span>{item.nombre}</span>
+                  <span>{item.clave === 'herramientas.vanguarcito' ? mascotaNombre : item.nombre}</span>
                   <button
                     type="button"
                     className={on ? 'modulos-switch is-on' : 'modulos-switch'}

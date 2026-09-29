@@ -196,12 +196,13 @@ function htmlSeguro(raw) {
     .replace(/<p>\s*(?:<br>\s*)*<\/p>/gi, '');
 }
 
-function htmlMaterial({ ses, colegio, grupo, fecha, parte }) {
+function htmlMaterial({ ses, colegio, grupo, fecha, parte, mascotaUri, nombreMascota }) {
   const esFicha = parte === 'ficha';
   const cuerpo = htmlSeguro(esFicha ? ses.ficha_estudiante : ses.material_teoria);
   if (!cuerpo.trim()) return '';
   const logo = logoData();
-  const vanguarcito = uriAsset('vanguarcito.png');
+  const vanguarcito = mascotaUri || uriAsset('vanguarcito.png');
+  const etiquetaMascota = esc(nombreMascota || 'Vanguarcito');
   const aula = [grupo?.grado, grupo?.seccion].filter((x) => x != null && String(x).trim()).join(' ');
   const curso = ses.curso_nombre || ses.area_nombre || '';
   const kicker = esFicha ? 'Ficha de trabajo' : 'Para leer';
@@ -223,10 +224,12 @@ function htmlMaterial({ ses, colegio, grupo, fecha, parte }) {
   .marco { border: 3px solid #059669; }
   .banda { height: 6px; background: linear-gradient(90deg, #059669, #2563eb, #059669); }
   .inner { padding: 14px 16px 16px; }
-  .cab { display: grid; grid-template-columns: 72px 1fr 72px; gap: 10px; align-items: center;
+  .cab { display: grid; grid-template-columns: 72px 1fr 88px; gap: 10px; align-items: center;
     padding: 10px 12px; border-radius: 12px; background: linear-gradient(135deg, #ecfdf5, #eff6ff);
     border: 1px solid #a7f3d0; }
   .cab img { height: 58px; width: 72px; object-fit: contain; }
+  .mascota-cab { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .mascota-cab span { font-size: 9px; font-weight: 800; color: #047857; text-align: center; line-height: 1.15; }
   .kicker { margin: 0; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #047857; font-weight: 800; }
   h1 { margin: 2px 0 0; font-size: 18px; line-height: 1.25; color: #065f46; }
   .unidad { margin: 3px 0 0; font-size: 12px; color: #1d4ed8; font-weight: 700; }
@@ -253,7 +256,7 @@ function htmlMaterial({ ses, colegio, grupo, fecha, parte }) {
       ${unidad ? `<p class="unidad">${unidad}</p>` : ''}
       <p class="meta">${meta}</p>
     </div>
-    ${vanguarcito ? `<img src="${vanguarcito}" alt="" />` : '<span></span>'}
+    ${vanguarcito ? `<div class="mascota-cab"><img src="${vanguarcito}" alt="" /><span>${etiquetaMascota}</span></div>` : '<span></span>'}
   </header>
   ${datos}
   <div class="prosa">${cuerpo}</div>
@@ -263,7 +266,17 @@ function htmlMaterial({ ses, colegio, grupo, fecha, parte }) {
 }
 
 async function bufferPdfBonito({ ses, colegio, grupo, fecha, parte }) {
-  const html = htmlMaterial({ ses, colegio, grupo, fecha, parte });
+  let mascotaUri = null;
+  let nombreMascota = 'Vanguarcito';
+  try {
+    const { leerMascota, dataUriDe } = require('./mascotaColegio');
+    const mascota = await leerMascota(colegio?.id || 1);
+    nombreMascota = mascota.nombre;
+    mascotaUri = dataUriDe(mascota.imagen_fs);
+  } catch (_) {
+    /* sigue el dibujo de siempre */
+  }
+  const html = htmlMaterial({ ses, colegio, grupo, fecha, parte, mascotaUri, nombreMascota });
   if (!html) return null;
   const pdfPath = path.join(os.tmpdir(), `cneb-${parte}-${ses.id}-${Date.now()}.pdf`);
   await htmlStringToPdf(html, pdfPath, {

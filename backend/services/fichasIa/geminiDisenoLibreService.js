@@ -95,11 +95,36 @@ function leerAsset(filename) {
   return { filename, mime, base64, dataUri: `data:${mime};base64,${base64}` };
 }
 
-function elegirMascota(banda, trabajoId) {
+function leerRuta(fsPath, filename) {
+  if (!fsPath || !fs.existsSync(fsPath)) return null;
+  const buf = fs.readFileSync(fsPath);
+  const ext = path.extname(fsPath).toLowerCase();
+  const mime = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : ext === '.webp' ? 'image/webp' : 'image/png';
+  const base64 = buf.toString('base64');
+  return { filename: filename || path.basename(fsPath), mime, base64, dataUri: `data:${mime};base64,${base64}` };
+}
+
+function elegirMascota(banda, trabajoId, principalFs) {
   const pool = POOLS_MASCOTA[banda] || POOLS_MASCOTA.intermedio;
   const idx = Math.abs(Number(trabajoId) || 1) % pool.length;
   for (let i = 0; i < pool.length; i += 1) {
-    const asset = leerAsset(pool[(idx + i) % pool.length]);
+    const nombre = pool[(idx + i) % pool.length];
+    if (nombre === 'vanguarcito.png' && principalFs) {
+      const propia = leerRuta(principalFs);
+      if (propia) return propia;
+    }
+    const asset = leerAsset(nombre);
+    if (asset) return asset;
+  }
+  return null;
+}
+
+function elegirDeLista(lista, trabajoId) {
+  if (!lista?.length) return null;
+  const idx = Math.abs(Number(trabajoId) || 1) % lista.length;
+  for (let i = 0; i < lista.length; i += 1) {
+    const item = lista[(idx + i) % lista.length];
+    const asset = leerRuta(item.fsPath, item.archivo);
     if (asset) return asset;
   }
   return null;
@@ -149,6 +174,7 @@ async function generarGuionOrtografico({
   instruccionesDocente,
   banda,
   esMath,
+  nombreMascota,
 }) {
   const bloqueMath = esMath
     ? `
@@ -158,7 +184,8 @@ Incluye en practica:
 `
     : '';
 
-  const prompt = `Eres corrector y didacta en español de Perú. SOLO JSON válido.
+  const quien = String(nombreMascota || '').trim() || 'Vanguarcito';
+  const prompt = `Eres corrector y didacta en español de Perú. La mascota del colegio se llama ${quien}. Si el texto nombra una mascota, usa solo ese nombre. SOLO JSON válido.
 
 Tema: ${titulo || 'Tema'}
 Grado: ${grado || grupoEtiqueta || '—'}
@@ -364,9 +391,19 @@ async function generarHtmlDisenoLibre(params) {
 
   const banda = bandaEdadDesdeGrado(grado, grupoEtiqueta);
   const esMath = esTemaMatematica(area, titulo);
+  const colegioId = params.colegioId || 1;
+  const { dibujosPropiosHoja, rutaPrincipalSiPropia, leerMascota } = require('../../utils/mascotaColegio');
+  const propios = await dibujosPropiosHoja(colegioId);
+  const principalPropia = propios ? null : await rutaPrincipalSiPropia(colegioId);
+  const mascotaColegio = await leerMascota(colegioId);
+  const nombreMascota = mascotaColegio.nombre;
   const logo = leerAsset('logo-vanguard.png');
-  const mascota = elegirMascota(banda, trabajoId);
-  const mascota2 = elegirMascota(banda, (Number(trabajoId) || 1) + 3);
+  const mascota = propios
+    ? elegirDeLista(propios, trabajoId)
+    : elegirMascota(banda, trabajoId, principalPropia);
+  const mascota2 = propios
+    ? elegirDeLista(propios, (Number(trabajoId) || 1) + 3)
+    : elegirMascota(banda, (Number(trabajoId) || 1) + 3, principalPropia);
   const referencia = leerAsset('referencia-estilo-guia.png');
 
   let tokensIn = 0;
@@ -385,6 +422,7 @@ async function generarHtmlDisenoLibre(params) {
     instruccionesDocente,
     banda,
     esMath,
+    nombreMascota,
   });
   tokensIn += guionRes.tokens_entrada || 0;
   tokensOut += guionRes.tokens_salida || 0;
@@ -460,9 +498,10 @@ async function generarHtmlDisenoLibre(params) {
       mascotaImpUrl: mascota?.dataUri || null,
       mascotaRecuerdaUrl: mascota2?.dataUri || null,
       usoVanguarcito: true,
+      nombreMascota,
       inlineAssets: true,
       esMatematica: false,
-      colegioNombre: (await leerIdentidadColegio(1).catch(() => null))?.titulo || 'Vanguard Schools',
+      colegioNombre: (await leerIdentidadColegio(colegioId).catch(() => null))?.titulo || 'Vanguard Schools',
     },
     'plantilla-vanguard-guia-practica.hbs'
   );

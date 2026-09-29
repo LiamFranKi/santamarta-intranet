@@ -30,6 +30,7 @@ const {
   etiquetaGrupo,
 } = require('../services/fichasIa/fichasIaMeta');
 const { urlMascotaVanguarcito } = require('../services/fichasIa/fichasIaMascota');
+const { leerMascota, dibujosPropiosHoja } = require('../utils/mascotaColegio');
 const {
   jsonParaMysql,
   tipoSeccionDesdeActividad,
@@ -42,6 +43,19 @@ ensureFichasIaDirs();
 
 const puedeUsar = (tipo) =>
   tipo === 'ADMINISTRADOR' || tipo === 'DOCENTE' || tipo === 'PROMOTORIA';
+
+async function contextoMascota(req) {
+  const colegioId = Number(req.user?.colegio_id) || 1;
+  const mascota = await leerMascota(colegioId);
+  const colegioNombre = (await leerIdentidadColegio(colegioId).catch(() => null))?.titulo || 'Vanguard Schools';
+  return {
+    colegioId,
+    nombre: mascota.nombre,
+    imagenUrl: mascota.imagen_url || urlMascotaVanguarcito(),
+    colegioNombre,
+    mascotasPool: await dibujosPropiosHoja(colegioId),
+  };
+}
 
 const uploadOrigen = multer({
   storage: multer.diskStorage({
@@ -82,9 +96,10 @@ router.get('/config', async (req, res) => {
       [colegio_id]
     );
     const tieneClave = geminiDisponible();
+    const mascota = await contextoMascota(req);
     let verificacion = null;
     if (req.query.verificar === '1' && tieneClave) {
-      verificacion = await probarConexionVanguarcito();
+      verificacion = await probarConexionVanguarcito(mascota.nombre);
       if (verificacion && verificacion.clave_sufijo) {
         verificacion = { ok: verificacion.ok, codigo: verificacion.codigo, mensaje: verificacion.mensaje, modelo: verificacion.modelo };
       }
@@ -96,7 +111,8 @@ router.get('/config', async (req, res) => {
       verificacion,
       plantillas: plantillas || [],
       estilos_ficha: listarEstilosFicha(),
-      mascota_vanguarcito_url: urlMascotaVanguarcito(),
+      mascota_nombre: mascota.nombre,
+      mascota_vanguarcito_url: mascota.imagenUrl,
     });
   } catch (e) {
     console.error('[fichas-ia/config]', e);
@@ -106,7 +122,7 @@ router.get('/config', async (req, res) => {
 
 router.get('/vanguarcito/probar', async (req, res) => {
   try {
-    const resultado = await probarConexionVanguarcito();
+    const resultado = await probarConexionVanguarcito((await contextoMascota(req)).nombre);
     res.json(resultado);
   } catch (e) {
     console.error('[fichas-ia/vanguarcito/probar]', e);
@@ -217,7 +233,7 @@ router.get('/trabajos', async (req, res) => {
       generado_con:
         r.ia_proveedor === 'google'
           ? 'vanguarcito'
-          : r.error_mensaje && String(r.error_mensaje).includes('Vanguarcito')
+          : r.error_mensaje && String(r.error_mensaje).includes('Se usó modo formulario')
             ? 'vanguarcito_parcial'
             : 'formulario',
       tipo_ficha: esPlantillaMatematica(r.plantilla_codigo) ? 'Matemática' : 'General',
@@ -476,8 +492,9 @@ router.post('/trabajos', uploadOrigen.single('archivo_pdf'), async (req, res) =>
     await upsertSeccionCustom(trabajoId, 'Modo diseño', { modo_diseno });
 
     if (usar_ia && !geminiDisponible()) {
+      const mascotaCtx = await contextoMascota(req);
       return res.status(400).json({
-        error: 'Vanguarcito no está disponible. El administrador debe activarlo en el servidor.',
+        error: `${mascotaCtx.nombre} no está disponible. El administrador debe activarlo en el servidor.`,
         trabajo_id: trabajoId,
       });
     }
@@ -499,6 +516,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
     const trabajoId = parseInt(req.params.id, 10);
     const trabajo = await cargarTrabajo(req, trabajoId, { requierePropiedad: true });
     if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado o sin permiso' });
+    const mascotaCtx = await contextoMascota(req);
 
     if (
       req.user.tipo === 'DOCENTE' &&
@@ -595,7 +613,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
     if (modoDiseno === 'libre') {
       if (!geminiDisponible()) {
         return res.status(400).json({
-          error: 'Diseño libre requiere Vanguarcito (GOOGLE_AI_API_KEY en el servidor).',
+          error: `Diseño libre requiere ${mascotaCtx.nombre} (GOOGLE_AI_API_KEY en el servidor).`,
         });
       }
       try {
@@ -609,6 +627,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
           textoOrigen,
           instruccionesDocente,
           trabajoId,
+          colegioId: mascotaCtx.colegioId,
         });
         tokens_entrada = libre.tokens_entrada;
         tokens_salida = libre.tokens_salida;
@@ -669,6 +688,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
           puntosClave,
           instruccionesDocente,
           estiloFicha: estiloPlantilla,
+          nombreMascota: mascotaCtx.nombre,
         });
         contenido = gem.contenido;
         tokens_entrada = gem.tokens_entrada;
@@ -693,14 +713,14 @@ router.post('/trabajos/:id/generar', async (req, res) => {
         });
         await execute(
           `UPDATE fichas_ia_trabajos SET error_mensaje = ? WHERE id = ?`,
-          [`Vanguarcito: ${aviso_ia}. Se usó modo formulario.`, trabajoId]
+          [`${mascotaCtx.nombre}: ${aviso_ia}. Se usó modo formulario.`, trabajoId]
         );
       }
     } else {
       const motivo = !geminiDisponible()
         ? 'No hay GOOGLE_AI_API_KEY en el servidor (backend/.env).'
         : !usar_ia
-          ? 'Generación sin Vanguarcito (casilla desmarcada).'
+          ? `Generación sin ${mascotaCtx.nombre} (casilla desmarcada).`
           : 'Modo sin IA forzado.';
       await execute(
         `UPDATE fichas_ia_trabajos SET error_mensaje = ? WHERE id = ?`,
@@ -745,8 +765,10 @@ router.post('/trabajos/:id/generar', async (req, res) => {
       ilustraciones: contenido.ilustraciones,
       contenido,
       usoVanguarcito: ia_proveedor === 'google',
+      nombreMascota: mascotaCtx.nombre,
+      mascotasPool: mascotaCtx.mascotasPool,
       inlineAssets: true,
-      colegioNombre: (await leerIdentidadColegio(1).catch(() => null))?.titulo || 'Vanguard Schools',
+      colegioNombre: mascotaCtx.colegioNombre,
     };
 
     try {
@@ -869,6 +891,7 @@ router.get('/trabajos/:id/preview-html', async (req, res) => {
       [trabajo.plantilla_id]
     );
     const esMat = esPlantillaMatematica(plantillaRows[0]?.codigo);
+    const vista = await contextoMascota(req);
     const html = renderFichaHtml(
       {
         trabajoId: trabajo.id,
@@ -891,8 +914,10 @@ router.get('/trabajos/:id/preview-html', async (req, res) => {
         ilustraciones: contenido.ilustraciones || contenido.teoria?.ilustraciones,
         contenido,
         usoVanguarcito: trabajo.ia_proveedor === 'google',
+        nombreMascota: vista.nombre,
+        mascotasPool: vista.mascotasPool,
         inlineAssets: true,
-        colegioNombre: (await leerIdentidadColegio(1).catch(() => null))?.titulo || 'Vanguard Schools',
+        colegioNombre: vista.colegioNombre,
       },
       esMat
         ? plantillaRows[0]?.archivo_plantilla || metaEstilo('matematica').archivo

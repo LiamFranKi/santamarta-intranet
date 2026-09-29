@@ -109,8 +109,25 @@ function ChatVanguardSidebarItem() {
   );
 }
 
+function IconoMascotaMenu() {
+  const { mascotaImagen } = useColegio();
+  const [falla, setFalla] = useState(false);
+  if (!mascotaImagen || falla) {
+    return <span className="sidebar-icon" aria-hidden>🤖</span>;
+  }
+  return (
+    <img
+      src={mascotaImagen}
+      alt=""
+      className="sidebar-icon sidebar-icon-mascota"
+      onError={() => setFalla(true)}
+    />
+  );
+}
+
 function VanguarcitoSidebarItem() {
   const { activo } = useModulos();
+  const { mascotaNombre } = useColegio();
   if (!activo('herramientas.vanguarcito')) return null;
   return (
     <div className="sidebar-item">
@@ -118,8 +135,8 @@ function VanguarcitoSidebarItem() {
         className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
         to="/admin/vanguarcito"
       >
-        <span className="sidebar-icon">🤖</span>
-        <span className="sidebar-label">Vanguarcito</span>
+        <IconoMascotaMenu />
+        <span className="sidebar-label">{mascotaNombre}</span>
       </NavLink>
     </div>
   );
@@ -513,7 +530,7 @@ export default function DashboardLayout({ children }) {
     return `${protocol}//${hostname}`;
   }, []); // Solo calcular una vez al montar el componente
 
-  const { logoBlanco, textoIntranet } = useColegio();
+  const { logoBlanco, textoIntranet, mascotaNombre } = useColegio();
   const marcaIntranet = (textoIntranet || '').trim() || 'VanguardNet';
   const logoUrl = useMemo(() => {
     if (logoBlanco) {
@@ -2131,8 +2148,8 @@ export default function DashboardLayout({ children }) {
                     }
                     to="/admin/vanguarcito"
                   >
-                    <span className="sidebar-icon" aria-hidden>🤖</span>
-                    <span className="sidebar-label">Vanguarcito</span>
+                    <IconoMascotaMenu />
+                    <span className="sidebar-label">{mascotaNombre}</span>
                   </NavLink>
                   )}
                 </div>

@@ -80,9 +80,18 @@ function enlazarFallbackEmojiEnSwal() {
   };
 }
 
-function abrirSwalGenerandoFicha(mascotaUrl, conIa) {
+function escHtml(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function abrirSwalGenerandoFicha(mascotaUrl, conIa, nombre) {
+  const quien = escHtml(String(nombre || '').trim() || 'Vanguarcito');
   const texto = conIa
-    ? 'Vanguarcito organiza la teoría y los ejercicios. Luego el servidor genera tu PDF.'
+    ? `${quien} organiza la teoría y los ejercicios. Luego el servidor genera tu PDF.`
     : 'Maquetando tu ficha desde el formulario (sin IA).';
   const hint = conIa ? 'Puede tardar 1–2 minutos · no cierre esta ventana' : 'Hasta 1 minuto · no cierre esta ventana';
 
@@ -91,9 +100,9 @@ function abrirSwalGenerandoFicha(mascotaUrl, conIa) {
       <div class="fia-swal-carga">
         <div class="fia-swal-mascota-wrap">
           <div class="fia-swal-aura" aria-hidden="true"></div>
-          <img src="${mascotaUrl}" alt="Vanguarcito trabajando" class="fia-swal-mascota" />
+          <img src="${mascotaUrl}" alt="" class="fia-swal-mascota" />
         </div>
-        <h3 class="fia-swal-titulo">${conIa ? 'Vanguarcito está creando tu ficha' : 'Generando tu ficha'}</h3>
+        <h3 class="fia-swal-titulo">${conIa ? `${quien} está creando tu ficha` : 'Generando tu ficha'}</h3>
         <p class="fia-swal-texto">${texto}</p>
         <div class="fia-swal-bar"><div class="fia-swal-bar-inner"></div></div>
         <p class="fia-swal-hint">${hint}</p>
@@ -116,7 +125,7 @@ function abrirSwalGenerandoFicha(mascotaUrl, conIa) {
 const ESTADO_LABEL = {
   BORRADOR: 'Borrador',
   EXTRAYENDO: 'Extrayendo PDF…',
-  IA_PROCESANDO: 'Vanguarcito…',
+  IA_PROCESANDO: 'Preparando…',
   MAQUETANDO: 'Maquetando…',
   LISTO: 'Listo',
   ERROR: 'Error',
@@ -189,7 +198,9 @@ export default function DisenadorFichas() {
     verificacion: null,
     tiene_clave_servidor: false,
     mascota_vanguarcito_url: urlMascotaVanguarcitoPorDefecto(),
+    mascota_nombre: 'Vanguarcito',
   }));
+  const nombreIa = String(config.mascota_nombre || '').trim() || 'Vanguarcito';
   const [trabajos, setTrabajos] = useState([]);
   const [opcionesGrupo, setOpcionesGrupo] = useState([]);
   const [cursosGrupo, setCursosGrupo] = useState([]);
@@ -440,7 +451,7 @@ export default function DisenadorFichas() {
 
       const usaIa =
         form.modo_diseno === 'libre' || (form.usar_ia && config.vanguarcito_disponible);
-      abrirSwalGenerandoFicha(urlMascotaVanguarcito(config), usaIa);
+      abrirSwalGenerandoFicha(urlMascotaVanguarcito(config), usaIa, nombreIa);
 
       const { data: gen } = await api.post(
         `/fichas-ia/trabajos/${trabajoId}/generar`,
@@ -458,7 +469,7 @@ export default function DisenadorFichas() {
       if (gen?.aviso_ia) {
         await Swal.fire({
           icon: 'warning',
-          title: 'Ficha creada sin Vanguarcito',
+          title: `Ficha creada sin ${nombreIa}`,
           text: `Se usó el formulario automático (no la IA).\n\nMotivo:\n${gen.aviso_ia}`,
           confirmButtonText: 'Entendido',
         });
@@ -466,7 +477,7 @@ export default function DisenadorFichas() {
 
       await Swal.fire({
         icon: gen?.aviso_ia ? 'info' : 'success',
-        title: gen?.uso_vanguarcito ? 'Ficha lista (con Vanguarcito)' : 'Ficha lista',
+        title: gen?.uso_vanguarcito ? `Ficha lista (con ${nombreIa})` : 'Ficha lista',
         showCancelButton: true,
         confirmButtonText: 'Vista previa',
         cancelButtonText: 'Cerrar',
@@ -484,7 +495,7 @@ export default function DisenadorFichas() {
         text: esTimeout
           ? 'La generación tardó más de lo esperado. Espere 1 minuto, recargue la página y revise si la ficha quedó en Listo o Maquetando; si sigue atascada, regenere de nuevo.'
           : det.includes('429') || det.includes('límite')
-            ? `${det} Puede desmarcar «Usar Vanguarcito» e intentar de nuevo.`
+            ? `${det} Puede desmarcar «Usar ${nombreIa}» e intentar de nuevo.`
             : det,
       });
       await cargarTrabajos();
@@ -496,7 +507,7 @@ export default function DisenadorFichas() {
   const regenerar = async (row) => {
     const ok = await Swal.fire({
       icon: 'question',
-      title: '¿Regenerar esta ficha con Vanguarcito?',
+      title: `¿Regenerar esta ficha con ${nombreIa}?`,
       text: 'Se volverá a procesar el contenido y el PDF.',
       showCancelButton: true,
       confirmButtonText: 'Regenerar',
@@ -504,7 +515,7 @@ export default function DisenadorFichas() {
     if (!ok.isConfirmed) return;
     setGenerando(true);
     try {
-      abrirSwalGenerandoFicha(urlMascotaVanguarcito(config), config.vanguarcito_disponible);
+      abrirSwalGenerandoFicha(urlMascotaVanguarcito(config), config.vanguarcito_disponible, nombreIa);
       await api.post(
         `/fichas-ia/trabajos/${row.id}/generar`,
         { usar_ia: config.vanguarcito_disponible },
@@ -580,13 +591,13 @@ export default function DisenadorFichas() {
             <div className="fia-hero-text">
               <h1>Fichas IA</h1>
               <p>
-                Biblioteca de fichas del colegio (teoría + ficha de aplicación). Vanguarcito estructura el
-                contenido; la plantilla Vanguard aplica diseño, logo y mascotas en el PDF.
+                Biblioteca de fichas del colegio (teoría + ficha de aplicación). {nombreIa} estructura el
+                contenido; la plantilla aplica diseño, logo y mascotas en el PDF.
               </p>
               <div className="fia-hero-meta">
                 <span className="fia-hero-chip">Colegio</span>
                 {config.vanguarcito_disponible ? (
-                  <span className="fia-hero-chip fia-hero-chip--ok">Vanguarcito listo</span>
+                  <span className="fia-hero-chip fia-hero-chip--ok">{nombreIa} listo</span>
                 ) : config.tiene_clave_servidor ? (
                   <span className="fia-hero-chip fia-hero-chip--warn">Comprobando IA…</span>
                 ) : (
@@ -611,7 +622,7 @@ export default function DisenadorFichas() {
           </div>
         ) : config.verificacion && !config.verificacion.ok ? (
           <div className="voc-alert fia-status-alert">
-            <strong>Vanguarcito no conecta.</strong> {config.verificacion.mensaje}
+            <strong>{nombreIa} no conecta.</strong> {config.verificacion.mensaje}
             {config.verificacion.ayuda && (
               <>
                 <br />
@@ -626,9 +637,9 @@ export default function DisenadorFichas() {
             )}
           </div>
         ) : config.vanguarcito_disponible ? (
-          <div className="fia-status-ok">Vanguarcito conectado — puede usarlo al crear o regenerar fichas.</div>
+          <div className="fia-status-ok">{nombreIa} conectado — puede usarlo al crear o regenerar fichas.</div>
         ) : (
-          <div className="voc-alert fia-status-alert">Comprobando Vanguarcito…</div>
+          <div className="voc-alert fia-status-alert">Comprobando {nombreIa}…</div>
         )}
 
         <div className="fia-help">
@@ -638,7 +649,7 @@ export default function DisenadorFichas() {
           <div>
             <h2>Biblioteca y generación</h2>
             <p>
-              Filtrá por grado o curso, abrí una ficha o creá una nueva. Desmarcá «Usar Vanguarcito» si querés
+              Filtrá por grado o curso, abrí una ficha o creá una nueva. Desmarcá «Usar {nombreIa}» si querés
               maquetar sin consumir IA.
             </p>
           </div>
@@ -646,14 +657,14 @@ export default function DisenadorFichas() {
 
         {!esDocente && (
           <details className="fia-tips">
-            <summary>¿Dónde más usar Vanguarcito sin gastar mucho en IA?</summary>
+            <summary>¿Dónde más usar {nombreIa} sin gastar mucho en IA?</summary>
             <ul>
               <li>
                 <strong>Fichas IA (aquí):</strong> solo al crear o regenerar; reutilice la misma ficha y edite
                 puntos clave en lugar de regenerar todo.
               </li>
               <li>
-                <strong>Sin IA:</strong> desmarque «Usar Vanguarcito» — la plantilla y mascotas en el PDF siguen
+                <strong>Sin IA:</strong> desmarque «Usar {nombreIa}» — la plantilla y mascotas en el PDF siguen
                 igual; no consume Gemini.
               </li>
               <li>
@@ -773,10 +784,10 @@ export default function DisenadorFichas() {
                         {row.estado === 'LISTO' && (
                           <div className="voc-file-meta">
                             {row.generado_con === 'vanguarcito'
-                              ? 'Con Vanguarcito'
+                              ? `Con ${nombreIa}`
                               : row.generado_con === 'vanguarcito_parcial'
-                                ? 'Vanguarcito + formulario'
-                                : 'Solo formulario (sin Vanguarcito)'}
+                                ? `${nombreIa} + formulario`
+                                : `Solo formulario (sin ${nombreIa})`}
                           </div>
                         )}
                         {row.error_mensaje && row.estado !== 'LISTO' && (
@@ -816,7 +827,7 @@ export default function DisenadorFichas() {
                                   : '#4b5563',
                           }}
                         >
-                          {ESTADO_LABEL[row.estado] || row.estado}
+                          {row.estado === 'IA_PROCESANDO' ? `${nombreIa}…` : (ESTADO_LABEL[row.estado] || row.estado)}
                         </span>
                       </td>
                       <td>
@@ -858,7 +869,7 @@ export default function DisenadorFichas() {
                                 </IconButton>
                               </Tooltip>
                               {row.estado === 'LISTO' && (
-                                <Tooltip title="Regenerar con Vanguarcito">
+                                <Tooltip title={`Regenerar con ${nombreIa}`}>
                                   <IconButton
                                     size="small"
                                     color="secondary"
@@ -1024,7 +1035,7 @@ export default function DisenadorFichas() {
                 </div>
 
                 <label className="voc-label-block">
-                  <span className="voc-label-text">Indicaciones para Vanguarcito (opcional)</span>
+                  <span className="voc-label-text">Indicaciones para {nombreIa} (opcional)</span>
                   <textarea
                     className="voc-input voc-textarea"
                     rows={4}
@@ -1118,7 +1129,7 @@ export default function DisenadorFichas() {
                     onChange={(e) => setForm((f) => ({ ...f, usar_ia: e.target.checked }))}
                   />
                   <span className="voc-label-text" style={{ margin: 0 }}>
-                    Usar Vanguarcito para estructurar actividades
+                    Usar {nombreIa} para estructurar actividades
                     {form.modo_diseno === 'libre' ? ' (obligatorio en diseño libre)' : ''}
                   </span>
                 </label>
@@ -1142,8 +1153,8 @@ export default function DisenadorFichas() {
                   {generando
                     ? 'Procesando…'
                     : editItem
-                      ? 'Guardar y regenerar con Vanguarcito'
-                      : 'Crear ficha con Vanguarcito'}
+                      ? `Guardar y regenerar con ${nombreIa}`
+                      : `Crear ficha con ${nombreIa}`}
                 </button>
               </div>
             </div>

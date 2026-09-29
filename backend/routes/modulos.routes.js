@@ -10,15 +10,22 @@ router.get('/', async (req, res) => {
   res.json({ estados });
 });
 
-router.get('/catalogo', (req, res) => {
+router.get('/catalogo', async (req, res) => {
   if (!req.user?.es_superadmin) {
     return res.status(403).json({ error: 'No autorizado' });
+  }
+  let nombreMascota = 'Vanguarcito';
+  try {
+    const { leerMascota } = require('../utils/mascotaColegio');
+    nombreMascota = (await leerMascota(req.user.colegio_id)).nombre;
+  } catch (_) {
+    nombreMascota = 'Vanguarcito';
   }
   res.json({
     modulos: MODULOS.map((m) => ({
       clave: m.clave,
       grupo: m.grupo,
-      nombre: m.nombre,
+      nombre: m.clave === 'herramientas.vanguarcito' ? nombreMascota : m.nombre,
     })),
   });
 });
