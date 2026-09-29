@@ -33,7 +33,7 @@ export const MODULOS = [
   { clave: 'herramientas.supervision', grupo: 'Herramientas', nombre: 'Supervisión', defecto: true, rutas: ['/admin/herramientas/supervision', '/docente/herramientas/supervision'] },
   { clave: 'herramientas.tardanzas', grupo: 'Herramientas', nombre: 'Tardanzas', defecto: true, rutas: ['/admin/herramientas/tardanzas'] },
   { clave: 'herramientas.reuniones', grupo: 'Herramientas', nombre: 'Reuniones', defecto: true, rutas: ['/admin/herramientas/reuniones', '/docente/herramientas/reuniones', '/alumno/reuniones', '/apoderado/reuniones'] },
-  { clave: 'herramientas.vanguarcito', grupo: 'Herramientas', nombre: 'Vanguarcito', defecto: false, rutas: ['/admin/vanguarcito'] },
+  { clave: 'herramientas.vanguarcito', grupo: 'Herramientas', nombre: 'Vanguarcito', defecto: false, rutas: ['/vanguarcito', '/admin/vanguarcito', '/docente/vanguarcito', '/alumno/vanguarcito'] },
 
   { clave: 'comunicaciones.publicaciones', grupo: 'Comunicaciones', nombre: 'Publicaciones', defecto: true, rutas: ['/admin/comunicaciones/publicaciones'] },
   { clave: 'comunicaciones.conexiones', grupo: 'Comunicaciones', nombre: 'Conexiones', defecto: true, rutas: ['/admin/comunicaciones/conexiones', '/docente/conexiones'] },

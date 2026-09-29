@@ -10,6 +10,7 @@ import { ColegioProvider } from './context/ColegioContext';
 import api from './services/api';
 import Login from './pages/Login';
 import Dashboard from './pages/admin/Dashboard';
+import VanguarcitoChat from './pages/vanguarcito/VanguarcitoChat';
 import PsicologaDashboard from './pages/admin/PsicologaDashboard';
 import DocenteDashboard from './pages/DocenteDashboard';
 import DocenteHerramientas from './pages/DocenteHerramientas';
@@ -1634,11 +1635,12 @@ function AppRoutes() {
           </PrivateRoute>
         }
       />
+      <Route path="/admin/vanguarcito" element={<Navigate to="/vanguarcito" replace />} />
       <Route
-        path="/admin/vanguarcito"
+        path="/vanguarcito"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA']}>
-            <Dashboard />
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'ALUMNO', 'DOCENTE', 'SECRETARIA', 'AUXILIAR', 'DIRECTOR', 'COORDINADOR', 'CONTADOR', 'PSICOLOGA', 'CAJERO', 'ENFERMERA', 'TUTOR', 'MANTENIMIENTO']}>
+            <VanguarcitoChat />
           </PrivateRoute>
         }
       />

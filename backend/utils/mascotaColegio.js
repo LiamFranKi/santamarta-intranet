@@ -26,6 +26,22 @@ const SQL_TABLAS = [
     orden INT NOT NULL DEFAULT 0,
     KEY idx_mascota_ficha_colegio (colegio_id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS vanguarcito_uso (
+    colegio_id INT NOT NULL,
+    usuario_id INT NOT NULL,
+    fecha DATE NOT NULL,
+    usadas INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (colegio_id, usuario_id, fecha)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS vanguarcito_mensaje (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    colegio_id INT NOT NULL,
+    usuario_id INT NOT NULL,
+    rol VARCHAR(12) NOT NULL,
+    texto MEDIUMTEXT NOT NULL,
+    creado_en DATETIME NOT NULL,
+    KEY idx_vanguarcito_msg (colegio_id, usuario_id, id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 ];
 
 let tablasListas = null;
@@ -53,6 +69,19 @@ function asegurarTablas() {
   if (!tablasListas) {
     tablasListas = (async () => {
       for (const sql of SQL_TABLAS) await execute(sql);
+      const extras = [
+        ['preguntas_alumno', 'ALTER TABLE mascota_colegio ADD COLUMN preguntas_alumno INT NOT NULL DEFAULT 3'],
+        ['preguntas_docente', 'ALTER TABLE mascota_colegio ADD COLUMN preguntas_docente INT NOT NULL DEFAULT 5'],
+        ['preguntas_personal', 'ALTER TABLE mascota_colegio ADD COLUMN preguntas_personal INT NOT NULL DEFAULT 6'],
+      ];
+      for (const [col, ddl] of extras) {
+        const rows = await query(
+          `SELECT COUNT(*) AS n FROM information_schema.COLUMNS
+           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mascota_colegio' AND COLUMN_NAME = ?`,
+          [col]
+        );
+        if (!Number(rows?.[0]?.n)) await execute(ddl);
+      }
     })().catch((e) => {
       tablasListas = null;
       throw e;
@@ -105,7 +134,8 @@ function rutaImagenGuardada(colegioId, archivo) {
 
 async function leerFila(colegioId) {
   const rows = await query(
-    `SELECT nombre, imagen FROM mascota_colegio WHERE colegio_id = ? LIMIT 1`,
+    `SELECT nombre, imagen, preguntas_alumno, preguntas_docente, preguntas_personal
+     FROM mascota_colegio WHERE colegio_id = ? LIMIT 1`,
     [idColegio(colegioId)]
   );
   return rows?.[0] || null;
@@ -146,6 +176,9 @@ async function leerMascota(colegioId) {
       imagen_fs: propia || rutaPrincipalDefecto(),
       fichas: fichas.map((f) => ({ id: f.id, url: f.url })),
       fichas_fs: fichas,
+      preguntas_alumno: numeroCupo(fila?.preguntas_alumno, 3),
+      preguntas_docente: numeroCupo(fila?.preguntas_docente, 5),
+      preguntas_personal: numeroCupo(fila?.preguntas_personal, 6),
     };
   } catch (e) {
     console.warn('[mascota] lectura con respaldo:', e.message);
@@ -157,6 +190,9 @@ async function leerMascota(colegioId) {
       imagen_fs: rutaPrincipalDefecto(),
       fichas: [],
       fichas_fs: [],
+      preguntas_alumno: 3,
+      preguntas_docente: 5,
+      preguntas_personal: 6,
     };
   }
 }
@@ -320,6 +356,37 @@ async function quitarImagenFicha(colegioId, imagenId) {
   return leerMascota(id);
 }
 
+function numeroCupo(valor, defecto) {
+  const n = parseInt(valor, 10);
+  if (!Number.isFinite(n) || n < 0) return defecto;
+  return Math.min(n, 100);
+}
+
+async function guardarCupos(colegioId, body) {
+  await asegurarTablas();
+  const id = idColegio(colegioId);
+  const alumno = numeroCupo(body?.preguntas_alumno, 3);
+  const docente = numeroCupo(body?.preguntas_docente, 5);
+  const personal = numeroCupo(body?.preguntas_personal, 6);
+  const existe = await query(`SELECT colegio_id FROM mascota_colegio WHERE colegio_id = ? LIMIT 1`, [id]);
+  if (existe?.length) {
+    await execute(
+      `UPDATE mascota_colegio
+       SET preguntas_alumno = ?, preguntas_docente = ?, preguntas_personal = ?, actualizado_en = NOW()
+       WHERE colegio_id = ?`,
+      [alumno, docente, personal, id]
+    );
+  } else {
+    await execute(
+      `INSERT INTO mascota_colegio
+        (colegio_id, nombre, imagen, preguntas_alumno, preguntas_docente, preguntas_personal, actualizado_en)
+       VALUES (?, '', '', ?, ?, ?, NOW())`,
+      [id, alumno, docente, personal]
+    );
+  }
+  return leerMascota(id);
+}
+
 function paraCliente(mascota) {
   return {
     nombre: mascota.nombre_guardado,
@@ -327,6 +394,9 @@ function paraCliente(mascota) {
     imagen_url: mascota.imagen_url,
     imagen_propia: mascota.imagen_propia,
     fichas: mascota.fichas,
+    preguntas_alumno: mascota.preguntas_alumno,
+    preguntas_docente: mascota.preguntas_docente,
+    preguntas_personal: mascota.preguntas_personal,
   };
 }
 
@@ -342,6 +412,8 @@ module.exports = {
   quitarImagenPrincipal,
   agregarImagenesFicha,
   quitarImagenFicha,
+  guardarCupos,
+  numeroCupo,
   paraCliente,
   MAX_FICHAS,
 };

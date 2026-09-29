@@ -20,6 +20,9 @@ export default function AdminMascotaColegio() {
   const [imagenUrl, setImagenUrl] = useState('');
   const [imagenPropia, setImagenPropia] = useState(false);
   const [fichas, setFichas] = useState([]);
+  const [cupoAlumno, setCupoAlumno] = useState(3);
+  const [cupoDocente, setCupoDocente] = useState(5);
+  const [cupoPersonal, setCupoPersonal] = useState(6);
 
   const aplicar = useCallback((data) => {
     setNombre(data?.nombre || '');
@@ -27,6 +30,9 @@ export default function AdminMascotaColegio() {
     setImagenUrl(data?.imagen_url || '');
     setImagenPropia(Boolean(data?.imagen_propia));
     setFichas(Array.isArray(data?.fichas) ? data.fichas : []);
+    setCupoAlumno(Number.isFinite(Number(data?.preguntas_alumno)) ? Number(data.preguntas_alumno) : 3);
+    setCupoDocente(Number.isFinite(Number(data?.preguntas_docente)) ? Number(data.preguntas_docente) : 5);
+    setCupoPersonal(Number.isFinite(Number(data?.preguntas_personal)) ? Number(data.preguntas_personal) : 6);
     if (typeof data?.puede_editar === 'boolean') setPuedeEditar(data.puede_editar);
   }, []);
 
@@ -53,6 +59,23 @@ export default function AdminMascotaColegio() {
   const despues = async (data) => {
     aplicar(data);
     recargarColegio?.();
+  };
+
+  const guardarCupos = async () => {
+    setGuardando(true);
+    try {
+      const { data } = await api.put('/vanguarcito/cupos', {
+        preguntas_alumno: cupoAlumno,
+        preguntas_docente: cupoDocente,
+        preguntas_personal: cupoPersonal,
+      });
+      await despues(data);
+      Swal.fire({ icon: 'success', title: 'Cupo guardado', timer: 1400, showConfirmButton: false });
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'No se guardó', text: e.response?.data?.error || '' });
+    } finally {
+      setGuardando(false);
+    }
   };
 
   const guardarNombre = async () => {
@@ -144,7 +167,7 @@ export default function AdminMascotaColegio() {
 
       <section className="mascota-parte">
         <h2>Nombre</h2>
-        <p>Así se verá en el menú, en la espera de la IA y en las fichas. Ejemplo: Ramoncito.</p>
+        <p>Así se verá en los menús, en Módulos del superadministrador, en el chat y en las fichas. Ejemplo: Ramoncito.</p>
         <div className="mascota-row">
           <input
             type="text"
@@ -158,6 +181,30 @@ export default function AdminMascotaColegio() {
             Guardar nombre
           </button>
         </div>
+      </section>
+
+      <section className="mascota-parte">
+        <h2>Preguntas por día</h2>
+        <p>
+          El administrador no tiene límite. El apoderado no entra. Al día siguiente el contador vuelve a cero.
+        </p>
+        <div className="mascota-cupos">
+          <label>
+            Alumno
+            <input type="number" min="0" max="100" value={cupoAlumno} disabled={!puedeEditar || guardando} onChange={(e) => setCupoAlumno(e.target.value)} />
+          </label>
+          <label>
+            Docente
+            <input type="number" min="0" max="100" value={cupoDocente} disabled={!puedeEditar || guardando} onChange={(e) => setCupoDocente(e.target.value)} />
+          </label>
+          <label>
+            Personal
+            <input type="number" min="0" max="100" value={cupoPersonal} disabled={!puedeEditar || guardando} onChange={(e) => setCupoPersonal(e.target.value)} />
+          </label>
+        </div>
+        <button type="button" className="mascota-cupo-btn" disabled={!puedeEditar || guardando} onClick={guardarCupos}>
+          Guardar cupo
+        </button>
       </section>
 
       <section className="mascota-parte">

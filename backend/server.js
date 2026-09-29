@@ -401,6 +401,8 @@ app.use('/api/vocabularios', vocabulariosRoutes);
 app.use('/api/elecciones', eleccionesRoutes);
 app.use('/api/fichas-ia', fichasIaRoutes);
 app.use('/api/mascota-colegio', mascotaColegioRoutes);
+const vanguarcitoRoutes = require('./routes/vanguarcito.routes');
+app.use('/api/vanguarcito', vanguarcitoRoutes);
 const reunionesRoutes = require('./routes/reuniones.routes');
 app.use('/api/reuniones', reunionesRoutes);
 

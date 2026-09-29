@@ -133,7 +133,7 @@ function VanguarcitoSidebarItem() {
     <div className="sidebar-item">
       <NavLink
         className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-        to="/admin/vanguarcito"
+        to="/vanguarcito"
       >
         <IconoMascotaMenu />
         <span className="sidebar-label">{mascotaNombre}</span>
@@ -209,6 +209,7 @@ export default function DashboardLayout({ children }) {
         (
           path.startsWith('/admin/herramientas')
           || path.startsWith('/admin/documentos-gestion')
+          || path.startsWith('/vanguarcito')
           || path.startsWith('/admin/vanguarcito')
         ) && { herramientas: true }
       ),
@@ -685,6 +686,7 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Dashboard</span>
                 </NavLink>
               </div>
+              <VanguarcitoSidebarItem />
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/perfil">
                   <span className="sidebar-icon">👤</span>
@@ -986,6 +988,7 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Dashboard</span>
                 </NavLink>
               </div>
+              <VanguarcitoSidebarItem />
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/perfil">
                   <span className="sidebar-icon">👤</span>
@@ -2144,9 +2147,9 @@ export default function DashboardLayout({ children }) {
                   {activo('herramientas.vanguarcito') && (
                   <NavLink
                     className={({ isActive }) =>
-                      `sidebar-sublink ${isActive || location.pathname === '/admin/vanguarcito' ? 'active' : ''}`
+                      `sidebar-sublink ${isActive || location.pathname === '/vanguarcito' ? 'active' : ''}`
                     }
-                    to="/admin/vanguarcito"
+                    to="/vanguarcito"
                   >
                     <IconoMascotaMenu />
                     <span className="sidebar-label">{mascotaNombre}</span>

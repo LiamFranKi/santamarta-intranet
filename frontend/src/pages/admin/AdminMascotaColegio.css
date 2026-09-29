@@ -1,3 +1,41 @@
+.mascota-cupos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.mascota-cupos label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-weight: 700;
+  color: #0f172a;
+  min-width: 120px;
+}
+
+.mascota-cupos input {
+  min-height: 42px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0 0.75rem;
+  font: inherit;
+  font-weight: 500;
+}
+
+.mascota-cupo-btn {
+  margin-top: 0.75rem;
+  border: 0;
+  border-radius: 10px;
+  min-height: 42px;
+  padding: 0 0.9rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  background: #059669;
+  color: #fff;
+}
+
 .mascota-bloque h2 {
   margin: 1rem 0 0.25rem;
   font-size: 1rem;
