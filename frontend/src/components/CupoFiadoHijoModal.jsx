@@ -6,6 +6,36 @@ function soles(n) {
   return `S/ ${Number(n || 0).toFixed(2)}`;
 }
 
+function FilaTope({ titulo, ayuda, activo, onActivo, monto, onMonto }) {
+  return (
+    <div className={`cupo-fiado-card ${activo ? 'is-on' : ''}`}>
+      <div className="cupo-fiado-card-top">
+        <div>
+          <strong>{titulo}</strong>
+          <p>{ayuda}</p>
+        </div>
+        <label className="cupo-fiado-switch">
+          <input type="checkbox" checked={!!activo} onChange={(ev) => onActivo(ev.target.checked)} />
+          <i />
+        </label>
+      </div>
+      {activo && (
+        <label className="cupo-fiado-monto">
+          <span>S/</span>
+          <input
+            type="number"
+            min="0"
+            step="0.5"
+            inputMode="decimal"
+            value={monto}
+            onChange={(ev) => onMonto(ev.target.value)}
+          />
+        </label>
+      )}
+    </div>
+  );
+}
+
 export default function CupoFiadoHijoModal({ alumnoId, nombre, onClose }) {
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -69,89 +99,64 @@ export default function CupoFiadoHijoModal({ alumnoId, nombre, onClose }) {
   const colegio = cupo?.colegio || {};
 
   return createPortal(
-    <div className="modal-overlay" onClick={() => !guardando && onClose()}>
-      <div className="modal-content cupo-fiado-modal" onClick={(ev) => ev.stopPropagation()}>
+    <div className="modal-overlay cupo-fiado-overlay" onClick={() => !guardando && onClose()}>
+      <div className="cupo-fiado-modal" onClick={(ev) => ev.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="cupo-fiado-titulo">
         <div className="modal-header">
-          <h2>Cupo de fiado</h2>
-          <button type="button" className="modal-close-btn" onClick={onClose} disabled={guardando}>✕</button>
+          <h2 id="cupo-fiado-titulo">Cupo de fiado</h2>
+          <button type="button" className="modal-close-btn" onClick={onClose} disabled={guardando} aria-label="Cerrar">✕</button>
         </div>
-        <form className="modal-form" onSubmit={guardar}>
+        <form className="cupo-fiado-body" onSubmit={guardar}>
           <p className="cupo-fiado-nombre">{nombre}</p>
           <p className="cupo-fiado-nota">
-            Este tope es solo para lo fiado. Un pedido pagado no lo usa. Cuando se paga el fiado, esos soles vuelven a quedar libres.
-            Si el colegio también puso un tope, vale el más bajo.
+            Solo cuenta lo fiado. Un pedido pagado no usa este tope. Cuando se paga, esos soles vuelven a quedar libres. Si el colegio también puso un tope, vale el más bajo.
           </p>
-          {cargando && <p>Cargando el cupo…</p>}
+          {cargando && <p className="cupo-fiado-debe">Cargando el cupo…</p>}
           {error && <p className="cupo-fiado-error">{error}</p>}
           {aviso && <p className="cupo-fiado-ok">{aviso}</p>}
           {cupo && (
             <>
-              <p className="cupo-fiado-debe">
-                Hoy debe {soles(cupo.debe_dia)}.
-                {colegio.dia_activo ? ` El colegio deja deber hasta ${soles(colegio.dia_monto)} por día.` : ''}
-              </p>
-              {(colegio.general_activo || cupo.papa?.general_activo) && (
-                <p className="cupo-fiado-debe">
-                  {cupo.papa?.general_activo ? `Tope general de la familia: debe ${soles(cupo.debe_general_papa)} de ${soles(cupo.papa.general_monto)}. ` : ''}
-                  {colegio.general_activo ? `Tope general del colegio: debe ${soles(cupo.debe_general_colegio)} de ${soles(colegio.general_monto)}.` : ''}
-                </p>
-              )}
-              {colegio.pedido_activo && (
-                <p className="cupo-fiado-debe">Cada fiado, el colegio deja hasta {soles(colegio.pedido_monto)}.</p>
+              <div className="cupo-fiado-resumen">
+                <span>Hoy debe</span>
+                <strong>{soles(cupo.debe_dia)}</strong>
+              </div>
+              {(colegio.dia_activo || colegio.general_activo || colegio.pedido_activo) && (
+                <ul className="cupo-fiado-colegio">
+                  {colegio.pedido_activo && <li>Cada fiado, el colegio deja hasta {soles(colegio.pedido_monto)}.</li>}
+                  {colegio.dia_activo && <li>Por día, el colegio deja deber hasta {soles(colegio.dia_monto)}.</li>}
+                  {colegio.general_activo && (
+                    <li>En total, el colegio deja deber hasta {soles(colegio.general_monto)}. Lleva {soles(cupo.debe_general_colegio)}.</li>
+                  )}
+                </ul>
               )}
               {cupo.editable ? (
                 <div className="cupo-fiado-form">
-                  <label className="cupo-fiado-check">
-                    <input
-                      type="checkbox"
-                      checked={!!form.dia_activo}
-                      onChange={(ev) => setForm({ ...form, dia_activo: ev.target.checked })}
-                    />
-                    <span>Tope por día</span>
-                  </label>
-                  {form.dia_activo && (
-                    <label className="cupo-fiado-soles">
-                      <span>S/</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={form.dia_monto}
-                        onChange={(ev) => setForm({ ...form, dia_monto: ev.target.value })}
-                      />
-                    </label>
-                  )}
-                  <label className="cupo-fiado-check">
-                    <input
-                      type="checkbox"
-                      checked={!!form.general_activo}
-                      onChange={(ev) => setForm({ ...form, general_activo: ev.target.checked })}
-                    />
-                    <span>Tope general</span>
-                  </label>
-                  {form.general_activo && (
-                    <label className="cupo-fiado-soles">
-                      <span>S/</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={form.general_monto}
-                        onChange={(ev) => setForm({ ...form, general_monto: ev.target.value })}
-                      />
-                    </label>
-                  )}
+                  <FilaTope
+                    titulo="Tope por día"
+                    ayuda="Cuánto puede quedar debiendo en un mismo día."
+                    activo={form.dia_activo}
+                    onActivo={(dia_activo) => setForm({ ...form, dia_activo })}
+                    monto={form.dia_monto}
+                    onMonto={(dia_monto) => setForm({ ...form, dia_monto })}
+                  />
+                  <FilaTope
+                    titulo="Tope general"
+                    ayuda="Cuánto puede quedar debiendo en total, hasta que pague."
+                    activo={form.general_activo}
+                    onActivo={(general_activo) => setForm({ ...form, general_activo })}
+                    monto={form.general_monto}
+                    onMonto={(general_monto) => setForm({ ...form, general_monto })}
+                  />
                 </div>
               ) : (
                 <p className="cupo-fiado-error">No puedes cambiar el tope de este alumno.</p>
               )}
             </>
           )}
-          <div className="modal-actions">
+          <div className="cupo-fiado-actions">
             <button type="button" className="btn-cancelar" onClick={onClose} disabled={guardando}>Cerrar</button>
             {cupo?.editable && (
               <button type="submit" className="btn-guardar" disabled={guardando || cargando}>
-                {guardando ? 'Guardando…' : 'Guardar límite de mi hijo'}
+                {guardando ? 'Guardando…' : 'Guardar límite'}
               </button>
             )}
           </div>

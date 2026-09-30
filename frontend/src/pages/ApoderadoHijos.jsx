@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
+import { useModulos } from '../context/ModulosContext';
 import api from '../services/api';
 import { QRCodeSVG } from 'qrcode.react';
 import { jsPDF } from 'jspdf';
@@ -43,6 +44,7 @@ function ApoderadoHijos() {
   console.log('[FRONTEND] ========== APODERADOHIJOS COMPONENTE RENDERIZADO ==========');
   const navigate = useNavigate();
   const location = useLocation();
+  const { activo } = useModulos();
   const [loading, setLoading] = useState(true);
   const [hijos, setHijos] = useState([]);
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -3801,9 +3803,11 @@ function ApoderadoHijos() {
             <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('pagos-realizados', hijo); }}>
               <span className="dropdown-icon">💳</span><span>Pagos Realizados</span>
             </button>
+            {activo('kiosco') && (
             <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('cupo-fiado', hijo); }}>
               <span className="dropdown-icon">☕</span><span>Cupo de fiado</span>
             </button>
+            )}
             <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('reiniciar-contrasena', hijo); }}>
               <span className="dropdown-icon">🔑</span><span>Reiniciar Contraseña</span>
             </button>
