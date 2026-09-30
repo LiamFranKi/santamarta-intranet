@@ -166,14 +166,20 @@ export default function KioscoCafetin() {
       setCargando(true);
       setError('');
       try {
-        await cargarBase();
+        const base = await cargarBase();
         if (!vivo) return;
         if (!caja) {
           const { data } = await api.get('/kiosco/hijos');
           if (!vivo) return;
-          setHijos(data.hijos || []);
-          setYo(data.yo || null);
-          if (data.hijos?.[0]) setAlumnoId(String(data.hijos[0].id));
+          const lista = data.hijos || [];
+          const persona = data.yo || null;
+          const puedeYo = !!persona && base?.config?.pide_personal !== false;
+          const puedeHijo = user?.tipo === 'APODERADO' || user?.tipo === 'ALUMNO' || base?.config?.quien_pide !== 'ALUMNO';
+          setHijos(puedeHijo ? lista : []);
+          setYo(persona);
+          if (puedeYo && puedeHijo && lista.length) setAlumnoId('yo');
+          else if (puedeHijo && lista[0]) setAlumnoId(String(lista[0].id));
+          else if (puedeYo) setAlumnoId('yo');
         } else {
           const [r, p, c] = await Promise.all([
             api.get('/kiosco/resumen').catch(() => ({ data: null })),
@@ -192,7 +198,7 @@ export default function KioscoCafetin() {
       }
     })();
     return () => { vivo = false; };
-  }, [caja, cargarBase]);
+  }, [caja, cargarBase, user?.tipo]);
 
   useEffect(() => {
     if (fecha) cargarCarta(fecha).catch(() => {});
@@ -262,6 +268,13 @@ export default function KioscoCafetin() {
   const total = carrito.reduce((s, it) => s + Number(it.precio) * it.cantidad, 0);
   const piezas = carrito.reduce((s, it) => s + it.cantidad, 0);
   const hijoSel = hijos.find((h) => String(h.id) === String(alumnoId));
+  const muestraYo = !!yo && config?.pide_personal !== false;
+  const hijosPedido = (user?.tipo === 'APODERADO' || user?.tipo === 'ALUMNO' || config?.quien_pide !== 'ALUMNO') ? hijos : [];
+  const alumnoPedido = alumnoId && alumnoId !== 'yo' ? alumnoId : '';
+  const eligeDestino = (valor) => {
+    setAlumnoId(valor);
+    setCarrito([]);
+  };
   const dias = hoy ? [0, 1, 2, 3, 4, 5, 6].map((n) => sumarDias(hoy, n)) : [];
   const esperando = cola.length;
   const pedidosReporte = useMemo(() => {
@@ -278,12 +291,13 @@ export default function KioscoCafetin() {
   const esPapa = user?.tipo === 'APODERADO';
 
   useEffect(() => {
-    if (caja || !alumnoId) {
+    const idNum = parseInt(alumnoId, 10);
+    if (caja || !idNum) {
       setCupo(null);
       return undefined;
     }
     let vivo = true;
-    api.get('/kiosco/cupo', { params: { alumno_id: alumnoId, fecha: fecha || undefined } })
+    api.get('/kiosco/cupo', { params: { alumno_id: idNum, fecha: fecha || undefined } })
       .then(({ data }) => {
         if (!vivo) return;
         setCupo(data);
@@ -428,11 +442,13 @@ export default function KioscoCafetin() {
     setError('');
     try {
       const { data } = await api.post('/kiosco/pedidos', {
-        alumno_id: alumnoId ? parseInt(alumnoId, 10) : null,
-        cliente_usuario_id: clienteUsuarioId
-          ? parseInt(clienteUsuarioId, 10)
-          : (yo?.usuario_id ? parseInt(yo.usuario_id, 10) : null),
-        para_mi: !caja && !alumnoId,
+        alumno_id: (!caja && alumnoPedido) ? parseInt(alumnoPedido, 10) : (alumnoId && alumnoId !== 'yo' ? parseInt(alumnoId, 10) : null),
+        cliente_usuario_id: (!caja && alumnoPedido)
+          ? null
+          : (clienteUsuarioId
+            ? parseInt(clienteUsuarioId, 10)
+            : (yo?.usuario_id ? parseInt(yo.usuario_id, 10) : null)),
+        para_mi: !caja && !alumnoPedido,
         fecha,
         items: carrito.map((it) => ({ producto_id: it.producto_id, cantidad: it.cantidad })),
         origen,
@@ -814,8 +830,11 @@ export default function KioscoCafetin() {
           <section className="kio-panel">
             <div className="kio-panel-head">
               <h2>Mis pedidos</h2>
-              <strong>Debes S/ {deudaMia.toFixed(2)}</strong>
+              <strong>{muestraYo && hijosPedido.length ? 'Tú debes' : 'Debes'} S/ {deudaMia.toFixed(2)}</strong>
             </div>
+            {muestraYo && hijosPedido.length > 0 && (
+              <p className="kio-vacio">Este total es lo que debes tú. El pedido del hijo aparece con su nombre.</p>
+            )}
             <div className="kio-grilla">
               {misPedidos.map((p) => (
                 <article key={p.id} className="kio-card">
@@ -1041,15 +1060,23 @@ export default function KioscoCafetin() {
                 <button key={d} type="button" className={fecha === d ? 'is-on' : ''} onClick={() => setFecha(d)}>{etiquetaDia(d, hoy)}</button>
               ))}
             </div>
-            {hijos.length > 0 && (
+            {(muestraYo && hijosPedido.length > 0) && (
               <label className="kio-campo">Para
-                <select value={alumnoId} onChange={(e) => setAlumnoId(e.target.value)}>
-                  {hijos.map((h) => <option key={h.id} value={h.id}>{h.nombre}{h.grado ? ` · ${h.grado}` : ''}</option>)}
+                <select value={alumnoId || 'yo'} onChange={(e) => eligeDestino(e.target.value)}>
+                  <option value="yo">Para mí · {yo.nombre}</option>
+                  {hijosPedido.map((h) => <option key={h.id} value={h.id}>{h.nombre}{h.grado ? ` · ${h.grado}` : ''}</option>)}
                 </select>
               </label>
             )}
-            {yo && <p>Para {yo.nombre}. Debe S/ {Number(yo.deuda).toFixed(2)}</p>}
-            {hijoSel && <p className="kio-deuda">Debe S/ {Number(hijoSel.deuda).toFixed(2)}</p>}
+            {(!muestraYo && hijosPedido.length > 0) && (
+              <label className="kio-campo">Para
+                <select value={alumnoPedido} onChange={(e) => eligeDestino(e.target.value)}>
+                  {hijosPedido.map((h) => <option key={h.id} value={h.id}>{h.nombre}{h.grado ? ` · ${h.grado}` : ''}</option>)}
+                </select>
+              </label>
+            )}
+            {muestraYo && !alumnoPedido && <p>Para {yo.nombre}. Esta compra queda a tu nombre. Debes S/ {Number(yo.deuda).toFixed(2)}</p>}
+            {hijoSel && <p className="kio-deuda">Para {hijoSel.nombre}. Esta compra usa su cupo. Debe S/ {Number(hijoSel.deuda).toFixed(2)}</p>}
             {cupo && (esPapa || cupo.colegio?.pedido_activo || cupo.colegio?.dia_activo || cupo.colegio?.general_activo || cupo.papa?.dia_activo || cupo.papa?.general_activo) && (
               <div className="kio-cupo">
                 <strong>Cupo de fiado</strong>
@@ -1112,7 +1139,7 @@ export default function KioscoCafetin() {
             </div>
             {error && <p className="kio-alert">{error}</p>}
             <p className="kio-vacio">El kiosco recibe el pedido y elige si queda pagado o fiado.</p>
-            <button type="button" className="kio-btn" disabled={enviando || !carrito.length || (!alumnoId && !yo)} onClick={() => pedir('linea', 'pendiente')}>
+            <button type="button" className="kio-btn" disabled={enviando || !carrito.length || (!alumnoPedido && !muestraYo)} onClick={() => pedir('linea', 'pendiente')}>
               {enviando ? 'Enviando…' : `Confirmar pedido · S/ ${total.toFixed(2)}`}
             </button>
           </section>
@@ -1164,7 +1191,7 @@ export default function KioscoCafetin() {
             <p className="kio-total">Total S/ {total.toFixed(2)}</p>
             <p className="kio-vacio">El kiosco recibe el pedido y elige si queda pagado o fiado.</p>
             {error && <p className="kio-alert">{error}</p>}
-            <button type="button" className="kio-btn" disabled={enviando || !carrito.length || (!alumnoId && !yo)} onClick={() => pedir('linea', 'pendiente')}>
+            <button type="button" className="kio-btn" disabled={enviando || !carrito.length || (!alumnoPedido && !muestraYo)} onClick={() => pedir('linea', 'pendiente')}>
               {enviando ? 'Enviando…' : 'Confirmar pedido'}
             </button>
           </Modal>

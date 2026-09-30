@@ -233,9 +233,7 @@ router.put('/config', async (req, res) => {
   }
 });
 
-async function esPapaDelAlumno(user, alumnoId) {
-  const alumno = parseInt(alumnoId, 10);
-  if (!alumno) return false;
+async function apoderadoIdsDe(user) {
   const colegioId = user?.colegio_id || DEFAULT_COLEGIO_ID;
   const ids = [];
   const apoderadoId = parseInt(user?.apoderado_id, 10);
@@ -266,7 +264,13 @@ async function esPapaDelAlumno(user, alumnoId) {
       if (id > 0) ids.push(id);
     }
   }
-  const unicos = [...new Set(ids)];
+  return [...new Set(ids)];
+}
+
+async function esPapaDelAlumno(user, alumnoId) {
+  const alumno = parseInt(alumnoId, 10);
+  if (!alumno) return false;
+  const unicos = await apoderadoIdsDe(user);
   if (!unicos.length) return false;
   const [row] = await query(
     `SELECT 1 AS ok FROM familias WHERE alumno_id = ? AND apoderado_id IN (${unicos.map(() => '?').join(',')}) LIMIT 1`,
@@ -392,6 +396,18 @@ router.get('/hijos', async (req, res) => {
          ORDER BY a.apellido_paterno, a.nombres`,
         [req.user.apoderado_id, colegioId]
       );
+    } else if (esPersonal(req.user) && req.user.tipo !== 'KIOSCO') {
+      const idsPapa = await apoderadoIdsDe(req.user);
+      if (idsPapa.length) {
+        rows = await query(
+          `SELECT DISTINCT a.id, a.nombres, a.apellido_paterno, a.apellido_materno
+           FROM alumnos a
+           INNER JOIN familias f ON f.alumno_id = a.id AND f.apoderado_id IN (${idsPapa.map(() => '?').join(',')})
+           WHERE a.colegio_id = ?
+           ORDER BY a.apellido_paterno, a.nombres`,
+          [...idsPapa, colegioId]
+        );
+      }
     }
     const hijos = [];
     for (const a of rows || []) {
@@ -402,7 +418,7 @@ router.get('/hijos', async (req, res) => {
         deuda: await deudaDeCliente(colegioId, a.id, null),
       });
     }
-    if (!rows.length && esPersonal(req.user) && req.user.tipo !== 'KIOSCO') {
+    if (esPersonal(req.user) && req.user.tipo !== 'KIOSCO') {
       const [p] = await query(
         `SELECT p.nombres, p.apellidos FROM personal p
          INNER JOIN usuarios u ON u.personal_id = p.id
@@ -413,7 +429,7 @@ router.get('/hijos', async (req, res) => {
         ? `${p.nombres || ''} ${p.apellidos || ''}`.replace(/\s+/g, ' ').trim()
         : (req.user.nombres || req.user.usuario || 'Personal');
       return res.json({
-        hijos: [],
+        hijos,
         yo: {
           usuario_id: idDe(req.user),
           nombre,
@@ -444,15 +460,29 @@ router.post('/pedidos', async (req, res) => {
       if (tipo === 'ALUMNO' && config.quien_pide === 'APODERADO') {
         return res.status(403).json({ error: 'En este momento solo el apoderado puede pedir.' });
       }
-      if (esPersonal(req.user) && tipo !== 'ADMINISTRADOR' && !config.pide_personal) {
-        return res.status(403).json({ error: 'El personal no puede pedir en línea en este momento.' });
-      }
     }
-    const alumnoId = parseInt(req.body?.alumno_id, 10) || null;
+    let alumnoId = parseInt(req.body?.alumno_id, 10) || null;
     const mio = idDe(req.user);
     let clienteUsuarioId = parseInt(req.body?.cliente_usuario_id, 10) || (req.body?.para_mi ? mio : null);
+    if (!mostrador && alumnoId) {
+      if (tipo === 'ALUMNO' && Number(req.user.alumno_id) !== alumnoId) {
+        return res.status(403).json({ error: 'Solo puedes pedir para ti.' });
+      }
+      if (tipo === 'APODERADO' || (esPersonal(req.user) && tipo !== 'KIOSCO' && tipo !== 'ADMINISTRADOR')) {
+        if (!(await esPapaDelAlumno(req.user, alumnoId))) {
+          return res.status(403).json({ error: 'Ese alumno no está en tu familia.' });
+        }
+        if (esPersonal(req.user) && tipo !== 'ADMINISTRADOR' && config.quien_pide === 'ALUMNO') {
+          return res.status(403).json({ error: 'En este momento solo el alumno puede pedir.' });
+        }
+        clienteUsuarioId = null;
+      }
+    }
     if (!mostrador && !alumnoId && !clienteUsuarioId && esPersonal(req.user) && tipo !== 'KIOSCO') {
       clienteUsuarioId = mio;
+    }
+    if (!mostrador && !alumnoId && esPersonal(req.user) && tipo !== 'ADMINISTRADOR' && !config.pide_personal) {
+      return res.status(403).json({ error: 'El personal no puede pedir en línea en este momento.' });
     }
     const fecha = String(req.body?.fecha || '');
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
@@ -604,8 +634,9 @@ router.get('/mis-pedidos', async (req, res) => {
   const colegioId = req.user.colegio_id || DEFAULT_COLEGIO_ID;
   const tipo = req.user.tipo;
   try {
+    const uid = idDe(req.user);
     let where = 'p.usuario_id = ?';
-    const params = [colegioId, idDe(req.user)];
+    const params = [colegioId, uid];
     if (tipo === 'ALUMNO' && req.user.alumno_id) {
       where = 'p.alumno_id = ?';
       params[1] = req.user.alumno_id;
@@ -613,12 +644,18 @@ router.get('/mis-pedidos', async (req, res) => {
       where = 'p.alumno_id IN (SELECT alumno_id FROM familias WHERE apoderado_id = ?)';
       params[1] = req.user.apoderado_id;
     } else if (tipo !== 'KIOSCO') {
-      where = '(p.cliente_usuario_id = ? OR p.usuario_id = ?)';
-      params.push(idDe(req.user));
+      const idsPapa = await apoderadoIdsDe(req.user);
+      if (idsPapa.length) {
+        where = `(p.cliente_usuario_id = ? OR (p.usuario_id = ? AND COALESCE(p.alumno_id, 0) = 0) OR p.alumno_id IN (SELECT alumno_id FROM familias WHERE apoderado_id IN (${idsPapa.map(() => '?').join(',')})))`;
+        params.push(uid, ...idsPapa);
+      } else {
+        where = '(p.cliente_usuario_id = ? OR p.usuario_id = ?)';
+        params.push(uid);
+      }
     }
     const pedidos = await query(
       `SELECT p.id, p.codigo, p.fecha_consumo, p.estado, p.pago, p.origen, p.total, p.creado_en,
-              a.nombres, a.apellido_paterno
+              p.alumno_id, a.nombres, a.apellido_paterno
        FROM kiosco_pedidos p
        LEFT JOIN alumnos a ON a.id = p.alumno_id
        WHERE p.colegio_id = ? AND ${where}
@@ -632,14 +669,17 @@ router.get('/mis-pedidos', async (req, res) => {
         'SELECT nombre, precio, cantidad FROM kiosco_pedido_items WHERE pedido_id = ?',
         [p.id]
       );
+      const nombreAlumno = `${p.nombres || ''} ${p.apellido_paterno || ''}`.replace(/\s+/g, ' ').trim();
+      const propio = tipo === 'APODERADO' || tipo === 'ALUMNO' || !p.alumno_id;
       salida.push({
         ...p,
-        alumno: `${p.nombres || ''} ${p.apellido_paterno || ''}`.replace(/\s+/g, ' ').trim(),
+        alumno: nombreAlumno || (propio ? 'Para mí' : ''),
+        para_mi: propio,
         items: items || [],
       });
     }
     const deuda = salida
-      .filter((p) => (p.pago === 'fiado' || p.pago === 'pendiente') && (p.estado === 'aceptado' || p.estado === 'entregado'))
+      .filter((p) => p.para_mi && (p.pago === 'fiado' || p.pago === 'pendiente') && (p.estado === 'aceptado' || p.estado === 'entregado'))
       .reduce((s, p) => s + Number(p.total), 0);
     res.json({ pedidos: salida, deuda });
   } catch (e) {
