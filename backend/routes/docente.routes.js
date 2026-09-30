@@ -9920,8 +9920,7 @@ router.get('/roles-adicionales', async (req, res) => {
       tieneHijos = false;
     }
 
-    const cargarHijosCompletos = req.user.tipo === 'DOCENTE';
-    if (tieneHijos && cargarHijosCompletos) {
+    if (tieneHijos) {
       try {
         const personalData = await query(
           `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,

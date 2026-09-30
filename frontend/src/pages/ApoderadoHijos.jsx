@@ -20,6 +20,7 @@ import { normalizarRangosLetras } from '../utils/notaLetraConversion';
 import { esNivelInicial, debeMostrarNotasDetalladas } from '../utils/esNivelInicial';
 import { formatearTutoresLibreta } from '../utils/tutoresGrupoTexto';
 import { promptYExportarLibretaAlumno } from '../utils/exportLibretaAlumnoPdf';
+import CupoFiadoHijoModal from '../components/CupoFiadoHijoModal';
 import AlumnoSaludFields from '../components/AlumnoSaludFields';
 import AlumnoPerfilExtra from '../components/AlumnoPerfilExtra';
 import { exportIncidenciasHijoBimestresPdf, exportEstrellasHijoBimestresPdf } from '../utils/exportIncidenciasPresentacionPdf';
@@ -112,6 +113,7 @@ function ApoderadoHijos() {
   const [horario, setHorario] = useState([]);
   const [loadingHorario, setLoadingHorario] = useState(false);
   const [showModalPagos, setShowModalPagos] = useState(false);
+  const [cupoHijo, setCupoHijo] = useState(null);
   const [pagos, setPagos] = useState([]);
   const [loadingPagos, setLoadingPagos] = useState(false);
   const [tabAnioActivo, setTabAnioActivo] = useState(null);
@@ -420,6 +422,9 @@ function ApoderadoHijos() {
         // Permitir acceso a Pagos Realizados siempre (puede ver lo que pagó y lo que tiene pendiente)
         // El botón "IMPRIMIR BOLETA" solo aparecerá si el pago está cancelado
         await handleVerPagos(hijo);
+        break;
+      case 'cupo-fiado':
+        setCupoHijo(hijo);
         break;
       case 'psicologia':
         console.log('Psicología de:', hijo);
@@ -3796,6 +3801,9 @@ function ApoderadoHijos() {
             <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('pagos-realizados', hijo); }}>
               <span className="dropdown-icon">💳</span><span>Pagos Realizados</span>
             </button>
+            <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('cupo-fiado', hijo); }}>
+              <span className="dropdown-icon">☕</span><span>Cupo de fiado</span>
+            </button>
             <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('reiniciar-contrasena', hijo); }}>
               <span className="dropdown-icon">🔑</span><span>Reiniciar Contraseña</span>
             </button>
@@ -3808,6 +3816,14 @@ function ApoderadoHijos() {
       })()}
 
       {renderMensajeDocenteModal()}
+
+      {cupoHijo && (
+        <CupoFiadoHijoModal
+          alumnoId={cupoHijo.id}
+          nombre={`${cupoHijo.nombres || ''} ${cupoHijo.apellido_paterno || ''} ${cupoHijo.apellido_materno || ''}`.trim()}
+          onClose={() => setCupoHijo(null)}
+        />
+      )}
 
       {/* Modal Editar Datos */}
       {showModalEditar && hijoSeleccionado && createPortal(

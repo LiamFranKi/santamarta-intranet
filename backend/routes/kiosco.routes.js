@@ -233,17 +233,52 @@ router.put('/config', async (req, res) => {
   }
 });
 
+async function esPapaDelAlumno(user, alumnoId) {
+  const alumno = parseInt(alumnoId, 10);
+  if (!alumno) return false;
+  const colegioId = user?.colegio_id || DEFAULT_COLEGIO_ID;
+  const ids = [];
+  const apoderadoId = parseInt(user?.apoderado_id, 10);
+  if (user?.tipo === 'APODERADO' && apoderadoId > 0) ids.push(apoderadoId);
+
+  let personalId = parseInt(user?.personal_id, 10);
+  if (!(personalId > 0) && user?.usuario_id) {
+    const [u] = await query(
+      'SELECT personal_id FROM usuarios WHERE id = ? AND colegio_id = ? LIMIT 1',
+      [user.usuario_id, colegioId]
+    );
+    personalId = parseInt(u?.personal_id, 10);
+  }
+  if (personalId > 0) {
+    const rows = await query(
+      `SELECT ap.id
+       FROM personal p
+       INNER JOIN apoderados ap
+         ON ap.colegio_id = p.colegio_id
+        AND ap.nro_documento IS NOT NULL
+        AND TRIM(ap.nro_documento) <> ''
+        AND TRIM(ap.nro_documento) = TRIM(p.nro_documento)
+       WHERE p.id = ? AND p.colegio_id = ?`,
+      [personalId, colegioId]
+    );
+    for (const r of rows || []) {
+      const id = parseInt(r.id, 10);
+      if (id > 0) ids.push(id);
+    }
+  }
+  const unicos = [...new Set(ids)];
+  if (!unicos.length) return false;
+  const [row] = await query(
+    `SELECT 1 AS ok FROM familias WHERE alumno_id = ? AND apoderado_id IN (${unicos.map(() => '?').join(',')}) LIMIT 1`,
+    [alumno, ...unicos]
+  );
+  return !!row;
+}
+
 async function puedeVerCupo(user, alumnoId) {
   if (esCaja(user)) return true;
   if (user?.tipo === 'ALUMNO' && Number(user.alumno_id) === Number(alumnoId)) return true;
-  if (user?.tipo === 'APODERADO' && user.apoderado_id && alumnoId) {
-    const [row] = await query(
-      'SELECT 1 AS ok FROM familias WHERE apoderado_id = ? AND alumno_id = ? LIMIT 1',
-      [user.apoderado_id, alumnoId]
-    );
-    return !!row;
-  }
-  return false;
+  return esPapaDelAlumno(user, alumnoId);
 }
 
 router.get('/cupo', async (req, res) => {
@@ -262,7 +297,7 @@ router.get('/cupo', async (req, res) => {
     }
     const config = await leerConfig(colegioId);
     const cupo = await resumenCupo(colegioId, config, { alumnoId, clienteUsuarioId, fecha });
-    const editable = req.user?.tipo === 'APODERADO' && alumnoId && await puedeVerCupo(req.user, alumnoId);
+    const editable = !!(alumnoId && await esPapaDelAlumno(req.user, alumnoId));
     res.json({ ...cupo, editable: !!editable });
   } catch (e) {
     res.status(500).json({ error: e.message || 'No se pudo leer el cupo' });
@@ -271,13 +306,12 @@ router.get('/cupo', async (req, res) => {
 
 router.put('/cupo', async (req, res) => {
   if (!(await exigirModulo(res))) return;
-  if (req.user?.tipo !== 'APODERADO') return res.status(403).json({ error: 'Solo el papá puede poner el límite de su hijo.' });
   const colegioId = req.user.colegio_id || DEFAULT_COLEGIO_ID;
   const alumnoId = parseInt(req.body?.alumno_id, 10);
   const fecha = fechaValida(req.body?.fecha) || hoyLima();
   if (!alumnoId) return res.status(400).json({ error: 'Elige al hijo.' });
   try {
-    if (!(await puedeVerCupo(req.user, alumnoId))) {
+    if (!(await esPapaDelAlumno(req.user, alumnoId))) {
       return res.status(403).json({ error: 'Ese alumno no está en tu familia.' });
     }
     await guardarLimiteHijo(colegioId, alumnoId, req.body || {});
