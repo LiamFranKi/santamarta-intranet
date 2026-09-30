@@ -92,7 +92,7 @@ export default function KioscoCafetin() {
   const { user } = useAuth();
   const caja = user?.tipo === 'KIOSCO' || user?.tipo === 'ADMINISTRADOR';
   const [ventana, setVentana] = useState(null);
-  const [panel, setPanel] = useState(null);
+  const [panel, setPanel] = useState(caja ? null : 'pedir');
   const [cartaDias, setCartaDias] = useState([]);
   const [especiales, setEspeciales] = useState([]);
   const [buscaEsp, setBuscaEsp] = useState('');

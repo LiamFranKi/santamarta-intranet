@@ -929,7 +929,7 @@ export default function DashboardLayout({ children }) {
                 </>
               )}
 
-              {rolesAdicionales.es_cajero_caja_chica && (
+              {rolesAdicionales.es_cajero_caja_chica && activo('pagos.caja') && (
                 <>
                   <div className="sidebar-section-divider"></div>
                   <div
@@ -1205,6 +1205,7 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Notificaciones</span>
                 </NavLink>
               </div>
+              {alguno(['reportes.general', 'reportes.temas', 'reportes.notas', 'reportes.deudores', 'reportes.asistencias', 'reportes.estadisticas', 'reportes.incidencias']) && (
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -1254,6 +1255,7 @@ export default function DashboardLayout({ children }) {
                   )}
                 </div>
               </div>
+              )}
               {activo('kiosco') && (
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/kiosco">
@@ -1420,6 +1422,7 @@ export default function DashboardLayout({ children }) {
               <BibliotecaSidebarItem />
               <ChatVanguardSidebarItem />
               <VanguarcitoSidebarItem />
+              {alguno(['usuarios.alumnos', 'usuarios.apoderados']) && (
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -1452,6 +1455,8 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
+              )}
+              {activo('academico.grados') && (
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -1478,6 +1483,8 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
+              )}
+              {alguno(['herramientas.documentos', 'herramientas.examenes', 'herramientas.encuestas', 'herramientas.vocabularios', 'herramientas.reuniones']) && (
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -1528,6 +1535,7 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
+              )}
               {activo('kiosco') && (
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/kiosco">
@@ -1536,6 +1544,7 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               )}
+              {alguno(['comunicaciones.actividades', 'comunicaciones.publicaciones', 'comunicaciones.conexiones', 'comunicaciones.comunicados', 'comunicaciones.notificaciones', 'comunicaciones.chat', 'reportes.incidencias']) && (
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -1605,6 +1614,7 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
+              )}
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/mensajes">
                   <span className="sidebar-icon">✉️</span>
@@ -1660,6 +1670,7 @@ export default function DashboardLayout({ children }) {
               <BibliotecaSidebarItem />
               <ChatVanguardSidebarItem />
               <VanguarcitoSidebarItem />
+              {alguno(['usuarios.personal', 'usuarios.alumnos', 'usuarios.apoderados']) && (
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -1690,7 +1701,8 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
-              {esPaqueteAcademico(role) && (
+              )}
+              {esPaqueteAcademico(role) && alguno(['academico.cneb', 'academico.niveles', 'academico.grados', 'academico.cursos', 'academico.asignaturas', 'academico.areas']) && (
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -1734,6 +1746,7 @@ export default function DashboardLayout({ children }) {
                 </div>
               </div>
               )}
+              {alguno(['herramientas.documentos', 'herramientas.examenes', 'herramientas.encuestas', 'herramientas.elecciones', 'herramientas.vocabularios', 'herramientas.supervision', 'herramientas.tardanzas', 'herramientas.reuniones']) && (
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -1791,6 +1804,7 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
+              )}
               {activo('kiosco') && (
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/kiosco">
@@ -1799,6 +1813,7 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               )}
+              {alguno(['comunicaciones.publicaciones', 'comunicaciones.conexiones', 'comunicaciones.comunicados', 'comunicaciones.actividades', 'comunicaciones.eventos', 'comunicaciones.notificaciones', 'comunicaciones.chat']) && (
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -1847,6 +1862,7 @@ export default function DashboardLayout({ children }) {
                   )}
                 </div>
               </div>
+              )}
               {rolesAdicionales.es_apoderado && (
                 <div className="sidebar-item">
                   <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/hijos">
@@ -1855,6 +1871,7 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               )}
+              {alguno(['reportes.general', 'reportes.temas', 'reportes.notas', 'reportes.deudores', 'reportes.asistencias', 'reportes.estadisticas', 'reportes.incidencias']) && (
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -1904,6 +1921,7 @@ export default function DashboardLayout({ children }) {
                   )}
                 </div>
               </div>
+              )}
               {esCoordinador(role) && activo('config.pagos') && (
               <div className="sidebar-menu-item">
                 <button
@@ -2523,7 +2541,7 @@ export default function DashboardLayout({ children }) {
         <ComunicadoHomeModal />
 
         {/* Modal de bienvenida cumpleaños (plantilla ventana; z-index bajo comunicado home) */}
-        <BirthdayWelcomeModal />
+        {activo('config.cumpleanos') && <BirthdayWelcomeModal />}
 
         {/* Modal de Asistencias */}
         {(user?.tipo === 'DOCENTE' || tienePersonalAsistencias) && (
