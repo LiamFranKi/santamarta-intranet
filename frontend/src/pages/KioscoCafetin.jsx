@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import api from '../services/api';
+import { exportarKioscoReporte } from '../utils/exportKioscoReporte';
 import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/DashboardLayout';
 import './KioscoCafetin.css';
@@ -12,6 +13,40 @@ function sumarDias(iso, dias) {
 }
 
 const EMOJIS = ['🥤', '🧃', '💧', '☕', '🍪', '🍫', '🍬', '🍩', '🍔', '🍟', '🌭', '🍕', '🥪', '🌮', '🥗', '🍚', '🍗', '🍦', '🍎', '🍌'];
+
+function inicioSemana(iso) {
+  const d = new Date(`${iso}T12:00:00`);
+  const diff = d.getDay() === 0 ? 6 : d.getDay() - 1;
+  return sumarDias(iso, -diff);
+}
+
+function finSemana(iso) {
+  return sumarDias(inicioSemana(iso), 6);
+}
+
+function inicioMes(iso) {
+  return `${iso.slice(0, 8)}01`;
+}
+
+function finMes(iso) {
+  const [y, m] = iso.split('-').map(Number);
+  const last = new Date(y, m, 0).getDate();
+  return `${iso.slice(0, 8)}${String(last).padStart(2, '0')}`;
+}
+
+function fechaCorta(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+}
+
+function etiquetaPedido(p) {
+  if (p.estado === 'pedido') return 'Por atender';
+  if (p.estado === 'rechazado') return 'Rechazado';
+  if (p.pago === 'fiado') return 'Fiado';
+  if (p.pago === 'pagado') return 'Pagado';
+  if (p.pago === 'pendiente') return 'Pendiente de cobro';
+  return p.estado || '';
+}
 
 function etiquetaDia(iso, hoy) {
   if (iso === hoy) return 'Hoy';
@@ -92,6 +127,15 @@ export default function KioscoCafetin() {
   const [atendiendo, setAtendiendo] = useState(null);
   const [catalogo, setCatalogo] = useState({ categorias: [], productos: [] });
   const [resumen, setResumen] = useState(null);
+  const [reporte, setReporte] = useState(null);
+  const [repDesde, setRepDesde] = useState('');
+  const [repHasta, setRepHasta] = useState('');
+  const [repFiltro, setRepFiltro] = useState('todos');
+  const [repCargando, setRepCargando] = useState(false);
+  const [exportando, setExportando] = useState(false);
+  const [cupo, setCupo] = useState(null);
+  const [cupoForm, setCupoForm] = useState(null);
+  const [guardandoCupo, setGuardandoCupo] = useState(false);
   const [formCat, setFormCat] = useState({ nombre: '', emoji: '🍽️', imagen: null });
   const [formProd, setFormProd] = useState({
     nombre: '', precio: '', detalle: '', emoji: '🥤', categoria_id: '', siempre: true, es_comida: false, stock: '', imagen: null,
@@ -159,6 +203,24 @@ export default function KioscoCafetin() {
     setResumen(r.data);
   }, []);
 
+  const cargarReporte = useCallback(async (desde, hasta) => {
+    const d = desde || hoy;
+    const h = hasta || desde || hoy;
+    if (!d || !h) return;
+    setRepDesde(d);
+    setRepHasta(h);
+    setRepCargando(true);
+    setError('');
+    try {
+      const { data } = await api.get('/kiosco/reporte', { params: { desde: d, hasta: h } });
+      setReporte(data);
+    } catch (e) {
+      setError(e.response?.data?.error || 'No se pudo cargar el reporte.');
+    } finally {
+      setRepCargando(false);
+    }
+  }, [hoy]);
+
   const cargarCola = useCallback(async () => {
     const { data } = await api.get('/kiosco/pedidos', { params: { estado: 'pedido' } });
     setCola(data.pedidos || []);
@@ -200,6 +262,92 @@ export default function KioscoCafetin() {
   const hijoSel = hijos.find((h) => String(h.id) === String(alumnoId));
   const dias = hoy ? [0, 1, 2, 3, 4, 5, 6].map((n) => sumarDias(hoy, n)) : [];
   const esperando = cola.length;
+  const pedidosReporte = useMemo(() => {
+    const lista = reporte?.pedidos || [];
+    if (repFiltro === 'vendido') return lista.filter((p) => p.estado === 'aceptado' || p.estado === 'entregado');
+    if (repFiltro === 'pagado') return lista.filter((p) => (p.estado === 'aceptado' || p.estado === 'entregado') && p.pago === 'pagado');
+    if (repFiltro === 'fiado') return lista.filter((p) => (p.estado === 'aceptado' || p.estado === 'entregado') && p.pago === 'fiado');
+    if (repFiltro === 'pendiente') return lista.filter((p) => (p.estado === 'aceptado' || p.estado === 'entregado') && p.pago === 'pendiente');
+    if (repFiltro === 'rechazado') return lista.filter((p) => p.estado === 'rechazado');
+    if (repFiltro === 'espera') return lista.filter((p) => p.estado === 'pedido');
+    return lista;
+  }, [reporte, repFiltro]);
+
+  const esPapa = user?.tipo === 'APODERADO';
+
+  useEffect(() => {
+    if (caja || !alumnoId) {
+      setCupo(null);
+      return undefined;
+    }
+    let vivo = true;
+    api.get('/kiosco/cupo', { params: { alumno_id: alumnoId, fecha: fecha || undefined } })
+      .then(({ data }) => {
+        if (!vivo) return;
+        setCupo(data);
+        setCupoForm(data.papa || { dia_activo: false, dia_monto: 0, general_activo: false, general_monto: 0 });
+      })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, [caja, alumnoId, fecha]);
+
+  const guardarCupo = async () => {
+    if (!esPapa || !alumnoId || !cupoForm) return;
+    setGuardandoCupo(true);
+    setError('');
+    try {
+      const { data } = await api.put('/kiosco/cupo', { ...cupoForm, alumno_id: parseInt(alumnoId, 10), fecha });
+      setCupo(data);
+      setCupoForm(data.papa);
+      setAviso('Límite de fiado guardado. Si se paga la deuda, el cupo vuelve a quedar libre.');
+    } catch (e) {
+      setError(e.response?.data?.error || 'No se pudo guardar el límite.');
+    } finally {
+      setGuardandoCupo(false);
+    }
+  };
+
+  const bajarReporte = async () => {
+    if (!reporte) return;
+    setExportando(true);
+    try {
+      const nombres = { todos: 'Todos', vendido: 'Vendidos', pagado: 'Pagados', fiado: 'Fiados', pendiente: 'Pendientes', rechazado: 'Rechazados', espera: 'Por atender' };
+      await exportarKioscoReporte({
+        desde: reporte.desde,
+        hasta: reporte.hasta,
+        cierre: reporte.cierre,
+        pedidos: pedidosReporte,
+        productos: reporte.productos || [],
+        filtro: nombres[repFiltro] || 'Todos',
+      });
+    } catch (e) {
+      setError('No se pudo exportar el Excel.');
+    } finally {
+      setExportando(false);
+    }
+  };
+
+  const bajarPdf = async () => {
+    if (!reporte) return;
+    setExportando(true);
+    setError('');
+    try {
+      const res = await api.get('/kiosco/reporte/pdf', {
+        params: { desde: reporte.desde, hasta: reporte.hasta, filtro: repFiltro },
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `kiosco_${reporte.desde}_${reporte.hasta}.pdf`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      setError('No se pudo exportar el PDF.');
+    } finally {
+      setExportando(false);
+    }
+  };
 
   const enCarrito = (productoId) => carrito.find((it) => it.producto_id === productoId)?.cantidad || 0;
 
@@ -419,8 +567,11 @@ export default function KioscoCafetin() {
             <button type="button" className={`kio-accion${panel === 'caja' ? ' is-on' : ''}`} onClick={() => { setPanel('caja'); cargarPedidos(); }}>
               <span>Caja</span><small>Cobros y fiados</small>
             </button>
+            <button type="button" className={`kio-accion${panel === 'reportes' ? ' is-on' : ''}`} onClick={() => { setPanel('reportes'); if (!reporte) cargarReporte(hoy, hoy); }}>
+              <span>Reportes</span><small>Historial, cierre y Excel</small>
+            </button>
             <button type="button" className={`kio-accion${panel === 'ajustes' ? ' is-on' : ''}`} onClick={() => setPanel('ajustes')}>
-              <span>Ajustes</span><small>Quién pide, corte y límite</small>
+              <span>Ajustes</span><small>Quién pide, corte y cupo de fiado</small>
             </button>
           </div>
         ) : (
@@ -695,6 +846,95 @@ export default function KioscoCafetin() {
           </section>
         )}
 
+        {caja && panel === 'reportes' && (
+          <section className="kio-panel">
+            <div className="kio-panel-head">
+              <div>
+                <h2>Reportes</h2>
+                <p className="kio-cola-nota">Historial de lo atendido, lo cobrado, lo fiado, lo pendiente y lo rechazado. El cierre usa la fecha en que se hizo el pedido.</p>
+              </div>
+              <div className="kio-rep-export">
+                <button type="button" className="kio-btn" disabled={!reporte || exportando} onClick={bajarReporte}>Excel</button>
+                <button type="button" className="kio-btn kio-btn-ghost" disabled={!reporte || exportando} onClick={bajarPdf}>PDF</button>
+              </div>
+            </div>
+            <div className="kio-rep-presets">
+              <button type="button" className={repDesde === hoy && repHasta === hoy ? 'is-on' : ''} onClick={() => cargarReporte(hoy, hoy)}>Hoy</button>
+              <button type="button" className={hoy && repDesde === inicioSemana(hoy) && repHasta === finSemana(hoy) ? 'is-on' : ''} onClick={() => cargarReporte(inicioSemana(hoy), finSemana(hoy))}>Semana</button>
+              <button type="button" className={hoy && repDesde === inicioMes(hoy) && repHasta === finMes(hoy) ? 'is-on' : ''} onClick={() => cargarReporte(inicioMes(hoy), finMes(hoy))}>Mes</button>
+            </div>
+            <div className="kio-rep-fechas">
+              <label>Desde<input type="date" value={repDesde} onChange={(e) => setRepDesde(e.target.value)} /></label>
+              <label>Hasta<input type="date" value={repHasta} onChange={(e) => setRepHasta(e.target.value)} /></label>
+              <button type="button" className="kio-btn" disabled={repCargando || !repDesde || !repHasta} onClick={() => cargarReporte(repDesde, repHasta)}>Ver</button>
+            </div>
+            {repCargando && <p className="kio-vacio">Cargando el cierre…</p>}
+            {reporte && !repCargando && (
+              <>
+                <p className="kio-hint">Cierre del {fechaCorta(reporte.desde)} al {fechaCorta(reporte.hasta)}. Lo vendido ya se atendió. Lo pagado entró a caja. Lo fiado se atendió y sigue debiendo. Lo rechazado no se vendió.</p>
+                <div className="kio-cierre">
+                  {[
+                    ['vendido', 'Vendido', reporte.cierre.vendido],
+                    ['pagado', 'Pagado', reporte.cierre.pagado],
+                    ['fiado', 'Fiado', reporte.cierre.fiado],
+                    ['pendiente', 'Pendiente', reporte.cierre.pendiente],
+                    ['rechazado', 'Rechazado', reporte.cierre.rechazado],
+                    ['espera', 'Por atender', reporte.cierre.espera],
+                  ].map(([clave, nombre, dato]) => (
+                    <button key={clave} type="button" className={`kio-cierre-card${repFiltro === clave ? ' is-on' : ''}${clave === 'pagado' ? ' kio-cierre-caja' : ''}`} onClick={() => setRepFiltro(clave)}>
+                      <span>{nombre}</span>
+                      <strong>S/ {Number(dato.total).toFixed(2)}</strong>
+                      <small>{dato.n} pedido{dato.n === 1 ? '' : 's'}</small>
+                    </button>
+                  ))}
+                </div>
+                <div className="kio-dias">
+                  {[
+                    ['todos', 'Todos'],
+                    ['pagado', 'Pagados'],
+                    ['fiado', 'Fiados'],
+                    ['pendiente', 'Pendientes'],
+                    ['rechazado', 'Rechazados'],
+                    ['espera', 'Por atender'],
+                  ].map(([clave, nombre]) => (
+                    <button key={clave} type="button" className={repFiltro === clave ? 'is-on' : ''} onClick={() => setRepFiltro(clave)}>{nombre}</button>
+                  ))}
+                </div>
+                <div className="kio-rep-lista">
+                  {pedidosReporte.map((p) => (
+                    <article key={p.id} className="kio-rep-card">
+                      <div>
+                        <strong>{p.cliente || 'Sin nombre'}</strong>
+                        <span>{fechaCorta(p.fecha)} {p.hora} · {p.codigo} · {p.grado || p.origen}</span>
+                        <em>{p.detalle || 'Sin detalle'}</em>
+                      </div>
+                      <div>
+                        <b className={`kio-rep-tag kio-rep-${p.estado === 'rechazado' ? 'rechazado' : p.estado === 'pedido' ? 'espera' : p.pago}`}>{etiquetaPedido(p)}</b>
+                        <strong>S/ {Number(p.total).toFixed(2)}</strong>
+                      </div>
+                    </article>
+                  ))}
+                  {!pedidosReporte.length && <p className="kio-vacio">No hay pedidos en este filtro.</p>}
+                </div>
+                {reporte.cortado && <p className="kio-hint">Se muestran los 2000 pedidos más recientes del rango. El cierre de arriba sí suma todos.</p>}
+                <h3 className="kio-rep-sub">Lo que se vendió</h3>
+                <div className="kio-rep-lista">
+                  {(reporte.productos || []).map((p) => (
+                    <article key={p.nombre} className="kio-rep-card">
+                      <div>
+                        <strong>{p.nombre}</strong>
+                        <span>{p.vendidos} vendido{p.vendidos === 1 ? '' : 's'}{p.no_vendidos ? ` · ${p.no_vendidos} no se vendió` : ''}</span>
+                      </div>
+                      <strong>S/ {Number(p.monto).toFixed(2)}</strong>
+                    </article>
+                  ))}
+                  {!(reporte.productos || []).length && <p className="kio-vacio">En este rango no hay productos vendidos ni rechazados.</p>}
+                </div>
+              </>
+            )}
+          </section>
+        )}
+
         {caja && panel === 'ajustes' && config && (
           <section className="kio-panel">
             <div className="kio-panel-head"><h2>Ajustes</h2></div>
@@ -716,13 +956,46 @@ export default function KioscoCafetin() {
                 </label>
               </article>
               <article className="kio-ajuste">
-                <div><strong>Límite</strong><p>Tope por pedido. Apagado, se pide sin tope.</p></div>
+                <div><strong>Fiado por pedido</strong><p>Un solo fiado no puede pasar de este monto en soles. Si el pedido se paga, el tope no aplica.</p></div>
                 <label className="kio-switch">
                   <input type="checkbox" checked={config.limite_activo} onChange={(e) => setConfig({ ...config, limite_activo: e.target.checked })} />
                   <i />
-                  <span>{config.limite_activo ? 'Con límite' : 'Sin límite'}</span>
+                  <span>{config.limite_activo ? 'Con tope' : 'Sin tope'}</span>
                 </label>
-                {config.limite_activo && <input type="number" min="0" step="0.5" value={config.limite_monto} onChange={(e) => setConfig({ ...config, limite_monto: e.target.value })} placeholder="Monto máximo" />}
+                {config.limite_activo && (
+                  <label className="kio-soles">
+                    <span>S/</span>
+                    <input type="number" min="0" step="0.5" value={config.limite_monto} onChange={(e) => setConfig({ ...config, limite_monto: e.target.value })} placeholder="Máximo por fiado" />
+                  </label>
+                )}
+              </article>
+              <article className="kio-ajuste">
+                <div><strong>Fiado por día</strong><p>Cuántos soles puede quedar debiendo en un mismo día. Cuando ese fiado se paga, el día vuelve a quedar libre.</p></div>
+                <label className="kio-switch">
+                  <input type="checkbox" checked={!!config.limite_dia_activo} onChange={(e) => setConfig({ ...config, limite_dia_activo: e.target.checked })} />
+                  <i />
+                  <span>{config.limite_dia_activo ? 'Con tope' : 'Sin tope'}</span>
+                </label>
+                {config.limite_dia_activo && (
+                  <label className="kio-soles">
+                    <span>S/</span>
+                    <input type="number" min="0" step="0.5" value={config.limite_dia_monto} onChange={(e) => setConfig({ ...config, limite_dia_monto: e.target.value })} placeholder="Máximo del día" />
+                  </label>
+                )}
+              </article>
+              <article className="kio-ajuste">
+                <div><strong>Fiado general</strong><p>Cuántos soles puede quedar debiendo en total, desde que se enciende. Al pagar, esos soles se liberan. Manda el tope más bajo entre el colegio y el papá.</p></div>
+                <label className="kio-switch">
+                  <input type="checkbox" checked={!!config.limite_general_activo} onChange={(e) => setConfig({ ...config, limite_general_activo: e.target.checked })} />
+                  <i />
+                  <span>{config.limite_general_activo ? 'Con tope' : 'Sin tope'}</span>
+                </label>
+                {config.limite_general_activo && (
+                  <label className="kio-soles">
+                    <span>S/</span>
+                    <input type="number" min="0" step="0.5" value={config.limite_general_monto} onChange={(e) => setConfig({ ...config, limite_general_monto: e.target.value })} placeholder="Máximo que puede deber" />
+                  </label>
+                )}
               </article>
               <article className="kio-ajuste">
                 <div><strong>Corte</strong><p>Hora límite para pedir. Apagado, se pide hasta el final.</p></div>
@@ -774,6 +1047,49 @@ export default function KioscoCafetin() {
             )}
             {yo && <p>Para {yo.nombre}. Debe S/ {Number(yo.deuda).toFixed(2)}</p>}
             {hijoSel && <p className="kio-deuda">Debe S/ {Number(hijoSel.deuda).toFixed(2)}</p>}
+            {cupo && (esPapa || cupo.colegio?.pedido_activo || cupo.colegio?.dia_activo || cupo.colegio?.general_activo || cupo.papa?.dia_activo || cupo.papa?.general_activo) && (
+              <div className="kio-cupo">
+                <strong>Cupo de fiado</strong>
+                <p>Solo cuenta lo que queda debiendo. Si se paga, esos soles vuelven a quedar libres. Un pedido pagado no usa este cupo.</p>
+                <p>Este día debe <b>S/ {Number(cupo.debe_dia || 0).toFixed(2)}</b>
+                  {cupo.colegio?.dia_activo ? ` · Colegio hasta S/ ${Number(cupo.colegio.dia_monto).toFixed(2)}` : ''}
+                  {cupo.papa?.dia_activo ? ` · Papá hasta S/ ${Number(cupo.papa.dia_monto).toFixed(2)}` : ''}
+                </p>
+                {(cupo.colegio?.general_activo || cupo.papa?.general_activo) && (
+                  <p>
+                    {cupo.papa?.general_activo ? `Tope general del papá: debe S/ ${Number(cupo.debe_general_papa || 0).toFixed(2)} de S/ ${Number(cupo.papa.general_monto).toFixed(2)}. ` : ''}
+                    {cupo.colegio?.general_activo ? `Tope general del colegio: debe S/ ${Number(cupo.debe_general_colegio || 0).toFixed(2)} de S/ ${Number(cupo.colegio.general_monto).toFixed(2)}.` : ''}
+                  </p>
+                )}
+                {esPapa && cupoForm && (
+                  <div className="kio-cupo-form">
+                    <label className="kio-switch">
+                      <input type="checkbox" checked={!!cupoForm.dia_activo} onChange={(e) => setCupoForm({ ...cupoForm, dia_activo: e.target.checked })} />
+                      <i />
+                      <span>Por día</span>
+                    </label>
+                    {cupoForm.dia_activo && (
+                      <label className="kio-soles"><span>S/</span>
+                        <input type="number" min="0" step="0.5" value={cupoForm.dia_monto} onChange={(e) => setCupoForm({ ...cupoForm, dia_monto: e.target.value })} />
+                      </label>
+                    )}
+                    <label className="kio-switch">
+                      <input type="checkbox" checked={!!cupoForm.general_activo} onChange={(e) => setCupoForm({ ...cupoForm, general_activo: e.target.checked })} />
+                      <i />
+                      <span>General</span>
+                    </label>
+                    {cupoForm.general_activo && (
+                      <label className="kio-soles"><span>S/</span>
+                        <input type="number" min="0" step="0.5" value={cupoForm.general_monto} onChange={(e) => setCupoForm({ ...cupoForm, general_monto: e.target.value })} />
+                      </label>
+                    )}
+                    <button type="button" className="kio-btn" disabled={guardandoCupo} onClick={guardarCupo}>
+                      {guardandoCupo ? 'Guardando…' : 'Guardar límite de mi hijo'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             {!carrito.length && <p className="kio-vacio">Todavía no elegiste productos. Toca uno arriba y se suma aquí.</p>}
             <div className="kio-tabs-pedido">
               {carrito.map((it) => (

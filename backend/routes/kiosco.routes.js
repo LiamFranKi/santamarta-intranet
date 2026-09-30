@@ -12,6 +12,14 @@ const { DEFAULT_COLEGIO_ID } = require('../utils/defaultColegio');
 const { moduloActivo } = require('../utils/modulosSistema');
 const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
+const {
+  asegurarLimites,
+  fechaSql,
+  revisarCupoFiado,
+  resumenCupo,
+  guardarLimiteHijo,
+  horaSql,
+} = require('../utils/kioscoCupo');
 const { staticFsSubdir, getPublicStaticBaseUrl } = require('../utils/staticStorage');
 
 const uploadKiosco = multer({
@@ -79,13 +87,23 @@ function idDe(user) {
 }
 
 async function leerConfig(colegioId) {
-  const [row] = await query('SELECT * FROM kiosco_config WHERE colegio_id = ? LIMIT 1', [colegioId]);
+  await asegurarLimites();
+  const [row] = await query(
+    `SELECT *, DATE_FORMAT(limite_general_desde, '%Y-%m-%d %H:%i:%s') AS limite_general_desde_txt
+     FROM kiosco_config WHERE colegio_id = ? LIMIT 1`,
+    [colegioId]
+  );
   if (row) {
     return {
       quien_pide: row.quien_pide || 'AMBOS',
       pide_personal: row.pide_personal == null ? true : Number(row.pide_personal) === 1,
       limite_activo: Number(row.limite_activo) === 1,
       limite_monto: Number(row.limite_monto) || 0,
+      limite_dia_activo: Number(row.limite_dia_activo) === 1,
+      limite_dia_monto: Number(row.limite_dia_monto) || 0,
+      limite_general_activo: Number(row.limite_general_activo) === 1,
+      limite_general_monto: Number(row.limite_general_monto) || 0,
+      limite_general_desde: row.limite_general_desde_txt || horaSql(row.limite_general_desde) || '',
       corte_activo: Number(row.corte_activo) === 1,
       corte_hora: row.corte_hora ? String(row.corte_hora).slice(0, 5) : '',
       comida_activa: Number(row.comida_activa) === 1,
@@ -98,6 +116,11 @@ async function leerConfig(colegioId) {
     pide_personal: true,
     limite_activo: false,
     limite_monto: 0,
+    limite_dia_activo: false,
+    limite_dia_monto: 0,
+    limite_general_activo: false,
+    limite_general_monto: 0,
+    limite_general_desde: '',
     corte_activo: false,
     corte_hora: '',
     comida_activa: true,
@@ -156,13 +179,23 @@ router.put('/config', async (req, res) => {
   const quien = ['APODERADO', 'ALUMNO', 'AMBOS'].includes(b.quien_pide) ? b.quien_pide : 'AMBOS';
   const corte = /^\d{2}:\d{2}$/.test(String(b.corte_hora || '')) ? b.corte_hora : null;
   try {
+    const previa = await leerConfig(colegioId);
+    const generalActivo = !!b.limite_general_activo;
+    let generalDesde = previa.limite_general_desde || null;
+    if (generalActivo && !previa.limite_general_activo) generalDesde = fechaHoraMySQLLima();
+    if (!generalActivo) generalDesde = null;
     await execute(
       `INSERT INTO kiosco_config
-        (colegio_id, quien_pide, pide_personal, limite_activo, limite_monto, corte_activo, corte_hora, comida_activa, fiado_activo)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (colegio_id, quien_pide, pide_personal, limite_activo, limite_monto,
+         limite_dia_activo, limite_dia_monto, limite_general_activo, limite_general_monto, limite_general_desde,
+         corte_activo, corte_hora, comida_activa, fiado_activo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
         quien_pide = VALUES(quien_pide), pide_personal = VALUES(pide_personal),
         limite_activo = VALUES(limite_activo), limite_monto = VALUES(limite_monto),
+        limite_dia_activo = VALUES(limite_dia_activo), limite_dia_monto = VALUES(limite_dia_monto),
+        limite_general_activo = VALUES(limite_general_activo), limite_general_monto = VALUES(limite_general_monto),
+        limite_general_desde = VALUES(limite_general_desde),
         corte_activo = VALUES(corte_activo), corte_hora = VALUES(corte_hora),
         comida_activa = VALUES(comida_activa), fiado_activo = VALUES(fiado_activo)`,
       [
@@ -171,6 +204,11 @@ router.put('/config', async (req, res) => {
         b.pide_personal === false ? 0 : 1,
         b.limite_activo ? 1 : 0,
         Number(b.limite_monto) || 0,
+        b.limite_dia_activo ? 1 : 0,
+        Number(b.limite_dia_monto) || 0,
+        generalActivo ? 1 : 0,
+        Number(b.limite_general_monto) || 0,
+        generalDesde,
         b.corte_activo ? 1 : 0,
         corte,
         b.comida_activa === false ? 0 : 1,
@@ -180,6 +218,62 @@ router.put('/config', async (req, res) => {
     res.json({ config: await leerConfig(colegioId) });
   } catch (e) {
     res.status(500).json({ error: e.message || 'No se pudo guardar' });
+  }
+});
+
+async function puedeVerCupo(user, alumnoId) {
+  if (esCaja(user)) return true;
+  if (user?.tipo === 'ALUMNO' && Number(user.alumno_id) === Number(alumnoId)) return true;
+  if (user?.tipo === 'APODERADO' && user.apoderado_id && alumnoId) {
+    const [row] = await query(
+      'SELECT 1 AS ok FROM familias WHERE apoderado_id = ? AND alumno_id = ? LIMIT 1',
+      [user.apoderado_id, alumnoId]
+    );
+    return !!row;
+  }
+  return false;
+}
+
+router.get('/cupo', async (req, res) => {
+  if (!(await exigirModulo(res))) return;
+  const colegioId = req.user.colegio_id || DEFAULT_COLEGIO_ID;
+  const alumnoId = parseInt(req.query.alumno_id, 10) || null;
+  const clienteUsuarioId = parseInt(req.query.cliente_usuario_id, 10) || null;
+  const fecha = fechaValida(req.query.fecha) || hoyLima();
+  if (!alumnoId && !clienteUsuarioId) return res.status(400).json({ error: 'Falta la persona.' });
+  try {
+    if (alumnoId && !(await puedeVerCupo(req.user, alumnoId))) {
+      return res.status(403).json({ error: 'No puedes ver el cupo de este alumno.' });
+    }
+    if (!alumnoId && !esCaja(req.user) && clienteUsuarioId !== idDe(req.user)) {
+      return res.status(403).json({ error: 'No puedes ver este cupo.' });
+    }
+    const config = await leerConfig(colegioId);
+    const cupo = await resumenCupo(colegioId, config, { alumnoId, clienteUsuarioId, fecha });
+    const editable = req.user?.tipo === 'APODERADO' && alumnoId && await puedeVerCupo(req.user, alumnoId);
+    res.json({ ...cupo, editable: !!editable });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'No se pudo leer el cupo' });
+  }
+});
+
+router.put('/cupo', async (req, res) => {
+  if (!(await exigirModulo(res))) return;
+  if (req.user?.tipo !== 'APODERADO') return res.status(403).json({ error: 'Solo el papá puede poner el límite de su hijo.' });
+  const colegioId = req.user.colegio_id || DEFAULT_COLEGIO_ID;
+  const alumnoId = parseInt(req.body?.alumno_id, 10);
+  const fecha = fechaValida(req.body?.fecha) || hoyLima();
+  if (!alumnoId) return res.status(400).json({ error: 'Elige al hijo.' });
+  try {
+    if (!(await puedeVerCupo(req.user, alumnoId))) {
+      return res.status(403).json({ error: 'Ese alumno no está en tu familia.' });
+    }
+    await guardarLimiteHijo(colegioId, alumnoId, req.body || {});
+    const config = await leerConfig(colegioId);
+    const cupo = await resumenCupo(colegioId, config, { alumnoId, fecha });
+    res.json({ ...cupo, editable: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'No se pudo guardar el límite' });
   }
 });
 
@@ -355,8 +449,16 @@ router.post('/pedidos', async (req, res) => {
       lineas.push({ id: p.id, nombre: p.nombre, precio: Number(p.precio), cantidad: cant });
     }
     if (!lineas.length) return res.status(400).json({ error: 'No hay productos válidos en el pedido.' });
-    if (!mostrador && config.limite_activo && total > Number(config.limite_monto)) {
-      return res.status(400).json({ error: `El pedido supera el límite de S/ ${Number(config.limite_monto).toFixed(2)}.` });
+    if (mostrador && pago === 'fiado') {
+      const motivo = await revisarCupoFiado({
+        colegioId,
+        config,
+        alumnoId,
+        clienteUsuarioId,
+        fecha,
+        monto: total,
+      });
+      if (motivo) return res.status(400).json({ error: motivo });
     }
     const codigo = codigoPedido();
     const estado = mostrador ? 'entregado' : 'pedido';
@@ -557,6 +659,20 @@ router.post('/pedidos/:id/estado', async (req, res) => {
       [id, colegioId]
     );
     if (!ped) return res.status(404).json({ error: 'Pedido no encontrado.' });
+    const pagoSqlPrevio = ['pagado', 'pendiente', 'fiado'].includes(pago) ? pago : ped.pago;
+    const pasaAFiado = pagoSqlPrevio === 'fiado' && estado !== 'rechazado' && ped.pago !== 'fiado';
+    if (pasaAFiado) {
+      const config = await leerConfig(colegioId);
+      const motivo = await revisarCupoFiado({
+        colegioId,
+        config,
+        alumnoId: ped.alumno_id || null,
+        clienteUsuarioId: ped.cliente_usuario_id || null,
+        fecha: fechaSql(ped.fecha_consumo),
+        monto: ped.total,
+      });
+      if (motivo) return res.status(400).json({ error: motivo });
+    }
     if (estado === 'rechazado' && ped.estado === 'pedido') {
       const items = await query('SELECT producto_id, cantidad FROM kiosco_pedido_items WHERE pedido_id = ?', [id]);
       for (const it of items || []) {
@@ -868,6 +984,198 @@ router.post('/stock', async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message || 'No se pudo mover el stock' });
+  }
+});
+
+function fechaValida(valor) {
+  const s = String(valor || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+  const [y, m, d] = s.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return '';
+  return s;
+}
+
+function dinero(valor) {
+  return Math.round((Number(valor) || 0) * 100) / 100;
+}
+
+function prepararRango(query) {
+  const hoy = hoyLima();
+  let desde = fechaValida(query.desde) || hoy;
+  let hasta = fechaValida(query.hasta) || hoy;
+  if (desde > hasta) {
+    const tmp = desde;
+    desde = hasta;
+    hasta = tmp;
+  }
+  const [y0, m0, d0] = desde.split('-').map(Number);
+  const tope = new Date(Date.UTC(y0, m0 - 1, d0 + 400));
+  if (hasta > tope.toISOString().slice(0, 10)) return { error: 'El rango no puede pasar de 400 días.' };
+  return { desde, hasta };
+}
+
+async function armarReporte(colegioId, desde, hasta) {
+    const grupos = await query(
+      `SELECT estado, pago, COUNT(*) AS n, COALESCE(SUM(total), 0) AS total
+       FROM kiosco_pedidos
+       WHERE colegio_id = ? AND DATE(creado_en) BETWEEN ? AND ?
+       GROUP BY estado, pago`,
+      [colegioId, desde, hasta]
+    );
+    const cierre = {
+      vendido: { n: 0, total: 0 },
+      pagado: { n: 0, total: 0 },
+      fiado: { n: 0, total: 0 },
+      pendiente: { n: 0, total: 0 },
+      rechazado: { n: 0, total: 0 },
+      espera: { n: 0, total: 0 },
+    };
+    for (const row of grupos || []) {
+      const n = Number(row.n) || 0;
+      const total = Number(row.total) || 0;
+      const atendido = row.estado === 'aceptado' || row.estado === 'entregado';
+      if (atendido) {
+        cierre.vendido.n += n;
+        cierre.vendido.total += total;
+        if (row.pago === 'pagado') {
+          cierre.pagado.n += n;
+          cierre.pagado.total += total;
+        } else if (row.pago === 'fiado') {
+          cierre.fiado.n += n;
+          cierre.fiado.total += total;
+        } else {
+          cierre.pendiente.n += n;
+          cierre.pendiente.total += total;
+        }
+      } else if (row.estado === 'rechazado') {
+        cierre.rechazado.n += n;
+        cierre.rechazado.total += total;
+      } else if (row.estado === 'pedido') {
+        cierre.espera.n += n;
+        cierre.espera.total += total;
+      }
+    }
+    for (const clave of Object.keys(cierre)) cierre[clave].total = dinero(cierre[clave].total);
+
+    const pedidos = await query(
+      `SELECT p.id, p.codigo, DATE_FORMAT(p.creado_en, '%Y-%m-%d') AS fecha,
+              DATE_FORMAT(p.creado_en, '%H:%i') AS hora, p.estado, p.pago, p.origen, p.total, p.nota,
+              p.alumno_id, a.nombres, a.apellido_paterno,
+              per.nombres AS per_nombres, per.apellidos AS per_apellidos
+       FROM kiosco_pedidos p
+       LEFT JOIN alumnos a ON a.id = p.alumno_id
+       LEFT JOIN usuarios cu ON cu.id = p.cliente_usuario_id
+       LEFT JOIN personal per ON per.id = cu.personal_id
+       WHERE p.colegio_id = ? AND DATE(p.creado_en) BETWEEN ? AND ?
+       ORDER BY p.creado_en DESC, p.id DESC
+       LIMIT 2000`,
+      [colegioId, desde, hasta]
+    );
+    const ids = (pedidos || []).map((p) => p.id);
+    const items = ids.length
+      ? await query(
+        `SELECT pedido_id, nombre, cantidad, precio FROM kiosco_pedido_items WHERE pedido_id IN (${ids.map(() => '?').join(',')})`,
+        ids
+      )
+      : [];
+    const porPedido = new Map();
+    for (const it of items || []) {
+      if (!porPedido.has(it.pedido_id)) porPedido.set(it.pedido_id, []);
+      porPedido.get(it.pedido_id).push({
+        nombre: it.nombre,
+        cantidad: Number(it.cantidad) || 0,
+        precio: dinero(it.precio),
+      });
+    }
+    const alumnoIds = [...new Set((pedidos || []).map((p) => p.alumno_id).filter(Boolean))];
+    const grados = new Map();
+    if (alumnoIds.length) {
+      const filas = await query(
+        `SELECT m.alumno_id, n.nombre AS nivel, g.grado, g.seccion
+         FROM matriculas m
+         INNER JOIN grupos g ON g.id = m.grupo_id
+         INNER JOIN niveles n ON n.id = g.nivel_id
+         WHERE m.colegio_id = ? AND m.estado NOT IN (2, 3)
+           AND m.alumno_id IN (${alumnoIds.map(() => '?').join(',')})
+         ORDER BY g.anio DESC, m.id DESC`,
+        [colegioId, ...alumnoIds]
+      );
+      for (const fila of filas || []) {
+        if (grados.has(fila.alumno_id)) continue;
+        grados.set(
+          fila.alumno_id,
+          `${fila.nivel || ''} ${fila.grado || ''}° ${fila.seccion || ''}`.replace(/\s+/g, ' ').trim()
+        );
+      }
+    }
+    const productos = await query(
+      `SELECT i.nombre,
+              SUM(CASE WHEN p.estado IN ('aceptado','entregado') THEN i.cantidad ELSE 0 END) AS vendidos,
+              SUM(CASE WHEN p.estado IN ('aceptado','entregado') THEN i.precio * i.cantidad ELSE 0 END) AS monto,
+              SUM(CASE WHEN p.estado = 'rechazado' THEN i.cantidad ELSE 0 END) AS no_vendidos
+       FROM kiosco_pedido_items i
+       INNER JOIN kiosco_pedidos p ON p.id = i.pedido_id
+       WHERE p.colegio_id = ? AND DATE(p.creado_en) BETWEEN ? AND ?
+       GROUP BY i.nombre
+       HAVING SUM(CASE WHEN p.estado IN ('aceptado','entregado') THEN i.cantidad ELSE 0 END) > 0
+           OR SUM(CASE WHEN p.estado = 'rechazado' THEN i.cantidad ELSE 0 END) > 0
+       ORDER BY vendidos DESC, i.nombre`,
+      [colegioId, desde, hasta]
+    );
+    return {
+      desde,
+      hasta,
+      cortado: (pedidos || []).length >= 2000,
+      cierre,
+      pedidos: (pedidos || []).map((p) => ({
+        id: p.id,
+        codigo: p.codigo,
+        fecha: p.fecha,
+        hora: p.hora,
+        estado: p.estado,
+        pago: p.pago,
+        origen: p.origen === 'mostrador' ? 'Mostrador' : 'En línea',
+        total: dinero(p.total),
+        nota: p.nota || '',
+        cliente: p.alumno_id
+          ? `${p.nombres || ''} ${p.apellido_paterno || ''}`.replace(/\s+/g, ' ').trim()
+          : `${p.per_nombres || ''} ${p.per_apellidos || ''}`.replace(/\s+/g, ' ').trim() || 'Personal',
+        grado: p.alumno_id ? (grados.get(p.alumno_id) || '') : 'Personal',
+        detalle: (porPedido.get(p.id) || []).map((it) => `${it.cantidad} × ${it.nombre}`).join(', '),
+      })),
+      productos: (productos || []).map((p) => ({
+        nombre: p.nombre,
+        vendidos: Number(p.vendidos) || 0,
+        monto: dinero(p.monto),
+        no_vendidos: Number(p.no_vendidos) || 0,
+      })),
+    };
+}
+
+router.get('/reporte', async (req, res) => {
+  if (!(await exigirModulo(res))) return;
+  if (!esCaja(req.user)) return res.status(403).json({ error: 'Solo el perfil Kiosco ve los reportes.' });
+  const rango = prepararRango(req.query);
+  if (rango.error) return res.status(400).json({ error: rango.error });
+  try {
+    res.json(await armarReporte(req.user.colegio_id || DEFAULT_COLEGIO_ID, rango.desde, rango.hasta));
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'No se pudo armar el reporte' });
+  }
+});
+
+router.get('/reporte/pdf', async (req, res) => {
+  if (!(await exigirModulo(res))) return;
+  if (!esCaja(req.user)) return res.status(403).json({ error: 'Solo el perfil Kiosco ve los reportes.' });
+  const rango = prepararRango(req.query);
+  if (rango.error) return res.status(400).json({ error: rango.error });
+  try {
+    const data = await armarReporte(req.user.colegio_id || DEFAULT_COLEGIO_ID, rango.desde, rango.hasta);
+    const { escribirReporteKioscoPdf } = require('../utils/kioscoReportePdf');
+    escribirReporteKioscoPdf(res, data, String(req.query.filtro || 'todos'));
+  } catch (e) {
+    if (!res.headersSent) res.status(500).json({ error: e.message || 'No se pudo armar el PDF' });
   }
 });
 

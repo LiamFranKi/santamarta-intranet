@@ -798,6 +798,116 @@
 .kio-switch input:checked + i { background: #c2410c; }
 .kio-switch input:checked + i::after { transform: translateX(24px); }
 .kio-ajuste-guardar { margin-top: 1rem; min-height: 48px; padding: 0 1.4rem; font-size: 1.05rem; }
+.kio-soles {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+}
+.kio-soles span { font-weight: 800; color: #c2410c; }
+.kio-ajuste .kio-soles input { flex: 1; width: auto; min-width: 0; }
+.kio-rep-presets, .kio-rep-fechas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.kio-rep-presets button, .kio-rep-fechas button {
+  border: 0;
+  cursor: pointer;
+  background: #f6efe7;
+  border-radius: 999px;
+  min-height: 40px;
+  padding: 0.45rem 0.9rem;
+  font-weight: 700;
+  color: #3b2a20;
+}
+.kio-rep-presets button.is-on { background: #1c1410; color: #fff8f1; }
+.kio-rep-fechas label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  color: #7a6554;
+  flex: 1 1 140px;
+}
+.kio-rep-fechas input {
+  border: 1px solid #eadfd4;
+  border-radius: 12px;
+  min-height: 42px;
+  padding: 0.35rem 0.6rem;
+  font: inherit;
+  color: #241910;
+  background: #fff;
+}
+.kio-cierre {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.55rem;
+  margin: 0.4rem 0 0.8rem;
+}
+.kio-cierre-card {
+  border: 1px solid #eadfce;
+  background: #fff;
+  border-radius: 16px;
+  padding: 0.7rem 0.75rem;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.kio-cierre-card span { color: #7a6554; font-size: 0.78rem; }
+.kio-cierre-card strong { font-size: 1.05rem; color: #1c1410; }
+.kio-cierre-card small { color: #7a6554; }
+.kio-cierre-card.is-on { outline: 2px solid #c2410c; }
+.kio-cierre-caja { background: #fff7ed; border-color: #fdba74; }
+.kio-cierre-caja strong { color: #c2410c; }
+.kio-rep-lista { display: flex; flex-direction: column; gap: 0.5rem; }
+.kio-rep-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #f0e6dc;
+  border-radius: 14px;
+  padding: 0.7rem 0.8rem;
+}
+.kio-rep-card strong { display: block; }
+.kio-rep-card span, .kio-rep-card em {
+  display: block;
+  color: #7a6554;
+  font-size: 0.82rem;
+  font-style: normal;
+}
+.kio-rep-card > div:last-child { text-align: right; flex: 0 0 auto; }
+.kio-rep-tag {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+  background: #f6efe7;
+}
+.kio-rep-pagado { background: #dcfce7; color: #166534; }
+.kio-rep-fiado { background: #ffedd5; color: #9a3412; }
+.kio-rep-pendiente { background: #fef3c7; color: #92400e; }
+.kio-rep-rechazado { background: #ffe4e6; color: #9f1239; }
+.kio-rep-espera { background: #e0f2fe; color: #075985; }
+.kio-rep-sub { margin: 1rem 0 0.55rem; font-size: 1.05rem; }
+.kio-rep-export { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+.kio-cupo {
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  border-radius: 16px;
+  padding: 0.85rem 0.9rem;
+  margin: 0.4rem 0 0.8rem;
+}
+.kio-cupo strong { display: block; margin-bottom: 0.25rem; }
+.kio-cupo p { margin: 0.25rem 0; color: #7a6554; font-size: 0.9rem; }
+.kio-cupo-form { display: grid; gap: 0.55rem; margin-top: 0.7rem; }
+.kio-cupo-form .kio-btn { justify-self: start; }
 
 @media (max-width: 720px) {
   .kio-hero, .kio-stats { flex-direction: column; align-items: flex-start; }
@@ -831,4 +941,13 @@
     min-height: 52px;
   }
   .kio-dias button { min-height: 40px; }
+  .kio-panel-head { flex-direction: column; align-items: stretch; }
+  .kio-panel-head .kio-btn, .kio-rep-export { width: 100%; }
+  .kio-rep-export .kio-btn { flex: 1; min-height: 46px; }
+  .kio-cupo-form .kio-btn { width: 100%; min-height: 46px; }
+  .kio-rep-fechas { flex-direction: column; }
+  .kio-rep-fechas .kio-btn { width: 100%; }
+  .kio-cierre { grid-template-columns: 1fr 1fr; }
+  .kio-rep-card { flex-direction: column; align-items: stretch; }
+  .kio-rep-card > div:last-child { text-align: left; display: flex; justify-content: space-between; align-items: center; }
 }
