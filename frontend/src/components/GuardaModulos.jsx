@@ -20,5 +20,7 @@ export default function GuardaModulos({ children }) {
   else bloqueado = !activo(clave);
 
   if (!bloqueado) return children;
-  return <Navigate to={inicioPorTipo(user?.tipo)} replace />;
+  const destino = inicioPorTipo(user?.tipo);
+  if (!destino || destino === pathname) return children;
+  return <Navigate to={destino} replace />;
 }

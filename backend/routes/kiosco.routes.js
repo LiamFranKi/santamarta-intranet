@@ -87,12 +87,24 @@ function idDe(user) {
 }
 
 async function leerConfig(colegioId) {
-  await asegurarLimites();
-  const [row] = await query(
-    `SELECT *, DATE_FORMAT(limite_general_desde, '%Y-%m-%d %H:%i:%s') AS limite_general_desde_txt
-     FROM kiosco_config WHERE colegio_id = ? LIMIT 1`,
-    [colegioId]
-  );
+  try {
+    await asegurarLimites();
+  } catch (e) {
+    console.error('[kiosco] no se pudieron preparar las columnas del cupo:', e.message);
+  }
+  let row;
+  try {
+    const rows = await query(
+      `SELECT *, DATE_FORMAT(limite_general_desde, '%Y-%m-%d %H:%i:%s') AS limite_general_desde_txt
+       FROM kiosco_config WHERE colegio_id = ? LIMIT 1`,
+      [colegioId]
+    );
+    row = rows?.[0];
+  } catch (e) {
+    console.error('[kiosco] lectura de config sin columnas nuevas:', e.message);
+    const rows = await query('SELECT * FROM kiosco_config WHERE colegio_id = ? LIMIT 1', [colegioId]);
+    row = rows?.[0];
+  }
   if (row) {
     return {
       quien_pide: row.quien_pide || 'AMBOS',

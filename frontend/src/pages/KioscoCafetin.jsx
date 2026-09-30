@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import api from '../services/api';
-import { exportarKioscoReporte } from '../utils/exportKioscoReporte';
 import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/DashboardLayout';
 import './KioscoCafetin.css';
@@ -168,6 +167,7 @@ export default function KioscoCafetin() {
       setError('');
       try {
         await cargarBase();
+        if (!vivo) return;
         if (!caja) {
           const { data } = await api.get('/kiosco/hijos');
           if (!vivo) return;
@@ -175,13 +175,15 @@ export default function KioscoCafetin() {
           setYo(data.yo || null);
           if (data.hijos?.[0]) setAlumnoId(String(data.hijos[0].id));
         } else {
-          const r = await api.get('/kiosco/resumen');
-          const p = await api.get('/kiosco/pedidos', { params: { estado: 'todos' } });
-          const c = await api.get('/kiosco/pedidos', { params: { estado: 'pedido' } });
+          const [r, p, c] = await Promise.all([
+            api.get('/kiosco/resumen').catch(() => ({ data: null })),
+            api.get('/kiosco/pedidos', { params: { estado: 'todos' } }).catch(() => ({ data: { pedidos: [] } })),
+            api.get('/kiosco/pedidos', { params: { estado: 'pedido' } }).catch(() => ({ data: { pedidos: [] } })),
+          ]);
           if (!vivo) return;
-          setResumen(r.data);
-          setPedidos(p.data.pedidos || []);
-          setCola(c.data.pedidos || []);
+          if (r.data) setResumen(r.data);
+          setPedidos(p.data?.pedidos || []);
+          setCola(c.data?.pedidos || []);
         }
       } catch (e) {
         if (vivo) setError(e.response?.data?.error || 'No se pudo abrir el kiosco.');
@@ -312,6 +314,7 @@ export default function KioscoCafetin() {
     setExportando(true);
     try {
       const nombres = { todos: 'Todos', vendido: 'Vendidos', pagado: 'Pagados', fiado: 'Fiados', pendiente: 'Pendientes', rechazado: 'Rechazados', espera: 'Por atender' };
+      const { exportarKioscoReporte } = await import('../utils/exportKioscoReporte');
       await exportarKioscoReporte({
         desde: reporte.desde,
         hasta: reporte.hasta,
@@ -537,9 +540,9 @@ export default function KioscoCafetin() {
           </div>
           {caja && resumen && (
             <div className="kio-stats">
-              <div><span>Hoy</span><strong>S/ {resumen.ventas_dia.toFixed(2)}</strong></div>
-              <div><span>Mes</span><strong>S/ {resumen.ventas_mes.toFixed(2)}</strong></div>
-              <div><span>Fiado</span><strong>S/ {resumen.fiado.toFixed(2)}</strong></div>
+              <div><span>Hoy</span><strong>S/ {Number(resumen.ventas_dia || 0).toFixed(2)}</strong></div>
+              <div><span>Mes</span><strong>S/ {Number(resumen.ventas_mes || 0).toFixed(2)}</strong></div>
+              <div><span>Fiado</span><strong>S/ {Number(resumen.fiado || 0).toFixed(2)}</strong></div>
             </div>
           )}
         </header>
