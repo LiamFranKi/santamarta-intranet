@@ -504,6 +504,7 @@ router.get('/pedidos', async (req, res) => {
   if (!esCaja(req.user)) return res.status(403).json({ error: 'Solo el perfil Kiosco ve la cola.' });
   const colegioId = req.user.colegio_id || DEFAULT_COLEGIO_ID;
   const estado = String(req.query.estado || 'pedido');
+  const enEspera = estado === 'pedido';
   try {
     const pedidos = await query(
       `SELECT p.id, p.codigo, p.fecha_consumo, p.estado, p.pago, p.origen, p.total, p.nota, p.creado_en,
@@ -514,8 +515,8 @@ router.get('/pedidos', async (req, res) => {
        LEFT JOIN usuarios cu ON cu.id = p.cliente_usuario_id
        LEFT JOIN personal per ON per.id = cu.personal_id
        WHERE p.colegio_id = ? AND (? = 'todos' OR p.estado = ?)
-       ORDER BY p.id DESC
-       LIMIT 80`,
+       ORDER BY ${enEspera ? 'p.creado_en ASC, p.id ASC' : 'p.id DESC'}
+       LIMIT ${enEspera ? 200 : 80}`,
       [colegioId, estado, estado]
     );
     const salida = [];
@@ -565,27 +566,53 @@ router.post('/pedidos/:id/estado', async (req, res) => {
       }
     }
     const pagoSql = ['pagado', 'pendiente', 'fiado'].includes(pago) ? pago : ped.pago;
+    const saliaDeEspera = ped.estado === 'pedido' && (estado === 'aceptado' || estado === 'rechazado');
     await execute('UPDATE kiosco_pedidos SET estado = ?, pago = ? WHERE id = ?', [estado, pagoSql, id]);
-    if (estado === 'aceptado' || estado === 'rechazado') {
-      const padres = ped.alumno_id
-        ? await query(
+    if (saliaDeEspera) {
+      const destinos = new Set();
+      const sumar = (valor) => {
+        const n = Number(valor);
+        if (n > 0) destinos.add(n);
+      };
+      sumar(ped.usuario_id);
+      sumar(ped.cliente_usuario_id);
+      let nombreAlumno = '';
+      if (ped.alumno_id) {
+        const padres = await query(
           `SELECT u.id FROM usuarios u
            INNER JOIN familias f ON f.apoderado_id = u.apoderado_id
            WHERE f.alumno_id = ? AND u.tipo = 'APODERADO' AND u.colegio_id = ?`,
           [ped.alumno_id, colegioId]
-        )
-        : [];
-      if (ped.cliente_usuario_id) padres.push({ id: ped.cliente_usuario_id });
-      const texto = estado === 'aceptado'
-        ? `Tu pedido ${ped.codigo} fue aceptado. Total S/ ${Number(ped.total).toFixed(2)}.`
-        : `Tu pedido ${ped.codigo} no fue aceptado.`;
-      for (const padre of padres || []) {
+        );
+        for (const padre of padres || []) sumar(padre.id);
+        const alumnosUser = await query(
+          `SELECT id FROM usuarios WHERE alumno_id = ? AND tipo = 'ALUMNO' AND colegio_id = ?`,
+          [ped.alumno_id, colegioId]
+        );
+        for (const alumno of alumnosUser || []) sumar(alumno.id);
+        const [al] = await query(
+          'SELECT nombres, apellido_paterno FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1',
+          [ped.alumno_id, colegioId]
+        );
+        nombreAlumno = al
+          ? `${al.nombres || ''} ${al.apellido_paterno || ''}`.replace(/\s+/g, ' ').trim()
+          : '';
+      }
+      const deQuien = nombreAlumno ? ` de ${nombreAlumno}` : '';
+      const totalTxt = `S/ ${Number(ped.total).toFixed(2)}`;
+      const texto = estado === 'rechazado'
+        ? `El pedido ${ped.codigo}${deQuien} no fue atendido.`
+        : pagoSql === 'fiado'
+          ? `El pedido ${ped.codigo}${deQuien} ya fue atendido y quedó fiado. Total ${totalTxt}.`
+          : `El pedido ${ped.codigo}${deQuien} ya fue atendido y está pagado. Total ${totalTxt}.`;
+      const asunto = estado === 'rechazado' ? 'Pedido del kiosco rechazado' : 'Pedido del kiosco atendido';
+      for (const uid of destinos) {
         await insertNotificacionUsuario(execute, {
-          usuario_id: padre.id,
-          destinatario_id: padre.id,
-          asunto: estado === 'aceptado' ? 'Pedido del kiosco aceptado' : 'Pedido del kiosco rechazado',
+          usuario_id: uid,
+          destinatario_id: uid,
+          asunto,
           contenido: texto,
-          url_destino: '/kiosco/pedir',
+          url_destino: '/kiosco',
         });
       }
     }

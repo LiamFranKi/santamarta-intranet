@@ -113,6 +113,103 @@
   margin-bottom: 0.8rem;
 }
 .kio-panel-head h2 { margin: 0; }
+.kio-cola-nota {
+  margin: 0.25rem 0 0;
+  color: #7a6554;
+  font-size: 0.88rem;
+  max-width: 36rem;
+}
+.kio-cola {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.kio-turno {
+  display: grid;
+  grid-template-columns: 92px 1fr auto;
+  gap: 0.9rem;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #eadfce;
+  border-radius: 18px;
+  padding: 0.85rem 1rem;
+  box-shadow: 0 8px 18px rgba(60, 36, 16, 0.05);
+}
+.kio-turno--ahora {
+  border-color: #7d9ec4;
+  background: linear-gradient(180deg, #f3f8ff 0%, #fff 42%);
+  box-shadow: 0 12px 24px rgba(55, 91, 129, 0.12);
+}
+.kio-turno-puesto {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  border-radius: 14px;
+  background: #f6f1ea;
+  color: #6b5344;
+}
+.kio-turno--ahora .kio-turno-puesto {
+  background: #375b81;
+  color: #fff;
+}
+.kio-turno-puesto b { font-size: 1.15rem; }
+.kio-turno-puesto span { font-size: 0.75rem; opacity: 0.85; }
+.kio-turno-cuerpo { min-width: 0; }
+.kio-turno-cuerpo strong { display: block; font-size: 1.05rem; }
+.kio-turno-cuerpo span, .kio-turno-nota { color: #7a6554; font-size: 0.84rem; }
+.kio-turno-cuerpo ul { margin: 0.35rem 0; padding: 0; list-style: none; }
+.kio-turno-cuerpo li { margin: 0.1rem 0; }
+.kio-turno-nota { margin: 0.2rem 0; }
+.kio-turno-pago {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+  min-width: 132px;
+}
+.kio-turno-pago b { text-align: right; font-size: 1.15rem; }
+@media (max-width: 720px) {
+  .kio-page { padding: 0 0.7rem 5.5rem; }
+  .kio-hero {
+    margin: 0 -0.7rem 0.75rem;
+    padding: 0.85rem 0.8rem 0.75rem;
+    flex-wrap: wrap;
+  }
+  .kio-hero h1 { font-size: 1.45rem; }
+  .kio-stats { width: 100%; flex-wrap: wrap; }
+  .kio-stats div { flex: 1 1 30%; min-width: 0; }
+  .kio-acciones { grid-template-columns: 1fr 1fr; gap: 0.55rem; }
+  .kio-accion { padding: 0.75rem; }
+  .kio-cola-nota { font-size: 0.95rem; line-height: 1.35; }
+  .kio-turno {
+    grid-template-columns: 1fr;
+    gap: 0.7rem;
+    padding: 0.9rem;
+  }
+  .kio-turno-puesto {
+    flex-direction: row;
+    justify-content: space-between;
+    min-height: 0;
+    padding: 0.55rem 0.75rem;
+  }
+  .kio-turno-puesto b { font-size: 1.2rem; }
+  .kio-turno-cuerpo strong { font-size: 1.2rem; }
+  .kio-turno-cuerpo li { font-size: 1.02rem; line-height: 1.35; }
+  .kio-turno-pago {
+    width: 100%;
+    min-width: 0;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .kio-turno-pago b { text-align: left; font-size: 1.45rem; }
+  .kio-turno-pago .kio-btn {
+    width: 100%;
+    min-height: 48px;
+    font-size: 1.05rem;
+  }
+}
 .kio-grilla {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

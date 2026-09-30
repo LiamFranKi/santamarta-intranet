@@ -88,6 +88,8 @@ export default function KioscoCafetin() {
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState('');
   const [pedidos, setPedidos] = useState([]);
+  const [cola, setCola] = useState([]);
+  const [atendiendo, setAtendiendo] = useState(null);
   const [catalogo, setCatalogo] = useState({ categorias: [], productos: [] });
   const [resumen, setResumen] = useState(null);
   const [formCat, setFormCat] = useState({ nombre: '', emoji: '🍽️', imagen: null });
@@ -131,9 +133,11 @@ export default function KioscoCafetin() {
         } else {
           const r = await api.get('/kiosco/resumen');
           const p = await api.get('/kiosco/pedidos', { params: { estado: 'todos' } });
+          const c = await api.get('/kiosco/pedidos', { params: { estado: 'pedido' } });
           if (!vivo) return;
           setResumen(r.data);
           setPedidos(p.data.pedidos || []);
+          setCola(c.data.pedidos || []);
         }
       } catch (e) {
         if (vivo) setError(e.response?.data?.error || 'No se pudo abrir el kiosco.');
@@ -154,6 +158,19 @@ export default function KioscoCafetin() {
     const r = await api.get('/kiosco/resumen');
     setResumen(r.data);
   }, []);
+
+  const cargarCola = useCallback(async () => {
+    const { data } = await api.get('/kiosco/pedidos', { params: { estado: 'pedido' } });
+    setCola(data.pedidos || []);
+  }, []);
+
+  useEffect(() => {
+    if (!caja || panel !== 'pedidos') return undefined;
+    const timer = setInterval(() => {
+      cargarCola().catch(() => {});
+    }, 8000);
+    return () => clearInterval(timer);
+  }, [caja, panel, cargarCola]);
 
   const cargarCatalogo = useCallback(async () => {
     const { data } = await api.get('/kiosco/catalogo');
@@ -182,7 +199,7 @@ export default function KioscoCafetin() {
   const piezas = carrito.reduce((s, it) => s + it.cantidad, 0);
   const hijoSel = hijos.find((h) => String(h.id) === String(alumnoId));
   const dias = hoy ? [0, 1, 2, 3, 4, 5, 6].map((n) => sumarDias(hoy, n)) : [];
-  const esperando = pedidos.filter((p) => p.estado === 'pedido').length;
+  const esperando = cola.length;
 
   const enCarrito = (productoId) => carrito.find((it) => it.producto_id === productoId)?.cantidad || 0;
 
@@ -274,7 +291,10 @@ export default function KioscoCafetin() {
       setVentana(null);
       setAviso(origen === 'mostrador' ? `Venta lista. Código ${data.codigo}.` : `Pedido enviado. Código ${data.codigo}.`);
       cargarCarta(fecha).catch(() => {});
-      if (caja) cargarPedidos().catch(() => {});
+      if (caja) {
+        cargarPedidos().catch(() => {});
+        cargarCola().catch(() => {});
+      }
     } catch (e) {
       setError(e.response?.data?.error || 'No se pudo enviar el pedido.');
     } finally {
@@ -283,14 +303,26 @@ export default function KioscoCafetin() {
   };
 
   const decidir = async (id, estado, pago) => {
+    if (atendiendo) return;
+    setAtendiendo(id);
     setError('');
     try {
       await api.post(`/kiosco/pedidos/${id}/estado`, { estado, pago });
-      setAviso(estado === 'rechazado' ? 'Pedido rechazado.' : `Pedido aceptado como ${pago === 'fiado' ? 'fiado' : 'pagado'}.`);
-      cargarPedidos().catch(() => {});
+      if (estado === 'rechazado') setAviso('Pedido rechazado. Sigue el que llegó después.');
+      else if (pago === 'fiado') setAviso('Atendido y fiado. Sigue el que llegó después.');
+      else setAviso('Atendido y pagado. Sigue el que llegó después.');
+      await Promise.all([cargarCola(), cargarPedidos()]);
     } catch (e) {
       setError(e.response?.data?.error || 'No se pudo actualizar el pedido.');
+    } finally {
+      setAtendiendo(null);
     }
+  };
+
+  const horaLlegada = (valor) => {
+    const texto = String(valor || '').replace('T', ' ');
+    const hora = texto.match(/(\d{2}:\d{2})/);
+    return hora ? hora[1] : '';
   };
 
   const guardarAjustes = async (siguiente) => {
@@ -372,8 +404,8 @@ export default function KioscoCafetin() {
             <button type="button" className={`kio-accion kio-accion-venta${panel === 'vender' ? ' is-on' : ''}`} onClick={() => { setPanel('vender'); cargarPedidos(); }}>
               <span>Vender</span><small>Ventas del mostrador</small>
             </button>
-            <button type="button" className={`kio-accion${panel === 'pedidos' ? ' is-on' : ''}`} onClick={() => { setPanel('pedidos'); cargarPedidos(); }}>
-              <span>Pedidos</span><small>{esperando} esperando</small>
+            <button type="button" className={`kio-accion${panel === 'pedidos' ? ' is-on' : ''}`} onClick={() => { setPanel('pedidos'); cargarCola(); }}>
+              <span>Por atender</span><small>{esperando} en espera</small>
             </button>
             <button type="button" className={`kio-accion${panel === 'productos' ? ' is-on' : ''}`} onClick={() => { setPanel('productos'); cargarCatalogo(); }}>
               <span>Productos</span><small>Grilla, stock y precios</small>
@@ -434,28 +466,38 @@ export default function KioscoCafetin() {
 
         {caja && panel === 'pedidos' && (
           <section className="kio-panel">
-            <div className="kio-panel-head"><h2>Pedidos</h2></div>
-            <div className="kio-grilla">
-              {pedidos.map((p) => (
-                <article key={p.id} className="kio-card">
-                  <strong>{p.alumno}</strong>
-                  <span>{p.grado} · #{p.codigo} · {p.estado} · {p.pago}</span>
-                  <ul>{(p.items || []).map((it, i) => <li key={i}>{it.cantidad} × {it.nombre}</li>)}</ul>
-                  <b>S/ {Number(p.total).toFixed(2)}</b>
-                  <p className="kio-deuda">Debe S/ {Number(p.deuda).toFixed(2)}</p>
-                  {p.estado === 'pedido' && (
-                    <div className="kio-btn-row kio-decide">
-                      <button type="button" className="kio-btn" onClick={() => decidir(p.id, 'aceptado', 'pagado')}>Pagado</button>
-                      {config?.fiado_activo && <button type="button" className="kio-btn kio-btn-ghost" onClick={() => decidir(p.id, 'aceptado', 'fiado')}>Fiado</button>}
-                      <button type="button" className="kio-btn kio-btn-no" onClick={() => decidir(p.id, 'rechazado')}>Rechazar</button>
-                    </div>
-                  )}
-                  {p.estado === 'aceptado' && (
-                    <button type="button" className="kio-icono" title="Entregado" aria-label="Entregado" onClick={() => decidir(p.id, 'entregado', p.pago)}><Icono tipo="box" /></button>
-                  )}
+            <div className="kio-panel-head">
+              <div>
+                <h2>Por atender</h2>
+                <p className="kio-cola-nota">Del más antiguo al más reciente. Pagado o fiado significa que ya se atendió, y sube el siguiente.</p>
+              </div>
+              <strong>{esperando}</strong>
+            </div>
+            <div className="kio-cola">
+              {cola.map((p, indice) => (
+                <article key={p.id} className={indice === 0 ? 'kio-turno kio-turno--ahora' : 'kio-turno'}>
+                  <div className="kio-turno-puesto">
+                    <b>{indice === 0 ? 'Ahora' : indice + 1}</b>
+                    <span>{horaLlegada(p.creado_en) || 'En espera'}</span>
+                  </div>
+                  <div className="kio-turno-cuerpo">
+                    <strong>{p.alumno}</strong>
+                    <span>{p.grado} · #{p.codigo}</span>
+                    <ul>{(p.items || []).map((it, i) => <li key={i}>{it.cantidad} × {it.nombre}</li>)}</ul>
+                    {p.nota ? <p className="kio-turno-nota">{p.nota}</p> : null}
+                    <p className="kio-deuda">Ya debe S/ {Number(p.deuda).toFixed(2)}</p>
+                  </div>
+                  <div className="kio-turno-pago">
+                    <b>S/ {Number(p.total).toFixed(2)}</b>
+                    <button type="button" className="kio-btn" disabled={atendiendo === p.id} onClick={() => decidir(p.id, 'aceptado', 'pagado')}>Pagado</button>
+                    {config?.fiado_activo && (
+                      <button type="button" className="kio-btn kio-btn-ghost" disabled={atendiendo === p.id} onClick={() => decidir(p.id, 'aceptado', 'fiado')}>Fiado</button>
+                    )}
+                    <button type="button" className="kio-btn kio-btn-no" disabled={atendiendo === p.id} onClick={() => decidir(p.id, 'rechazado')}>Rechazar</button>
+                  </div>
                 </article>
               ))}
-              {!pedidos.length && <p className="kio-vacio">No hay pedidos.</p>}
+              {!cola.length && <p className="kio-vacio">No hay pedidos en espera. El siguiente aparecerá aquí.</p>}
             </div>
           </section>
         )}
