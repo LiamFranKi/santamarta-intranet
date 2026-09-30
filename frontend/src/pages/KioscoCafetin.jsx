@@ -270,6 +270,7 @@ export default function KioscoCafetin() {
   const hijoSel = hijos.find((h) => String(h.id) === String(alumnoId));
   const muestraYo = !!yo && config?.pide_personal !== false;
   const hijosPedido = (user?.tipo === 'APODERADO' || user?.tipo === 'ALUMNO' || config?.quien_pide !== 'ALUMNO') ? hijos : [];
+  const deudaHijosJuntos = hijosPedido.reduce((s, h) => s + (Number(h.deuda) || 0), 0);
   const alumnoPedido = alumnoId && alumnoId !== 'yo' ? alumnoId : '';
   const eligeDestino = (valor) => {
     setAlumnoId(valor);
@@ -830,10 +831,13 @@ export default function KioscoCafetin() {
           <section className="kio-panel">
             <div className="kio-panel-head">
               <h2>Mis pedidos</h2>
-              <strong>{muestraYo && hijosPedido.length ? 'Tú debes' : 'Debes'} S/ {deudaMia.toFixed(2)}</strong>
+              <strong>{muestraYo && hijosPedido.length ? 'Tú debes' : 'Debes'} S/ {(muestraYo ? Number(yo?.deuda || 0) : (hijosPedido.length ? deudaHijosJuntos : deudaMia)).toFixed(2)}</strong>
             </div>
             {muestraYo && hijosPedido.length > 0 && (
-              <p className="kio-vacio">Este total es lo que debes tú. El pedido del hijo aparece con su nombre.</p>
+              <p className="kio-deuda">
+                Tus hijos deben S/ {deudaHijosJuntos.toFixed(2)}
+                {hijosPedido.length > 1 ? `. ${hijosPedido.map((h) => `${h.nombre} S/ ${Number(h.deuda || 0).toFixed(2)}`).join(' + ')}` : '.'}
+              </p>
             )}
             <div className="kio-grilla">
               {misPedidos.map((p) => (
@@ -1076,6 +1080,11 @@ export default function KioscoCafetin() {
               </label>
             )}
             {muestraYo && !alumnoPedido && <p>Para {yo.nombre}. Esta compra queda a tu nombre. Debes S/ {Number(yo.deuda).toFixed(2)}</p>}
+            {hijosPedido.length > 1 && (
+              <p className="kio-deuda">
+                Tus hijos deben en total S/ {deudaHijosJuntos.toFixed(2)}. {hijosPedido.map((h) => `${h.nombre} S/ ${Number(h.deuda || 0).toFixed(2)}`).join(' + ')}
+              </p>
+            )}
             {hijoSel && <p className="kio-deuda">Para {hijoSel.nombre}. Esta compra usa su cupo. Debe S/ {Number(hijoSel.deuda).toFixed(2)}</p>}
             {cupo && (esPapa || cupo.colegio?.pedido_activo || cupo.colegio?.dia_activo || cupo.colegio?.general_activo || cupo.papa?.dia_activo || cupo.papa?.general_activo) && (
               <div className="kio-cupo">
