@@ -764,7 +764,7 @@ export default function AdminUsuariosEquipoTabla() {
           <option value="">Todos los perfiles</option>
           {tipos.map((t) => (
             <option key={t} value={t}>
-              {t === 'KIOSCO' ? 'Kiosco cafetín' : t}
+              {t === 'KIOSCO' ? 'KIOSCO CAFETÍN' : t}
             </option>
           ))}
         </select>
@@ -989,7 +989,7 @@ export default function AdminUsuariosEquipoTabla() {
                       <select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
                         {tipos.map((t) => (
                           <option key={t} value={t}>
-                            {t === 'KIOSCO' ? 'Kiosco cafetín' : t}
+                            {t === 'KIOSCO' ? 'KIOSCO CAFETÍN' : t}
                           </option>
                         ))}
                       </select>
@@ -1106,7 +1106,7 @@ export default function AdminUsuariosEquipoTabla() {
                       <select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
                         {tipos.map((t) => (
                           <option key={t} value={t}>
-                            {t === 'KIOSCO' ? 'Kiosco cafetín' : t}
+                            {t === 'KIOSCO' ? 'KIOSCO CAFETÍN' : t}
                           </option>
                         ))}
                       </select>
@@ -1452,7 +1452,7 @@ export default function AdminUsuariosEquipoTabla() {
                   <div className="admin-usu-field">
                     <label>Tipo</label>
                     <select value={accesoForm.tipo} disabled={soloLectura} onChange={(e) => setAccesoForm({ ...accesoForm, tipo: e.target.value })}>
-                      {tipos.map((t) => <option key={t} value={t}>{t === 'KIOSCO' ? 'Kiosco cafetín' : t}</option>)}
+                      {tipos.map((t) => <option key={t} value={t}>{t === 'KIOSCO' ? 'KIOSCO CAFETÍN' : t}</option>)}
                     </select>
                   </div>
                   <div className="admin-usu-field">
