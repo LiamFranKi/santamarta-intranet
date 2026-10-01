@@ -178,8 +178,20 @@
     flex-wrap: wrap;
   }
   .kio-hero h1 { font-size: 1.45rem; }
-  .kio-stats { width: 100%; flex-wrap: wrap; }
-  .kio-stats div { flex: 1 1 30%; min-width: 0; }
+  .kio-stats {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+  }
+  .kio-stats div {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0.4rem 0.3rem;
+    text-align: center;
+  }
+  .kio-stats span { font-size: 0.68rem; }
+  .kio-stats strong { font-size: 0.92rem; }
   .kio-acciones { grid-template-columns: 1fr 1fr; gap: 0.55rem; }
   .kio-accion { padding: 0.75rem; }
   .kio-cola-nota { font-size: 0.95rem; line-height: 1.35; }
@@ -910,7 +922,7 @@
 .kio-cupo-form .kio-btn { justify-self: start; }
 
 @media (max-width: 720px) {
-  .kio-hero, .kio-stats { flex-direction: column; align-items: flex-start; }
+  .kio-hero { flex-direction: column; align-items: flex-start; }
   .kio-forms { grid-template-columns: 1fr; }
   .kio-overlay { padding: 0; align-items: end; }
   .kio-modal, .kio-modal-ancho {
