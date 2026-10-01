@@ -9,6 +9,7 @@ import { AvatarWidgetProvider } from './context/AvatarWidgetContext';
 import { ColegioProvider } from './context/ColegioContext';
 import api from './services/api';
 import Login from './pages/Login';
+import AperturaInstalar from './pages/AperturaInstalar';
 import Dashboard from './pages/admin/Dashboard';
 import VanguarcitoChat from './pages/vanguarcito/VanguarcitoChat';
 import PsicologaDashboard from './pages/admin/PsicologaDashboard';
@@ -315,6 +316,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/apertura" element={<AperturaInstalar />} />
       <Route path="/evento/:token" element={<EventoPublicoAsistencia />} />
       <Route path="/matricula_online" element={<MatriculaOnline />} />
       <Route
@@ -329,6 +331,14 @@ function AppRoutes() {
         path="/admin/dashboard"
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'SECRETARIA']}>
+            <Dashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/apertura"
+        element={
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }

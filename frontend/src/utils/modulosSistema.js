@@ -108,7 +108,7 @@ export function estadosDeFabrica() {
 
 export function claveDeRuta(pathname) {
   const path = String(pathname || '').split('?')[0];
-  if (!path || path === '/admin/modulos') return null;
+  if (!path || path === '/admin/modulos' || path === '/admin/apertura') return null;
   if (path === '/admin/config/cumpleanos' || path.startsWith('/admin/config/cumpleanos/')) return 'config.cumpleanos';
   if (path === '/admin/config/indicadores' || path.startsWith('/admin/config/indicadores/')) return 'config.indicadores';
   if (path === '/admin/config' || path.startsWith('/admin/config/')) return 'config.pagina';

@@ -18,6 +18,7 @@ import AdminUsuariosAlumnosTabla from './AdminUsuariosAlumnosTabla';
 import AdminUsuariosApoderados from './AdminUsuariosApoderados';
 import AdminConfiguracion from './AdminConfiguracion';
 import AdminModulos from './AdminModulos';
+import AdminApertura from './AdminApertura';
 import AdminConfigCumpleanos from './AdminConfigCumpleanos';
 import AdminConfigIndicadores from './AdminConfigIndicadores';
 import AdminMatriculasInscripcion from './AdminMatriculasInscripcion';
@@ -418,6 +419,16 @@ function Dashboard() {
   const isAdminRoute = location.pathname.startsWith('/admin/') && location.pathname !== '/admin/dashboard';
   
   if (isAdminRoute) {
+    if (location.pathname === '/admin/apertura') {
+      if (!user?.es_superadmin) return <Navigate to="/admin/dashboard" replace />;
+      return (
+        <DashboardLayout>
+          <div className="dashboard-container">
+            <AdminApertura />
+          </div>
+        </DashboardLayout>
+      );
+    }
     if (location.pathname === '/admin/modulos') {
       if (!user?.es_superadmin) return <Navigate to="/admin/dashboard" replace />;
       return (

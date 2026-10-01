@@ -1,0 +1,45 @@
+.apertura-page { max-width: 920px; }
+.apertura-page h1 { margin: 0 0 0.35rem; font-size: 1.45rem; }
+.apertura-lead { margin: 0 0 1rem; color: #475569; line-height: 1.45; }
+.apertura-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+  margin-bottom: 0.9rem;
+}
+.apertura-card h2 { margin: 0 0 0.7rem; font-size: 1rem; color: #1e3a8a; }
+.apertura-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem 0.9rem;
+}
+.apertura-grid label, .apertura-check { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.86rem; color: #334155; }
+.apertura-grid input, .apertura-grid select {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+  font: inherit;
+}
+.apertura-ancho { grid-column: 1 / -1; }
+.apertura-checks { display: flex; flex-wrap: wrap; gap: 0.8rem 1.2rem; align-items: end; }
+.apertura-error { background: #fef2f2; color: #991b1b; border-radius: 8px; padding: 0.7rem 0.9rem; margin-bottom: 0.8rem; }
+.apertura-ok { background: #ecfdf5; color: #065f46; border-radius: 8px; padding: 0.7rem 0.9rem; margin-bottom: 0.8rem; }
+.apertura-acciones { display: flex; flex-wrap: wrap; gap: 0.55rem; margin-top: 0.8rem; }
+.apertura-acciones button, .apertura-linkbtn {
+  border: 0;
+  background: #1d4ed8;
+  color: #fff;
+  border-radius: 8px;
+  padding: 0.55rem 0.9rem;
+  font: inherit;
+  cursor: pointer;
+}
+.apertura-acciones button.sec { background: #e2e8f0; color: #1e293b; }
+.apertura-acciones button:disabled { opacity: 0.6; cursor: default; }
+.apertura-lista { margin: 0.4rem 0 0; padding-left: 1.1rem; color: #7f1d1d; }
+.apertura-resumen { display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0.4rem 0; }
+.apertura-resumen span { background: #eff6ff; color: #1e3a8a; border-radius: 999px; padding: 0.2rem 0.65rem; font-size: 0.85rem; }
+@media (max-width: 720px) {
+  .apertura-grid { grid-template-columns: 1fr; }
+}

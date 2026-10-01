@@ -11,6 +11,7 @@ function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [puedeAperturar, setPuedeAperturar] = useState(false);
 
   const { login, isAuthenticated, user } = useAuth();
   const { loading: loadingColegio, error: errorColegio, logo, logoDesdeConfig, textoIntranet } = useColegio();
@@ -48,6 +49,17 @@ function Login() {
       irTrasLogin(user.tipo);
     }
   }, [isAuthenticated, user, navigate, searchParams]);
+
+  useEffect(() => {
+    let vivo = true;
+    fetch(`${apiBaseUrl}/api/apertura/estado`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (vivo && data?.necesita_instalacion) setPuedeAperturar(true);
+      })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, [apiBaseUrl]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -232,6 +244,12 @@ function Login() {
                   puede estar en mantenimiento o la base de datos no responde (comuníquese con administración).
                 </div>
               ) : null}
+              {puedeAperturar && (
+                <p className="login-hint">
+                  Esta base todavía no tiene colegio.{' '}
+                  <a href="/apertura">Aperturar el sistema</a>
+                </p>
+              )}
             </form>
           </div>
         </div>

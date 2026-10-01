@@ -2406,6 +2406,14 @@ export default function DashboardLayout({ children }) {
 
           {user?.es_superadmin && (
           <div className="sidebar-item">
+            <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/apertura">
+              <span className="sidebar-icon" aria-hidden>🏫</span>
+              <span className="sidebar-label">Apertura</span>
+            </NavLink>
+          </div>
+          )}
+          {user?.es_superadmin && (
+          <div className="sidebar-item">
             <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/modulos">
               <span className="sidebar-icon" aria-hidden>🧩</span>
               <span className="sidebar-label">Módulos</span>
