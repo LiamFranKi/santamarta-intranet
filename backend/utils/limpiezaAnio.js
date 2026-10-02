@@ -56,12 +56,6 @@ function archivosDePublicacion(images, archivos) {
   return { fotos: [...fotos], adjuntos: [...adjuntos] };
 }
 
-function basenameSeguro(valor) {
-  const base = path.basename(String(valor || '').split('?')[0]);
-  if (!base || base === '.' || base === '..' || base.includes('/') || base.includes('\\')) return '';
-  return base;
-}
-
 async function leerAnioActivo(colegioId) {
   const [row] = await query('SELECT anio_activo FROM colegios WHERE id = ? LIMIT 1', [colegioId]);
   return parseInt(row?.anio_activo, 10) || 0;
@@ -87,95 +81,44 @@ async function borrarSql(sql, params) {
   }
 }
 
-async function nombresProtegidos(nombres, idsBorrar) {
-  const protegidos = new Set();
-  const borrar = new Set(idsBorrar.map((id) => Number(id)));
-  const lote = 30;
-  for (let i = 0; i < nombres.length; i += lote) {
-    const parte = nombres.slice(i, i + lote);
-    const likesTema = parte.map(() => 'archivo LIKE ?').join(' OR ');
-    try {
-      const temas = await query(
-        `SELECT archivo FROM asignaturas_archivos WHERE ${likesTema}`,
-        parte.map((n) => `%${n}%`)
-      );
-      for (const row of temas || []) {
-        const base = basenameSeguro(row.archivo);
-        if (parte.includes(base)) protegidos.add(base);
-      }
-    } catch (e) {
-      if (e?.code !== 'ER_NO_SUCH_TABLE' && e?.errno !== 1146) throw e;
-    }
-
-    const likesPub = parte.map(() => '(images LIKE ? OR archivos LIKE ?)').join(' OR ');
-    const otras = await query(
-      `SELECT id, images, archivos FROM publicaciones WHERE ${likesPub}`,
-      parte.flatMap((n) => [`%${n}%`, `%${n}%`])
-    );
-    for (const row of otras || []) {
-      if (borrar.has(Number(row.id))) continue;
-      const usados = archivosDePublicacion(row.images, row.archivos);
-      for (const nombre of [...usados.fotos, ...usados.adjuntos]) {
-        if (parte.includes(nombre)) protegidos.add(nombre);
-      }
-    }
-  }
-  return protegidos;
+function rutaArchivoSegura(dir, nombre) {
+  const full = joinStaticFs(dir, nombre);
+  const relativo = path.relative(joinStaticFs(), full);
+  if (!nombre || relativo.startsWith('..') || path.isAbsolute(relativo)) return '';
+  return full;
 }
 
-async function planArchivos(colegioId, anio) {
+async function listarArchivosAnio(colegioId, anio, avisar = () => {}) {
   const [desde, hasta] = rangoAnio(anio);
-  let filas = [];
+  const candidatos = new Map();
+  let ultimo = 0;
+  let filas = 0;
   try {
-    filas = await query(
-      `SELECT id, images, archivos FROM publicaciones
-       WHERE colegio_id = ? AND fecha_hora >= ? AND fecha_hora < ?`,
-      [colegioId, desde, hasta]
-    );
+    for (;;) {
+      const lote = await query(
+        `SELECT id, images, archivos FROM publicaciones
+         WHERE colegio_id = ? AND fecha_hora >= ? AND fecha_hora < ? AND id > ?
+         ORDER BY id
+         LIMIT 200`,
+        [colegioId, desde, hasta, ultimo]
+      );
+      if (!lote?.length) break;
+      filas += lote.length;
+      for (const row of lote) {
+        ultimo = Number(row.id) || ultimo;
+        const { fotos, adjuntos } = archivosDePublicacion(row.images, row.archivos);
+        for (const nombre of fotos) candidatos.set(`p:${nombre}`, { nombre, dir: DIR_PUBLICACIONES });
+        for (const nombre of adjuntos) candidatos.set(`a:${nombre}`, { nombre, dir: DIR_ARCHIVOS });
+      }
+      avisar({ pct: 10, paso: 0, etapa: `Leyendo publicaciones (${filas})…` });
+    }
   } catch (e) {
     if (e?.code === 'ER_NO_SUCH_TABLE' || e?.errno === 1146) {
-      return { filas: 0, archivos: [], bytes: 0, protegidos: 0 };
+      return [];
     }
     throw e;
   }
-  const candidatos = new Map();
-  for (const row of filas || []) {
-    const { fotos, adjuntos } = archivosDePublicacion(row.images, row.archivos);
-    for (const nombre of fotos) {
-      candidatos.set(nombre, { nombre, dir: DIR_PUBLICACIONES });
-    }
-    for (const nombre of adjuntos) {
-      candidatos.set(nombre, { nombre, dir: DIR_ARCHIVOS });
-    }
-  }
-  const nombres = [...candidatos.keys()];
-  const protegidos = nombres.length
-    ? await nombresProtegidos(nombres, (filas || []).map((row) => row.id))
-    : new Set();
-  const archivos = [];
-  let bytes = 0;
-  for (const item of candidatos.values()) {
-    if (protegidos.has(item.nombre)) continue;
-    const full = joinStaticFs(item.dir, item.nombre);
-    const relativo = path.relative(joinStaticFs(), full);
-    if (relativo.startsWith('..') || path.isAbsolute(relativo)) continue;
-    let tam = 0;
-    try {
-      const st = fs.statSync(full);
-      if (!st.isFile()) continue;
-      tam = st.size;
-    } catch (_) {
-      continue;
-    }
-    bytes += tam;
-    archivos.push({ ...item, bytes: tam });
-  }
-  return {
-    filas: (filas || []).length,
-    archivos,
-    bytes,
-    protegidos: protegidos.size,
-  };
+  return [...candidatos.values()].filter((item) => rutaArchivoSegura(item.dir, item.nombre));
 }
 
 async function resumen(colegioId, anio) {
@@ -187,7 +130,12 @@ async function resumen(colegioId, anio) {
     throw err;
   }
   const [desde, hasta] = rangoAnio(anio);
-  const [chat, notificaciones, auditoria, plan] = await Promise.all([
+  const [publicaciones, chat, notificaciones, auditoria] = await Promise.all([
+    contar(
+      `SELECT COUNT(*) AS n FROM publicaciones
+       WHERE colegio_id = ? AND fecha_hora >= ? AND fecha_hora < ?`,
+      [colegioId, desde, hasta]
+    ),
     contar(
       `SELECT COUNT(*) AS n
        FROM chat_mensajes m
@@ -198,26 +146,20 @@ async function resumen(colegioId, anio) {
     contar(
       `SELECT COUNT(*) AS n
        FROM notificaciones n
-       LEFT JOIN usuarios dest ON dest.id = n.destinatario_id
-       LEFT JOIN usuarios rem ON rem.id = n.usuario_id
-       WHERE n.fecha_hora >= ? AND n.fecha_hora < ?
-         AND (dest.colegio_id = ? OR (n.destinatario_id IS NULL AND rem.colegio_id = ?))`,
-      [desde, hasta, colegioId, colegioId]
+       INNER JOIN usuarios dest ON dest.id = n.destinatario_id
+       WHERE dest.colegio_id = ? AND n.fecha_hora >= ? AND n.fecha_hora < ?`,
+      [colegioId, desde, hasta]
     ),
     contar(
       `SELECT COUNT(*) AS n FROM auditoria_logs
        WHERE colegio_id = ? AND fecha_hora >= ? AND fecha_hora < ?`,
       [colegioId, desde, hasta]
     ),
-    planArchivos(colegioId, anio),
   ]);
   return {
     anio: parseInt(anio, 10),
     anio_activo: anioActivo,
-    publicaciones: plan.filas,
-    archivos: plan.archivos.length,
-    bytes: plan.bytes,
-    protegidos: plan.protegidos,
+    publicaciones,
     chat,
     notificaciones,
     auditoria,
@@ -228,7 +170,6 @@ async function ejecutar(colegioId, anio, avisar = () => {}) {
   avisar({ pct: 6, paso: 0, etapa: 'Revisando qué se va a borrar…' });
   const antes = await resumen(colegioId, anio);
   const [desde, hasta] = rangoAnio(anio);
-  const plan = await planArchivos(colegioId, anio);
 
   avisar({ pct: 18, paso: 1, etapa: 'Borrando el chat…' });
   const chat = await borrarSql(
@@ -252,7 +193,9 @@ async function ejecutar(colegioId, anio, avisar = () => {}) {
      WHERE colegio_id = ? AND fecha_hora >= ? AND fecha_hora < ?`,
     [colegioId, desde, hasta]
   );
-  avisar({ pct: 68, paso: 4, etapa: 'Borrando publicaciones…' });
+  avisar({ pct: 64, paso: 4, etapa: 'Buscando fotos de esas publicaciones…' });
+  const plan = await listarArchivosAnio(colegioId, anio, avisar);
+  avisar({ pct: 70, paso: 4, etapa: 'Borrando publicaciones…' });
   const publicaciones = await borrarSql(
     `DELETE FROM publicaciones
      WHERE colegio_id = ? AND fecha_hora >= ? AND fecha_hora < ?`,
@@ -262,15 +205,16 @@ async function ejecutar(colegioId, anio, avisar = () => {}) {
   let archivos = 0;
   let bytes = 0;
   const noBorrados = [];
-  const totalArchivos = plan.archivos.length;
+  const totalArchivos = plan.length;
   avisar({ pct: 78, paso: 5, etapa: totalArchivos ? 'Borrando fotos del disco…' : 'No hay fotos que borrar…' });
-  for (let i = 0; i < plan.archivos.length; i += 1) {
-    const item = plan.archivos[i];
-    if (i % 8 === 0 || i === plan.archivos.length - 1) {
+  for (let i = 0; i < plan.length; i += 1) {
+    const item = plan[i];
+    if (i % 8 === 0 || i === plan.length - 1) {
       const avance = totalArchivos ? Math.round((i / totalArchivos) * 18) : 18;
       avisar({ pct: 78 + avance, paso: 5, etapa: `Borrando fotos ${i + 1} de ${totalArchivos}…` });
     }
-    const full = joinStaticFs(item.dir, item.nombre);
+    const full = rutaArchivoSegura(item.dir, item.nombre);
+    if (!full) continue;
     try {
       if (fs.existsSync(full) && fs.statSync(full).isFile()) {
         const tam = fs.statSync(full).size;

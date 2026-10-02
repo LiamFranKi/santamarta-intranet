@@ -2166,10 +2166,8 @@ function AdminConfiguracion() {
                 {limpiezaMsg && <p className="config-subsection-desc" style={{ color: '#166534' }}>{limpiezaMsg}</p>}
                 {limpiezaPreview && (
                   <p className="config-subsection-desc">
-                    Año {limpiezaPreview.anio}: {limpiezaPreview.publicaciones} publicaciones, {limpiezaPreview.archivos} archivos
-                    ({(limpiezaPreview.bytes / (1024 * 1024)).toFixed(1)} MB), {limpiezaPreview.chat} mensajes de chat, {limpiezaPreview.notificaciones} avisos
-                    y {limpiezaPreview.auditoria} registros de auditoría.
-                    {limpiezaPreview.protegidos > 0 ? ` ${limpiezaPreview.protegidos} archivos se conservan porque otro año o un tema los usa.` : ''}
+                    Año {limpiezaPreview.anio}: {limpiezaPreview.publicaciones} publicaciones, {limpiezaPreview.chat} mensajes de chat, {limpiezaPreview.notificaciones} avisos
+                    y {limpiezaPreview.auditoria} registros de auditoría. Las fotos de esas publicaciones se borran al limpiar. Los PDF de temas no se tocan.
                   </p>
                 )}
                 <div className="card-actions" style={{ marginTop: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
