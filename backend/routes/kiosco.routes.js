@@ -121,6 +121,8 @@ async function leerConfig(colegioId) {
       comida_activa: Number(row.comida_activa) === 1,
       fiado_activo: Number(row.fiado_activo) === 1,
       carta_imagen_url: String(row.carta_imagen_url || '').trim(),
+      yape_numero: String(row.yape_numero || '').replace(/\D/g, '').slice(0, 15),
+      yape_qr_url: String(row.yape_qr_url || '').trim(),
     };
   }
   return {
@@ -138,6 +140,8 @@ async function leerConfig(colegioId) {
     comida_activa: true,
     fiado_activo: true,
     carta_imagen_url: '',
+    yape_numero: '',
+    yape_qr_url: '',
   };
 }
 
@@ -190,6 +194,7 @@ router.put('/config', async (req, res) => {
   const b = req.body || {};
   const quien = ['APODERADO', 'ALUMNO', 'AMBOS'].includes(b.quien_pide) ? b.quien_pide : 'AMBOS';
   const corte = /^\d{2}:\d{2}$/.test(String(b.corte_hora || '')) ? b.corte_hora : null;
+  const yapeNumero = String(b.yape_numero || '').replace(/\D/g, '').slice(0, 15);
   try {
     const previa = await leerConfig(colegioId);
     const generalActivo = !!b.limite_general_activo;
@@ -200,8 +205,8 @@ router.put('/config', async (req, res) => {
       `INSERT INTO kiosco_config
         (colegio_id, quien_pide, pide_personal, limite_activo, limite_monto,
          limite_dia_activo, limite_dia_monto, limite_general_activo, limite_general_monto, limite_general_desde,
-         corte_activo, corte_hora, comida_activa, fiado_activo)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         corte_activo, corte_hora, comida_activa, fiado_activo, yape_numero)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
         quien_pide = VALUES(quien_pide), pide_personal = VALUES(pide_personal),
         limite_activo = VALUES(limite_activo), limite_monto = VALUES(limite_monto),
@@ -209,7 +214,8 @@ router.put('/config', async (req, res) => {
         limite_general_activo = VALUES(limite_general_activo), limite_general_monto = VALUES(limite_general_monto),
         limite_general_desde = VALUES(limite_general_desde),
         corte_activo = VALUES(corte_activo), corte_hora = VALUES(corte_hora),
-        comida_activa = VALUES(comida_activa), fiado_activo = VALUES(fiado_activo)`,
+        comida_activa = VALUES(comida_activa), fiado_activo = VALUES(fiado_activo),
+        yape_numero = VALUES(yape_numero)`,
       [
         colegioId,
         quien,
@@ -225,6 +231,7 @@ router.put('/config', async (req, res) => {
         corte,
         b.comida_activa === false ? 0 : 1,
         b.fiado_activo === false ? 0 : 1,
+        yapeNumero,
       ]
     );
     res.json({ config: await leerConfig(colegioId) });
@@ -342,6 +349,24 @@ router.post('/carta-portada', uploadKiosco.single('imagen'), async (req, res) =>
     res.json({ config: await leerConfig(colegioId) });
   } catch (e) {
     res.status(500).json({ error: e.message || 'No se pudo guardar la foto' });
+  }
+});
+
+router.post('/yape-qr', uploadKiosco.single('imagen'), async (req, res) => {
+  if (!(await exigirModulo(res))) return;
+  if (!esCaja(req.user)) return res.status(403).json({ error: 'Solo el perfil Kiosco cambia el QR de Yape.' });
+  const url = urlImagenKiosco(req.file);
+  if (!url) return res.status(400).json({ error: 'Elige la imagen del QR.' });
+  const colegioId = req.user.colegio_id || DEFAULT_COLEGIO_ID;
+  try {
+    await execute(
+      `INSERT INTO kiosco_config (colegio_id, yape_qr_url) VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE yape_qr_url = VALUES(yape_qr_url)`,
+      [colegioId, url]
+    );
+    res.json({ config: await leerConfig(colegioId) });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'No se pudo guardar el QR' });
   }
 });
 
@@ -654,7 +679,7 @@ router.get('/mis-pedidos', async (req, res) => {
       }
     }
     const pedidos = await query(
-      `SELECT p.id, p.codigo, p.fecha_consumo, p.estado, p.pago, p.origen, p.total, p.creado_en,
+      `SELECT p.id, p.codigo, p.fecha_consumo, p.estado, p.pago, p.origen, p.total, p.comprobante_url, p.creado_en,
               p.alumno_id, a.nombres, a.apellido_paterno
        FROM kiosco_pedidos p
        LEFT JOIN alumnos a ON a.id = p.alumno_id
@@ -687,6 +712,59 @@ router.get('/mis-pedidos', async (req, res) => {
   }
 });
 
+async function puedeSubirComprobante(user, ped) {
+  if (!ped || ped.estado === 'rechazado' || ped.pago === 'pagado') return false;
+  if (esCaja(user)) return false;
+  const uid = idDe(user);
+  if (uid && (Number(ped.usuario_id) === uid || Number(ped.cliente_usuario_id) === uid)) return true;
+  if (user.tipo === 'ALUMNO' && Number(user.alumno_id) > 0 && Number(ped.alumno_id) === Number(user.alumno_id)) return true;
+  if (ped.alumno_id) {
+    const ids = await apoderadoIdsDe(user);
+    if (!ids.length) return false;
+    const [row] = await query(
+      `SELECT 1 AS ok FROM familias WHERE alumno_id = ? AND apoderado_id IN (${ids.map(() => '?').join(',')}) LIMIT 1`,
+      [ped.alumno_id, ...ids]
+    );
+    return Boolean(row);
+  }
+  return false;
+}
+
+router.post('/pedidos/:id/comprobante', uploadKiosco.single('imagen'), async (req, res) => {
+  if (!(await exigirModulo(res))) return;
+  const colegioId = req.user.colegio_id || DEFAULT_COLEGIO_ID;
+  const id = parseInt(req.params.id, 10);
+  const url = urlImagenKiosco(req.file);
+  if (!url) return res.status(400).json({ error: 'Elige la captura del Yape.' });
+  try {
+    const [ped] = await query(
+      'SELECT * FROM kiosco_pedidos WHERE id = ? AND colegio_id = ? LIMIT 1',
+      [id, colegioId]
+    );
+    if (!ped) return res.status(404).json({ error: 'Pedido no encontrado.' });
+    if (!(await puedeSubirComprobante(req.user, ped))) {
+      return res.status(403).json({ error: 'Este pedido ya no admite una captura.' });
+    }
+    await execute('UPDATE kiosco_pedidos SET comprobante_url = ? WHERE id = ? AND colegio_id = ?', [url, id, colegioId]);
+    const cajeros = await query(
+      `SELECT id FROM usuarios WHERE colegio_id = ? AND tipo = 'KIOSCO' AND estado = 'ACTIVO'`,
+      [colegioId]
+    );
+    for (const c of cajeros || []) {
+      await insertNotificacionUsuario(execute, {
+        usuario_id: c.id,
+        destinatario_id: c.id,
+        asunto: 'Captura de Yape en el kiosco',
+        contenido: `El pedido ${ped.codigo} tiene una captura por S/ ${Number(ped.total).toFixed(2)}. Revísala y confirma si está pagado.`,
+        url_destino: '/kiosco',
+      });
+    }
+    res.json({ ok: true, comprobante_url: url });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'No se pudo guardar la captura' });
+  }
+});
+
 router.get('/pedidos', async (req, res) => {
   if (!(await exigirModulo(res))) return;
   if (!esCaja(req.user)) return res.status(403).json({ error: 'Solo el perfil Kiosco ve la cola.' });
@@ -695,7 +773,7 @@ router.get('/pedidos', async (req, res) => {
   const enEspera = estado === 'pedido';
   try {
     const pedidos = await query(
-      `SELECT p.id, p.codigo, p.fecha_consumo, p.estado, p.pago, p.origen, p.total, p.nota, p.creado_en,
+      `SELECT p.id, p.codigo, p.fecha_consumo, p.estado, p.pago, p.origen, p.total, p.nota, p.comprobante_url, p.creado_en,
               a.nombres, a.apellido_paterno, a.apellido_materno, p.alumno_id, p.cliente_usuario_id,
               per.nombres AS per_nombres, per.apellidos AS per_apellidos
        FROM kiosco_pedidos p
@@ -806,7 +884,9 @@ router.post('/pedidos/:id/estado', async (req, res) => {
         ? `El pedido ${ped.codigo}${deQuien} no fue atendido.`
         : pagoSql === 'fiado'
           ? `El pedido ${ped.codigo}${deQuien} ya fue atendido y quedó fiado. Total ${totalTxt}.`
-          : `El pedido ${ped.codigo}${deQuien} ya fue atendido y está pagado. Total ${totalTxt}.`;
+          : pagoSql === 'pendiente'
+            ? `El pedido ${ped.codigo}${deQuien} ya fue atendido. El pago sigue pendiente. Total ${totalTxt}.`
+            : `El pedido ${ped.codigo}${deQuien} ya fue atendido y está pagado. Total ${totalTxt}.`;
       const asunto = estado === 'rechazado' ? 'Pedido del kiosco rechazado' : 'Pedido del kiosco atendido';
       for (const uid of destinos) {
         await insertNotificacionUsuario(execute, {

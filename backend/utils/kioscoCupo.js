@@ -12,12 +12,16 @@ function asegurarLimites() {
         ['limite_general_activo', 'ALTER TABLE kiosco_config ADD COLUMN limite_general_activo TINYINT(1) NOT NULL DEFAULT 0'],
         ['limite_general_monto', 'ALTER TABLE kiosco_config ADD COLUMN limite_general_monto DECIMAL(10,2) NOT NULL DEFAULT 0'],
         ['limite_general_desde', 'ALTER TABLE kiosco_config ADD COLUMN limite_general_desde DATETIME NULL'],
+        ['yape_numero', 'ALTER TABLE kiosco_config ADD COLUMN yape_numero VARCHAR(20) NOT NULL DEFAULT \'\''],
+        ['yape_qr_url', 'ALTER TABLE kiosco_config ADD COLUMN yape_qr_url VARCHAR(500) NOT NULL DEFAULT \'\''],
+        ['comprobante_url', 'ALTER TABLE kiosco_pedidos ADD COLUMN comprobante_url VARCHAR(500) NOT NULL DEFAULT \'\''],
       ];
       for (const [col, ddl] of cols) {
+        const tabla = col === 'comprobante_url' ? 'kiosco_pedidos' : 'kiosco_config';
         const rows = await query(
           `SELECT COUNT(*) AS n FROM information_schema.COLUMNS
-           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'kiosco_config' AND COLUMN_NAME = ?`,
-          [col]
+           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+          [tabla, col]
         );
         if (!Number(rows?.[0]?.n)) await execute(ddl);
       }

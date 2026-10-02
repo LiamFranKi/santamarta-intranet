@@ -47,6 +47,14 @@ function etiquetaPedido(p) {
   return p.estado || '';
 }
 
+function tonoPago(p) {
+  if (p.estado === 'rechazado') return 'rechazado';
+  if (p.estado === 'pedido') return 'espera';
+  if (p.pago === 'pagado') return 'pagado';
+  if (p.pago === 'fiado') return 'fiado';
+  return 'pendiente';
+}
+
 function etiquetaDia(iso, hoy) {
   if (iso === hoy) return 'Hoy';
   if (iso === sumarDias(hoy, 1)) return 'Mañana';
@@ -57,6 +65,16 @@ function etiquetaDia(iso, hoy) {
 function Foto({ src, emoji }) {
   if (src) return <img src={src} alt="" />;
   return <span>{emoji || '🍽️'}</span>;
+}
+
+function CapturaYape({ src }) {
+  if (!src) return null;
+  return (
+    <a className="kio-yape-mini" href={src} target="_blank" rel="noreferrer">
+      <img src={src} alt="Captura de Yape" />
+      <span>Captura de Yape</span>
+    </a>
+  );
 }
 
 function Icono({ tipo }) {
@@ -121,6 +139,9 @@ export default function KioscoCafetin() {
   const [reemplazar, setReemplazar] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState('');
+  const [yapeDe, setYapeDe] = useState(null);
+  const [yapeArchivo, setYapeArchivo] = useState(null);
+  const [yapeEnviando, setYapeEnviando] = useState(false);
   const [pedidos, setPedidos] = useState([]);
   const [cola, setCola] = useState([]);
   const [atendiendo, setAtendiendo] = useState(null);
@@ -458,6 +479,12 @@ export default function KioscoCafetin() {
       setCarrito([]);
       setVentana(null);
       setAviso(origen === 'mostrador' ? `Venta lista. Código ${data.codigo}.` : `Pedido enviado. Código ${data.codigo}.`);
+      if (origen !== 'mostrador') {
+        setYapeArchivo(null);
+        setYapeDe({ id: data.id, codigo: data.codigo, total: data.total });
+        setPanel('mios');
+        cargarMios().catch(() => {});
+      }
       cargarCarta(fecha).catch(() => {});
       if (caja) {
         cargarPedidos().catch(() => {});
@@ -478,12 +505,32 @@ export default function KioscoCafetin() {
       await api.post(`/kiosco/pedidos/${id}/estado`, { estado, pago });
       if (estado === 'rechazado') setAviso('Pedido rechazado. Sigue el que llegó después.');
       else if (pago === 'fiado') setAviso('Atendido y fiado. Sigue el que llegó después.');
+      else if (pago === 'pendiente') setAviso('Atendido. El pago sigue pendiente.');
       else setAviso('Atendido y pagado. Sigue el que llegó después.');
       await Promise.all([cargarCola(), cargarPedidos()]);
     } catch (e) {
       setError(e.response?.data?.error || 'No se pudo actualizar el pedido.');
     } finally {
       setAtendiendo(null);
+    }
+  };
+
+  const subirYape = async () => {
+    if (!yapeDe || !yapeArchivo) return;
+    setYapeEnviando(true);
+    setError('');
+    try {
+      const fd = new FormData();
+      fd.append('imagen', yapeArchivo);
+      await api.post(`/kiosco/pedidos/${yapeDe.id}/comprobante`, fd);
+      setAviso(`Captura del pedido ${yapeDe.codigo} enviada. El kiosco la revisa y confirma el pago.`);
+      setYapeDe(null);
+      setYapeArchivo(null);
+      cargarMios().catch(() => {});
+    } catch (e) {
+      setError(e.response?.data?.error || 'No se pudo enviar la captura.');
+    } finally {
+      setYapeEnviando(false);
     }
   };
 
@@ -624,9 +671,11 @@ export default function KioscoCafetin() {
             </div>
             <div className="kio-grilla">
               {pedidos.filter((p) => p.origen === 'mostrador').map((p) => (
-                <article key={p.id} className="kio-card">
+                <article key={p.id} className={`kio-card kio-pago-${tonoPago(p)}`}>
                   <strong>{p.alumno}</strong>
-                  <span>{p.grado} · #{p.codigo} · {p.pago}</span>
+                  <span>{p.grado} · #{p.codigo}</span>
+                  <b className={`kio-rep-tag kio-rep-${tonoPago(p)}`}>{etiquetaPedido(p)}</b>
+                  <CapturaYape src={p.comprobante_url} />
                   <b>S/ {Number(p.total).toFixed(2)}</b>
                 </article>
               ))}
@@ -646,7 +695,7 @@ export default function KioscoCafetin() {
             </div>
             <div className="kio-cola">
               {cola.map((p, indice) => (
-                <article key={p.id} className={indice === 0 ? 'kio-turno kio-turno--ahora' : 'kio-turno'}>
+                <article key={p.id} className={`kio-turno kio-pago-${tonoPago(p)}${indice === 0 ? ' kio-turno--ahora' : ''}`}>
                   <div className="kio-turno-puesto">
                     <b>{indice === 0 ? 'Ahora' : indice + 1}</b>
                     <span>{horaLlegada(p.creado_en) || 'En espera'}</span>
@@ -657,10 +706,13 @@ export default function KioscoCafetin() {
                     <ul>{(p.items || []).map((it, i) => <li key={i}>{it.cantidad} × {it.nombre}</li>)}</ul>
                     {p.nota ? <p className="kio-turno-nota">{p.nota}</p> : null}
                     <p className="kio-deuda">Ya debe S/ {Number(p.deuda).toFixed(2)}</p>
+                    <CapturaYape src={p.comprobante_url} />
                   </div>
                   <div className="kio-turno-pago">
                     <b>S/ {Number(p.total).toFixed(2)}</b>
+                    <b className={`kio-rep-tag kio-rep-${tonoPago(p)}`}>{etiquetaPedido(p)}</b>
                     <button type="button" className="kio-btn" disabled={atendiendo === p.id} onClick={() => decidir(p.id, 'aceptado', 'pagado')}>Pagado</button>
+                    <button type="button" className="kio-btn kio-btn-ghost" disabled={atendiendo === p.id} onClick={() => decidir(p.id, 'aceptado', 'pendiente')}>Pendiente</button>
                     {config?.fiado_activo && (
                       <button type="button" className="kio-btn kio-btn-ghost" disabled={atendiendo === p.id} onClick={() => decidir(p.id, 'aceptado', 'fiado')}>Fiado</button>
                     )}
@@ -841,12 +893,19 @@ export default function KioscoCafetin() {
             )}
             <div className="kio-grilla">
               {misPedidos.map((p) => (
-                <article key={p.id} className="kio-card">
+                <article key={p.id} className={`kio-card kio-pago-${tonoPago(p)}`}>
                   <strong>#{p.codigo}</strong>
-                  <span>{String(p.fecha_consumo).slice(0, 10)} · {p.estado} · {p.pago}</span>
+                  <span>{String(p.fecha_consumo).slice(0, 10)}</span>
+                  <b className={`kio-rep-tag kio-rep-${tonoPago(p)}`}>{etiquetaPedido(p)}</b>
                   {p.alumno ? <span>{p.alumno}</span> : null}
                   <ul>{(p.items || []).map((it, i) => <li key={i}>{it.cantidad} × {it.nombre}</li>)}</ul>
+                  <CapturaYape src={p.comprobante_url} />
                   <b>S/ {Number(p.total).toFixed(2)}</b>
+                  {p.pago !== 'pagado' && p.estado !== 'rechazado' && (
+                    <button type="button" className="kio-btn" onClick={() => { setYapeArchivo(null); setYapeDe({ id: p.id, codigo: p.codigo, total: p.total }); }}>
+                      {p.comprobante_url ? 'Cambiar captura' : 'Pagar con Yape'}
+                    </button>
+                  )}
                 </article>
               ))}
               {!misPedidos.length && <p className="kio-vacio">Todavía no tienes pedidos.</p>}
@@ -859,9 +918,11 @@ export default function KioscoCafetin() {
             <div className="kio-panel-head"><h2>Caja</h2></div>
             <div className="kio-grilla">
               {pedidos.filter((p) => p.estado === 'aceptado' || p.estado === 'entregado').map((p) => (
-                <article key={p.id} className="kio-card">
+                <article key={p.id} className={`kio-card kio-pago-${tonoPago(p)}`}>
                   <strong>{p.alumno}</strong>
-                  <span>{p.grado} · {p.pago}</span>
+                  <span>{p.grado}</span>
+                  <b className={`kio-rep-tag kio-rep-${tonoPago(p)}`}>{etiquetaPedido(p)}</b>
+                  <CapturaYape src={p.comprobante_url} />
                   <b>S/ {Number(p.total).toFixed(2)}</b>
                   {p.pago !== 'pagado' && (
                     <button type="button" className="kio-btn" onClick={() => decidir(p.id, p.estado, 'pagado')}>Marcar pagado</button>
@@ -928,7 +989,7 @@ export default function KioscoCafetin() {
                 </div>
                 <div className="kio-rep-lista">
                   {pedidosReporte.map((p) => (
-                    <article key={p.id} className="kio-rep-card">
+                    <article key={p.id} className={`kio-rep-card kio-pago-${tonoPago(p)}`}>
                       <div>
                         <strong>{p.cliente || 'Sin nombre'}</strong>
                         <span>{fechaCorta(p.fecha)} {p.hora} · {p.codigo} · {p.grado || p.origen}</span>
@@ -965,6 +1026,47 @@ export default function KioscoCafetin() {
           <section className="kio-panel">
             <div className="kio-panel-head"><h2>Ajustes</h2></div>
             <div className="kio-ajustes">
+              <article className="kio-ajuste kio-ajuste-yape">
+                <div>
+                  <strong>Yape</strong>
+                  <p>El papá ve este QR y este número cuando va a pagar. El número se guarda con el botón de abajo. El QR se guarda al elegirlo.</p>
+                </div>
+                <div className="kio-yape-cfg">
+                  <div className="kio-yape-qr-caja">
+                    {config.yape_qr_url
+                      ? <img src={config.yape_qr_url} alt="QR de Yape" />
+                      : <span>Sin QR</span>}
+                  </div>
+                  <div>
+                    <label className="kio-file">Subir QR
+                      <input type="file" accept="image/*" onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (!file) return;
+                        try {
+                          const fd = new FormData();
+                          fd.append('imagen', file);
+                          const { data } = await api.post('/kiosco/yape-qr', fd);
+                          setConfig(data.config);
+                          setAviso('QR de Yape guardado.');
+                        } catch (err) {
+                          setError(err.response?.data?.error || 'No se pudo guardar el QR.');
+                        }
+                      }} />
+                    </label>
+                    <label className="kio-campo">Número de Yape
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength={15}
+                        placeholder="987654321"
+                        value={config.yape_numero || ''}
+                        onChange={(e) => setConfig({ ...config, yape_numero: e.target.value.replace(/\D/g, '').slice(0, 15) })}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </article>
               <article className="kio-ajuste">
                 <div><strong>Familia</strong><p>Quién puede pedir en línea.</p></div>
                 <select className="kio-ajuste-select" value={config.quien_pide} onChange={(e) => setConfig({ ...config, quien_pide: e.target.value })}>
@@ -1159,6 +1261,31 @@ export default function KioscoCafetin() {
           Carrito <b>{piezas}</b>
           <span>S/ {total.toFixed(2)}</span>
         </button>
+        )}
+
+        {yapeDe && (
+          <Modal titulo={`Pagar con Yape · #${yapeDe.codigo}`} onClose={() => { setYapeDe(null); setYapeArchivo(null); }} encima>
+            <p className="kio-precio-lg">S/ {Number(yapeDe.total).toFixed(2)}</p>
+            {(config?.yape_qr_url || config?.yape_numero) ? (
+              <div className="kio-yape-destino">
+                {config.yape_qr_url ? <img className="kio-yape-qr" src={config.yape_qr_url} alt="QR de Yape" /> : null}
+                {config.yape_numero ? <p className="kio-yape-num">Yapea al <b>{config.yape_numero}</b></p> : null}
+              </div>
+            ) : (
+              <p className="kio-vacio">El kiosco todavía no publicó su QR ni su número.</p>
+            )}
+            <p className="kio-vacio">Escanea el QR o yapea a ese número. Después sube la captura. El kiosco la revisa y recién ahí marca el pedido como pagado.</p>
+            <label className="kio-file">Captura
+              <input type="file" accept="image/*" onChange={(e) => setYapeArchivo(e.target.files?.[0] || null)} />
+            </label>
+            {yapeArchivo && <p className="kio-ok">{yapeArchivo.name}</p>}
+            <div className="kio-cobro">
+              <button type="button" className="kio-btn" disabled={yapeEnviando || !yapeArchivo} onClick={subirYape}>
+                {yapeEnviando ? 'Enviando…' : 'Enviar captura'}
+              </button>
+              <button type="button" className="kio-btn kio-btn-ghost" onClick={() => { setYapeDe(null); setYapeArchivo(null); }}>Ahora no</button>
+            </div>
+          </Modal>
         )}
 
         {pieza && (
