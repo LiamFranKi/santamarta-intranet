@@ -696,6 +696,14 @@ function AdminConfiguracion() {
   const { activo } = useModulos();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [limpiezaAnio, setLimpiezaAnio] = useState('');
+  const [limpiezaConfirmar, setLimpiezaConfirmar] = useState('');
+  const [limpiezaPreview, setLimpiezaPreview] = useState(null);
+  const [limpiezaCargando, setLimpiezaCargando] = useState(false);
+  const [limpiezaMsg, setLimpiezaMsg] = useState('');
+  const [limpiezaError, setLimpiezaError] = useState('');
+  const [limpiezaJob, setLimpiezaJob] = useState('');
+  const [limpiezaProgreso, setLimpiezaProgreso] = useState(null);
   const [activeTab, setActiveTab] = useState('general');
   const quillMatriculaRef = useRef(null);
   const quillMatriculaInternoRef = useRef(null);
@@ -719,6 +727,41 @@ function AdminConfiguracion() {
       setActiveTab(visibleTabs[0].id);
     }
   }, [visibleTabs, activeTab]);
+
+  useEffect(() => {
+    if (!limpiezaJob) return undefined;
+    let vivo = true;
+    const leer = async () => {
+      try {
+        const { data } = await api.get('/admin/configuracion/limpieza-anio/progreso', { params: { id: limpiezaJob } });
+        if (!vivo) return;
+        setLimpiezaProgreso(data);
+        if (!data.listo) return;
+        setLimpiezaJob('');
+        setLimpiezaCargando(false);
+        if (data.error) {
+          setLimpiezaError(data.error);
+          return;
+        }
+        const b = data.resultado?.borrados || {};
+        setLimpiezaMsg(`Listo. ${b.publicaciones || 0} publicaciones, ${b.chat || 0} chats, ${b.archivos || 0} archivos (${((b.bytes || 0) / (1024 * 1024)).toFixed(1)} MB).`);
+        setLimpiezaPreview(null);
+        setLimpiezaConfirmar('');
+        setTimeout(() => setLimpiezaProgreso(null), 1100);
+      } catch (err) {
+        if (!vivo) return;
+        setLimpiezaError(err.response?.data?.error || 'No se pudo seguir la limpieza.');
+        setLimpiezaCargando(false);
+        setLimpiezaJob('');
+      }
+    };
+    leer();
+    const timer = setInterval(leer, 450);
+    return () => {
+      vivo = false;
+      clearInterval(timer);
+    };
+  }, [limpiezaJob]);
   const [config, setConfig] = useState({
     // Información General
     titulo_intranet: '',
@@ -1450,6 +1493,30 @@ function AdminConfiguracion() {
 
   return (
     <div className="admin-configuracion">
+      {limpiezaProgreso && (
+        <div className="limpieza-velo" role="status" aria-live="polite">
+          <div className="limpieza-caja">
+            <p className="limpieza-kicker">Limpiando {limpiezaAnio}</p>
+            <strong>{limpiezaProgreso.etapa || 'En proceso…'}</strong>
+            <div className="limpieza-barra" aria-valuemin="0" aria-valuemax="100" aria-valuenow={limpiezaProgreso.pct || 0}>
+              <span style={{ width: `${Math.min(100, limpiezaProgreso.pct || 0)}%` }} />
+            </div>
+            <b>{Math.min(100, limpiezaProgreso.pct || 0)}%</b>
+            <ul>
+              {['Chat', 'Avisos', 'Auditoría', 'Publicaciones', 'Fotos del disco'].map((nombre, i) => {
+                const n = i + 1;
+                const paso = limpiezaProgreso.paso || 0;
+                const hecho = paso > n || limpiezaProgreso.listo;
+                const activo = paso === n && !limpiezaProgreso.listo;
+                return <li key={nombre} className={hecho ? 'is-done' : activo ? 'is-on' : ''}>{hecho ? '✓' : activo ? '…' : '○'} {nombre}</li>;
+              })}
+            </ul>
+            {limpiezaProgreso.error && (
+              <button type="button" className="btn-warning btn-warning--inline" onClick={() => setLimpiezaProgreso(null)}>Cerrar</button>
+            )}
+          </div>
+        </div>
+      )}
       <header className="config-hero">
         <div className="config-hero-icon" aria-hidden="true">
           <ConfigTabIcon name="general" />
@@ -1916,6 +1983,7 @@ function AdminConfiguracion() {
           )}
 
           {activeTab === 'anio' && (
+          <>
           <div className="config-panel-card">
             <div className="config-panel-card-header config-panel-card-header--teal">
               <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="anio" /></span>
@@ -2052,6 +2120,120 @@ function AdminConfiguracion() {
             </div>
             </div>
           </div>
+          {user?.tipo === 'ADMINISTRADOR' && (
+          <div className="config-panel-card">
+            <div className="config-panel-card-header config-panel-card-header--teal">
+              <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="anio" /></span>
+              Limpiar un año cerrado
+            </div>
+            <div className="config-section">
+              <div className="config-subsection config-subsection--danger">
+                <h3 className="config-subsection-title">Muro, chat y avisos</h3>
+                <p className="config-subsection-desc">
+                  Borra de ese año las publicaciones y sus fotos, el chat, los avisos y el registro de auditoría.
+                  También libera esos archivos en el disco. No toca notas, matrículas, pagos, fotos de perfil,
+                  la biblioteca ni los PDF de los temas.
+                </p>
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label htmlFor="limpieza-anio">Año a limpiar</label>
+                    <input
+                      id="limpieza-anio"
+                      type="number"
+                      min="2000"
+                      max="2100"
+                      value={limpiezaAnio}
+                      onChange={(e) => {
+                        setLimpiezaAnio(e.target.value);
+                        setLimpiezaPreview(null);
+                        setLimpiezaMsg('');
+                        setLimpiezaError('');
+                      }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="limpieza-confirmar">Escribe el año para confirmar</label>
+                    <input
+                      id="limpieza-confirmar"
+                      type="text"
+                      value={limpiezaConfirmar}
+                      onChange={(e) => setLimpiezaConfirmar(e.target.value)}
+                      placeholder={limpiezaAnio || 'Ej. 2025'}
+                    />
+                  </div>
+                </div>
+                {limpiezaError && <p className="config-subsection-desc" style={{ color: '#9b1c1c' }}>{limpiezaError}</p>}
+                {limpiezaMsg && <p className="config-subsection-desc" style={{ color: '#166534' }}>{limpiezaMsg}</p>}
+                {limpiezaPreview && (
+                  <p className="config-subsection-desc">
+                    Año {limpiezaPreview.anio}: {limpiezaPreview.publicaciones} publicaciones, {limpiezaPreview.archivos} archivos
+                    ({(limpiezaPreview.bytes / (1024 * 1024)).toFixed(1)} MB), {limpiezaPreview.chat} mensajes de chat, {limpiezaPreview.notificaciones} avisos
+                    y {limpiezaPreview.auditoria} registros de auditoría.
+                    {limpiezaPreview.protegidos > 0 ? ` ${limpiezaPreview.protegidos} archivos se conservan porque otro año o un tema los usa.` : ''}
+                  </p>
+                )}
+                <div className="card-actions" style={{ marginTop: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
+                  <button
+                    type="button"
+                    className="btn-submit-card"
+                    disabled={limpiezaCargando || !limpiezaAnio}
+                    onClick={async () => {
+                      setLimpiezaCargando(true);
+                      setLimpiezaError('');
+                      setLimpiezaMsg('');
+                      try {
+                        const { data } = await api.get('/admin/configuracion/limpieza-anio', { params: { anio: limpiezaAnio } });
+                        setLimpiezaPreview(data);
+                      } catch (err) {
+                        setLimpiezaPreview(null);
+                        setLimpiezaError(err.response?.data?.error || 'No se pudo calcular.');
+                      } finally {
+                        setLimpiezaCargando(false);
+                      }
+                    }}
+                  >
+                    {limpiezaCargando ? 'Calculando…' : 'Ver qué se borraría'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-warning btn-warning--inline"
+                    disabled={limpiezaCargando || !limpiezaPreview || String(limpiezaConfirmar).trim() !== String(limpiezaAnio)}
+                    onClick={async () => {
+                      const ok = await Swal.fire({
+                        icon: 'warning',
+                        title: `Limpiar ${limpiezaAnio}`,
+                        text: 'Se borran publicaciones, chat, avisos y auditoría de ese año, y las fotos de esas publicaciones. No se puede deshacer.',
+                        showCancelButton: true,
+                        confirmButtonText: 'Limpiar',
+                        cancelButtonText: 'Cancelar',
+                        confirmButtonColor: '#9b1c1c',
+                      });
+                      if (!ok.isConfirmed) return;
+                      setLimpiezaCargando(true);
+                      setLimpiezaError('');
+                      setLimpiezaMsg('');
+                      setLimpiezaProgreso({ pct: 2, paso: 0, etapa: 'Preparando…', listo: false });
+                      try {
+                        const { data } = await api.post('/admin/configuracion/limpieza-anio', {
+                          anio: parseInt(limpiezaAnio, 10),
+                          confirmar: String(limpiezaConfirmar).trim(),
+                        });
+                        setLimpiezaJob(data.id);
+                      } catch (err) {
+                        setLimpiezaError(err.response?.data?.error || 'No se pudo limpiar.');
+                        setLimpiezaProgreso(null);
+                        setLimpiezaCargando(false);
+                      }
+                    }}
+                  >
+                    Limpiar este año
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          )}
+          </>
           )}
 
           {activeTab === 'pagos' && (

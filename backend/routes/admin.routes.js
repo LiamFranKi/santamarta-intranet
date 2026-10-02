@@ -34,6 +34,7 @@ const {
   aplicarEstructuraColegio,
 } = require('../utils/aulaEstructuraTemas');
 const { resolverLogoVariante, guardarArchivoLogo, upsertClave } = require('../utils/logoColegio');
+const limpiezaAnio = require('../utils/limpiezaAnio');
 
 const { memoKeyed, withTimeout } = require('../utils/ttlCache');
 const dashMemo = memoKeyed(45 * 1000);
@@ -2291,6 +2292,79 @@ router.delete('/avatares/accesorios/:id', async (req, res) => {
 function sha1Password(plain) {
   return crypto.createHash('sha1').update(String(plain || '')).digest('hex');
 }
+
+/**
+ * GET /api/admin/configuracion/limpieza-anio?anio=2025
+ * Cuenta muro, chat, avisos y auditoría de un año ya cerrado. No borra nada.
+ */
+router.get('/configuracion/limpieza-anio', async (req, res) => {
+  if (req.user?.tipo !== 'ADMINISTRADOR') {
+    return res.status(403).json({ error: 'Solo el administrador puede ver esta limpieza.' });
+  }
+  try {
+    const data = await limpiezaAnio.resumen(req.user.colegio_id, req.query.anio);
+    res.json(data);
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || 'No se pudo calcular la limpieza.' });
+  }
+});
+
+/**
+ * POST /api/admin/configuracion/limpieza-anio
+ * Borra muro, chat, avisos y auditoría del año, y los archivos de esas publicaciones.
+ */
+router.post('/configuracion/limpieza-anio', async (req, res) => {
+  if (req.user?.tipo !== 'ADMINISTRADOR') {
+    return res.status(403).json({ error: 'Solo el administrador puede limpiar un año.' });
+  }
+  const anio = parseInt(req.body?.anio, 10);
+  if (String(req.body?.confirmar || '').trim() !== String(anio)) {
+    return res.status(400).json({ error: 'Escribe el año para confirmar.' });
+  }
+  try {
+    const job = limpiezaAnio.iniciar(req.user.colegio_id, anio);
+    const usuario = req.user;
+    const vigilar = setInterval(() => {
+      const estado = limpiezaAnio.verTrabajo(job.id, usuario.colegio_id);
+      if (!estado) {
+        clearInterval(vigilar);
+        return;
+      }
+      if (!estado.listo) return;
+      clearInterval(vigilar);
+      if (estado.error || !estado.resultado) return;
+      const data = estado.resultado;
+      registrarAccion({
+        usuario_id: usuario.usuario_id || usuario.id,
+        colegio_id: usuario.colegio_id,
+        tipo_usuario: 'ADMINISTRADOR',
+        accion: 'ELIMINAR',
+        modulo: 'CONFIGURACION',
+        entidad: 'limpieza_anio',
+        entidad_id: anio,
+        descripcion: `Limpió el año ${anio}: ${data.borrados.publicaciones} publicaciones, ${data.borrados.chat} chats, ${data.borrados.archivos} archivos.`,
+        url: req.originalUrl,
+        metodo_http: 'POST',
+        ip_address: req.ip,
+        user_agent: req.get('user-agent'),
+        datos_nuevos: data.borrados,
+        resultado: 'EXITOSO',
+      });
+    }, 1000);
+    res.json(job);
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || 'No se pudo limpiar el año.' });
+  }
+});
+
+router.get('/configuracion/limpieza-anio/progreso', async (req, res) => {
+  if (req.user?.tipo !== 'ADMINISTRADOR') {
+    return res.status(403).json({ error: 'Solo el administrador puede ver esta limpieza.' });
+  }
+  const estado = limpiezaAnio.verTrabajo(req.query.id, req.user.colegio_id);
+  if (!estado) return res.status(404).json({ error: 'Esa limpieza ya no está en curso.' });
+  res.json(estado);
+});
 
 /**
  * POST /api/admin/configuracion/reiniciar-accesos
