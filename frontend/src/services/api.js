@@ -18,7 +18,7 @@ if (isDevelopment) {
   apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
   console.log('🔧 Modo desarrollo: usando API en', apiUrl);
 } else {
-  apiUrl = `${currentProtocol}//${hostname}/api`;
+  apiUrl = `${window.location.origin}/api`;
   console.log('🌐 Modo producción: usando API en', apiUrl);
 }
 

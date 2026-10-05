@@ -51,7 +51,10 @@ export default function AperturaInstalar() {
   useEffect(() => {
     api.get('/apertura/estado')
       .then(({ data }) => setEstado(data))
-      .catch(() => setEstado({ necesita_instalacion: false, clave_configurada: true }));
+      .catch(() => {
+        setError('No se pudo consultar la base. Recargue la página.');
+        setEstado(null);
+      });
   }, []);
 
   const set = (k) => (e) => {
