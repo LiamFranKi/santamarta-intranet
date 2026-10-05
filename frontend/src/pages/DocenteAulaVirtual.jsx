@@ -1986,13 +1986,6 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
 
   const renderTareasContent = () => (
     <div className="card-content-expanded">
-      {!soloLecturaTutor && (
-        <div className="temas-toolbar">
-          <button type="button" className="btn-biblioteca-inline" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('tareas'); }}>
-            📖 Biblioteca de proyectos
-          </button>
-        </div>
-      )}
       {/* Modal de Detalles de Tarea */}
       {mostrarDetallesTarea && tareaDetalle && createPortal(
         <div 
@@ -2281,13 +2274,6 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
 
   const renderExamenesContent = () => (
     <div className="card-content-expanded">
-      {!soloLecturaTutor && (
-        <div className="temas-toolbar">
-          <button type="button" className="btn-biblioteca-inline" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('examenes'); }}>
-            📖 Biblioteca de exámenes
-          </button>
-        </div>
-      )}
       {examenes.length > 0 ? (
         <table>
           <thead>
@@ -3521,13 +3507,6 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
     
     return (
     <div className="card-content-expanded">
-        {!soloLecturaTutor && (
-          <div className="temas-toolbar">
-            <button type="button" className="btn-biblioteca-inline" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('videos'); }}>
-              📖 Biblioteca de videos
-            </button>
-          </div>
-        )}
         {/* Modal de Formulario de Video */}
         {mostrarFormVideo && createPortal(
           <div 
@@ -3726,13 +3705,6 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
     
     return (
     <div className="card-content-expanded">
-        {!soloLecturaTutor && (
-          <div className="temas-toolbar">
-            <button type="button" className="btn-biblioteca-inline" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('enlaces'); }}>
-              📖 Biblioteca de enlaces
-            </button>
-          </div>
-        )}
         {/* Modal de Formulario de Enlace */}
         {mostrarFormEnlace && createPortal(
           <div 
@@ -4022,26 +3994,36 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
               </div>
               <div className="card-action-btns">
                 {!soloLecturaTutor && (
-                  <button 
-                    className="card-action-btn"
-                    onClick={(e) => { 
-                      e.stopPropagation(); 
-                      const next = siguienteNumeroEstructura(archivos.filter((a) => Number(a.ciclo) === Number(bimestreGlobal)));
-                      setTemaEditando(null);
-                      setFormTema({
-                        nombre: '',
-                        archivo: null,
-                        archivoNombre: '',
-                        enlace: '',
-                        ciclo: bimestreGlobal,
-                        item_tipo: 'TEMA',
-                        item_numero: next
-                      });
-                      setMostrarFormTema(true); 
-                    }}
-                  >
-                    + Nuevo
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="card-action-btn card-action-btn-secondary"
+                      onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('temas'); }}
+                      title="Ver temas de años anteriores"
+                    >
+                      📖 Biblioteca
+                    </button>
+                    <button 
+                      className="card-action-btn"
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        const next = siguienteNumeroEstructura(archivos.filter((a) => Number(a.ciclo) === Number(bimestreGlobal)));
+                        setTemaEditando(null);
+                        setFormTema({
+                          nombre: '',
+                          archivo: null,
+                          archivoNombre: '',
+                          enlace: '',
+                          ciclo: bimestreGlobal,
+                          item_tipo: 'TEMA',
+                          item_numero: next
+                        });
+                        setMostrarFormTema(true); 
+                      }}
+                    >
+                      + Nuevo
+                    </button>
+                  </>
                 )}
               </div>
             </div>
