@@ -9,6 +9,13 @@ function nivelDesdeNombre(nombre) {
   return null;
 }
 
+/** En 2026 Inicial sigue con la libreta de indicadores del aula. Desde 2027, cualitativo = CNEB. */
+const ANIO_INICIAL_LIBRETA_PREVIA = 2026;
+
+function inicialUsaLibretaPrevia(nivel, anio) {
+  return nivel === 'INICIAL' && Number(anio) === ANIO_INICIAL_LIBRETA_PREVIA;
+}
+
 function normalizarNombre(s) {
   return String(s || '')
     .toLowerCase()
@@ -28,6 +35,7 @@ const HINTS_AREA_INICIAL = [
 ];
 
 async function nivelCnebActivoEnAula(cid, anio, nivel) {
+  if (inicialUsaLibretaPrevia(nivel, anio)) return false;
   if (nivel === 'INICIAL') return true;
   if (nivel !== 'PRIMARIA' && nivel !== 'SECUNDARIA') return false;
   try {
@@ -88,9 +96,10 @@ async function contextoAulaCneb(cid, asignaturaId) {
   if (!row) return null;
   const nivel = nivelDesdeNombre(row.nivel_nombre);
   const esInicial = nivel === 'INICIAL';
-  const esCnebAnio = esCualitativoNivel(row.tipo_calificacion, row.nivel_nombre);
+  const libretaPrevia = inicialUsaLibretaPrevia(nivel, row.anio);
+  const esCnebAnio = !libretaPrevia && esCualitativoNivel(row.tipo_calificacion, row.nivel_nombre);
   let bimestrePrueba = null;
-  if (!esCnebAnio && nivel) {
+  if (!esCnebAnio && !libretaPrevia && nivel) {
     try {
       const [uso] = await query(
         `SELECT activo, bimestre FROM cneb_uso_colegio

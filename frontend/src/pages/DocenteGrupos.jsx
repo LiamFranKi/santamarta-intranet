@@ -7,14 +7,8 @@ import GrupoAlumnosListaView from '../components/grupoAlumnos/GrupoAlumnosListaV
 import LibretaInicialAreasModal from '../components/libretaInicial/LibretaInicialAreasModal';
 import LibretaInicialRegistroModal from '../components/libretaInicial/LibretaInicialRegistroModal';
 import api from '../services/api';
+import { esInicialLibretaPrevia } from '../utils/inicialLibretaPrevia';
 import './DocenteGrupos.css';
-
-function esGrupoNivelInicial(grupo) {
-  const tipo = grupo?.tipo_calificacion;
-  if (tipo === 0 || tipo === '0') return true;
-  if (tipo === 1 || tipo === '1') return false;
-  return String(grupo?.nivel_nombre || '').toUpperCase().includes('INICIAL');
-}
 
 function DocenteGrupos() {
   const navigate = useNavigate();
@@ -304,7 +298,7 @@ function DocenteGrupos() {
                                   <span className="dropdown-icon">📉</span>
                                   <span>Presentación</span>
                                 </button>
-                                {false && esGrupoNivelInicial(grupo) && (
+                                {esInicialLibretaPrevia(grupo?.anio, grupo?.nivel_nombre) && (
                                   <>
                                     <button
                                       className="dropdown-item"

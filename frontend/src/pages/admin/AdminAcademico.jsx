@@ -13,6 +13,7 @@ import ModalCopiarContenidoAsignatura from '../../components/admin/ModalCopiarCo
 import ModalCriteriosIndicadoresAsignatura from '../../components/admin/ModalCriteriosIndicadoresAsignatura';
 import ModalRegistrarNotasAsignatura from '../../components/admin/ModalRegistrarNotasAsignatura';
 import LibretaInicialAreasModal from '../../components/libretaInicial/LibretaInicialAreasModal';
+import { ANIO_INICIAL_LIBRETA_PREVIA } from '../../utils/inicialLibretaPrevia';
 import LibretaInicialRegistroModal from '../../components/libretaInicial/LibretaInicialRegistroModal';
 import { exportGrupoCarnetsPdfA4 } from '../../utils/carnetQrPdf';
 import { generarPDFNotasTutoria } from '../../utils/pdfNotasTutoria';
@@ -3569,7 +3570,7 @@ function AsignaturasPanel({ meta, accionesRef }) {
         <p className="admin-academico-niveles-empty">No hay asignaturas con esos filtros.</p>
       ) : (
         <div className="admin-academico-asignaturas-table-block">
-          {false && esInicialBuscado && (
+          {esInicialBuscado && Number(filtrosAplicados?.anio) === ANIO_INICIAL_LIBRETA_PREVIA && (
             <div className="admin-academico-libreta-inicial-toolbar" role="region" aria-label="Libreta Inicial">
               {libretaGrupo?.conflicto ? (
                 <p className="admin-academico-libreta-inicial-warn">

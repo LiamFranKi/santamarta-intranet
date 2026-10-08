@@ -13,7 +13,7 @@ import './AulaCnebSesiones.css';
 
 function aulaMuestraCneb(meta, bimestre) {
   if (!meta) return false;
-  if (meta.es_cneb_anio || meta.es_inicial) return true;
+  if (meta.es_cneb_anio) return true;
   const prueba = Number(meta.bimestre_prueba);
   if (prueba >= 1 && prueba <= 4) return Number(bimestre) === prueba;
   return Boolean(meta.es_cneb);

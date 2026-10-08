@@ -347,6 +347,22 @@ async function aplicarEstructuraColegio({ colegioId, anio }) {
   };
 }
 
+async function numeroEstructuraOcupado({ asignaturaId, ciclo, tipo, numero, exceptoId }) {
+  const n = parseInt(numero, 10);
+  const t = String(tipo || '').toUpperCase();
+  if (!asignaturaId || (t !== 'TEMA' && t !== 'FICHA') || !Number.isFinite(n) || n < 1) return false;
+  const params = [asignaturaId, parseInt(ciclo, 10) || 1, t, n];
+  let sql = `SELECT id FROM asignaturas_archivos
+     WHERE asignatura_id = ? AND ciclo = ? AND item_tipo = ? AND item_numero = ?`;
+  if (exceptoId) {
+    sql += ' AND id <> ?';
+    params.push(exceptoId);
+  }
+  sql += ' LIMIT 1';
+  const rows = await query(sql, params);
+  return rows.length > 0;
+}
+
 async function asegurarFichaHermana({ asignaturaId, trabajadorId, ciclo, numero, anio, colegioId }) {
   if (ocultarHuecosPendientes({ ciclo, anio })) return;
   let colegio = parseInt(colegioId, 10);
@@ -410,6 +426,7 @@ module.exports = {
   prefijoItem,
   extraerSufijoNombre,
   componerNombreEstructura,
+  numeroEstructuraOcupado,
   esTemaPendiente,
   ANIO_OCULTAR_HUECOS_BIM_CERRADOS,
   ocultarHuecosPendientes,

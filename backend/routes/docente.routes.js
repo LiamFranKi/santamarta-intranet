@@ -74,6 +74,7 @@ const {
   urlPublicaArchivoTema,
   ocultarHuecosPendientes,
   componerNombreEstructura,
+  numeroEstructuraOcupado,
   archivosTieneEstructuraCols,
   asegurarFichaHermana,
   obtenerConfigEstructura,
@@ -13179,7 +13180,7 @@ router.get('/hijos/:hijoId/aula-virtual/:asignaturaId', async (req, res) => {
     // Verificar que el hijo tiene acceso a esta asignatura
     const asignatura = await query(
       `SELECT a.*, g.id as grupo_id, c.nombre as curso_nombre,
-              g.grado, g.seccion, n.nombre as nivel_nombre,
+              g.grado, g.seccion, g.anio, n.nombre as nivel_nombre,
               CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
        FROM asignaturas a
        INNER JOIN grupos g ON g.id = a.grupo_id
@@ -13206,6 +13207,7 @@ router.get('/hijos/:hijoId/aula-virtual/:asignaturaId', async (req, res) => {
         grado: asignaturaData.grado,
         seccion: asignaturaData.seccion,
         nivel_nombre: asignaturaData.nivel_nombre,
+        anio: asignaturaData.anio,
         docente_nombre: asignaturaData.docente_nombre || 'Docente',
         aula_virtual: asignaturaData.aula_virtual || '',
         habilitar_aula: asignaturaData.habilitar_aula || 'NO'
@@ -21667,7 +21669,7 @@ router.post('/aula-virtual/copiar-temas-biblioteca', async (req, res) => {
 router.post('/aula-virtual/archivos/:id/llenar-biblioteca', async (req, res) => {
   try {
     const { id } = req.params;
-    const { asignatura_origen_id, tema_id } = req.body || {};
+    const { asignatura_origen_id, tema_id, item_tipo, item_numero } = req.body || {};
     if (!asignatura_origen_id || !tema_id) {
       return res.status(400).json({ error: 'asignatura_origen_id y tema_id son requeridos' });
     }
@@ -21684,22 +21686,64 @@ router.post('/aula-virtual/archivos/:id/llenar-biblioteca', async (req, res) => 
       return res.status(404).json({ error: 'El tema de biblioteca no existe' });
     }
     const src = origen[0];
-    const nombreGuardar = (dest.item_tipo && dest.item_numero)
-      ? componerNombreEstructura(dest.item_tipo, dest.item_numero, src.nombre)
+    const tieneEstructura = await archivosTieneEstructuraCols();
+    let tipoGuardar = dest.item_tipo ? String(dest.item_tipo).toUpperCase() : null;
+    let numeroGuardar = parseInt(dest.item_numero, 10);
+    if (tieneEstructura && item_tipo != null && String(item_tipo).trim() !== '') {
+      const tipoNorm = String(item_tipo).toUpperCase() === 'FICHA' ? 'FICHA' : (String(item_tipo).toUpperCase() === 'TEMA' ? 'TEMA' : null);
+      const numeroNorm = parseInt(item_numero, 10);
+      if (!tipoNorm || !Number.isFinite(numeroNorm) || numeroNorm < 1 || numeroNorm > 99) {
+        return res.status(400).json({ error: 'El número debe estar entre 1 y 99.' });
+      }
+      const ocupado = await numeroEstructuraOcupado({
+        asignaturaId: dest.asignatura_id,
+        ciclo: dest.ciclo,
+        tipo: tipoNorm,
+        numero: numeroNorm,
+        exceptoId: id,
+      });
+      if (ocupado) {
+        const etiqueta = tipoNorm === 'FICHA' ? 'Ficha' : 'Tema';
+        return res.status(400).json({
+          error: `Ya existe ${etiqueta} ${numeroNorm} en este bimestre. Elige otro número.`,
+        });
+      }
+      tipoGuardar = tipoNorm;
+      numeroGuardar = numeroNorm;
+    }
+    const nombreGuardar = (tipoGuardar === 'TEMA' || tipoGuardar === 'FICHA') && Number.isFinite(numeroGuardar) && numeroGuardar > 0
+      ? componerNombreEstructura(tipoGuardar, numeroGuardar, src.nombre)
       : (src.nombre || dest.nombre);
 
-    await execute(
-      `UPDATE asignaturas_archivos
-       SET nombre = ?, archivo = ?, enlace = ?, fecha_hora = ?
-       WHERE id = ?`,
-      [
-        nombreGuardar,
-        src.archivo || '',
-        (src.enlace && String(src.enlace).trim()) || '',
-        fechaHoraMySQLLima(),
-        id,
-      ]
-    );
+    if ((tipoGuardar === 'TEMA' || tipoGuardar === 'FICHA') && Number.isFinite(numeroGuardar) && numeroGuardar > 0 && tieneEstructura) {
+      await execute(
+        `UPDATE asignaturas_archivos
+         SET nombre = ?, archivo = ?, enlace = ?, fecha_hora = ?, item_tipo = ?, item_numero = ?
+         WHERE id = ?`,
+        [
+          nombreGuardar,
+          src.archivo || '',
+          (src.enlace && String(src.enlace).trim()) || '',
+          fechaHoraMySQLLima(),
+          tipoGuardar,
+          numeroGuardar,
+          id,
+        ]
+      );
+    } else {
+      await execute(
+        `UPDATE asignaturas_archivos
+         SET nombre = ?, archivo = ?, enlace = ?, fecha_hora = ?
+         WHERE id = ?`,
+        [
+          nombreGuardar,
+          src.archivo || '',
+          (src.enlace && String(src.enlace).trim()) || '',
+          fechaHoraMySQLLima(),
+          id,
+        ]
+      );
+    }
     res.json({ success: true, message: 'Se llenó la fila desde la biblioteca' });
   } catch (error) {
     console.error('Error llenando tema desde biblioteca:', error);
@@ -21740,6 +21784,20 @@ router.post('/aula-virtual/archivos/desde-biblioteca', async (req, res) => {
     const numeroNorm = parseInt(item_numero, 10);
     const cicloNum = parseInt(ciclo, 10) || 1;
     const tieneEstructura = await archivosTieneEstructuraCols();
+    if (tieneEstructura && Number.isFinite(numeroNorm) && numeroNorm > 0) {
+      const ocupado = await numeroEstructuraOcupado({
+        asignaturaId: asignatura_id,
+        ciclo: cicloNum,
+        tipo: tipoNorm,
+        numero: numeroNorm,
+      });
+      if (ocupado) {
+        const etiqueta = tipoNorm === 'FICHA' ? 'Ficha' : 'Tema';
+        return res.status(400).json({
+          error: `Ya existe ${etiqueta} ${numeroNorm} en este bimestre. Elige otro número o edita el que ya está.`,
+        });
+      }
+    }
     const nombreFinal = (tieneEstructura && Number.isFinite(numeroNorm) && numeroNorm > 0)
       ? componerNombreEstructura(tipoNorm, numeroNorm, src.nombre)
       : (src.nombre || 'Tema');
@@ -22488,6 +22546,20 @@ router.post('/aula-virtual/archivos', uploadAulaVirtual.single('archivo'), async
     const tieneEstructura = await archivosTieneEstructuraCols();
     const tipoNorm = String(item_tipo || '').toUpperCase() === 'FICHA' ? 'FICHA' : (String(item_tipo || '').toUpperCase() === 'TEMA' ? 'TEMA' : null);
     const numeroNorm = parseInt(item_numero, 10);
+    if (tieneEstructura && tipoNorm && Number.isFinite(numeroNorm) && numeroNorm > 0) {
+      const ocupado = await numeroEstructuraOcupado({
+        asignaturaId: asignatura_id,
+        ciclo: ciclo || 1,
+        tipo: tipoNorm,
+        numero: numeroNorm,
+      });
+      if (ocupado) {
+        const etiqueta = tipoNorm === 'FICHA' ? 'Ficha' : 'Tema';
+        return res.status(400).json({
+          error: `Ya existe ${etiqueta} ${numeroNorm} en este bimestre. Elige otro número o edita el que ya está.`,
+        });
+      }
+    }
     const nombreFinal = (tieneEstructura && tipoNorm && Number.isFinite(numeroNorm) && numeroNorm > 0)
       ? componerNombreEstructura(tipoNorm, numeroNorm, nombre)
       : String(nombre).trim();
@@ -22623,7 +22695,7 @@ router.put('/aula-virtual/archivos/:id', uploadAulaVirtual.single('archivo'), as
   try {
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { id } = req.params;
-    const { asignatura_id, nombre, enlace, ciclo } = req.body;
+    const { asignatura_id, nombre, enlace, ciclo, item_tipo, item_numero } = req.body;
 
     if (!nombre) {
       return res.status(400).json({ error: 'nombre es requerido' });
@@ -22663,8 +22735,33 @@ router.put('/aula-virtual/archivos/:id', uploadAulaVirtual.single('archivo'), as
       enlaceFinal = enlace.trim(); // Guardar tal cual, sin normalizar
     }
 
-    const nombreGuardar = (temaActual.item_tipo && temaActual.item_numero)
-      ? componerNombreEstructura(temaActual.item_tipo, temaActual.item_numero, nombre)
+    const tieneEstructura = await archivosTieneEstructuraCols();
+    let tipoGuardar = temaActual.item_tipo ? String(temaActual.item_tipo).toUpperCase() : null;
+    let numeroGuardar = parseInt(temaActual.item_numero, 10);
+    if (tieneEstructura && item_tipo != null && String(item_tipo).trim() !== '') {
+      const tipoNorm = String(item_tipo).toUpperCase() === 'FICHA' ? 'FICHA' : (String(item_tipo).toUpperCase() === 'TEMA' ? 'TEMA' : null);
+      const numeroNorm = parseInt(item_numero, 10);
+      if (!tipoNorm || !Number.isFinite(numeroNorm) || numeroNorm < 1 || numeroNorm > 99) {
+        return res.status(400).json({ error: 'El número debe estar entre 1 y 99.' });
+      }
+      const ocupado = await numeroEstructuraOcupado({
+        asignaturaId: temaActual.asignatura_id,
+        ciclo: ciclo || temaActual.ciclo,
+        tipo: tipoNorm,
+        numero: numeroNorm,
+        exceptoId: id,
+      });
+      if (ocupado) {
+        const etiqueta = tipoNorm === 'FICHA' ? 'Ficha' : 'Tema';
+        return res.status(400).json({
+          error: `Ya existe ${etiqueta} ${numeroNorm} en este bimestre. Elige otro número.`,
+        });
+      }
+      tipoGuardar = tipoNorm;
+      numeroGuardar = numeroNorm;
+    }
+    const nombreGuardar = (tipoGuardar === 'TEMA' || tipoGuardar === 'FICHA') && Number.isFinite(numeroGuardar) && numeroGuardar > 0
+      ? componerNombreEstructura(tipoGuardar, numeroGuardar, nombre)
       : String(nombre).trim();
 
     // Preparar datos nuevos para auditoría
@@ -22689,19 +22786,22 @@ router.put('/aula-virtual/archivos/:id', uploadAulaVirtual.single('archivo'), as
       resultado: 'EXITOSO'
     });
 
-    // Actualizar el tema
-    await execute(
-      `UPDATE asignaturas_archivos 
-       SET nombre = ?, archivo = ?, enlace = ?, ciclo = ?
-       WHERE id = ?`,
-      [
-        nombreGuardar,
-        archivoPath,
-        enlaceFinal,
-        ciclo || temaActual.ciclo,
-        id
-      ]
-    );
+    const cicloGuardar = ciclo || temaActual.ciclo;
+    if ((tipoGuardar === 'TEMA' || tipoGuardar === 'FICHA') && Number.isFinite(numeroGuardar) && numeroGuardar > 0 && tieneEstructura) {
+      await execute(
+        `UPDATE asignaturas_archivos
+         SET nombre = ?, archivo = ?, enlace = ?, ciclo = ?, item_tipo = ?, item_numero = ?
+         WHERE id = ?`,
+        [nombreGuardar, archivoPath, enlaceFinal, cicloGuardar, tipoGuardar, numeroGuardar, id]
+      );
+    } else {
+      await execute(
+        `UPDATE asignaturas_archivos
+         SET nombre = ?, archivo = ?, enlace = ?, ciclo = ?
+         WHERE id = ?`,
+        [nombreGuardar, archivoPath, enlaceFinal, cicloGuardar, id]
+      );
+    }
 
     // Marcar para que el middleware no registre automáticamente
     req.skipAudit = true;

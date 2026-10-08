@@ -15,6 +15,7 @@ import './DocenteAulaVirtual-gamificado.css';
 import EvidenciasGaleria from '../components/aula/EvidenciasGaleria';
 import AulaCnebSesiones from '../components/aula/AulaCnebSesiones';
 import { huecosCompletarMetaPorDescripcion, esCompletarCorrecto } from '../utils/examenCompletar';
+import { esInicialLibretaPrevia } from '../utils/inicialLibretaPrevia';
 import {
   parseIdAlternativaExamen,
   idsAlternativaExamenIguales,
@@ -899,6 +900,8 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
           await api.post(`/docente/aula-virtual/archivos/${temaEditando.id}/llenar-biblioteca`, {
             asignatura_origen_id: sel.asignatura_origen_id,
             tema_id: sel.tema_id,
+            item_tipo: formTema.item_tipo || undefined,
+            item_numero: formTema.item_numero || undefined,
           });
         } else {
           await api.post('/docente/aula-virtual/archivos/desde-biblioteca', {
@@ -973,6 +976,20 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   const handleGuardarTema = async (e) => {
     e.preventDefault();
     
+    const numeroEstructura = parseInt(formTema.item_numero, 10);
+    if (formTema.item_tipo && (!Number.isFinite(numeroEstructura) || numeroEstructura < 1 || numeroEstructura > 99)) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Número inválido',
+        text: 'El número del tema o la ficha debe estar entre 1 y 99.',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000
+      });
+      return;
+    }
+
     // Validar que al menos tenga nombre
     if (!formTema.item_tipo && !formTema.nombre.trim()) {
       Swal.fire({
@@ -3904,8 +3921,9 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
       : tipoNivelAula === 1 || tipoNivelAula === '1'
         ? false
         : String(curso?.nivel_nombre || '').toUpperCase().includes('INICIAL');
-  const esCnebInicial = cnebEstado === 'si' || (cnebEstado === 'unknown' && cualitativoAula);
-  const mostrarCneb = cnebEstado !== 'no';
+  const libretaInicialPrevia = esInicialLibretaPrevia(curso?.anio, curso?.nivel_nombre);
+  const esCnebInicial = !libretaInicialPrevia && (cnebEstado === 'si' || (cnebEstado === 'unknown' && cualitativoAula));
+  const mostrarCneb = !libretaInicialPrevia && cnebEstado !== 'no';
 
   return (
     <DashboardLayout>
@@ -4731,17 +4749,45 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
               <div className="modal-tema-body">
                 <form onSubmit={handleGuardarTema}>
                   {/* Campo Nombre */}
+                  {formTema.item_tipo && (
+                    <div className="form-group">
+                      <label htmlFor="tema-numero">Tipo y número</label>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <select
+                          id="tema-tipo"
+                          className="form-input"
+                          style={{ maxWidth: 140 }}
+                          value={formTema.item_tipo}
+                          onChange={(e) => setFormTema({ ...formTema, item_tipo: e.target.value })}
+                        >
+                          <option value="TEMA">Tema</option>
+                          <option value="FICHA">Ficha</option>
+                        </select>
+                        <input
+                          type="number"
+                          id="tema-numero"
+                          className="form-input"
+                          style={{ maxWidth: 110 }}
+                          min={1}
+                          max={99}
+                          value={formTema.item_numero ?? ''}
+                          onChange={(e) => setFormTema({
+                            ...formTema,
+                            item_numero: e.target.value === '' ? '' : parseInt(e.target.value, 10),
+                          })}
+                        />
+                      </div>
+                      <small style={{ display: 'block', marginTop: '0.35rem', color: '#64748b' }}>
+                        Se propone el número que sigue. Puedes cambiarlo si se borró uno anterior, por ejemplo el 3.
+                      </small>
+                    </div>
+                  )}
                   <div className="form-group">
                     <label htmlFor="tema-nombre">
                       {formTema.item_tipo && formTema.item_numero
                         ? `Nombre (${formTema.item_tipo === 'FICHA' ? 'Ficha' : 'Tema'} ${formTema.item_numero})`
                         : 'Nombre del Tema *'}
                     </label>
-                    {formTema.item_tipo && formTema.item_numero && (
-                      <div className="tema-prefijo-fijo">
-                        Prefijo fijo: <strong>{formTema.item_tipo === 'FICHA' ? 'Ficha' : 'Tema'} {formTema.item_numero}</strong>
-                      </div>
-                    )}
                     <input
                       type="text"
                       id="tema-nombre"

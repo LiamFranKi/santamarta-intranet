@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import './DocenteAulaVirtual-gamificado.css';
 import EvidenciasGaleria from '../components/aula/EvidenciasGaleria';
 import AulaCnebSesiones from '../components/aula/AulaCnebSesiones';
+import { esInicialLibretaPrevia } from '../utils/inicialLibretaPrevia';
 
 function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId = null }) {
   const { cursoId: cursoIdParam } = useParams(); // asignatura_id
@@ -162,7 +163,8 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
               docente_nombre: response.data.asignatura.docente_nombre || 'Docente',
               grado: response.data.asignatura.grado,
               seccion: response.data.asignatura.seccion,
-              nivel_nombre: response.data.asignatura.nivel_nombre
+              nivel_nombre: response.data.asignatura.nivel_nombre,
+              anio: response.data.asignatura.anio
             });
           }
         } catch (err) {
@@ -935,8 +937,9 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
       : tipoNivelAula === 1 || tipoNivelAula === '1'
         ? false
         : String(curso?.nivel_nombre || '').toUpperCase().includes('INICIAL');
-  const esCnebInicial = cnebEstado === 'si' || (cnebEstado === 'unknown' && cualitativoAula);
-  const mostrarCneb = cnebEstado !== 'no';
+  const libretaInicialPrevia = esInicialLibretaPrevia(curso?.anio, curso?.nivel_nombre);
+  const esCnebInicial = !libretaInicialPrevia && (cnebEstado === 'si' || (cnebEstado === 'unknown' && cualitativoAula));
+  const mostrarCneb = !libretaInicialPrevia && cnebEstado !== 'no';
 
   return (
     <DashboardLayout>
