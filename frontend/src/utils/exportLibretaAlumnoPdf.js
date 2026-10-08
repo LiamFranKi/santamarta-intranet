@@ -11,6 +11,7 @@ import {
 import { normalizarRangosLetras } from './notaLetraConversion';
 import { formatearTutoresLibreta } from './tutoresGrupoTexto';
 import { descargarCnebHijoConAviso, esInicialEnAnio } from './cnebHijoPdfs';
+import { esInicialLibretaPrevia } from './inicialLibretaPrevia';
 
 export async function fetchYExportarLibretaAlumno(hijoId, ciclo = 1, anio = null) {
   try {
@@ -32,6 +33,8 @@ export async function fetchYExportarLibretaAlumno(hijoId, ciclo = 1, anio = null
 /**
  * Selector año/bimestre + PDF de un solo alumno (Tutoría, Admin → Lista de alumnos, hijos).
  * Informe y libreta CNEB si ese año es cualitativo, o si el bimestre elegido es la prueba CNEB.
+ * Inicial 2026 es la excepción: descarga la boleta de áreas e indicadores del aula.
+ * Desde 2027, cualitativo (Inicial, Primaria o Secundaria) vuelve al CNEB.
  * La boleta numérica se usa en los demás bimestres. No borra notas.
  */
 export async function promptYExportarLibretaAlumno(
@@ -60,19 +63,28 @@ export async function promptYExportarLibretaAlumno(
     const niveles = data?.niveles || {};
     const pref = parseInt(anioDefault, 10);
     const anioSel = anios.includes(pref) ? pref : anios[0];
+    const nivelDe = (y) => niveles?.[String(y)] || niveles?.[y] || {};
+    const esLibretaPreviaAnio = (y) => esInicialLibretaPrevia(y, nivelDe(y).nivel_nombre);
     const anioCualitativo = (y) => {
+      if (esLibretaPreviaAnio(y)) return false;
       if (grupoEsInicial === true) return true;
       if (grupoEsInicial === false) return false;
       return esInicialEnAnio(niveles, y);
     };
     const cnebBimestreDe = (y) => {
-      const n = niveles?.[String(y)] || niveles?.[y];
+      const n = nivelDe(y);
       const b = Number(n?.cneb_bimestre);
       return b >= 1 && b <= 4 ? b : null;
     };
-    const usaCnebDoc = (y, ciclo) => anioCualitativo(y) || cnebBimestreDe(y) === Number(ciclo);
-    const puedeCnebAlgunaVez = anios.some((y) => anioCualitativo(y) || cnebBimestreDe(y));
+    const usaCnebDoc = (y, ciclo) => {
+      if (esLibretaPreviaAnio(y)) return false;
+      return anioCualitativo(y) || cnebBimestreDe(y) === Number(ciclo);
+    };
+    const puedeCnebAlgunaVez = anios.some((y) => usaCnebDoc(y, cnebBimestreDe(y) || 1) || anioCualitativo(y));
     const textoHint = (y, ciclo) => {
+      if (esLibretaPreviaAnio(y)) {
+        return 'Se descargará la libreta de Inicial de este bimestre, con las áreas e indicadores del aula.';
+      }
       if (anioCualitativo(y)) {
         return 'En un nivel cualitativo puede descargar la <b>libreta</b> (resumen para la familia) o el <b>informe de progreso</b> (detalle CNEB).';
       }

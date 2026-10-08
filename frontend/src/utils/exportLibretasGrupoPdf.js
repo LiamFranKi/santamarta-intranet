@@ -2,6 +2,7 @@ import api from '../services/api';
 import Swal from 'sweetalert2';
 import { renderLibretaAlumnoPdf } from './exportLibretaAlumnoPdf';
 import { esNivelInicial } from './esNivelInicial';
+import { esInicialLibretaPrevia } from './inicialLibretaPrevia';
 
 function etiquetaGrupoArchivo(grupo) {
   const nivel = String(grupo?.nivel_nombre || 'Grupo').replace(/\s+/g, '_');
@@ -72,8 +73,9 @@ export async function exportLibretasGrupoPdf({
   if (!params) return false;
 
   const { anio, ciclo } = params;
+  const libretaPreviaInicial = esInicialLibretaPrevia(anio, grupo?.nivel_nombre);
 
-  if (esNivelInicial(grupo) && grupo?.id) {
+  if (esNivelInicial(grupo) && grupo?.id && !libretaPreviaInicial) {
     SwalInst.fire({
       title: 'Generando libretas CNEB…',
       allowOutsideClick: false,
