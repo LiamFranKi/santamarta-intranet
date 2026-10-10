@@ -527,12 +527,11 @@ export default function DashboardLayout({ children }) {
       return 'http://localhost:5000';
     }
     // Producción: usar el mismo dominio
-    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    return `${protocol}//${hostname}`;
-  }, []); // Solo calcular una vez al montar el componente
+    return window.location.origin;
+  }, []);
 
-  const { logoBlanco, textoIntranet, mascotaNombre } = useColegio();
-  const marcaIntranet = (textoIntranet || '').trim() || 'VanguardNet';
+  const { logoBlanco, textoIntranet, nombreIntranet, mascotaNombre } = useColegio();
+  const marcaIntranet = (textoIntranet || '').trim() || (nombreIntranet || '').trim() || 'Intranet';
   const logoUrl = useMemo(() => {
     if (logoBlanco) {
       const raw = String(logoBlanco);

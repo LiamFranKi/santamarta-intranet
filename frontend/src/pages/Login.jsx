@@ -14,7 +14,7 @@ function Login() {
   const [puedeAperturar, setPuedeAperturar] = useState(false);
 
   const { login, isAuthenticated, user } = useAuth();
-  const { loading: loadingColegio, error: errorColegio, logo, logoDesdeConfig, textoIntranet } = useColegio();
+  const { loading: loadingColegio, error: errorColegio, logo, logoDesdeConfig, textoIntranet, nombreIntranet } = useColegio();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -30,9 +30,7 @@ function Login() {
     if (isLocalhost) {
       return 'http://localhost:5000';
     }
-    // Producción: usar el mismo dominio
-    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    return `${protocol}//${hostname}`;
+    return window.location.origin;
   }, []); // Solo calcular una vez al montar el componente
 
   const logoUrl = useMemo(() => {
@@ -133,7 +131,7 @@ function Login() {
           <div className="login-branding-left">
             <div className="branding-content">
               <div className="brand-logo-main">
-                <h1>{(textoIntranet || '').trim() || 'VanguardNet'}</h1>
+                <h1>{(textoIntranet || '').trim() || (nombreIntranet || '').trim() || 'Intranet'}</h1>
               </div>
 
               <p className="brand-description">
@@ -167,12 +165,8 @@ function Login() {
                 className="form-logo"
                 crossOrigin="anonymous"
                 onError={(e) => {
-                  console.error('❌ Error cargando logo:', logoUrl);
-                  console.error('Detalles del error:', e);
-                  // Intentar cargar con timestamp para evitar cache
-                  const newUrl = `${logoUrl}?t=${Date.now()}`;
-                  console.log('🔄 Intentando recargar desde:', newUrl);
-                  e.target.src = newUrl;
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.style.display = 'none';
                 }}
               />
             </div>

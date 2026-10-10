@@ -39,7 +39,7 @@ export const ColegioProvider = ({ children, colegioId = 1 }) => {
         setError(err.message);
         // Valores por defecto en caso de error
         setColegioData({
-          nombre_intranet: 'VanguardNet',
+          nombre_intranet: '',
           nombre: 'Colegio',
           logo: null,
           color_principal: null,
@@ -71,7 +71,7 @@ export const ColegioProvider = ({ children, colegioId = 1 }) => {
   }, [colegioData]);
 
   useEffect(() => {
-    const marca = String(colegioData?.texto_intranet || '').trim() || 'VanguardNet';
+    const marca = String(colegioData?.texto_intranet || colegioData?.nombre_intranet || '').trim() || 'Intranet';
     document.title = marca;
     const appleTitulo = document.querySelector('meta[name="apple-mobile-web-app-title"]');
     if (appleTitulo) appleTitulo.setAttribute('content', marca);
