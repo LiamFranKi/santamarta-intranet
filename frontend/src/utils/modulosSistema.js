@@ -9,6 +9,7 @@ export const MODULOS = [
   { clave: 'auditoria', grupo: 'General', nombre: 'Auditoría', defecto: true, rutas: ['/admin/auditoria'] },
   { clave: 'biblioteca', grupo: 'General', nombre: 'Biblioteca', defecto: true, rutas: ['/biblioteca'] },
   { clave: 'kiosco', grupo: 'General', nombre: 'Kiosco cafetín', defecto: false, rutas: ['/kiosco'] },
+  { clave: 'comunicaciones.chat', grupo: 'General', nombre: 'Chat', defecto: false, rutas: ['/chat', '/admin/comunicaciones/chat-vanguard'] },
 
   { clave: 'usuarios.personal', grupo: 'Usuarios', nombre: 'Personal', defecto: true, rutas: ['/admin/usuarios/equipo'] },
   { clave: 'usuarios.alumnos', grupo: 'Usuarios', nombre: 'Alumnos', defecto: true, rutas: ['/admin/usuarios/alumnos'] },
@@ -41,7 +42,6 @@ export const MODULOS = [
   { clave: 'comunicaciones.actividades', grupo: 'Comunicaciones', nombre: 'Actividades', defecto: true, rutas: ['/admin/comunicaciones/actividades', '/docente/actividades', '/alumno/actividades', '/apoderado/actividades'] },
   { clave: 'comunicaciones.eventos', grupo: 'Comunicaciones', nombre: 'Eventos', defecto: true, rutas: ['/admin/comunicaciones/eventos'] },
   { clave: 'comunicaciones.notificaciones', grupo: 'Comunicaciones', nombre: 'Notificaciones', defecto: true, rutas: ['/admin/comunicaciones/notificaciones'] },
-  { clave: 'comunicaciones.chat', grupo: 'Comunicaciones', nombre: 'Chat', defecto: false, rutas: ['/chat', '/admin/comunicaciones/chat-vanguard'] },
 
   { clave: 'pagos.escolares', grupo: 'Pagos y facturas', nombre: 'Pagos escolares', defecto: true, rutas: ['/admin/pagos-facturas/buscar-pagos'] },
   { clave: 'pagos.productos', grupo: 'Pagos y facturas', nombre: 'Productos', defecto: true, rutas: ['/admin/pagos-facturas/productos'] },
