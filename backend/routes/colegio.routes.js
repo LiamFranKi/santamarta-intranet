@@ -31,7 +31,7 @@ router.get('/:colegioId', async (req, res) => {
       for (const row of fondos || []) {
         const name = row.valor ? path.basename(String(row.valor)) : '';
         if (!name) continue;
-        const url = `/Static/Image/Fondos/${name}`;
+        const url = `/api/static/fondos/${name}`;
         if (row.clave === 'libreta_logo') libretaLogo = url;
         if (row.clave === 'libreta_fondo') libretaFondo = url;
       }

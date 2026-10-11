@@ -34,6 +34,7 @@ const {
   aplicarEstructuraColegio,
 } = require('../utils/aulaEstructuraTemas');
 const { resolverLogoVariante, guardarArchivoLogo, upsertClave } = require('../utils/logoColegio');
+const { staticFsSubdir, urlFondoConfig } = require('../utils/staticStorage');
 const limpiezaAnio = require('../utils/limpiezaAnio');
 
 const { memoKeyed, withTimeout } = require('../utils/ttlCache');
@@ -73,8 +74,7 @@ const uploadPersonalAdmin = multer({
 // Configurar multer para subir archivos de configuración
 const configStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    // Guardar en Static/Image/Fondos/ del sistema PHP (compartido con ambos sistemas)
-    const uploadPath = '/home/vanguard/intranet2026/backend/Static/Image/Fondos';
+    const uploadPath = staticFsSubdir('Image', 'Fondos');
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
     }
@@ -1560,11 +1560,6 @@ router.get('/configuracion', async (req, res) => {
       }
     }
 
-    // Construir URLs de imágenes
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
-    const isProduction = process.env.NODE_ENV === 'production';
-    const baseUrl = isProduction ? phpSystemUrl : 'http://localhost:5000';
-
     // Asegurar que inicio_pensiones e inicio_notas sean números explícitamente
     const inicioPensionesNum = Number(colegioData.inicio_pensiones) || 1;
     const inicioNotasNum = Number(colegioData.inicio_notas) || 1;
@@ -1603,9 +1598,7 @@ router.get('/configuracion', async (req, res) => {
       email_matricula_apoderado: configMap['email_matricula_apoderado'] || '',
       email_matricula_interno: configMap['email_matricula_interno'] || '',
       email_matricula_interno_asunto: configMap['email_matricula_interno_asunto'] || '',
-      matricula_fondo: configMap['matricula_fondo']
-        ? `${baseUrl}/Static/Image/Fondos/${configMap['matricula_fondo']}`
-        : null,
+      matricula_fondo: urlFondoConfig(configMap['matricula_fondo']),
       link_consulta_facturas: configMap['link_consulta_facturas'] || '',
       show_birthday_window: configMap['show_birthday_window'] || 'NO',
       cumpleanos_plantilla_push: configMap['cumpleanos_plantilla_push'] || '',
@@ -1614,9 +1607,9 @@ router.get('/configuracion', async (req, res) => {
       cumpleanos_plantilla_correo_cuerpo: configMap['cumpleanos_plantilla_correo_cuerpo'] || '',
       cumpleanos_plantilla_mensaje_sistema: configMap['cumpleanos_plantilla_mensaje_sistema'] || '',
       enable_enrollment_form: configMap['enable_enrollment_form'] || 'NO',
-      login_fondo: colegioData.login_background ? `${baseUrl}/Static/Image/Fondos/${colegioData.login_background}` : null,
-      libreta_logo: configMap['libreta_logo'] ? `${baseUrl}/Static/Image/Fondos/${configMap['libreta_logo']}` : null,
-      libreta_fondo: configMap['libreta_fondo'] ? `${baseUrl}/Static/Image/Fondos/${configMap['libreta_fondo']}` : null,
+      login_fondo: urlFondoConfig(colegioData.login_background),
+      libreta_logo: urlFondoConfig(configMap['libreta_logo']),
+      libreta_fondo: urlFondoConfig(configMap['libreta_fondo']),
       boleta_logo: logoBoletaRes.urlAbsoluta,
       logo_colegio: logoColegioRes.urlAbsoluta,
       logo_blanco: logoBlancoRes.urlAbsoluta,

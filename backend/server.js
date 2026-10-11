@@ -238,6 +238,13 @@ app.get('/api/health', (req, res) => {
 });
 
 // Servir avatares modulares desde backend/Static/Image/Avatars (ruta /api/static/avatars siempre llega a Node)
+app.get('/api/static/fondos/:filename', (req, res) => {
+  const { rutaFondoConfig } = require('./utils/staticStorage');
+  const full = rutaFondoConfig(req.params.filename);
+  if (!full) return res.status(404).end();
+  res.sendFile(full);
+});
+
 app.get('/api/static/avatars/:filename', (req, res) => {
   const filename = req.params.filename || '';
   if (!filename || !/^[a-zA-Z0-9_\-\u00C0-\u024F\u1E00-\u1EFF.]+\.(png|jpg|jpeg)$/i.test(filename)) {

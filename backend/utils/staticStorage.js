@@ -81,6 +81,28 @@ function normalizeLegacyStaticUrl(urlOrPath) {
  * URL pública de un archivo en Static/Archivos (temas, tareas, PDFs, adjuntos).
  * Acepta nombre suelto, /Static/Archivos/x, /uploads/... o URL http legacy.
  */
+function nombreFondoSeguro(filename) {
+  const name = path.basename(String(filename || ''));
+  if (!name || !/^[\w.\-]+\.(png|jpe?g|webp)$/i.test(name)) return null;
+  return name;
+}
+
+/** Carpeta de fondos de esta copia. Si el archivo se guardó antes en la de Vanguard, también lo encuentra. */
+function rutaFondoConfig(filename) {
+  const name = nombreFondoSeguro(filename);
+  if (!name) return null;
+  const local = path.join(resolveStaticFsRoot(), 'Image', 'Fondos', name);
+  if (fs.existsSync(local)) return local;
+  const legado = '/home/vanguard/intranet2026/backend/Static/Image/Fondos/' + name;
+  if (fs.existsSync(legado)) return legado;
+  return null;
+}
+
+function urlFondoConfig(filename) {
+  const name = nombreFondoSeguro(filename);
+  return name ? `/api/static/fondos/${name}` : null;
+}
+
 function buildStaticArchivoUrl(archivo) {
   if (archivo == null || String(archivo).trim() === '') return null;
   const base = getPublicStaticBaseUrl();
@@ -118,4 +140,7 @@ module.exports = {
   urlStaticFotos,
   normalizeLegacyStaticUrl,
   buildStaticArchivoUrl,
+  nombreFondoSeguro,
+  rutaFondoConfig,
+  urlFondoConfig,
 };

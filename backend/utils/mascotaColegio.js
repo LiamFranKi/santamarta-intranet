@@ -5,8 +5,8 @@
 const fs = require('fs');
 const path = require('path');
 const { query, execute } = require('./mysql');
-const { assetsDir, publicBaseUrl } = require('./fichasIaPaths');
-const { urlMascotaVanguarcito, resolveMascotaVanguarcitoArchivo } = require('../services/fichasIa/fichasIaMascota');
+const { assetsDir } = require('./fichasIaPaths');
+const { resolveMascotaVanguarcitoArchivo } = require('../services/fichasIa/fichasIaMascota');
 
 const NOMBRE_DEFECTO = 'Vanguarcito';
 const DIR = path.join(__dirname, '..', 'uploads', 'mascotas');
@@ -114,8 +114,14 @@ function dataUriDe(fsPath) {
 }
 
 function urlSubida(colegioId, archivo) {
-  const base = String(publicBaseUrl() || '').replace(/\/$/, '');
-  return `${base}/uploads/mascotas/${idColegio(colegioId)}/${archivo}`;
+  const name = path.basename(String(archivo || ''));
+  return `/api/mascota-colegio/archivo/${idColegio(colegioId)}/${name}`;
+}
+
+function nombreMascotaSeguro(archivo) {
+  const name = path.basename(String(archivo || ''));
+  if (!/^(principal-\d+|ficha-\d+-\d+)\.(png|jpg|jpeg|webp)$/i.test(name)) return null;
+  return name;
 }
 
 function rutaPrincipalDefecto() {
@@ -171,7 +177,7 @@ async function leerMascota(colegioId) {
     return {
       nombre_guardado: guardado,
       nombre: nombreVisible(guardado),
-      imagen_url: propia ? urlSubida(id, path.basename(propia)) : urlMascotaVanguarcito(),
+      imagen_url: propia ? urlSubida(id, path.basename(propia)) : (rutaPrincipalDefecto() ? '/api/mascota-colegio/defecto' : null),
       imagen_propia: Boolean(propia),
       imagen_fs: propia || rutaPrincipalDefecto(),
       fichas: fichas.map((f) => ({ id: f.id, url: f.url })),
@@ -185,7 +191,7 @@ async function leerMascota(colegioId) {
     return {
       nombre_guardado: '',
       nombre: NOMBRE_DEFECTO,
-      imagen_url: urlMascotaVanguarcito(),
+      imagen_url: rutaPrincipalDefecto() ? '/api/mascota-colegio/defecto' : null,
       imagen_propia: false,
       imagen_fs: rutaPrincipalDefecto(),
       fichas: [],
@@ -416,4 +422,7 @@ module.exports = {
   numeroCupo,
   paraCliente,
   MAX_FICHAS,
+  nombreMascotaSeguro,
+  rutaImagenGuardada,
+  rutaPrincipalDefecto,
 };

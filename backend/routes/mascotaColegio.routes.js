@@ -11,6 +11,9 @@ const {
   quitarImagenPrincipal,
   agregarImagenesFicha,
   quitarImagenFicha,
+  nombreMascotaSeguro,
+  rutaImagenGuardada,
+  rutaPrincipalDefecto,
 } = require('../utils/mascotaColegio');
 
 const router = express.Router();
@@ -35,6 +38,19 @@ function colegioDe(req) {
   const n = parseInt(req.user?.colegio_id, 10);
   return Number.isFinite(n) && n > 0 ? n : 1;
 }
+
+router.get('/defecto', (req, res) => {
+  const full = rutaPrincipalDefecto();
+  if (!full) return res.status(404).end();
+  res.sendFile(full);
+});
+
+router.get('/archivo/:colegioId/:archivo', (req, res) => {
+  const name = nombreMascotaSeguro(req.params.archivo);
+  const full = name ? rutaImagenGuardada(req.params.colegioId, name) : null;
+  if (!full) return res.status(404).end();
+  res.sendFile(full);
+});
 
 router.use(authenticateToken);
 
