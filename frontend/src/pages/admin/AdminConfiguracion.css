@@ -663,6 +663,59 @@
   grid-column: 1 / -1;
 }
 
+.config-logos {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.config-logos .form-group {
+  min-width: 0;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.6rem 0.65rem 0.7rem;
+}
+
+.config-logos .form-group label {
+  margin-bottom: 0.3rem;
+  font-size: 0.78rem;
+}
+
+.config-logos .file-preview {
+  margin-bottom: 0.35rem;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+}
+
+.config-logos .file-preview img {
+  max-height: 46px;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.config-logos .file-preview--menu {
+  padding: 6px 8px;
+}
+
+.config-logos .file-preview--menu img {
+  max-height: 28px;
+}
+
+.config-logos .form-group input[type="file"] {
+  width: 100%;
+  max-width: 100%;
+  padding: 0.35rem 0.4rem;
+  font-size: 0.72rem;
+}
+
+.config-logos .form-group small {
+  font-size: 0.7rem;
+  line-height: 1.3;
+}
+
 .file-preview {
   margin-bottom: 0.5rem;
 }
@@ -914,6 +967,10 @@
 
   .form-grid--matricula,
   .form-grid--narrow {
+    grid-template-columns: 1fr;
+  }
+
+  .config-logos {
     grid-template-columns: 1fr;
   }
 

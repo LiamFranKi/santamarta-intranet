@@ -1659,7 +1659,8 @@ function AdminConfiguracion() {
                 />
                 <small>Es la dirección del pie del correo de matrícula y de la página web. No usa la dirección de Facturación. Hoy dice: Jr. Toribio de Luzuriaga Mz F lote 18 y 19 - SMP. Si lo deja vacío, se mantiene esa.</small>
               </div>
-              <div className="form-group form-group--full">
+              <div className="config-logos">
+              <div className="form-group">
                 <label>Logo a color</label>
                 {archivosPreview.logo_colegio && (
                   <div className="file-preview">
@@ -1672,9 +1673,9 @@ function AdminConfiguracion() {
                   accept=".jpg,.jpeg,.png"
                   onChange={handleFileChange}
                 />
-                <small>Vista del logo que se usa hoy. Va en el login, reportes, correos y boletas de pago. En la libreta se usa si no hay un logo de libreta. Suba un PNG o JPG para reemplazarlo. Si no sube uno, se mantiene este.</small>
+                <small>Login, reportes, correos y boletas. En la libreta se usa si no hay logo de libreta.</small>
               </div>
-              <div className="form-group form-group--full">
+              <div className="form-group">
                 <label>Logo blanco</label>
                 {archivosPreview.logo_blanco && (
                   <div className="file-preview file-preview--menu">
@@ -1687,9 +1688,9 @@ function AdminConfiguracion() {
                   accept=".jpg,.jpeg,.png"
                   onChange={handleFileChange}
                 />
-                <small>Vista sobre el azul del menú, como se ve en la barra. Suba la versión en blanco. Si no sube uno, se mantiene este.</small>
+                <small>Versión blanca, sobre el azul del menú.</small>
               </div>
-              <div className="form-group form-group--full">
+              <div className="form-group">
                 <label>Icono de la aplicación</label>
                 {archivosPreview.icono_app && (
                   <div className="file-preview">
@@ -1702,9 +1703,9 @@ function AdminConfiguracion() {
                   accept=".png,image/png"
                   onChange={handleFileChange}
                 />
-                <small>Un solo PNG cuadrado de 512×512, fondo transparente y el dibujo centrado, sin pegarlo a los bordes. De este archivo salen el icono de la pestaña, el de instalar en iPhone, iPad, tablet, Android y computadora, la pantalla de inicio y las notificaciones. Si no sube uno, se mantienen los iconos actuales.</small>
+                <small>PNG 512×512. Pestaña, instalación, inicio y notificaciones.</small>
               </div>
-              <div className="form-group form-group--full">
+              <div className="form-group">
                 <label>Logo de la libreta</label>
                 {archivosPreview.libreta_logo && (
                   <div className="file-preview">
@@ -1717,9 +1718,9 @@ function AdminConfiguracion() {
                   accept=".jpg,.jpeg,.png"
                   onChange={handleFileChange}
                 />
-                <small>Esquina de la libreta de notas. Si no sube uno, la libreta usa el logo a color. No usa un archivo fijo del sistema.</small>
+                <small>Esquina de la libreta. Si no hay, usa el logo a color.</small>
               </div>
-              <div className="form-group form-group--full">
+              <div className="form-group">
                 <label>Fondo de la libreta</label>
                 {archivosPreview.libreta_fondo && (
                   <div className="file-preview">
@@ -1732,9 +1733,9 @@ function AdminConfiguracion() {
                   accept=".jpg,.jpeg,.png"
                   onChange={handleFileChange}
                 />
-                <small>Marca de agua al centro de la libreta. Si no sube una, se usa el logo de la libreta o, si tampoco hay, el logo a color.</small>
+                <small>Marca de agua. Si no hay, usa el logo de la libreta.</small>
               </div>
-              <div className="form-group form-group--full">
+              <div className="form-group">
                 <label>Sello MINEDU</label>
                 {archivosPreview.logo_minedu && (
                   <div className="file-preview">
@@ -1747,9 +1748,9 @@ function AdminConfiguracion() {
                   accept=".jpg,.jpeg,.png"
                   onChange={handleFileChange}
                 />
-                <small>Solo en los PDF de CNEB, al lado del logo del colegio. Si no sube uno, se mantiene este sello.</small>
+                <small>Solo en los PDF de CNEB.</small>
               </div>
-              <div className="form-group form-group--full">
+              <div className="form-group">
                 <label>Logo de CV y carnet</label>
                 {archivosPreview.boleta_logo && (
                   <div className="file-preview">
@@ -1762,7 +1763,8 @@ function AdminConfiguracion() {
                   accept=".jpg,.jpeg,.png"
                   onChange={handleFileChange}
                 />
-                <small>Escudo o logo institucional. Sale en el currículum del personal y en el carnet QR del alumno. Las boletas lo usan solo si no hay logo a color. Suba un PNG o JPG para cambiarlo. Si no sube uno, se mantiene el actual.</small>
+                <small>Currículum del personal y carnet QR del alumno.</small>
+              </div>
               </div>
             </div>
             <div className="card-actions">
