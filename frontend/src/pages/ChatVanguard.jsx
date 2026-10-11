@@ -270,7 +270,7 @@ export default function ChatVanguard() {
                 <i />
               </span>
               <div>
-                <h1>Chat Vanguard</h1>
+                <h1>Chat institucional</h1>
                 <p>Aulas, personal y mensajes privados</p>
               </div>
             </div>
@@ -377,7 +377,7 @@ export default function ChatVanguard() {
                 <i />
                 <i />
               </div>
-              <h2>Bienvenido al Chat Vanguard</h2>
+              <h2>Bienvenido al chat institucional</h2>
               <p>
                 Hable con su aula, con el personal del colegio o inicie un chat privado.
                 Los mensajes se actualizan al instante.

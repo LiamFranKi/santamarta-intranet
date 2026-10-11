@@ -693,7 +693,7 @@ function FormularioReunion({ base, reunion, esGestor, archivosIniciales }) {
         <div className="re-hero">
           <div>
             <h1>{reunion ? 'Editar reunión' : 'Nueva reunión'}</h1>
-            <p>La videollamada es siempre VanguardRoom. Elige si es presencial o virtual solo como dato.</p>
+            <p>La videollamada es siempre la sala de reuniones. Elige si es presencial o virtual solo como dato.</p>
           </div>
           <button type="button" className="re-btn re-btn-ghost" onClick={() => navigate(base)}>
             Volver
@@ -1217,7 +1217,7 @@ function DetalleReunion({ reunionId, base }) {
         {enGracia && salaInmersiva ? (
           <div className="re-cierre-banner" role="status">
             <div>
-              <strong>El anfitrión cerró VanguardRoom.</strong>
+              <strong>El anfitrión cerró la sala de reuniones.</strong>
               <span>
                 {p.ya_firmo
                   ? ` Puedes ver el resumen ahora. El video se apaga en ${segCierre} s.`

@@ -23,10 +23,10 @@ function esStaff(tipo) {
 async function requireModuloChat(req, res, next) {
   try {
     if (!(await moduloActivo('comunicaciones.chat'))) {
-      return res.status(403).json({ error: 'El módulo Chat Vanguard está apagado.' });
+      return res.status(403).json({ error: 'El módulo Chat está apagado.' });
     }
     if (TIPOS_EXCLUIDOS.has(String(req.user?.tipo || '').toUpperCase())) {
-      return res.status(403).json({ error: 'Este perfil no usa Chat Vanguard.' });
+      return res.status(403).json({ error: 'Este perfil no usa el chat.' });
     }
     return next();
   } catch (e) {

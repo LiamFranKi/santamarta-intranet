@@ -46,7 +46,7 @@ const MODULOS = [
   { clave: 'comunicaciones.actividades', grupo: 'Comunicaciones', nombre: 'Actividades', defecto: true },
   { clave: 'comunicaciones.eventos', grupo: 'Comunicaciones', nombre: 'Eventos', defecto: true },
   { clave: 'comunicaciones.notificaciones', grupo: 'Comunicaciones', nombre: 'Notificaciones', defecto: true },
-  { clave: 'comunicaciones.chat', grupo: 'Comunicaciones', nombre: 'Chat Vanguard', defecto: false },
+  { clave: 'comunicaciones.chat', grupo: 'Comunicaciones', nombre: 'Chat', defecto: false },
 
   { clave: 'pagos.escolares', grupo: 'Pagos y facturas', nombre: 'Pagos escolares', defecto: true },
   { clave: 'pagos.productos', grupo: 'Pagos y facturas', nombre: 'Productos', defecto: true },

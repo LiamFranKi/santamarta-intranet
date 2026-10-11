@@ -103,7 +103,7 @@ function ChatVanguardSidebarItem() {
         to="/chat"
       >
         <span className="sidebar-icon">💬</span>
-        <span className="sidebar-label">Chat Vanguard</span>
+        <span className="sidebar-label">Chat</span>
       </NavLink>
     </div>
   );
@@ -1586,19 +1586,6 @@ export default function DashboardLayout({ children }) {
                     </span>
                     <span className="sidebar-label">Incidencias</span>
                   </NavLink>
-                  {activo('comunicaciones.chat') && (
-                  <NavLink
-                    className={({ isActive }) =>
-                      `sidebar-sublink ${isActive || location.pathname === '/chat' ? 'active' : ''}`
-                    }
-                    to="/chat"
-                  >
-                    <span className="sidebar-icon" aria-hidden>
-                      💬
-                    </span>
-                    <span className="sidebar-label">Chat Vanguard</span>
-                  </NavLink>
-                  )}
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/comunicados">
                     <span className="sidebar-icon" aria-hidden>
                       📢
@@ -1853,12 +1840,6 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>🔔</span>
                     <span className="sidebar-label">Notificaciones</span>
                   </NavLink>
-                  {activo('comunicaciones.chat') && (
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/chat">
-                    <span className="sidebar-icon" aria-hidden>💬</span>
-                    <span className="sidebar-label">Chat Vanguard</span>
-                  </NavLink>
-                  )}
                 </div>
               </div>
               )}
@@ -2207,12 +2188,6 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>🔗</span>
                     <span className="sidebar-label">Conexiones</span>
                   </NavLink>
-                  {activo('comunicaciones.chat') && (
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/chat">
-                    <span className="sidebar-icon" aria-hidden>💬</span>
-                    <span className="sidebar-label">Chat Vanguard</span>
-                  </NavLink>
-                  )}
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/comunicados">
                     <span className="sidebar-icon" aria-hidden>📢</span>
                     <span className="sidebar-label">Comunicados</span>

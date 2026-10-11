@@ -290,7 +290,7 @@ function Dashboard() {
       icon: '🌟'
     },
     '/admin/comunicaciones/chat-vanguard': {
-      title: '💬 Chat Vanguard',
+      title: '💬 Chat institucional',
       description: 'Asistente y módulo Vanguarcito',
       icon: '💬'
     },

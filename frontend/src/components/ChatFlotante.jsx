@@ -108,11 +108,11 @@ export default function ChatFlotante({ levantado = false }) {
   return (
     <div className={`cvf ${levantado ? 'cvf--up' : ''} ${abierto ? 'is-open' : ''}`}>
       {abierto && (
-        <div className="cvf-panel" role="dialog" aria-label="Chat Vanguard">
+        <div className="cvf-panel" role="dialog" aria-label="Chat institucional">
           <header className="cvf-head">
             <span className="cvf-mark" aria-hidden><i /></span>
             <div>
-              <strong>Chat Vanguard</strong>
+              <strong>Chat institucional</strong>
               <span>{total > 0 ? `${total} sin leer` : 'Mensajes del colegio'}</span>
             </div>
           </header>
@@ -141,7 +141,7 @@ export default function ChatFlotante({ levantado = false }) {
         type="button"
         className={`cvf-fab ${total > 0 ? 'has-new' : ''}`}
         onClick={() => setAbierto((v) => !v)}
-        aria-label={abierto ? 'Cerrar chat' : 'Abrir Chat Vanguard'}
+        aria-label={abierto ? 'Cerrar chat' : 'Abrir chat'}
       >
         {abierto ? (
           <span className="cvf-x" aria-hidden>×</span>

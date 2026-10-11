@@ -12,9 +12,7 @@ export default function ReunionSalaLayout({ titulo, iniciadaEn, onVolver, action
             ← Volver al intranet
           </button>
           <div className="vr-sala-brand">
-            <p className="vr-sala-word">
-              Vanguard<span>Room</span>
-            </p>
+            <p className="vr-sala-word">Sala de reuniones</p>
             <p className="vr-sala-kicker">Sala de videollamada</p>
             <h1 className="vr-sala-title">{titulo || 'Reunión'}</h1>
             <ReunionCronometro iniciadaEn={iniciadaEn} />

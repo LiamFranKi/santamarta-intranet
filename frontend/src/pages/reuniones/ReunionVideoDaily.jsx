@@ -30,7 +30,7 @@ export default function ReunionVideoDaily({ reunionId, dailyListo }) {
     return (
       <div className="re-video-box re-video-empty">
         <VanguardRoomMarca invert compact />
-        <p>Conectando VanguardRoom…</p>
+        <p>Conectando la sala de reuniones…</p>
       </div>
     );
   }
@@ -49,7 +49,7 @@ export default function ReunionVideoDaily({ reunionId, dailyListo }) {
   return (
     <div className="re-video-box">
       <iframe
-        title="VanguardRoom"
+        title="Sala de reuniones"
         src={embed}
         allow="camera; microphone; fullscreen; display-capture; autoplay"
         allowFullScreen

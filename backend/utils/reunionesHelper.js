@@ -724,8 +724,8 @@ function reunionAActividad(r) {
   const hf = normalizarHora(r.hora_fin) || hi;
   const lugar =
     r.modalidad === 'VIRTUAL'
-      ? 'VanguardRoom'
-      : r.lugar || (r.modalidad === 'HIBRIDA' ? 'Presencial / VanguardRoom' : 'Presencial');
+      ? 'Sala de reuniones'
+      : r.lugar || (r.modalidad === 'HIBRIDA' ? 'Presencial / Sala de reuniones' : 'Presencial');
   return {
     id: `reunion-${r.id}`,
     reunion_id: r.id,
