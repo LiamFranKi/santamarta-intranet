@@ -1018,7 +1018,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
               }}
             />
           ) : null}
-          {!esCnebInicial && cnebEstado === 'no' ? (
+          {!esCnebInicial && (cnebEstado === 'no' || libretaInicialPrevia) ? (
           <div className="aula-section-card temas-card expanded">
             <div className="card-header">
               <div className="card-icon">📚</div>
