@@ -843,6 +843,7 @@ function AdminConfiguracion() {
     libreta_logo: null,
     libreta_fondo: null,
     boleta_logo: null,
+    icono_app: null,
     regla_conducta: { ...REGLA_CONDUCTA_DEFAULT },
   });
 
@@ -853,7 +854,8 @@ function AdminConfiguracion() {
     logo_minedu: null,
     libreta_logo: null,
     libreta_fondo: null,
-    boleta_logo: null
+    boleta_logo: null,
+    icono_app: null
   });
 
   const [estructuraTemas, setEstructuraTemas] = useState({
@@ -970,7 +972,8 @@ function AdminConfiguracion() {
         logo_minedu: null,
         libreta_logo: null,
         libreta_fondo: null,
-        boleta_logo: null
+        boleta_logo: null,
+        icono_app: null
       };
       
       // Debug final: verificar qué se estableció en el estado
@@ -995,7 +998,8 @@ function AdminConfiguracion() {
         logo_minedu: data.logo_minedu,
         libreta_logo: data.libreta_logo,
         libreta_fondo: data.libreta_fondo,
-        boleta_logo: data.boleta_logo
+        boleta_logo: data.boleta_logo,
+        icono_app: data.icono_app
       });
 
       try {
@@ -1062,6 +1066,11 @@ function AdminConfiguracion() {
   const handleFileChange = (e) => {
     const { name, files } = e.target;
     if (files && files[0]) {
+      if (name === 'icono_app' && files[0].type !== 'image/png' && !/\.png$/i.test(files[0].name)) {
+        Swal.fire('Error', 'El icono de la aplicación debe ser un PNG.', 'error');
+        e.target.value = '';
+        return;
+      }
       setConfig(prev => ({
         ...prev,
         [name]: files[0]
@@ -1224,7 +1233,7 @@ function AdminConfiguracion() {
       
       // Agregar solo los campos especificados
       fields.forEach(field => {
-        if (field === 'login_fondo' || field === 'logo_colegio' || field === 'logo_blanco' || field === 'logo_minedu' || field === 'libreta_logo' || field === 'libreta_fondo' || field === 'boleta_logo') {
+        if (field === 'login_fondo' || field === 'logo_colegio' || field === 'logo_blanco' || field === 'logo_minedu' || field === 'libreta_logo' || field === 'libreta_fondo' || field === 'boleta_logo' || field === 'icono_app') {
           // Archivos - solo agregar si hay un archivo nuevo seleccionado
           if (config[field] && config[field] instanceof File) {
             formData.append(field, config[field]);
@@ -1283,7 +1292,7 @@ function AdminConfiguracion() {
           'Content-Type': 'multipart/form-data'
         }
       });
-      if (fields.includes('logo_colegio') || fields.includes('logo_blanco') || fields.includes('logo_minedu') || fields.includes('boleta_logo')) {
+      if (fields.includes('logo_colegio') || fields.includes('logo_blanco') || fields.includes('logo_minedu') || fields.includes('boleta_logo') || fields.includes('icono_app') || fields.includes('libreta_logo') || fields.includes('libreta_fondo')) {
         invalidarCacheLogo();
         invalidarIdentidadColegio();
       }
@@ -1663,7 +1672,7 @@ function AdminConfiguracion() {
                   accept=".jpg,.jpeg,.png"
                   onChange={handleFileChange}
                 />
-                <small>Vista del logo que se usa hoy. Va en el login, libretas, reportes, correos y boletas de pago. Al instalar la aplicación en un celular nuevo, el icono sale de este logo. Suba un PNG o JPG para reemplazarlo. Si no sube uno, se mantiene este.</small>
+                <small>Vista del logo que se usa hoy. Va en el login, reportes, correos y boletas de pago. En la libreta se usa si no hay un logo de libreta. Suba un PNG o JPG para reemplazarlo. Si no sube uno, se mantiene este.</small>
               </div>
               <div className="form-group form-group--full">
                 <label>Logo blanco</label>
@@ -1679,6 +1688,51 @@ function AdminConfiguracion() {
                   onChange={handleFileChange}
                 />
                 <small>Vista sobre el azul del menú, como se ve en la barra. Suba la versión en blanco. Si no sube uno, se mantiene este.</small>
+              </div>
+              <div className="form-group form-group--full">
+                <label>Icono de la aplicación</label>
+                {archivosPreview.icono_app && (
+                  <div className="file-preview">
+                    <img src={archivosPreview.icono_app} alt="Icono de la aplicación" />
+                  </div>
+                )}
+                <input
+                  type="file"
+                  name="icono_app"
+                  accept=".png,image/png"
+                  onChange={handleFileChange}
+                />
+                <small>Un solo PNG cuadrado de 512×512, fondo transparente y el dibujo centrado, sin pegarlo a los bordes. De este archivo salen el icono de la pestaña, el de instalar en iPhone, iPad, tablet, Android y computadora, la pantalla de inicio y las notificaciones. Si no sube uno, se mantienen los iconos actuales.</small>
+              </div>
+              <div className="form-group form-group--full">
+                <label>Logo de la libreta</label>
+                {archivosPreview.libreta_logo && (
+                  <div className="file-preview">
+                    <img src={archivosPreview.libreta_logo} alt="Logo de la libreta" />
+                  </div>
+                )}
+                <input
+                  type="file"
+                  name="libreta_logo"
+                  accept=".jpg,.jpeg,.png"
+                  onChange={handleFileChange}
+                />
+                <small>Esquina de la libreta de notas. Si no sube uno, la libreta usa el logo a color. No usa un archivo fijo del sistema.</small>
+              </div>
+              <div className="form-group form-group--full">
+                <label>Fondo de la libreta</label>
+                {archivosPreview.libreta_fondo && (
+                  <div className="file-preview">
+                    <img src={archivosPreview.libreta_fondo} alt="Fondo de la libreta" />
+                  </div>
+                )}
+                <input
+                  type="file"
+                  name="libreta_fondo"
+                  accept=".jpg,.jpeg,.png"
+                  onChange={handleFileChange}
+                />
+                <small>Marca de agua al centro de la libreta. Si no sube una, se usa el logo de la libreta o, si tampoco hay, el logo a color.</small>
               </div>
               <div className="form-group form-group--full">
                 <label>Sello MINEDU</label>
@@ -1717,7 +1771,7 @@ function AdminConfiguracion() {
                 onClick={() => handleSaveSection([
                   'titulo_intranet', 'codigo_modular', 'resolucion_creacion',
                   'texto_intranet', 'telefono_colegio', 'correo_contacto', 'direccion_contacto',
-                  'logo_colegio', 'logo_blanco', 'logo_minedu', 'boleta_logo'
+                  'logo_colegio', 'logo_blanco', 'logo_minedu', 'boleta_logo', 'icono_app', 'libreta_logo', 'libreta_fondo'
                 ], 'Información General')}
                 disabled={saving}
                 className="btn-submit-card"
@@ -1926,7 +1980,7 @@ function AdminConfiguracion() {
           </div>
           )}
 
-          {/* DISEÑO LIBRETA — legacy PHP; la libreta React no usa libreta_logo/libreta_fondo de aquí */}
+          {/* Logo y fondo de la libreta están en Información general. */}
           {false && (
           <div className="config-panel-card config-panel-card--hidden">
             <div className="config-panel-card-header config-panel-card-header--amber">

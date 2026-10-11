@@ -889,7 +889,7 @@ async function instalarColegio(body) {
       bloquear_deudores: 'NO',
       dias_tolerancia: entero(c.dias_tolerancia, 5),
       ciclo_pensiones: entero(c.ciclo_pensiones, 4),
-      inicio_pensiones: entero(c.inicio_pensiones, 3),
+      inicio_pensiones: entero(c.inicio_pensiones, 2),
       total_pensiones: entero(c.total_pensiones, 10),
       ciclo_notas: entero(c.ciclo_notas, 4),
       inicio_notas: entero(c.inicio_notas, 1),

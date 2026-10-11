@@ -42,4 +42,7 @@ export async function obtenerMarcaIntranet() {
 export function invalidarIdentidadColegio() {
   cache = null;
   pending = null;
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('colegio-identidad-actualizada'));
+  }
 }

@@ -1579,6 +1579,7 @@ router.get('/configuracion', async (req, res) => {
     const logoBlancoRes = await resolverLogoVariante('logo_blanco');
     const logoMineduRes = await resolverLogoVariante('logo_minedu');
     const logoBoletaRes = await resolverLogoVariante('boleta_logo');
+    const iconoAppRes = await resolverLogoVariante('icono_app');
     
     res.json({
       ...restColegioData,
@@ -1620,6 +1621,7 @@ router.get('/configuracion', async (req, res) => {
       logo_colegio: logoColegioRes.urlAbsoluta,
       logo_blanco: logoBlancoRes.urlAbsoluta,
       logo_minedu: logoMineduRes.urlAbsoluta,
+      icono_app: iconoAppRes.desdeConfig ? iconoAppRes.urlAbsoluta : null,
       regla_conducta: (() => {
         try {
           if (configMap.regla_conducta) {
@@ -1768,6 +1770,7 @@ router.put('/configuracion', uploadConfig.fields([
   { name: 'logo_colegio', maxCount: 1 },
   { name: 'logo_blanco', maxCount: 1 },
   { name: 'logo_minedu', maxCount: 1 },
+  { name: 'icono_app', maxCount: 1 },
   { name: 'matricula_fondo', maxCount: 1 },
 ]), async (req, res) => {
   try {
@@ -2016,7 +2019,12 @@ router.put('/configuracion', uploadConfig.fields([
         }
       }
 
-      for (const clave of ['logo_colegio', 'logo_blanco', 'logo_minedu', 'boleta_logo']) {
+      const iconoSubido = req.files.icono_app && req.files.icono_app[0];
+      if (iconoSubido && path.extname(iconoSubido.originalname || '').toLowerCase() !== '.png') {
+        return res.status(400).json({ error: 'El icono de la aplicación debe ser un PNG.' });
+      }
+
+      for (const clave of ['logo_colegio', 'logo_blanco', 'logo_minedu', 'boleta_logo', 'icono_app']) {
         const subido = req.files[clave] && req.files[clave][0];
         if (!subido) continue;
         const filename = guardarArchivoLogo(subido.path, subido.originalname, clave);

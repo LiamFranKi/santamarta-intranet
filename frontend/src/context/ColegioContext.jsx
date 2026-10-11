@@ -55,6 +55,12 @@ export const ColegioProvider = ({ children, colegioId = 1 }) => {
     obtenerDatosColegio();
   }, [id, tick]);
 
+  useEffect(() => {
+    const alCambiar = () => recargarColegio();
+    window.addEventListener('colegio-identidad-actualizada', alCambiar);
+    return () => window.removeEventListener('colegio-identidad-actualizada', alCambiar);
+  }, [recargarColegio]);
+
   // Aplicar variables CSS globales basadas en configuración del colegio
   useEffect(() => {
     const root = document.documentElement;
@@ -76,8 +82,11 @@ export const ColegioProvider = ({ children, colegioId = 1 }) => {
     const appleTitulo = document.querySelector('meta[name="apple-mobile-web-app-title"]');
     if (appleTitulo) appleTitulo.setAttribute('content', marca);
 
-    if (!colegioData?.logo_desde_config || !colegioData?.logo) return;
-    const ruta = String(colegioData.logo);
+    const usarIcono = colegioData?.icono_desde_config && colegioData?.icono_app;
+    const ruta = usarIcono
+      ? String(colegioData.icono_app)
+      : (colegioData?.logo_desde_config && colegioData?.logo ? String(colegioData.logo) : '');
+    if (!ruta) return;
     let href = ruta;
     if (!ruta.startsWith('http')) {
       const host = window.location.hostname;
@@ -86,6 +95,12 @@ export const ColegioProvider = ({ children, colegioId = 1 }) => {
         ? String(process.env.REACT_APP_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '')
         : window.location.origin;
       href = `${origen}${ruta}`;
+    }
+    if (usarIcono) {
+      document
+        .querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"], link[rel="apple-touch-icon-precomposed"]')
+        .forEach((el) => el.setAttribute('href', href));
+      return;
     }
     const icono = document.querySelector('link[rel="icon"]');
     if (icono) icono.setAttribute('href', href);

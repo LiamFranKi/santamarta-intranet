@@ -15,6 +15,7 @@ const VARIANTES = {
   logo_blanco: { prefix: 'logo-blanco-', fallback: ['logoblanco.png', 'logo.png'] },
   logo_minedu: { prefix: 'logo-minedu-', fallback: ['minedu.png', 'minedu.jpg', 'minedu.jpeg'] },
   boleta_logo: { prefix: 'logo-boleta-', fallback: ['logo.png'] },
+  icono_app: { prefix: 'icono-app-', fallback: [] },
 };
 
 function dirsArchivosLegacy() {
@@ -67,6 +68,7 @@ function rutaLogoVarianteSync(clave) {
   const spec = specDe(clave);
   const name = archivoSubido(spec.prefix);
   if (name) return path.join(DIR, name);
+  if (!spec.fallback || !spec.fallback.length) return null;
   return fallbackEstatico(spec.fallback, `/assets/logos/${spec.fallback[0]}`).fsPath;
 }
 
@@ -104,9 +106,14 @@ async function resolverLogoVariante(clave) {
     /* sin tabla config: se usa el archivo fijo */
   }
   if (!desdeConfig) {
-    const fb = fallbackEstatico(spec.fallback, `/assets/logos/${spec.fallback[0]}`);
-    fsPath = fb.fsPath;
-    urlPath = fb.urlPath;
+    if (!spec.fallback || !spec.fallback.length) {
+      fsPath = null;
+      urlPath = null;
+    } else {
+      const fb = fallbackEstatico(spec.fallback, `/assets/logos/${spec.fallback[0]}`);
+      fsPath = fb.fsPath;
+      urlPath = fb.urlPath;
+    }
   }
   const base = String(getPublicStaticBaseUrl() || '').replace(/\/$/, '');
   return {

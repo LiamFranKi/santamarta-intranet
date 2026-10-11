@@ -233,33 +233,40 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
       const paddingVertical = 20; // Padding superior e inferior aumentado
       const contentWidth = pageWidth - (margin * 2);
 
-      // Logo en la esquina superior izquierda
-      let logoData = null;
-      let logoImg = null;
+      // Logo de la libreta (subido) o, si no hay, el logo a color. Sin archivo fijo.
       let logoWidth = 0;
       let logoHeight = 0;
-      try {
-        const { urlLogoConRespaldo } = await import('./pdfReporteColegioLogo');
-        const logoUrl = await urlLogoConRespaldo('/assets/logos/logo.png');
-        logoImg = new Image();
-        logoImg.crossOrigin = 'anonymous';
+      let fondoData = null;
+      let fondoImg = null;
+      const cargarImagenPdf = async (url) => {
+        if (!url) return null;
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
         await new Promise((resolve, reject) => {
-          logoImg.onload = () => resolve();
-          logoImg.onerror = () => reject();
-          logoImg.src = logoUrl;
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error('imagen'));
+          img.src = url;
         });
-        
         const canvas = document.createElement('canvas');
-        canvas.width = logoImg.width;
-        canvas.height = logoImg.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(logoImg, 0, 0);
-        logoData = canvas.toDataURL('image/png');
-        
-        // Logo de 20mm de ancho (proporcional en altura)
-        logoWidth = 20;
-        logoHeight = (logoImg.height / logoImg.width) * logoWidth;
-        doc.addImage(logoData, 'PNG', margin, margin, logoWidth, logoHeight);
+        canvas.width = img.width;
+        canvas.height = img.height;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        return { img, data: canvas.toDataURL('image/png') };
+      };
+      try {
+        const { imagenesLibretaPdf } = await import('./pdfReporteColegioLogo');
+        const { header, fondo } = await imagenesLibretaPdf();
+        const cabecera = await cargarImagenPdf(header).catch(() => null);
+        if (cabecera) {
+          logoWidth = 20;
+          logoHeight = (cabecera.img.height / cabecera.img.width) * logoWidth;
+          doc.addImage(cabecera.data, 'PNG', margin, margin, logoWidth, logoHeight);
+        }
+        const marca = await cargarImagenPdf(fondo).catch(() => null);
+        if (marca) {
+          fondoImg = marca.img;
+          fondoData = marca.data;
+        }
       } catch (error) {
         console.log('No se pudo cargar el logo, continuando sin él');
       }
@@ -272,21 +279,19 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
       const tituloX = pageWidth - margin - 5; // 5mm desde el borde derecho
       doc.text(tituloIntranet.toUpperCase(), tituloX, margin + 5, { align: 'right' });
 
-      // Logo como watermark de fondo (opacidad 20%)
-      if (logoData && logoImg) {
+      // Marca de agua: fondo de la libreta, o el mismo logo de cabecera
+      if (fondoData && fondoImg) {
         try {
-          // Crear canvas con opacidad reducida
           const watermarkCanvas = document.createElement('canvas');
-          watermarkCanvas.width = logoImg.width;
-          watermarkCanvas.height = logoImg.height;
+          watermarkCanvas.width = fondoImg.width;
+          watermarkCanvas.height = fondoImg.height;
           const watermarkCtx = watermarkCanvas.getContext('2d');
-          watermarkCtx.globalAlpha = 0.2; // 20% de opacidad
-          watermarkCtx.drawImage(logoImg, 0, 0);
+          watermarkCtx.globalAlpha = 0.2;
+          watermarkCtx.drawImage(fondoImg, 0, 0);
           const watermarkData = watermarkCanvas.toDataURL('image/png');
-          
-          // Tamaño grande para el watermark (aproximadamente 150mm de ancho)
+
           const watermarkWidth = 150;
-          const watermarkHeight = (logoImg.height / logoImg.width) * watermarkWidth;
+          const watermarkHeight = (fondoImg.height / fondoImg.width) * watermarkWidth;
           const watermarkX = (pageWidth - watermarkWidth) / 2; // Centrado horizontal
           const watermarkY = (pageHeight - watermarkHeight) / 2; // Centrado vertical
           

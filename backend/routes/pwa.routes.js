@@ -12,8 +12,8 @@ const ICONOS_ACTUALES = [72, 96, 128, 144, 152, 192, 384, 512].map((size) => ({
 
 /**
  * Manifiesto de instalación.
- * Sin logo subido: los iconos de siempre.
- * Con logo a color en General: el instalador de un colegio nuevo usa ese archivo.
+ * Sin icono subido: los iconos de siempre.
+ * Con icono de la aplicación: ese PNG es el de instalar, inicio y notificaciones.
  */
 router.get('/manifest', async (req, res) => {
   let marca = 'VanguardNet';
@@ -23,9 +23,10 @@ router.get('/manifest', async (req, res) => {
     const id = await leerIdentidadColegio(1);
     marca = id.marca || marca;
     titulo = id.titulo || titulo;
-    const logo = await resolverLogoVariante('logo_colegio');
-    if (logo.desdeConfig && (logo.urlAbsoluta || logo.urlPath)) {
-      const src = logo.urlAbsoluta || logo.urlPath;
+    const icono = await resolverLogoVariante('icono_app');
+    const logo = icono.desdeConfig ? icono : await resolverLogoVariante('logo_colegio');
+    if (logo.desdeConfig && (logo.urlPath || logo.urlAbsoluta)) {
+      const src = logo.urlPath || logo.urlAbsoluta;
       icons = [
         { src, sizes: '192x192', type: 'image/png', purpose: 'any' },
         { src, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },

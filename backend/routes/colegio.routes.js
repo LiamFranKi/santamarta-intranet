@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const router = express.Router();
 const { query } = require('../utils/mysql');
 const { getColegioData } = require('../utils/colegio');
@@ -20,6 +21,24 @@ router.get('/:colegioId', async (req, res) => {
 
     const logo = await resolverLogoVariante('logo_colegio');
     const logoBlanco = await resolverLogoVariante('logo_blanco');
+    const icono = await resolverLogoVariante('icono_app');
+    let libretaLogo = null;
+    let libretaFondo = null;
+    try {
+      const fondos = await query(
+        `SELECT clave, valor FROM config WHERE clave IN ('libreta_logo', 'libreta_fondo')`
+      );
+      for (const row of fondos || []) {
+        const name = row.valor ? path.basename(String(row.valor)) : '';
+        if (!name) continue;
+        const url = `/Static/Image/Fondos/${name}`;
+        if (row.clave === 'libreta_logo') libretaLogo = url;
+        if (row.clave === 'libreta_fondo') libretaFondo = url;
+      }
+    } catch (_) {
+      libretaLogo = null;
+      libretaFondo = null;
+    }
     let textoIntranet = '';
     try {
       const rows = await query(`SELECT valor FROM config WHERE clave = 'texto_intranet' LIMIT 1`);
@@ -35,6 +54,10 @@ router.get('/:colegioId', async (req, res) => {
       logo_desde_config: logo.desdeConfig,
       logo_blanco: logoBlanco.urlPath,
       logo_blanco_desde_config: logoBlanco.desdeConfig,
+      icono_app: icono.desdeConfig ? icono.urlPath : null,
+      icono_desde_config: icono.desdeConfig,
+      libreta_logo: libretaLogo,
+      libreta_fondo: libretaFondo,
       texto_intranet: textoIntranet,
       mascota_nombre: mascota.nombre,
       mascota_imagen: mascota.imagen_url,

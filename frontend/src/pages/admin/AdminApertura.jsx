@@ -17,7 +17,7 @@ const VISTA = {
   resolucion_creacion: '',
   anio_activo: 2027,
   anio_matriculas: 2027,
-  inicio_pensiones: 3,
+  inicio_pensiones: 2,
   total_pensiones: 10,
   dias_tolerancia: 5,
   recaudo_nro_sucursal: '',

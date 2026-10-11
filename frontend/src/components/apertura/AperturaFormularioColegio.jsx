@@ -7,6 +7,21 @@ const PASOS = [
   { id: 'usuarios', n: '4', label: 'Usuarios' },
 ];
 
+const MESES_INICIO_PENSION = [
+  { value: 0, label: 'Enero' },
+  { value: 1, label: 'Febrero' },
+  { value: 2, label: 'Marzo' },
+  { value: 3, label: 'Abril' },
+  { value: 4, label: 'Mayo' },
+  { value: 5, label: 'Junio' },
+  { value: 6, label: 'Julio' },
+  { value: 7, label: 'Agosto' },
+  { value: 8, label: 'Septiembre' },
+  { value: 9, label: 'Octubre' },
+  { value: 10, label: 'Noviembre' },
+  { value: 11, label: 'Diciembre' },
+];
+
 function Campo({ label, children, ancho }) {
   return (
     <label className={ancho ? 'apertura-ancho' : undefined}>
@@ -117,8 +132,16 @@ export default function AperturaFormularioColegio({
             <Campo label="Año de matrículas">
               <input type="number" value={form.anio_matriculas} onChange={set('anio_matriculas')} />
             </Campo>
-            <Campo label="Mes en que empiezan las pensiones">
-              <input type="number" min="1" max="12" value={form.inicio_pensiones} onChange={set('inicio_pensiones')} />
+            <Campo label="Mes en que empiezan las pensiones" ancho>
+              <select value={String(form.inicio_pensiones)} onChange={set('inicio_pensiones')}>
+                {MESES_INICIO_PENSION.map((mes) => (
+                  <option key={mes.value} value={mes.value}>{mes.label}</option>
+                ))}
+              </select>
+              <span className="apertura-ayuda">
+                La matrícula es el pago 0 y no se elige aquí. El mes que marque es la pensión 1.
+                Si marca marzo y hay 10 pensiones, marzo es 1 y diciembre es 10.
+              </span>
             </Campo>
             <Campo label="Cantidad de pensiones">
               <input type="number" min="1" max="12" value={form.total_pensiones} onChange={set('total_pensiones')} />

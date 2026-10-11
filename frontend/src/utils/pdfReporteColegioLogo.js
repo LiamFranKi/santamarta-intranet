@@ -17,21 +17,42 @@ export function invalidarCacheLogo() {
   metaPromise = null;
 }
 
-/** URL absoluta del logo guardado en configuración, o null si aún no hay uno. */
-export function urlLogoConfigurado() {
+function cargarColegio() {
   if (!metaPromise) {
     const base = apiBaseUrl();
     metaPromise = fetch(`${base}/api/colegio/1`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!data?.logo_desde_config || !data.logo) return null;
-        const raw = String(data.logo);
-        if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
-        return `${base}${raw.startsWith('/') ? raw : `/${raw}`}`;
-      })
       .catch(() => null);
   }
   return metaPromise;
+}
+
+function absoluto(raw) {
+  if (!raw) return null;
+  const s = String(raw);
+  if (s.startsWith('http://') || s.startsWith('https://')) return s;
+  const base = apiBaseUrl();
+  return `${base}${s.startsWith('/') ? s : `/${s}`}`;
+}
+
+/** URL absoluta del logo guardado en configuración, o null si aún no hay uno. */
+export function urlLogoConfigurado() {
+  return cargarColegio().then((data) => {
+    if (!data?.logo_desde_config || !data.logo) return null;
+    return absoluto(data.logo);
+  });
+}
+
+/**
+ * Cabecera de la libreta: logo de libreta si está subido, si no el logo a color.
+ * Marca de agua: fondo de libreta si está subido, si no la misma cabecera.
+ */
+export async function imagenesLibretaPdf() {
+  const data = await cargarColegio();
+  const color = data?.logo_desde_config && data.logo ? absoluto(data.logo) : null;
+  const header = absoluto(data?.libreta_logo) || color;
+  const fondo = absoluto(data?.libreta_fondo) || header;
+  return { header, fondo };
 }
 
 /** Logo de configuración, o el archivo que esa pantalla ya usaba. */

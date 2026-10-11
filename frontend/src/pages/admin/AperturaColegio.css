@@ -22,6 +22,7 @@
   font: inherit;
 }
 .apertura-ancho { grid-column: 1 / -1; }
+.apertura-ayuda { color: #64748b; font-size: 0.78rem; line-height: 1.35; }
 .apertura-checks { display: flex; flex-wrap: wrap; gap: 0.8rem 1.2rem; align-items: end; }
 .apertura-error { background: #fef2f2; color: #991b1b; border-radius: 8px; padding: 0.7rem 0.9rem; margin-bottom: 0.8rem; }
 .apertura-ok { background: #ecfdf5; color: #065f46; border-radius: 8px; padding: 0.7rem 0.9rem; margin-bottom: 0.8rem; }

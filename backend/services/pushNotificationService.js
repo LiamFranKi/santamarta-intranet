@@ -1,6 +1,28 @@
 const webpush = require('web-push');
 const { isPushQuietHoursLima } = require('../utils/pushQuietHours');
 const { execute } = require('../utils/mysql');
+const { resolverLogoVariante } = require('../utils/logoColegio');
+
+let iconoPushCache = { at: 0, url: null };
+
+async function urlIconoPush() {
+  if (Date.now() - iconoPushCache.at < 30000) return iconoPushCache.url;
+  try {
+    const icono = await resolverLogoVariante('icono_app');
+    const url = icono.desdeConfig && icono.urlPath ? icono.urlPath : null;
+    iconoPushCache = { at: Date.now(), url };
+    return url;
+  } catch (_) {
+    iconoPushCache = { at: Date.now(), url: null };
+    return null;
+  }
+}
+
+async function conIconoColegio(payload) {
+  const url = await urlIconoPush();
+  if (!url || !payload || typeof payload !== 'object') return payload;
+  return { ...payload, icon: url, badge: url };
+}
 
 // Configurar VAPID keys (si están en .env)
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
@@ -47,7 +69,8 @@ async function enviarPushNotification(subscription, payload, intento = 1) {
     }
 
     console.log(`📱 [PUSH] Enviando notificación a: ${subscription.endpoint.substring(0, 50)}...`);
-    const result = await webpush.sendNotification(subscription, JSON.stringify(payload));
+    const aviso = await conIconoColegio(payload);
+    const result = await webpush.sendNotification(subscription, JSON.stringify(aviso));
     console.log(`✅ [PUSH] Notificación enviada exitosamente. StatusCode: ${result.statusCode}`);
     return { success: true, statusCode: result.statusCode };
   } catch (error) {
