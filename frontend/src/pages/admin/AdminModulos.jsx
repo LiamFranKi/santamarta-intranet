@@ -5,11 +5,24 @@ import { useColegio } from '../../context/ColegioContext';
 import { MODULOS } from '../../utils/modulosSistema';
 import './AdminModulos.css';
 
+const ICONO_GRUPO = {
+  General: '✦',
+  Usuarios: '👥',
+  Académico: '📚',
+  Herramientas: '🧰',
+  Comunicaciones: '📣',
+  'Pagos y facturas': '💳',
+  Reportes: '📊',
+  Web: '🌐',
+  Configuración: '⚙️',
+};
+
 export default function AdminModulos() {
   const { estados, activo, setEstados } = useModulos();
   const { mascotaNombre } = useColegio();
   const [guardando, setGuardando] = useState('');
   const [error, setError] = useState('');
+  const [tab, setTab] = useState('General');
 
   const grupos = useMemo(() => {
     const map = new Map();
@@ -20,6 +33,12 @@ export default function AdminModulos() {
     }
     return Array.from(map.entries());
   }, []);
+
+  const visibles = useMemo(() => grupos.flatMap(([, items]) => items), [grupos]);
+  const encendidos = visibles.filter((item) => activo(item.clave)).length;
+  const grupoActivo = grupos.find(([nombre]) => nombre === tab) || grupos[0];
+  const itemsTab = grupoActivo?.[1] || [];
+  const encendidosTab = itemsTab.filter((item) => activo(item.clave)).length;
 
   const cambiar = async (clave, encendido) => {
     setError('');
@@ -39,36 +58,75 @@ export default function AdminModulos() {
 
   return (
     <div className="modulos-page">
-      <h1>Módulos del sistema</h1>
-      <p className="modulos-lead">
-        Apagar un módulo lo oculta en el menú de todos los cargos y la pantalla deja de abrir.
-        Si no tocas nada, el colegio sigue viendo lo mismo que hoy.
-      </p>
+      <header className="modulos-hero">
+        <div className="modulos-hero-icon" aria-hidden>▦</div>
+        <div className="modulos-hero-text">
+          <h1>Módulos del sistema</h1>
+          <p>Enciende o apaga lo que ve cada cargo. Si no tocas nada, el colegio sigue igual.</p>
+          <div className="modulos-hero-meta">
+            <span>{encendidos} encendidos</span>
+            <span>{visibles.length - encendidos} apagados</span>
+            <span>{grupos.length} grupos</span>
+          </div>
+        </div>
+      </header>
+
       {error && <p className="modulos-error">{error}</p>}
-      {grupos.map(([grupo, items]) => (
-        <section key={grupo} className="modulos-grupo">
-          <h2>{grupo}</h2>
-          <ul>
-            {items.map((item) => {
-              const on = activo(item.clave);
-              return (
-                <li key={item.clave}>
-                  <span>{item.clave === 'herramientas.vanguarcito' ? mascotaNombre : item.nombre}</span>
-                  <button
-                    type="button"
-                    className={on ? 'modulos-switch is-on' : 'modulos-switch'}
-                    aria-pressed={on}
-                    disabled={guardando === item.clave}
-                    onClick={() => cambiar(item.clave, !on)}
-                  >
-                    {on ? 'Encendido' : 'Apagado'}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ))}
+
+      <nav className="modulos-tabs" role="tablist" aria-label="Grupos de módulos">
+        {grupos.map(([nombre, items]) => {
+          const on = items.filter((item) => activo(item.clave)).length;
+          const activoTab = (grupoActivo?.[0] || tab) === nombre;
+          return (
+            <button
+              key={nombre}
+              type="button"
+              role="tab"
+              aria-selected={activoTab}
+              className={activoTab ? 'modulos-tab is-on' : 'modulos-tab'}
+              onClick={() => setTab(nombre)}
+            >
+              <span className="modulos-tab-ico" aria-hidden>{ICONO_GRUPO[nombre] || '•'}</span>
+              <span className="modulos-tab-label">{nombre}</span>
+              <span className="modulos-tab-count">{on}/{items.length}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      <section className="modulos-panel" role="tabpanel">
+        <div className="modulos-panel-head">
+          <h2>{grupoActivo?.[0]}</h2>
+          <p>{encendidosTab} de {itemsTab.length} encendidos en este grupo.</p>
+        </div>
+        <ul className="modulos-grid">
+          {itemsTab.map((item) => {
+            const on = activo(item.clave);
+            const nombre = item.clave === 'herramientas.vanguarcito' ? mascotaNombre : item.nombre;
+            const ocupado = guardando === item.clave;
+            return (
+              <li key={item.clave}>
+                <button
+                  type="button"
+                  className={on ? 'modulos-card is-on' : 'modulos-card'}
+                  aria-pressed={on}
+                  disabled={ocupado}
+                  onClick={() => cambiar(item.clave, !on)}
+                >
+                  <span className="modulos-card-copy">
+                    <strong>{nombre}</strong>
+                    <em>{ocupado ? 'Guardando…' : on ? 'Visible en el menú' : 'Oculto para todos'}</em>
+                  </span>
+                  <span className={on ? 'modulos-pill is-on' : 'modulos-pill'} aria-hidden>
+                    <i />
+                    {on ? 'Sí' : 'No'}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
     </div>
   );
 }
