@@ -18,7 +18,6 @@ export default function AdminMascotaColegio() {
   const [nombre, setNombre] = useState('');
   const [nombreVisible, setNombreVisible] = useState(NOMBRE_DEFECTO);
   const [imagenUrl, setImagenUrl] = useState('');
-  const [imagenPropia, setImagenPropia] = useState(false);
   const [fichas, setFichas] = useState([]);
   const [cupoAlumno, setCupoAlumno] = useState(3);
   const [cupoDocente, setCupoDocente] = useState(5);
@@ -28,7 +27,6 @@ export default function AdminMascotaColegio() {
     setNombre(data?.nombre || '');
     setNombreVisible(data?.nombre_visible || visible(data?.nombre));
     setImagenUrl(data?.imagen_url || '');
-    setImagenPropia(Boolean(data?.imagen_propia));
     setFichas(Array.isArray(data?.fichas) ? data.fichas : []);
     setCupoAlumno(Number.isFinite(Number(data?.preguntas_alumno)) ? Number(data.preguntas_alumno) : 3);
     setCupoDocente(Number.isFinite(Number(data?.preguntas_docente)) ? Number(data.preguntas_docente) : 5);
@@ -101,18 +99,6 @@ export default function AdminMascotaColegio() {
       await despues(data);
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'No se subió el dibujo', text: e.response?.data?.error || '' });
-    } finally {
-      setGuardando(false);
-    }
-  };
-
-  const quitarPrincipal = async () => {
-    setGuardando(true);
-    try {
-      const { data } = await api.delete('/mascota-colegio/imagen');
-      await despues(data);
-    } catch (e) {
-      Swal.fire({ icon: 'error', title: 'No se pudo quitar', text: e.response?.data?.error || '' });
     } finally {
       setGuardando(false);
     }
@@ -227,11 +213,6 @@ export default function AdminMascotaColegio() {
                   }}
                 />
               </label>
-            ) : null}
-            {puedeEditar && imagenPropia ? (
-              <button type="button" className="mascota-sec" disabled={guardando} onClick={quitarPrincipal}>
-                Volver al dibujo de {NOMBRE_DEFECTO}
-              </button>
             ) : null}
           </div>
         </div>
