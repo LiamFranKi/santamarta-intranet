@@ -1,0 +1,113 @@
+/* Plantillas distintas del login actual. La clase .login-page sola no cambia. */
+
+.login-page[style*='--login-acento'] .btn-submit {
+  background: var(--login-acento);
+}
+
+.login-plantilla-partido .brand-description,
+.login-plantilla-partido .brand-features-list,
+.login-plantilla-tarjeta .login-branding-left,
+.login-plantilla-amplio .login-branding-left,
+.login-plantilla-compacto .login-branding-left {
+  display: none;
+}
+
+.login-plantilla-partido .login-card-wide {
+  min-height: 520px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+}
+
+.login-plantilla-partido .login-branding-left {
+  background: var(--login-acento, #1e3a5f);
+}
+
+.login-plantilla-partido .brand-logo-main h1 {
+  font-size: 2rem;
+  letter-spacing: -0.03em;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.35);
+}
+
+.login-plantilla-tarjeta .login-container-simple,
+.login-plantilla-compacto .login-container-simple {
+  padding: 2rem 1.25rem;
+}
+
+.login-plantilla-tarjeta .login-card-wide,
+.login-plantilla-compacto .login-card-wide,
+.login-plantilla-amplio .login-card-wide {
+  grid-template-columns: 1fr;
+  max-width: 440px;
+  min-height: 0;
+  border-radius: 20px;
+}
+
+.login-plantilla-tarjeta .login-card-wide {
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.35);
+  backdrop-filter: blur(8px);
+}
+
+.login-plantilla-tarjeta .login-form-right,
+.login-plantilla-compacto .login-form-right,
+.login-plantilla-amplio .login-form-right {
+  padding: 4.5rem 2rem 2rem;
+}
+
+.login-plantilla-tarjeta .form-header,
+.login-plantilla-compacto .form-header,
+.login-plantilla-amplio .form-header {
+  text-align: center;
+}
+
+.login-plantilla-tarjeta .form-logo-container,
+.login-plantilla-compacto .form-logo-container,
+.login-plantilla-amplio .form-logo-container {
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.login-plantilla-amplio .login-card-wide {
+  max-width: 480px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.login-plantilla-amplio .login-form-right {
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 20px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.12);
+}
+
+.login-plantilla-amplio .login-page,
+.login-plantilla-amplio .brand-logo-main h1 {
+  letter-spacing: -0.04em;
+}
+
+.login-plantilla-compacto .login-card-wide {
+  max-width: 380px;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+}
+
+.login-plantilla-compacto .login-form-right {
+  padding-top: 4.25rem;
+}
+
+.login-plantilla-compacto .form-header h2 {
+  font-size: 1.35rem;
+}
+
+@media (max-width: 900px) {
+  .login-plantilla-partido .login-branding-left {
+    display: none;
+  }
+
+  .login-plantilla-partido .login-card-wide,
+  .login-plantilla-tarjeta .login-card-wide,
+  .login-plantilla-amplio .login-card-wide,
+  .login-plantilla-compacto .login-card-wide {
+    max-width: 440px;
+  }
+}

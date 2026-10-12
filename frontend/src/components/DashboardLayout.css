@@ -1,12 +1,16 @@
 .dashboard-layout {
   display: flex;
   min-height: 100vh;
-  background: #f5f6fa;
+  background-color: var(--apariencia-fondo, #f5f6fa);
+  background-image: var(--apariencia-fondo-imagen, none);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
 }
 
 .dashboard-sidebar {
   width: 240px;
-  background: #375b81;
+  background: var(--apariencia-sidebar, #375b81);
   color: var(--sidebar-text, white);
   display: flex;
   flex-direction: column;
@@ -209,7 +213,7 @@ img.sidebar-icon-mascota {
 }
 
 .dashboard-header {
-  background: #d7eafe;
+  background: var(--apariencia-navbar, #d7eafe);
   border-bottom: 1px solid #e5e7eb;
   padding: 0.75rem 2rem;
   display: flex;
@@ -293,6 +297,13 @@ img.sidebar-icon-mascota {
 .user-info {
   display: flex;
   flex-direction: column;
+}
+
+html[data-navbar-custom='1'] .dashboard-header .user-name,
+html[data-navbar-custom='1'] .dashboard-header .user-role,
+html[data-navbar-custom='1'] .dashboard-header .user-docente-aula-ubicacion,
+html[data-navbar-custom='1'] .dashboard-header .header-btn {
+  color: var(--apariencia-navbar-texto, #1f2937);
 }
 
 .user-name {
@@ -406,7 +417,10 @@ img.sidebar-icon-mascota {
   overflow-x: visible;
   min-width: 320px;
   max-width: none;
-  background: #f5f6fa;
+  background-color: var(--apariencia-fondo, #f5f6fa);
+  background-image: var(--apariencia-fondo-imagen, none);
+  background-size: cover;
+  background-position: center;
   position: relative;
   z-index: 2;
 }

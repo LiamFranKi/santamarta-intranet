@@ -5,6 +5,7 @@ const { query } = require('../utils/mysql');
 const { getColegioData } = require('../utils/colegio');
 const { resolverLogoVariante } = require('../utils/logoColegio');
 const { leerMascota } = require('../utils/mascotaColegio');
+const { leerApariencia } = require('../utils/apariencia');
 
 /**
  * GET /api/colegio/:colegioId
@@ -48,8 +49,20 @@ router.get('/:colegioId', async (req, res) => {
     }
 
     const mascota = await leerMascota(colegioId);
+    const apariencia = await leerApariencia(colegioId).catch(() => null);
     res.json({
       ...colegioData,
+      color_principal: apariencia?.color_primario || colegioData.color_principal,
+      color_secundario: apariencia?.color_secundario || colegioData.color_secundario,
+      color_acento: apariencia?.color_acento || '',
+      color_navbar: apariencia?.color_navbar || '',
+      color_fondo: apariencia?.color_fondo || '',
+      intranet_fondo_modo: apariencia?.intranet_fondo_modo || 'color',
+      intranet_fondo: apariencia?.intranet_fondo || null,
+      login_plantilla: apariencia?.login_plantilla || 'actual',
+      login_fondo_modo: apariencia?.login_fondo_modo || 'color',
+      login_fondo: apariencia?.login_fondo || null,
+      web_plantilla: apariencia?.web_plantilla || 'actual',
       logo: logo.urlPath,
       logo_desde_config: logo.desdeConfig,
       logo_blanco: logoBlanco.urlPath,

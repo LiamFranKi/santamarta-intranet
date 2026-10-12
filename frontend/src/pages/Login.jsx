@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useColegio } from '../context/ColegioContext';
 import { rutaPostLoginSegunRol } from '../utils/hijosDeepLink';
 import './Login.css';
+import './LoginPlantillas.css';
 
 function Login() {
   const [usuario, setUsuario] = useState('');
@@ -14,7 +15,18 @@ function Login() {
   const [puedeAperturar, setPuedeAperturar] = useState(false);
 
   const { login, isAuthenticated, user } = useAuth();
-  const { loading: loadingColegio, error: errorColegio, logo, logoDesdeConfig, textoIntranet, nombreIntranet } = useColegio();
+  const {
+    loading: loadingColegio,
+    error: errorColegio,
+    logo,
+    logoDesdeConfig,
+    textoIntranet,
+    nombreIntranet,
+    loginPlantilla,
+    loginFondoModo,
+    loginFondo,
+    colorPrincipal,
+  } = useColegio();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -32,6 +44,18 @@ function Login() {
     }
     return window.location.origin;
   }, []); // Solo calcular una vez al montar el componente
+
+  const plantilla = ['partido', 'tarjeta', 'amplio', 'compacto'].includes(loginPlantilla)
+    ? loginPlantilla
+    : 'actual';
+  const nombreVisible = (textoIntranet || '').trim() || (nombreIntranet || '').trim() || 'Intranet';
+
+  const fondoUrl = useMemo(() => {
+    if (loginFondoModo !== 'imagen' || !loginFondo) return '';
+    const raw = String(loginFondo);
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    return `${apiBaseUrl}${raw.startsWith('/') ? raw : `/${raw}`}`;
+  }, [apiBaseUrl, loginFondo, loginFondoModo]);
 
   const logoUrl = useMemo(() => {
     if (logoDesdeConfig && logo) {
@@ -121,17 +145,32 @@ function Login() {
     }
   };
 
+  const fondoStyle = fondoUrl
+    ? { background: `center / cover no-repeat url("${fondoUrl}")` }
+    : (colorPrincipal && plantilla !== 'actual' ? { background: colorPrincipal } : undefined);
+  const pageStyle = colorPrincipal ? { '--login-acento': colorPrincipal } : undefined;
+
   return (
-    <div className="login-page">
-      <div className="login-background" />
+    <div
+      className={plantilla === 'actual' ? 'login-page' : `login-page login-plantilla-${plantilla}`}
+      style={pageStyle}
+    >
+      <div className="login-background" style={fondoStyle} />
 
       <div className="login-container-simple">
         <div className="login-card-wide">
           {/* Panel Izquierdo: Branding */}
-          <div className="login-branding-left">
+          <div
+            className="login-branding-left"
+            style={plantilla === 'partido' && fondoUrl ? {
+              backgroundImage: `linear-gradient(180deg, rgba(15,23,42,0.25), rgba(15,23,42,0.45)), url("${fondoUrl}")`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            } : undefined}
+          >
             <div className="branding-content">
               <div className="brand-logo-main">
-                <h1>{(textoIntranet || '').trim() || (nombreIntranet || '').trim() || 'Intranet'}</h1>
+                <h1>{nombreVisible}</h1>
               </div>
 
               <p className="brand-description">

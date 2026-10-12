@@ -358,6 +358,8 @@ const adminTardanzasRoutes = require('./routes/admin.tardanzas.routes');
 app.use('/api/admin/tardanzas', adminTardanzasRoutes);
 const adminPermisosEntradaRoutes = require('./routes/admin.permisosEntrada.routes');
 app.use('/api/admin/permisos-entrada', adminPermisosEntradaRoutes);
+const adminAparienciaRoutes = require('./routes/admin.apariencia.routes');
+app.use('/api/admin/apariencia', adminAparienciaRoutes);
 const adminReclamosSugerenciasRoutes = require('./routes/admin.reclamosSugerencias.routes');
 app.use('/api/admin/reclamos-sugerencias', adminReclamosSugerenciasRoutes);
 const adminCalendarizacionRoutes = require('./routes/admin.calendarizacion.routes');

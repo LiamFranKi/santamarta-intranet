@@ -1,0 +1,129 @@
+.ap-titulo {
+  margin: 1.25rem 0 0.6rem;
+  font-size: 1rem;
+  color: #0f172a;
+}
+
+.ap-galeria {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.ap-tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  text-align: left;
+  padding: 0.55rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.ap-tarjeta strong {
+  font-size: 0.86rem;
+  color: #0f172a;
+}
+
+.ap-tarjeta span {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.ap-tarjeta.is-on {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+}
+
+.ap-mini {
+  height: 92px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #e8eef5;
+  display: flex;
+  flex-direction: column;
+}
+
+.ap-mini-actual,
+.ap-mini-partido {
+  flex-direction: row;
+}
+
+.ap-mini-lado,
+.ap-mini-foto {
+  width: 46%;
+  background: linear-gradient(160deg, #6ba3d4, #2d5a8f);
+}
+
+.ap-mini-foto {
+  background:
+    linear-gradient(160deg, rgba(30, 58, 95, 0.2), rgba(15, 23, 42, 0.45)),
+    linear-gradient(120deg, #94a3b8, #1e3a5f);
+}
+
+.ap-mini-form,
+.ap-mini-form-sola,
+.ap-mini-form-chica,
+.ap-mini-tarjeta {
+  background: #fff;
+  margin: 10px;
+  border-radius: 6px;
+  flex: 1;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+}
+
+.ap-mini-form-sola { margin: 22px 16px 10px; }
+.ap-mini-form-chica { margin: 28px 36px; flex: none; height: 36px; }
+.ap-mini-tarjeta { margin: 22px 28px; }
+
+.ap-mini-foto-full {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.15), rgba(15, 23, 42, 0.35)),
+    linear-gradient(120deg, #64748b, #0f172a);
+}
+
+.ap-mini-claro { background: #f8fafc; }
+
+.ap-mini-menu {
+  height: 16px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.ap-mini-menu-sobre {
+  margin: 8px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.ap-mini-menu-bajo { height: 12px; }
+
+.ap-mini-franja { height: 8px; background: #1e3a5f; }
+
+.ap-mini-banner {
+  flex: 1;
+  background: linear-gradient(160deg, #93c5fd, #1d4ed8);
+}
+
+.ap-mini-banner-bajo { flex: none; height: 36px; }
+
+.ap-mini-banner-marco {
+  flex: none;
+  height: 52px;
+  margin: 8px;
+  border-radius: 8px;
+}
+
+.ap-mini-logo {
+  width: 28px;
+  height: 10px;
+  margin: 8px 10px 0;
+  border-radius: 3px;
+  background: #94a3b8;
+}
+
+.ap-mini-logo-centro { align-self: center; }

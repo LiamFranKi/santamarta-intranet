@@ -2,6 +2,13 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import api from '../services/api';
 import { useAuth } from './AuthContext';
 
+function textoSobre(hex) {
+  const h = String(hex || '').replace('#', '');
+  if (h.length !== 6) return '#1f2937';
+  const y = (parseInt(h.slice(0, 2), 16) * 299 + parseInt(h.slice(2, 4), 16) * 587 + parseInt(h.slice(4, 6), 16) * 114) / 1000;
+  return y > 160 ? '#1f2937' : '#ffffff';
+}
+
 const ColegioContext = createContext();
 
 export const useColegio = () => {
@@ -64,16 +71,40 @@ export const ColegioProvider = ({ children, colegioId = 1 }) => {
   // Aplicar variables CSS globales basadas en configuración del colegio
   useEffect(() => {
     const root = document.documentElement;
-    const primary = colegioData?.color_principal || '#667eea';
-    const secondary = colegioData?.color_secundario || '#764ba2';
+    const elegido = String(colegioData?.color_principal || '').trim();
+    const primary = elegido || '#667eea';
+    const secondary = String(colegioData?.color_secundario || '').trim() || '#764ba2';
 
     root.style.setProperty('--primary-color', primary);
     root.style.setProperty('--secondary-color', secondary);
-
-    // Sidebar / navbar (pueden ajustarse luego según diseño)
     root.style.setProperty('--sidebar-bg', primary);
     root.style.setProperty('--sidebar-text', 'white');
     root.style.setProperty('--navbar-bg', '#ffffff');
+    if (elegido) root.style.setProperty('--apariencia-sidebar', elegido);
+    else root.style.removeProperty('--apariencia-sidebar');
+
+    const navbar = String(colegioData?.color_navbar || '').trim();
+    if (navbar) {
+      root.style.setProperty('--apariencia-navbar', navbar);
+      root.dataset.navbarCustom = '1';
+      root.style.setProperty('--apariencia-navbar-texto', textoSobre(navbar));
+    } else {
+      root.style.removeProperty('--apariencia-navbar');
+      root.style.removeProperty('--apariencia-navbar-texto');
+      delete root.dataset.navbarCustom;
+    }
+
+    const fondo = String(colegioData?.color_fondo || '').trim();
+    if (fondo) root.style.setProperty('--apariencia-fondo', fondo);
+    else root.style.removeProperty('--apariencia-fondo');
+
+    const foto = colegioData?.intranet_fondo_modo === 'imagen' ? String(colegioData?.intranet_fondo || '').trim() : '';
+    if (foto) {
+      const abs = foto.startsWith('http') ? foto : `${window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin}${foto.startsWith('/') ? foto : `/${foto}`}`;
+      root.style.setProperty('--apariencia-fondo-imagen', `url("${abs}")`);
+    } else {
+      root.style.removeProperty('--apariencia-fondo-imagen');
+    }
   }, [colegioData]);
 
   useEffect(() => {
@@ -121,6 +152,14 @@ export const ColegioProvider = ({ children, colegioId = 1 }) => {
     textoIntranet: colegioData?.texto_intranet || '',
     colorPrincipal: colegioData?.color_principal || null,
     colorSecundario: colegioData?.color_secundario || null,
+    colorAcento: colegioData?.color_acento || '',
+    colorNavbar: colegioData?.color_navbar || '',
+    colorFondo: colegioData?.color_fondo || '',
+    intranetFondoModo: colegioData?.intranet_fondo_modo || 'color',
+    intranetFondo: colegioData?.intranet_fondo || null,
+    loginPlantilla: colegioData?.login_plantilla || 'actual',
+    loginFondoModo: colegioData?.login_fondo_modo || 'color',
+    loginFondo: colegioData?.login_fondo || null,
     anioActivo: colegioData?.anio_activo || null,
     mascotaNombre: String(colegioData?.mascota_nombre || '').trim() || 'Vanguarcito',
     mascotaImagen: colegioData?.mascota_imagen || null,
