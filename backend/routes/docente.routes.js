@@ -6138,7 +6138,9 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
     /** Mapea id de tema en origen → id de tema copiado en destino (para sesiones PDF). */
     const mapeoTemasOrigenADestino = {};
 
-    // Copiar temas (archivos)
+    // Copiar temas (archivos). El enlace va junto: si el original no tenía PDF
+    // y sí un enlace, la copia no puede quedar solo con el título.
+    const tieneEstructuraCopia = await archivosTieneEstructuraCols();
     if (temas_id && temas_id.length > 0) {
       for (const temaId of temas_id) {
         const tema = await query(
@@ -6147,18 +6149,45 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
         );
 
         if (tema.length > 0) {
+          const t = tema[0];
+          const enlaceVal = (t.enlace && String(t.enlace).trim() !== '') ? String(t.enlace).trim() : '';
+          const tipoItem = t.item_tipo ? String(t.item_tipo).toUpperCase() : '';
+          const numeroItem = parseInt(t.item_numero, 10);
+          const conEstructura = tieneEstructuraCopia
+            && (tipoItem === 'TEMA' || tipoItem === 'FICHA')
+            && Number.isFinite(numeroItem)
+            && numeroItem > 0;
           const resultadoTema = await execute(
-            `INSERT INTO asignaturas_archivos (asignatura_id, trabajador_id, nombre, archivo, fecha_hora, ciclo, orden)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [
-              asignatura_destino_id,
-              tema[0].trabajador_id,
-              tema[0].nombre,
-              tema[0].archivo,
-              fechaHoraMySQLLima(),
-              tema[0].ciclo,
-              tema[0].orden
-            ]
+            conEstructura
+              ? `INSERT INTO asignaturas_archivos
+                   (asignatura_id, trabajador_id, nombre, archivo, enlace, fecha_hora, ciclo, orden, item_tipo, item_numero)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+              : `INSERT INTO asignaturas_archivos
+                   (asignatura_id, trabajador_id, nombre, archivo, enlace, fecha_hora, ciclo, orden)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            conEstructura
+              ? [
+                  asignatura_destino_id,
+                  t.trabajador_id,
+                  t.nombre,
+                  t.archivo,
+                  enlaceVal,
+                  fechaHoraMySQLLima(),
+                  t.ciclo,
+                  t.orden,
+                  tipoItem,
+                  numeroItem,
+                ]
+              : [
+                  asignatura_destino_id,
+                  t.trabajador_id,
+                  t.nombre,
+                  t.archivo,
+                  enlaceVal,
+                  fechaHoraMySQLLima(),
+                  t.ciclo,
+                  t.orden,
+                ]
           );
           if (resultadoTema && resultadoTema.insertId) {
             mapeoTemasOrigenADestino[String(temaId)] = resultadoTema.insertId;
