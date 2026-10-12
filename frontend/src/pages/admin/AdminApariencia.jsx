@@ -34,6 +34,7 @@ const VACIO = {
   color_fondo: '',
   intranet_fondo_modo: 'color',
   intranet_fondo: '',
+  web_intranet_url: '',
 };
 
 function urlMedia(ruta) {
@@ -151,6 +152,7 @@ export default function AdminApariencia() {
         ...data,
         login_fondo: data?.login_fondo || '',
         intranet_fondo: data?.intranet_fondo || '',
+        web_intranet_url: data?.web_intranet_url || '',
       });
       setListo(true);
     } catch (e) {
@@ -174,6 +176,7 @@ export default function AdminApariencia() {
       fd.append('color_navbar', junto.color_navbar || '');
       fd.append('color_fondo', junto.color_fondo || '');
       fd.append('intranet_fondo_modo', junto.intranet_fondo_modo || 'color');
+      fd.append('web_intranet_url', junto.web_intranet_url || '');
       if (parcial?.quitar_fondo) fd.append('quitar_fondo', '1');
       else if (file) fd.append('login_fondo', file);
       if (parcial?.quitar_fondo_intranet) fd.append('quitar_fondo_intranet', '1');
@@ -184,6 +187,7 @@ export default function AdminApariencia() {
         ...data,
         login_fondo: data?.login_fondo || '',
         intranet_fondo: data?.intranet_fondo || '',
+        web_intranet_url: data?.web_intranet_url || '',
       });
       setArchivo(null);
       setArchivoIntranet(null);
@@ -257,6 +261,21 @@ export default function AdminApariencia() {
               <span>{item.texto}</span>
             </button>
           ))}
+        </div>
+
+        <h3 className="ap-titulo">Botón Intranet de la página web</h3>
+        <div className="form-group">
+          <label>Dirección de la intranet</label>
+          <input
+            type="url"
+            value={datos.web_intranet_url}
+            placeholder="https://sistema.vanguardschools.edu.pe"
+            onChange={(e) => setDatos((p) => ({ ...p, web_intranet_url: e.target.value }))}
+          />
+          <small>
+            El botón Intranet de la página abre esta dirección. En Santa Marta, por ejemplo,
+            http://89.117.52.9:8080. Si se deja vacío, la web de Vanguard sigue yendo a la intranet de siempre.
+          </small>
         </div>
 
         <h3 className="ap-titulo">Fondo del login y colores</h3>
@@ -351,7 +370,7 @@ export default function AdminApariencia() {
             disabled={guardando || !listo}
             onClick={() => aplicar({}, archivo, archivoIntranet)}
           >
-            {guardando ? 'Guardando…' : 'Guardar fondo y colores'}
+            {guardando ? 'Guardando…' : 'Guardar dirección, fondo y colores'}
           </button>
           {(datos.color_primario || datos.color_secundario || datos.color_acento || datos.color_navbar || datos.color_fondo) && (
             <button

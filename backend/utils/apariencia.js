@@ -13,11 +13,34 @@ const CLAVES = [
   'login_plantilla', 'login_fondo_modo', 'web_plantilla',
   'color_primario', 'color_secundario', 'color_acento',
   'color_navbar', 'color_fondo', 'intranet_fondo_modo', 'intranet_fondo',
+  'web_intranet_url',
 ];
 
 function unoDe(valor, lista, defecto) {
   const v = String(valor || '').trim().toLowerCase();
   return lista.includes(v) ? v : defecto;
+}
+
+function urlIntranet(valor, estricto) {
+  const v = String(valor || '').trim();
+  if (!v) return '';
+  let u;
+  try {
+    u = new URL(v);
+  } catch (e) {
+    if (!estricto) return '';
+    const err = new Error('La dirección de la intranet debe empezar por http:// o https://');
+    err.status = 400;
+    throw err;
+  }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+    if (!estricto) return '';
+    const err = new Error('La dirección de la intranet debe empezar por http:// o https://');
+    err.status = 400;
+    throw err;
+  }
+  const ruta = u.pathname === '/' ? '' : u.pathname.replace(/\/$/, '');
+  return `${u.origin}${ruta}${u.search}`;
 }
 
 function colorHex(valor) {
@@ -64,6 +87,7 @@ async function leerApariencia(colegioId) {
     color_fondo: colorHex(map.color_fondo),
     intranet_fondo_modo: unoDe(map.intranet_fondo_modo, FONDO, 'color'),
     intranet_fondo: urlFondoConfig(map.intranet_fondo),
+    web_intranet_url: urlIntranet(map.web_intranet_url, false),
   };
 }
 
@@ -83,6 +107,9 @@ async function guardarApariencia(colegioId, body, archivoFondo, archivoIntranet)
   if (body.color_acento != null) campos.push(['color_acento', colorHex(body.color_acento)]);
   if (body.color_navbar != null) campos.push(['color_navbar', colorHex(body.color_navbar)]);
   if (body.color_fondo != null) campos.push(['color_fondo', colorHex(body.color_fondo)]);
+  if (body.web_intranet_url != null) {
+    campos.push(['web_intranet_url', urlIntranet(body.web_intranet_url, true)]);
+  }
   if (body.intranet_fondo_modo != null) {
     campos.push(['intranet_fondo_modo', unoDe(body.intranet_fondo_modo, FONDO, 'color')]);
   }

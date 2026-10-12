@@ -66,7 +66,7 @@ router.put('/', (req, res) => {
           try { fs.unlinkSync(file.path); } catch (_) { /* ignore */ }
         }
       }
-      res.status(500).json({ error: e.message || 'No se pudo guardar.' });
+      res.status(e.status || 500).json({ error: e.message || 'No se pudo guardar.' });
     }
   });
 });
