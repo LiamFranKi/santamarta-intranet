@@ -112,9 +112,10 @@ const {
 } = require('../utils/recomendacionesGrupoMatriculas');
 const {
   calcularTardanzasMesPersonal,
-  calcTardanza,
+  evaluarMarcacion,
   sueldoDe,
 } = require('../utils/adminTardanzasHuellero');
+const { cargarPermisos } = require('../utils/permisoEntradaPersonal');
 const {
   listarAlumnosConductaPorGrupo,
 } = require('../utils/conductaGrupoMatriculas');
@@ -1858,20 +1859,27 @@ router.get('/asistencias', async (req, res) => {
     );
 
     const sueldo = sueldoDe(docente);
+    const permisos = await cargarPermisos(query, colegio_id).catch(() => []);
     let totalMinutosTardanza = 0;
     let totalDescuento = 0;
     const asistenciasConCalculos = registrosAsistencia.map((registro) => {
-      const { minutos_tardanza: minutosTardanza, descuento } = calcTardanza(
-        horaEntradaConfigurada,
-        registro.hora_entrada,
-        sueldo
-      );
-      totalMinutosTardanza += minutosTardanza;
-      totalDescuento += descuento;
+      const ev = evaluarMarcacion({
+        horaPropia: horaEntradaConfigurada,
+        horaMarca: registro.hora_entrada,
+        sueldo,
+        fecha: registro.fecha,
+        personalId: docente.id,
+        tipoUsuario: docente.tipo_usuario,
+        permisos,
+      });
+      totalMinutosTardanza += ev.minutos_tardanza;
+      totalDescuento += ev.descuento;
       return {
         ...registro,
-        minutos_tardanza: minutosTardanza,
-        descuento,
+        minutos_tardanza: ev.minutos_tardanza,
+        descuento: ev.descuento,
+        motivo: ev.motivo,
+        hora_usada_fmt: ev.hora_usada_fmt,
       };
     });
 

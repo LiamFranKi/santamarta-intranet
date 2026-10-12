@@ -16,7 +16,7 @@ const {
   dedupePersonalList,
   parseHoraMarcacion,
   formatHoraDisplay,
-  calcTardanza,
+  evaluarMarcacion,
   sueldoDe,
   FORMULA_DESCUENTO_TARDANZA,
   fusionarFilasPorIdentidad,
@@ -25,6 +25,7 @@ const {
   personalIdsEquivalentes,
   personalCuentaControlAsistencia,
 } = require('./adminTardanzasHuellero');
+const { cargarPermisos } = require('./permisoEntradaPersonal');
 
 const TZ_LIMA = 'America/Lima';
 
@@ -428,7 +429,7 @@ async function loadPersonalForBiometrico(colegioId) {
   const sql = (extraCols) =>
     `SELECT p.id AS personal_id, p.nombres, p.apellidos, p.hora_entrada, p.cargo,
             ${extraCols}
-            u.id AS usuario_id
+            u.id AS usuario_id, u.tipo AS usuario_tipo
      FROM personal p
      LEFT JOIN usuarios u ON u.id = (
        SELECT u2.id FROM usuarios u2
@@ -998,6 +999,7 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
             p.codigo_biometrico,
             p.hora_entrada AS hora_entrada_real,
             p.sueldo,
+            u.tipo AS usuario_tipo,
             CONCAT(COALESCE(p.apellidos,''), ', ', COALESCE(p.nombres,'')) AS personal_nombre
      FROM asistencia_registros ar
      INNER JOIN usuarios u ON u.id = ar.usuario_id
@@ -1020,10 +1022,12 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
     rows = await query(selectSql, params);
   }
 
+  const permisos = await cargarPermisos(query, colegioId).catch(() => []);
+
   const filasRaw = (rows || []).map((r) => {
     const fechaStr =
       r.fecha instanceof Date
-        ? r.fecha.toISOString().slice(0, 10)
+        ? `${r.fecha.getFullYear()}-${String(r.fecha.getMonth() + 1).padStart(2, '0')}-${String(r.fecha.getDate()).padStart(2, '0')}`
         : String(r.fecha || '').slice(0, 10);
     const he = parseHoraMarcacion(r.hora_entrada) || formatHoraDisplay(r.hora_entrada);
     const hs = r.hora_salida
@@ -1031,7 +1035,15 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
       : null;
     const horaReal = r.hora_entrada_real;
     const sueldo = sueldoDe(r);
-    const { minutos_tardanza, descuento, tarifa_por_minuto } = calcTardanza(horaReal, he, sueldo);
+    const ev = evaluarMarcacion({
+      horaPropia: horaReal,
+      horaMarca: he,
+      sueldo,
+      fecha: fechaStr,
+      personalId: r.personal_id,
+      tipoUsuario: r.usuario_tipo,
+      permisos,
+    });
     return {
       id: r.id,
       personal_id: r.personal_id,
@@ -1045,13 +1057,16 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
       hora_salida: hs,
       hora_entrada_real: horaReal,
       hora_entrada_real_fmt: formatHoraDisplay(horaReal),
+      usuario_tipo: r.usuario_tipo || null,
       sueldo: sueldo || null,
-      tarifa_por_minuto,
+      tarifa_por_minuto: ev.tarifa_por_minuto,
       hora_marcacion: he,
       hora_marcacion_fmt: formatHoraDisplay(he),
       hora_salida_fmt: hs ? formatHoraDisplay(hs) : '—',
-      minutos_tardanza,
-      descuento,
+      minutos_tardanza: ev.minutos_tardanza,
+      descuento: ev.descuento,
+      motivo: ev.motivo,
+      hora_usada_fmt: ev.hora_usada_fmt,
       fecha_hora_entrada: he ? `${fechaStr} ${he}` : fechaStr,
       fecha_hora_salida: hs ? `${fechaStr} ${hs}` : null,
       recibido_at: r.recibido_at,
@@ -1059,7 +1074,7 @@ async function listMarcacionesAsistencia(colegioId, opts = {}) {
     };
   });
 
-  const filas = fusionarFilasPorIdentidad(filasRaw)
+  const filas = fusionarFilasPorIdentidad(filasRaw, permisos)
     .filter(personalCuentaControlAsistencia)
     .sort((a, b) => {
     const fd = String(b.fecha).localeCompare(String(a.fecha));

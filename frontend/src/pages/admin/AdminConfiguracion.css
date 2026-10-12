@@ -1159,3 +1159,23 @@
 .limpieza-caja li.is-on { color: #0f766e; font-weight: 700; }
 .limpieza-caja li.is-done { color: #166534; }
 
+.permiso-entrada-tabla {
+  margin-top: 1rem;
+  overflow-x: auto;
+}
+.permiso-entrada-tabla table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.permiso-entrada-tabla th,
+.permiso-entrada-tabla td {
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+.permiso-entrada-tabla th {
+  color: #475569;
+  font-size: 0.78rem;
+}
+

@@ -6,13 +6,14 @@ const { query } = require('./mysql');
 const {
   loadPersonalColegio,
   personalCuentaControlAsistencia,
-  calcTardanza,
+  evaluarMarcacion,
   FORMULA_DESCUENTO_TARDANZA,
   formatHoraDisplay,
   nombrePersonal,
   getAnioActivo,
   esDiaLaboral,
 } = require('./adminTardanzasHuellero');
+const { cargarPermisos } = require('./permisoEntradaPersonal');
 
 const FILL_TITULO = 'FFE8A5A5';
 const FILL_CABECERA = 'FFF5C6CB';
@@ -132,7 +133,7 @@ async function cargarMarcacionesRango(colegioId, desde, hasta) {
   return map;
 }
 
-function construirFilasReporte(personalList, fechas, marcMap) {
+function construirFilasReporte(personalList, fechas, marcMap, permisos) {
   return (personalList || []).map((p, idx) => {
     const horaIngreso = p.hora_entrada;
     const horaIngresoFmt = formatHoraDisplay(horaIngreso);
@@ -143,9 +144,19 @@ function construirFilasReporte(personalList, fechas, marcMap) {
     for (const fecha of fechas) {
       const horaMarc = marcMap[`${p.personal_id}:${fecha}`];
       const horaMarcFmt = horaMarc ? formatHoraDisplay(horaMarc) : '';
-      const { minutos_tardanza: minT, descuento: desc } = horaMarc
-        ? calcTardanza(horaIngreso, horaMarc, p.sueldo)
+      const ev = horaMarc
+        ? evaluarMarcacion({
+            horaPropia: horaIngreso,
+            horaMarca: horaMarc,
+            sueldo: p.sueldo,
+            fecha,
+            personalId: p.personal_id,
+            tipoUsuario: p.usuario_tipo,
+            permisos,
+          })
         : { minutos_tardanza: 0, descuento: 0 };
+      const minT = ev.minutos_tardanza;
+      const desc = ev.descuento;
       dias[fecha] = {
         hora_marcacion: horaMarcFmt,
         minutos_tardanza: minT,
@@ -202,7 +213,8 @@ async function construirDatosAsistenciaPersonal(colegioId, filtros) {
     personalCuentaControlAsistencia
   );
   const marcMap = await cargarMarcacionesRango(colegioId, desde, hasta);
-  const filas = construirFilasReporte(personalList, fechasIso, marcMap);
+  const permisos = await cargarPermisos(query, colegioId).catch(() => []);
+  const filas = construirFilasReporte(personalList, fechasIso, marcMap, permisos);
 
   const totalMinutos = filas.reduce((s, f) => s + (f.minutos_total || 0), 0);
   const totalDescuento = Math.round(filas.reduce((s, f) => s + (f.descuento_total || 0), 0) * 100) / 100;

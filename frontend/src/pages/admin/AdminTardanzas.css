@@ -462,6 +462,15 @@
   font-weight: 500;
 }
 
+.admin-tardanzas-table .col-detalle {
+  text-align: left;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #64748b;
+  max-width: 240px;
+  white-space: normal;
+}
+
 .admin-tardanzas-table .col-acciones {
   white-space: nowrap;
 }

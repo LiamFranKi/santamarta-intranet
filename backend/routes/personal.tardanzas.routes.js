@@ -6,7 +6,7 @@ const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const {
   calcularTardanzasMesPersonal,
-  calcTardanza,
+  evaluarMarcacion,
   sueldoDe,
   tarifaMinutoDesdeSueldo,
   FORMULA_DESCUENTO_TARDANZA,
@@ -14,6 +14,7 @@ const {
   fusionarFilasPorIdentidad,
   MESES_ES,
 } = require('../utils/adminTardanzasHuellero');
+const { cargarPermisos } = require('../utils/permisoEntradaPersonal');
 
 router.use(authenticateToken);
 
@@ -81,7 +82,7 @@ router.get('/asistencias', async (req, res) => {
     }
 
     const [usuario] = await query(
-      `SELECT u.id, u.personal_id, p.hora_entrada, p.sueldo
+      `SELECT u.id, u.personal_id, u.tipo, p.hora_entrada, p.sueldo
        FROM usuarios u
        LEFT JOIN personal p ON p.id = u.personal_id AND p.colegio_id = u.colegio_id
        WHERE u.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'
@@ -97,7 +98,7 @@ router.get('/asistencias', async (req, res) => {
 
     const registrosAsistencia = await query(
       `SELECT ar.fecha, ar.hora_entrada, ar.hora_salida, ar.tipo_registro,
-              p.nombres, p.apellidos, p.nro_documento, p.codigo_biometrico, p.sueldo, u.personal_id
+              p.nombres, p.apellidos, p.nro_documento, p.codigo_biometrico, p.sueldo, u.personal_id, u.tipo AS usuario_tipo
        FROM asistencia_registros ar
        INNER JOIN usuarios u ON u.id = ar.usuario_id AND u.colegio_id = ar.colegio_id
        INNER JOIN personal p ON p.id = u.personal_id AND p.colegio_id = ar.colegio_id
@@ -128,28 +129,35 @@ router.get('/asistencias', async (req, res) => {
 
     const sueldo = sueldoDe(usuario);
     const tarifa = tarifaMinutoDesdeSueldo(sueldo);
+    const permisos = await cargarPermisos(query, colegioId).catch(() => []);
     let totalMinutosTardanza = 0;
     let totalDescuento = 0;
     const asistenciasConCalculos = fusionadas.map((registro) => {
       const horaEnt = registro.hora_entrada || registro.hora_marcacion;
-      const { minutos_tardanza: minutosTardanza, descuento } = calcTardanza(
-        horaEntradaConfigurada,
-        horaEnt,
-        sueldoDe(registro) || sueldo
-      );
-      totalMinutosTardanza += minutosTardanza;
-      totalDescuento += descuento;
+      const ev = evaluarMarcacion({
+        horaPropia: horaEntradaConfigurada,
+        horaMarca: horaEnt,
+        sueldo: sueldoDe(registro) || sueldo,
+        fecha: registro.fecha,
+        personalId: registro.personal_id || usuario.personal_id,
+        tipoUsuario: registro.usuario_tipo || usuario.tipo,
+        permisos,
+      });
+      totalMinutosTardanza += ev.minutos_tardanza;
+      totalDescuento += ev.descuento;
       const fechaStr = registro.fecha instanceof Date
-        ? registro.fecha.toISOString().slice(0, 10)
+        ? `${registro.fecha.getFullYear()}-${String(registro.fecha.getMonth() + 1).padStart(2, '0')}-${String(registro.fecha.getDate()).padStart(2, '0')}`
         : String(registro.fecha).slice(0, 10);
       return {
         fecha: fechaStr,
         hora_entrada_real: horaEntradaConfigurada,
         hora_entrada_real_fmt: formatHoraDisplay(horaEntradaConfigurada),
+        hora_usada_fmt: ev.hora_usada_fmt,
         hora_marcacion: horaEnt,
         hora_marcacion_fmt: formatHoraDisplay(horaEnt),
-        minutos_tardanza: minutosTardanza,
-        descuento,
+        minutos_tardanza: ev.minutos_tardanza,
+        descuento: ev.descuento,
+        motivo: ev.motivo,
       };
     });
 

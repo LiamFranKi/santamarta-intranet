@@ -33,12 +33,12 @@ export async function generarPdfTardanzasPersonal({
   const tableW = pageW - MARGIN * 2;
 
   const colRatios = incluirHoraSalida
-    ? [0.26, 0.1, 0.12, 0.12, 0.1, 0.14, 0.16]
-    : [0.32, 0.12, 0.14, 0.14, 0.12, 0.16];
+    ? [0.18, 0.09, 0.1, 0.1, 0.08, 0.11, 0.1, 0.24]
+    : [0.22, 0.1, 0.12, 0.12, 0.1, 0.12, 0.22];
   const widths = colRatios.map((r) => tableW * r);
   const labels = incluirHoraSalida
-    ? ['Personal', 'Fecha', 'Hora real', 'Hora entrada', 'Min. tarde', 'Descuento', 'Hora salida']
-    : ['Personal', 'Fecha', 'Hora entrada', 'Hora marcación', 'Min. tarde', 'Descuento'];
+    ? ['Personal', 'Fecha', 'Hora real', 'Hora entrada', 'Min. tarde', 'Descuento', 'Hora salida', 'Detalle']
+    : ['Personal', 'Fecha', 'Hora entrada', 'Hora marcación', 'Min. tarde', 'Descuento', 'Detalle'];
 
   const drawPageHeader = (yStart) => {
     const logoH = dibujarLogoEsquina(doc, logoData, { margin: MARGIN, size: 14 });
@@ -131,6 +131,7 @@ export async function generarPdfTardanzasPersonal({
             : f.hora_salida
               ? String(f.hora_salida).slice(0, 8)
               : '—',
+          f.motivo || '—',
         ]
       : [
           f.personal_nombre,
@@ -139,6 +140,7 @@ export async function generarPdfTardanzasPersonal({
           f.hora_marcacion_fmt,
           minTxt,
           descTxt,
+          f.motivo || '—',
         ];
     let x = MARGIN;
     cells.forEach((txt, i) => {

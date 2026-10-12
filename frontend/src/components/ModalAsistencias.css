@@ -280,6 +280,14 @@
   font-weight: 700;
 }
 
+.modal-asistencias-table .col-detalle {
+  text-align: left;
+  font-size: 0.78rem;
+  color: #64748b;
+  max-width: 220px;
+  white-space: normal;
+}
+
 .modal-asistencias-total {
   display: flex;
   justify-content: flex-end;

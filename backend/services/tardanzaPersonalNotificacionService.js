@@ -8,11 +8,12 @@ const { query, execute } = require('../utils/mysql');
 const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { enviarPushNotificacionesIndividuales } = require('./pushNotificationService');
 const {
-  calcTardanza,
+  evaluarMarcacion,
   sueldoDe,
   formatHoraDisplay,
   nombrePersonal,
 } = require('../utils/adminTardanzasHuellero');
+const { cargarPermisos } = require('../utils/permisoEntradaPersonal');
 
 const URL_ADMIN = '/admin/herramientas/tardanzas';
 const ACCION_ADMIN = 'tardanza_personal';
@@ -118,7 +119,31 @@ async function notificarAdminsTardanzaPersonal(opts = {}) {
     return { ok: false, reason: 'sin_hora_config' };
   }
 
-  const { minutos_tardanza, descuento } = calcTardanza(horaConfig, horaMarcacion, sueldoDe(personal));
+  const personalIdPrevio = personal.personal_id ?? personal.id;
+  let tipoUsuario = personal.usuario_tipo || personal.tipo || personal.tipo_usuario || '';
+  if (!tipoUsuario && personalIdPrevio) {
+    try {
+      const [u] = await query(
+        'SELECT tipo FROM usuarios WHERE personal_id = ? AND colegio_id = ? LIMIT 1',
+        [personalIdPrevio, colegioId]
+      );
+      tipoUsuario = u?.tipo || '';
+    } catch {
+      tipoUsuario = '';
+    }
+  }
+  const permisos = await cargarPermisos(query, colegioId).catch(() => []);
+  const ev = evaluarMarcacion({
+    horaPropia: horaConfig,
+    horaMarca: horaMarcacion,
+    sueldo: sueldoDe(personal),
+    fecha,
+    personalId: personalIdPrevio,
+    tipoUsuario,
+    permisos,
+  });
+  const minutos_tardanza = ev.minutos_tardanza;
+  const descuento = ev.descuento;
   if (!minutos_tardanza || minutos_tardanza <= 0) {
     return { ok: false, reason: 'a_tiempo' };
   }
@@ -140,7 +165,7 @@ async function notificarAdminsTardanzaPersonal(opts = {}) {
 
   const nombre = nombrePersonal(personal);
   const horaFmt = formatHoraDisplay(horaMarcacion);
-  const horaRealFmt = formatHoraDisplay(horaConfig);
+  const horaRealFmt = ev.hora_usada_fmt || formatHoraDisplay(horaConfig);
   const fechaFmt = fmtFechaPe(fecha);
   const personalId = personal.personal_id ?? personal.id;
   const origen = opts.origen || 'biometrico';
@@ -186,7 +211,8 @@ async function notificarAdminsTardanzaPersonal(opts = {}) {
     `Fecha: ${fechaFmt}\n` +
     `Hora de marcación: ${horaFmt}\n` +
     `Hora de entrada (esperada): ${horaRealFmt}\n` +
-    `Tardanza: ${minutos_tardanza} min (descuento aprox. S/ ${Number(descuento).toFixed(2)}).`;
+    `Tardanza: ${minutos_tardanza} min (descuento aprox. S/ ${Number(descuento).toFixed(2)}).\n` +
+    `${ev.motivo || ''}`;
 
   for (const did of adminIdsAvisar) {
     try {

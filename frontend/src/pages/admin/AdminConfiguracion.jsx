@@ -17,6 +17,7 @@ import {
 import { invalidarCacheLogo } from '../../utils/pdfReporteColegioLogo';
 import { invalidarIdentidadColegio } from '../../utils/identidadColegio';
 import AdminMascotaColegio from './AdminMascotaColegio';
+import AdminPermisosEntrada from './AdminPermisosEntrada';
 import './AdminConfiguracion.css';
 
 function ConfigTabIcon({ name }) {
@@ -1869,6 +1870,8 @@ function AdminConfiguracion() {
           </div>
 
           <AdminMascotaColegio />
+
+          <AdminPermisosEntrada />
 
           <div className="config-panel-card config-panel-card--spaced">
             <div className="config-panel-card-header config-panel-card-header--violet">

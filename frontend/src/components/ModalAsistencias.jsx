@@ -187,12 +187,13 @@ function ModalAsistencias({ isOpen, onClose }) {
                     <th>Hora marcación</th>
                     <th>Min. tarde</th>
                     <th>Descuento</th>
+                    <th>Detalle</th>
                   </tr>
                 </thead>
                 <tbody>
                   {asistencias.length === 0 ? (
                     <tr>
-                      <td colSpan="5" className="no-data">
+                      <td colSpan="6" className="no-data">
                         No hay marcaciones registradas para este mes
                       </td>
                     </tr>
@@ -207,6 +208,7 @@ function ModalAsistencias({ isOpen, onClose }) {
                           <td>{row.hora_marcacion_fmt || '—'}</td>
                           <td className={min > 0 ? 'text-tardanza' : ''}>{min > 0 ? min : '—'}</td>
                           <td className={desc > 0 ? 'text-descuento' : ''}>{fmtSoles(desc)}</td>
+                          <td className="col-detalle" title={row.motivo || ''}>{row.motivo || '—'}</td>
                         </tr>
                       );
                     })

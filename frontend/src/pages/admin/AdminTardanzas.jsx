@@ -1132,12 +1132,13 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                         <th>Min. tarde</th>
                         <th>Descuento</th>
                         <th>Hora salida</th>
+                        <th>Detalle</th>
                       </tr>
                     </thead>
                     <tbody>
                       {bioFilas.length === 0 && (
                         <tr>
-                          <td colSpan={7}>
+                          <td colSpan={8}>
                             No hay marcaciones para el filtro (por defecto día de hoy). Marque en el terminal o amplíe
                             las fechas.
                           </td>
@@ -1167,6 +1168,7 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                                 ? String(ev.hora_salida).slice(0, 8)
                                 : '—'}
                           </td>
+                          <td className="col-detalle" title={ev.motivo || ''}>{ev.motivo || '—'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1538,6 +1540,7 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                         <th>Min. tarde</th>
                         <th>Descuento</th>
                         <th>Hora salida</th>
+                        <th>Detalle</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1560,6 +1563,7 @@ BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
                               ? f.hora_salida_fmt
                               : '—'}
                           </td>
+                          <td className="col-detalle" title={f.motivo || ''}>{f.motivo || '—'}</td>
                         </tr>
                       ))}
                     </tbody>
