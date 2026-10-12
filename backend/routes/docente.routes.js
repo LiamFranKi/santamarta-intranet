@@ -12507,7 +12507,7 @@ router.get('/hijos/:hijoId/aula-virtual/archivos', soloLecturaProxy, async (req,
     const archivos = await query(
       `SELECT * FROM asignaturas_archivos
        WHERE asignatura_id = ? AND ciclo = ?
-       ORDER BY id ASC`,
+       ORDER BY orden ASC, id ASC`,
       [asignatura_id, cicloFiltro]
     );
 
@@ -21419,17 +21419,10 @@ router.get('/aula-virtual/archivos', async (req, res) => {
     if (!asignaturaAcceso) return;
 
     // Obtener archivos de la asignatura filtrados por ciclo (ordenados según el orden establecido)
-    const tieneEstructura = await archivosTieneEstructuraCols();
     const archivos = await query(
-      tieneEstructura
-        ? `SELECT * FROM asignaturas_archivos
-           WHERE asignatura_id = ? AND ciclo = ?
-           ORDER BY CASE WHEN item_numero IS NULL THEN 9999 ELSE item_numero END ASC,
-                    CASE item_tipo WHEN 'TEMA' THEN 0 WHEN 'FICHA' THEN 1 ELSE 2 END,
-                    orden ASC, id ASC`
-        : `SELECT * FROM asignaturas_archivos
-           WHERE asignatura_id = ? AND ciclo = ?
-           ORDER BY orden ASC, id ASC`,
+      `SELECT * FROM asignaturas_archivos
+       WHERE asignatura_id = ? AND ciclo = ?
+       ORDER BY orden ASC, id ASC`,
       [asignatura_id, cicloFiltro]
     );
 
@@ -22432,28 +22425,18 @@ router.put('/aula-virtual/archivos/ordenar', async (req, res) => {
       });
     }
 
-    let actualizados = 0;
     try {
       for (const ordenItem of ordenes) {
-        const resultado = await execute(
+        await execute(
           `UPDATE asignaturas_archivos
            SET orden = ?
-           WHERE id = ? AND asignatura_id = ?`,
-          [parseInt(ordenItem.orden, 10), parseInt(ordenItem.id, 10), asignaturaIdNum]
+           WHERE id = ? AND asignatura_id = ? AND ciclo = ?`,
+          [parseInt(ordenItem.orden, 10), parseInt(ordenItem.id, 10), asignaturaIdNum, cicloNum]
         );
-        if (resultado.affectedRows > 0) actualizados += 1;
       }
     } catch (error) {
       console.error('Error actualizando orden individual:', error);
       throw error;
-    }
-
-    if (actualizados !== ordenes.length) {
-      return res.status(400).json({
-        error: 'No se pudo guardar el orden de todos los temas. Recargue e intente de nuevo.',
-        actualizados,
-        esperados: ordenes.length,
-      });
     }
 
     // Registrar auditoría ANTES de actualizar
