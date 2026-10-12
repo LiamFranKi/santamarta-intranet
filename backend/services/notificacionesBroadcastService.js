@@ -6,6 +6,7 @@ const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { urlDashboardPorTipoUsuario } = require('../utils/notificacionUrls');
 const { enviarPushNotificacionesIndividuales } = require('./pushNotificationService');
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
+const { redirigirApoderadosACuentaTrabajo } = require('../utils/mensajeCuentaTrabajo');
 const { fetchUsuariosTutoresGrupos } = require('../utils/grupoTutores');
 const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
 const {
@@ -236,13 +237,15 @@ async function resolverDestinatariosBroadcast(query, params) {
   }
 
   const remitenteNum = parseInt(remitente_id, 10);
-  return Array.from(
+  const ids = Array.from(
     new Set(
       usuariosDestinatarios
         .map((id) => parseInt(id, 10))
-        .filter((id) => !isNaN(id) && id > 0 && id !== remitenteNum)
+        .filter((id) => !isNaN(id) && id > 0)
     )
   );
+  const enCuentaTrabajo = await redirigirApoderadosACuentaTrabajo(query, colegio_id, ids);
+  return enCuentaTrabajo.filter((id) => id !== remitenteNum);
 }
 
 async function ensureTablaNotificacionesEnvios(execute) {

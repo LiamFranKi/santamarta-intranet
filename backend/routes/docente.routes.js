@@ -64,6 +64,7 @@ const {
   enviarAOmiteFiltroAulas
 } = require('../utils/hexAudiencias');
 const { fetchUsuariosTutoresGrupos } = require('../utils/grupoTutores');
+const { redirigirApoderadosACuentaTrabajo } = require('../utils/mensajeCuentaTrabajo');
 const { enriquecerMensajeDocenteParaDestinatario } = require('../utils/mensajesDocenteApoderadoContexto');
 const { mountSelfServiceCvRoutes } = require('../utils/personalCv');
 const { listarEvidenciasSafe, mapearEvidencia, tipoDesdeNombre } = require('../utils/aulaEvidencias');
@@ -15554,52 +15555,46 @@ router.get('/mensajes/alumno/:alumnoId/apoderados-destinatarios', async (req, re
       [alumnoIdNum, colegio_id, colegio_id]
     );
 
-    const destinatarios = [];
+    const destinatariosBase = [];
     const vistos = new Set();
     for (const a of apoderados || []) {
       if (vistos.has(a.usuario_id)) continue;
       vistos.add(a.usuario_id);
-      destinatarios.push({
+      destinatariosBase.push({
         usuario_id: a.usuario_id,
         nombre_completo: `${a.nombres || ''} ${a.apellido_paterno || ''} ${a.apellido_materno || ''}`.trim() || 'Apoderado',
         tipo: 'apoderado',
       });
     }
 
-    let apoderadoUsuarioIds = apoderados.map((x) => x.usuario_id);
-    const apoderadoDnis = apoderados.map((x) => x.nro_documento).filter((d) => d && String(d).trim());
-
-    if (apoderadoDnis.length > 0) {
-      try {
-        const placeholdersDni = apoderadoDnis.map(() => '?').join(',');
-        let sqlQuery = `SELECT DISTINCT u.id as usuario_id,
-          TRIM(CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,''))) as nombre_completo
+    const idsTrabajo = await redirigirApoderadosACuentaTrabajo(
+      query,
+      colegio_id,
+      destinatariosBase.map((d) => d.usuario_id)
+    );
+    const porId = new Map(destinatariosBase.map((d) => [Number(d.usuario_id), d]));
+    const faltan = idsTrabajo.filter((id) => !porId.has(id));
+    if (faltan.length) {
+      const ph = faltan.map(() => '?').join(',');
+      const staffRows = await query(
+        `SELECT u.id AS usuario_id,
+                TRIM(CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,''))) AS nombre_completo
          FROM usuarios u
          INNER JOIN personal p ON p.id = u.personal_id
-         WHERE u.colegio_id = ?
-           AND u.estado = 'ACTIVO'
-           AND u.tipo = 'DOCENTE'
-           AND (p.nro_documento IN (${placeholdersDni})
-                OR u.usuario IN (${placeholdersDni}))`;
-        const queryParams = [colegio_id, ...apoderadoDnis, ...apoderadoDnis];
-        if (apoderadoUsuarioIds.length > 0) {
-          sqlQuery += ` AND u.id NOT IN (${apoderadoUsuarioIds.map(() => '?').join(',')})`;
-          queryParams.push(...apoderadoUsuarioIds);
-        }
-        const docentesApoderados = await query(sqlQuery, queryParams);
-        for (const d of docentesApoderados || []) {
-          if (vistos.has(d.usuario_id)) continue;
-          vistos.add(d.usuario_id);
-          destinatarios.push({
-            usuario_id: d.usuario_id,
-            nombre_completo: (d.nombre_completo || '').trim() || 'Docente / Apoderado',
-            tipo: 'docente_apoderado',
-          });
-        }
-      } catch (e) {
-        console.warn('[apoderados-destinatarios] docentes-apoderados:', e.message);
+         WHERE u.colegio_id = ? AND u.id IN (${ph})`,
+        [colegio_id, ...faltan]
+      );
+      for (const s of staffRows || []) {
+        porId.set(Number(s.usuario_id), {
+          usuario_id: s.usuario_id,
+          nombre_completo: (s.nombre_completo || '').trim() || 'Personal',
+          tipo: 'cuenta_trabajo',
+        });
       }
     }
+    const destinatarios = idsTrabajo
+      .map((id) => porId.get(id))
+      .filter(Boolean);
 
     const alumnoNombre = `${al[0].apellido_paterno || ''} ${al[0].apellido_materno || ''}, ${al[0].nombres || ''}`.trim();
 
@@ -15954,8 +15949,6 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
             apoderadoIds.forEach(id => {
               if (!usuariosDestinatarios.includes(id)) usuariosDestinatarios.push(id);
             });
-            // No copiar a cuentas DOCENTE por DNI: el apoderado que también es docente
-            // lo recibe en su usuario APODERADO. La bandeja docente solo entra con "Solo Docentes".
             console.log(`📨 [ENVIAR MENSAJE] Apoderados del grupo: ${apoderadosUnicos.length}`);
           } catch (errApod) {
             console.warn('⚠️ [ENVIAR MENSAJE] Error obteniendo apoderados para bandeja:', errApod.message);
@@ -16015,13 +16008,20 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           }
         }
 
-        const destinatariosUnicos = Array.from(
+        const idsAntesDeCuentaTrabajo = Array.from(
           new Set(
             (usuariosDestinatarios || [])
               .map((id) => parseInt(id, 10))
-              .filter((id) => !isNaN(id) && id > 0 && id !== parseInt(usuario_id, 10))
+              .filter((id) => !isNaN(id) && id > 0)
           )
         );
+        const idsEnCuentaTrabajo = await redirigirApoderadosACuentaTrabajo(
+          query,
+          colegio_id,
+          idsAntesDeCuentaTrabajo
+        );
+        const remitenteNum = parseInt(usuario_id, 10);
+        const destinatariosUnicos = idsEnCuentaTrabajo.filter((id) => id !== remitenteNum);
 
         if (destinatariosUnicos.length === 0) {
           console.warn('⚠️ [ENVIAR MENSAJE] No hay destinatarios válidos para enviar');
@@ -16262,11 +16262,9 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
             const accionTipoBell = esConexionEnvio ? 'mensajes_conexiones' : 'mensaje_nuevo';
             for (const row of campanaMensajesDocente) {
               const tipoD = tipoPorIdCampana.get(row.destinatarioId) || 'APODERADO';
-              let urlDest = '/alumno/mensajes';
-              if (tipoD === 'APODERADO') urlDest = '/apoderado/mensajes';
-              else if (tipoD === 'DOCENTE') urlDest = '/docente/mensajes';
-              else if (tipoD === 'ADMINISTRADOR' || tipoD === 'PROMOTORIA') {
-                urlDest = esConexionEnvio ? '/admin/conexiones' : '/admin/mensajes';
+              let urlDest = urlMensajesPorTipoUsuario(tipoD);
+              if ((tipoD === 'ADMINISTRADOR' || tipoD === 'PROMOTORIA') && esConexionEnvio) {
+                urlDest = '/admin/conexiones';
               }
               try {
                 if (

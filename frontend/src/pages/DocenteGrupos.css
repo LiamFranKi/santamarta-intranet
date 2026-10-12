@@ -1632,7 +1632,8 @@ body.swal2-shown .swal2-container.cf-swal-over-modal {
   color: #4c1d95;
 }
 
-.mensaje-apoderado-chip--docente_apoderado {
+.mensaje-apoderado-chip--docente_apoderado,
+.mensaje-apoderado-chip--cuenta_trabajo {
   border-color: #93c5fd;
   background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
   color: #1e40af;

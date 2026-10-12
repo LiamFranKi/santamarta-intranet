@@ -4940,7 +4940,7 @@ function DocenteTutoria({
                   <div style={{ marginTop: '0.75rem' }}>
                     {destinatariosApoderadosPreview.slice(0, 6).map((d) => (
                       <div key={d.usuario_id} style={{ fontSize: '0.9rem', color: '#374151' }}>
-                        • {d.nombre_completo} {d.tipo === 'docente_apoderado' ? '(Docente)' : ''}
+                        • {d.nombre_completo} {(d.tipo === 'docente_apoderado' || d.tipo === 'cuenta_trabajo') ? '(Trabajador)' : ''}
                       </div>
                     ))}
                     {destinatariosApoderadosPreview.length > 6 && (

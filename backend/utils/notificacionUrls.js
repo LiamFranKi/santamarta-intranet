@@ -1,6 +1,7 @@
 /**
  * Resuelve rutas SPA según tipo de usuario destinatario (deep links).
  */
+const { esTipoPersonal } = require('./hexAudiencias');
 
 async function obtenerUrlAulaVirtual(query, destinatarioUsuarioId, ctx) {
   const { asignatura_id, grupo_id, recurso_tipo, recurso_id } = ctx;
@@ -220,7 +221,7 @@ function urlMensajesPorTipoUsuario(tipoUsuario) {
   if (t === 'ALUMNO') return '/alumno/mensajes';
   if (t === 'APODERADO') return '/apoderado/mensajes';
   if (t === 'ADMINISTRADOR' || t === 'PROMOTORIA') return '/admin/mensajes';
-  if (t === 'DOCENTE') return '/docente/mensajes';
+  if (t === 'DOCENTE' || esTipoPersonal(t)) return '/docente/mensajes';
   return '/apoderado/mensajes';
 }
 

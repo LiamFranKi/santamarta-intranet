@@ -1184,8 +1184,8 @@ export default function GrupoAlumnosListaView({
                   {destinatariosApoderadosPreview.map((d) => (
                     <li key={d.usuario_id} className={`mensaje-apoderado-chip mensaje-apoderado-chip--${d.tipo || 'apoderado'}`}>
                       <span className="mensaje-apoderado-chip-nombre">{d.nombre_completo}</span>
-                      {d.tipo === 'docente_apoderado' && (
-                        <span className="mensaje-apoderado-chip-badge">Docente</span>
+                      {(d.tipo === 'docente_apoderado' || d.tipo === 'cuenta_trabajo') && (
+                        <span className="mensaje-apoderado-chip-badge">Trabajador</span>
                       )}
                     </li>
                   ))}
