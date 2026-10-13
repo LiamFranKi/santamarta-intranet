@@ -532,6 +532,76 @@ async function revisarAvisoLimite({
   }
 }
 
+async function respaldarIngresosSinCatalogo(matriculaId, anio) {
+  await asegurarTablas();
+  const alumno = await alumnoDeMatricula(matriculaId);
+  if (!alumno?.colegio_id) return;
+  const colegioId = alumno.colegio_id;
+  const { ASSIGNMENT_ID_TUTORIA, ASSIGNMENT_ID_VESTIMENTA, toFechaYmd } = legacy();
+  const tard = await query(
+    `SELECT ma.id, ma.fecha, ma.hora_entrada
+     FROM matriculas_asistencias ma
+     WHERE ma.matricula_id = ? AND ma.tipo = 'TARDANZA'
+       AND NOT EXISTS (SELECT 1 FROM conducta_registros r WHERE r.asistencia_id = ma.id)`,
+    [matriculaId]
+  );
+  const itemTard = await itemPorRol('es_ingreso_tardanza');
+  for (const t of tard || []) {
+    const fecha = toFechaYmd(t.fecha);
+    if (!fecha || !itemTard) continue;
+    const info = await cicloDeFecha(colegioId, anio, fecha);
+    if (!info.nueva) continue;
+    await registrarItemEnMatricula({
+      matriculaId,
+      colegioId,
+      anio,
+      item: itemTard,
+      fecha,
+      hora: t.hora_entrada ? String(t.hora_entrada).slice(0, 8) : null,
+      origen: 'ingreso',
+      assignmentId: ASSIGNMENT_ID_TUTORIA,
+      asistenciaId: t.id,
+      avisar: false,
+      omitirSync: true,
+    });
+  }
+  let peds = [];
+  try {
+    peds = await query(
+      `SELECT ped.id, ped.fecha, ped.hora, ped.motivo
+       FROM presentacion_escolar_descuentos ped
+       INNER JOIN usuarios ua ON ua.id = ped.alumno_usuario_id AND ua.colegio_id = ped.colegio_id
+       INNER JOIN matriculas m ON m.id = ? AND m.alumno_id = ua.alumno_id AND m.colegio_id = ped.colegio_id
+       WHERE NOT EXISTS (SELECT 1 FROM conducta_registros r WHERE r.presentacion_descuento_id = ped.id)`,
+      [matriculaId]
+    );
+  } catch (e) {
+    peds = [];
+  }
+  for (const p of peds || []) {
+    const fecha = toFechaYmd(p.fecha);
+    if (!fecha) continue;
+    const info = await cicloDeFecha(colegioId, anio, fecha);
+    if (!info.nueva) continue;
+    const olvido = String(p.motivo || '').trim().toUpperCase() === 'OLVIDO_QR';
+    const item = await itemPorRol(olvido ? 'es_olvido_qr' : 'es_ingreso_vestimenta');
+    if (!item) continue;
+    await registrarItemEnMatricula({
+      matriculaId,
+      colegioId,
+      anio,
+      item,
+      fecha,
+      hora: p.hora ? String(p.hora).slice(0, 8) : null,
+      origen: 'ingreso',
+      assignmentId: ASSIGNMENT_ID_VESTIMENTA,
+      pedId: p.id,
+      avisar: false,
+      omitirSync: true,
+    });
+  }
+}
+
 async function sincronizarConductaNueva(queryFn, executeFn, opts) {
   const q = queryFn || query;
   const ex = executeFn || execute;
@@ -539,6 +609,11 @@ async function sincronizarConductaNueva(queryFn, executeFn, opts) {
   const anio = parseInt(opts.anioEscolar, 10);
   const ciclo = parseInt(opts.ciclo, 10);
   if (!usaConductaNueva(anio, ciclo)) return null;
+  try {
+    await respaldarIngresosSinCatalogo(opts.matriculaId, anio);
+  } catch (eBack) {
+    console.warn('[conducta] respaldar ingresos:', eBack.message);
+  }
   const { obtenerRangoBimestre } = legacy();
   const rango = opts.rango || await obtenerRangoBimestre(q, opts.colegio_id, ciclo, anio);
   const ajustes = await leerAjustes();
@@ -671,7 +746,7 @@ async function insertarRegistro({
 
 async function registrarItemEnMatricula({
   matriculaId, colegioId, anio, item, fecha, hora, origen, usuarioId,
-  workerId, assignmentId, incidentIdExistente, pedId, asistenciaId, avisar = true,
+  workerId, assignmentId, incidentIdExistente, pedId, asistenciaId, avisar = true, omitirSync = false,
 }) {
   await asegurarTablas();
   const info = await cicloDeFecha(colegioId, anio, fecha);
@@ -703,7 +778,7 @@ async function registrarItemEnMatricula({
     pedId,
     asistenciaId,
   });
-  const sync = await sincronizarConductaNueva(query, execute, {
+  const sync = omitirSync ? null : await sincronizarConductaNueva(query, execute, {
     matriculaId,
     colegio_id: colegioId,
     anioEscolar: anio,
@@ -1065,6 +1140,11 @@ async function detalleLibreta(matriculaId, colegioId, anio) {
 
 async function aplicarEnBimestres(bimestres, { matriculaId, anio }) {
   if (!Array.isArray(bimestres) || !matriculaId) return bimestres;
+  try {
+    await respaldarIngresosSinCatalogo(matriculaId, anio);
+  } catch (eBack) {
+    console.warn('[conducta] respaldar ingresos:', eBack.message);
+  }
   let vinculados = { inc: new Set(), ped: new Set(), tard: new Set() };
   let registros = [];
   try {
@@ -1127,6 +1207,11 @@ async function aplicarEnBimestres(bimestres, { matriculaId, anio }) {
     b.nota_olvido_qr = null;
     b.incidencias = [...itemsNuevos, ...viejos];
     b.total = b.incidencias.length;
+    try {
+      await persistirNotaNueva(matriculaId, b.ciclo, calc);
+    } catch (ePers) {
+      console.warn('[conducta] persistir vista:', ePers.message);
+    }
   }
   return bimestres;
 }

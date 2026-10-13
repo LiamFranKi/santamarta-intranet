@@ -2145,6 +2145,37 @@
 .hijo-inc-nota strong {
   font-size: 1.05rem;
 }
+.hijo-inc-bloques {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin: 0.7rem 0 0.2rem;
+}
+.hijo-inc-bloques div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.45rem 0.55rem;
+}
+.hijo-inc-bloques span, .hijo-inc-bloques small {
+  display: block;
+  color: #64748b;
+  font-size: 0.72rem;
+}
+.hijo-inc-bloques strong {
+  display: block;
+  margin: 0.1rem 0;
+  font-size: 1.15rem;
+  color: #0f172a;
+}
+.hijo-inc-bloques .es-promedio {
+  background: #fffbeb;
+  border-color: #fcd34d;
+}
+.hijo-inc-bloques .es-promedio strong { color: #9a3412; }
+@media (max-width: 700px) {
+  .hijo-inc-bloques { grid-template-columns: 1fr; }
+}
 
 .hijo-inc-empty {
   margin: 0;

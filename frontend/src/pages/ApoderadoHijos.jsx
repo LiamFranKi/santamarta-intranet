@@ -19,6 +19,7 @@ import {
 } from '../utils/libretaCuantitativaPdf';
 import { normalizarRangosLetras } from '../utils/notaLetraConversion';
 import { esNivelInicial, debeMostrarNotasDetalladas } from '../utils/esNivelInicial';
+import ConductaBloquesNota from '../components/ConductaBloquesNota';
 import { formatearTutoresLibreta } from '../utils/tutoresGrupoTexto';
 import { promptYExportarLibretaAlumno } from '../utils/exportLibretaAlumnoPdf';
 import CupoFiadoHijoModal from '../components/CupoFiadoHijoModal';
@@ -4086,7 +4087,9 @@ function ApoderadoHijos() {
                 <>
                   <div className="hijo-inc-toolbar">
                     <p className="hijo-inc-toolbar-hint">
-                      Agrupado por bimestre{anioIncidencias ? ` · Año ${anioIncidencias}` : ''}. {textoReglaCorta(reglaIncidencias)}.
+                      {bimestresIncidencias.some((b) => b.modo === 'nueva')
+                        ? `${anioIncidencias ? `Año ${anioIncidencias}. ` : ''}Desde el bimestre 4 se ven las dos partes de cuatro semanas y el promedio.`
+                        : `Agrupado por bimestre${anioIncidencias ? ` · Año ${anioIncidencias}` : ''}. ${textoReglaCorta(reglaIncidencias)}.`}
                     </p>
                     <button
                       type="button"
@@ -4141,10 +4144,11 @@ function ApoderadoHijos() {
                                   </p>
                                 )}
                               </div>
-                              <div className="hijo-inc-nota" title={textoReglaCorta(reglaIncidencias)}>
-                                Conducta: <strong>{bim.nota_conducta ?? notaMaxReferencia(reglaIncidencias)}</strong>
+                              <div className="hijo-inc-nota" title={bim.modo === 'nueva' ? 'Promedio de las dos partes del bimestre' : textoReglaCorta(reglaIncidencias)}>
+                                {bim.modo === 'nueva' ? 'Promedio' : 'Conducta'}: <strong>{bim.nota_conducta ?? notaMaxReferencia(reglaIncidencias)}</strong>
                               </div>
                             </header>
+                            <ConductaBloquesNota bim={bim} />
 
                             {regs.length === 0 ? (
                               <p className="hijo-inc-empty">Sin registros en este bimestre</p>
@@ -4196,12 +4200,7 @@ function ApoderadoHijos() {
                                 if (bim.modo === 'nueva') {
                                   return (
                                     <>
-                                      Cada falta resta directo a la nota.
-                                      {' '}Primeras 4 semanas: <strong>{bim.nota_mes_1}</strong>
-                                      {' '}(−{bim.descontado_1}).
-                                      {' '}Siguientes semanas: <strong>{bim.nota_mes_2}</strong>
-                                      {' '}(−{bim.descontado_2}).
-                                      {' '}Nota del bimestre: <strong>{bim.nota_conducta}</strong>.
+                                      La nota de cada parte empieza en 20. El promedio del bimestre es el de las dos partes.
                                     </>
                                   );
                                 }

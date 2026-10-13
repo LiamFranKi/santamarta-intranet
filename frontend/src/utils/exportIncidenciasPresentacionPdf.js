@@ -349,8 +349,31 @@ export async function exportIncidenciasHijoBimestresPdf({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(146, 64, 14);
-    doc.text(`Conducta: ${bim.nota_conducta ?? notaMax}`, pw - mm - 3, y + 8.5, { align: 'right' });
+    doc.text(
+      bim.modo === 'nueva'
+        ? `Promedio: ${bim.nota_conducta ?? notaMax}`
+        : `Conducta: ${bim.nota_conducta ?? notaMax}`,
+      pw - mm - 3,
+      y + 8.5,
+      { align: 'right' }
+    );
     y += 18;
+
+    if (bim.modo === 'nueva') {
+      asegurar(16);
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(mm, y, innerW, 12, 1.2, 1.2, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(15, 23, 42);
+      doc.text(
+        `Primeras 4 semanas: ${bim.nota_mes_1 ?? '—'} (−${bim.descontado_1 ?? '0.00'})   ·   Siguientes semanas: ${bim.nota_mes_2 ?? '—'} (−${bim.descontado_2 ?? '0.00'})   ·   Promedio: ${bim.nota_conducta ?? notaMax}`,
+        mm + 3,
+        y + 7.5
+      );
+      y += 16;
+    }
 
     if (!regs.length) {
       doc.setFont('helvetica', 'italic');
@@ -364,7 +387,9 @@ export async function exportIncidenciasHijoBimestresPdf({
     for (const inc of regs) {
       const esVest = esPresentacion(inc.origen);
       const tipo = tipoOrigenPdf(inc.origen);
-      const desc = sanitizePdfText(inc.description || '');
+      const desc = sanitizePdfText(
+        `${inc.description || ''}${inc.descuento ? ` · −${inc.descuento}` : ''}`
+      );
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       const lineasDesc = desc ? doc.splitTextToSize(desc, innerW - 10) : [];
@@ -432,6 +457,10 @@ export async function exportIncidenciasHijoBimestresPdf({
       }
     }
 
+    if (bim.modo === 'nueva') {
+      y += 2;
+      continue;
+    }
     // Resumen conducta del bimestre
     asegurar(16);
     doc.setFillColor(254, 243, 199);
