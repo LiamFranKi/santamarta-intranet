@@ -36,6 +36,7 @@ const VACIO = {
   intranet_fondo_modo: 'color',
   intranet_fondo: '',
   web_intranet_url: '',
+  web_titulo: '',
 };
 
 function ColorFila({ etiqueta, ayuda, valor, sugerido, onChange }) {
@@ -67,17 +68,15 @@ function ColorFila({ etiqueta, ayuda, valor, sugerido, onChange }) {
   );
 }
 
-function FotoCaja({ etiqueta, ayuda, src, vacio, onArchivo }) {
+function VistaFoto({ src, vacio }) {
+  const [rota, setRota] = useState(false);
+  useEffect(() => { setRota(false); }, [src]);
+  if (!src || rota) {
+    return <div className="ap-vista is-vacia"><span>{rota ? 'Esta foto no se puede abrir. Elige otra.' : vacio}</span></div>;
+  }
   return (
-    <div className="ap-foto">
-      <div className={`ap-foto-marco${src ? '' : ' is-vacia'}`}>
-        {src ? <img src={src} alt={etiqueta} /> : <span>{vacio}</span>}
-      </div>
-      <div className="ap-color-texto">
-        <strong>{etiqueta}</strong>
-        <p>{ayuda}</p>
-        <input type="file" accept=".jpg,.jpeg,.png" onChange={(e) => onArchivo(e.target.files?.[0] || null)} />
-      </div>
+    <div className="ap-vista">
+      <img src={src} alt="" onError={() => setRota(true)} />
     </div>
   );
 }
@@ -186,6 +185,8 @@ export default function AdminApariencia() {
   const [datos, setDatos] = useState(VACIO);
   const [archivo, setArchivo] = useState(null);
   const [archivoIntranet, setArchivoIntranet] = useState(null);
+  const [prevLogin, setPrevLogin] = useState('');
+  const [prevCentro, setPrevCentro] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [listo, setListo] = useState(false);
 
@@ -198,6 +199,7 @@ export default function AdminApariencia() {
         login_fondo: data?.login_fondo || '',
         intranet_fondo: data?.intranet_fondo || '',
         web_intranet_url: data?.web_intranet_url || '',
+        web_titulo: data?.web_titulo || '',
       });
       setListo(true);
     } catch (e) {
@@ -222,6 +224,7 @@ export default function AdminApariencia() {
       fd.append('color_fondo', junto.color_fondo || '');
       fd.append('intranet_fondo_modo', junto.intranet_fondo_modo || 'color');
       fd.append('web_intranet_url', junto.web_intranet_url || '');
+      fd.append('web_titulo', junto.web_titulo || '');
       if (parcial?.quitar_fondo) fd.append('quitar_fondo', '1');
       else if (file) fd.append('login_fondo', file);
       if (parcial?.quitar_fondo_intranet) fd.append('quitar_fondo_intranet', '1');
@@ -233,6 +236,7 @@ export default function AdminApariencia() {
         login_fondo: data?.login_fondo || '',
         intranet_fondo: data?.intranet_fondo || '',
         web_intranet_url: data?.web_intranet_url || '',
+        web_titulo: data?.web_titulo || '',
       });
       setArchivo(null);
       setArchivoIntranet(null);
@@ -323,6 +327,22 @@ export default function AdminApariencia() {
           </p>
         </div>
 
+        <h3 className="ap-titulo">Título de la pestaña</h3>
+        <div className="form-group">
+          <label>Frase de la pestaña del navegador</label>
+          <input
+            type="text"
+            maxLength={140}
+            value={datos.web_titulo}
+            placeholder="Santa Marta School"
+            onChange={(e) => setDatos((p) => ({ ...p, web_titulo: e.target.value }))}
+          />
+          <small>
+            Es el texto de la pestaña de la página web. Si escribes una frase, sale exactamente esa.
+            Si lo dejas vacío, sale el Título / Nombre del Colegio. En Vanguard, vacío, sigue la frase de siempre.
+          </small>
+        </div>
+
         <h3 className="ap-titulo">Botón Intranet de la página web</h3>
         <div className="form-group">
           <label>Dirección de la intranet</label>
@@ -338,29 +358,122 @@ export default function AdminApariencia() {
           </small>
         </div>
 
-        <h3 className="ap-titulo">Fondo del login y colores</h3>
-        <p className="ap-nota">El cuadrado es el color. Se hace clic encima para cambiarlo. Si dice «Color de siempre», todavía no hay uno elegido.</p>
-        <div className="ap-colores">
-          <div className="ap-color ap-color-modo">
-            <div className="ap-color-texto">
-              <strong>Fondo del login</strong>
-              <p>Color o una foto detrás del formulario de ingreso.</p>
+        <h3 className="ap-titulo">Pantalla de ingreso</h3>
+        <p className="ap-nota">Es la página donde se escribe el usuario y la contraseña, antes de entrar a la intranet. No es la página web.</p>
+        <section className="ap-bloque">
+          <div className="ap-bloque-texto">
+            <strong>Fondo de esa pantalla</strong>
+            <p>Elige si detrás del formulario va un color de la plantilla o una foto que tú subes.</p>
+            <label className="ap-elige">
+              Qué se usa
               <select
                 value={datos.login_fondo_modo}
                 onChange={(e) => setDatos((p) => ({ ...p, login_fondo_modo: e.target.value }))}
               >
-                <option value="color">Color</option>
-                <option value="imagen">Imagen</option>
+                <option value="color">El color de la plantilla</option>
+                <option value="imagen">Una foto que yo subo</option>
               </select>
-            </div>
+            </label>
+            {datos.login_fondo_modo === 'imagen' ? (
+              <label className="ap-elige">
+                Foto del login
+                <input
+                  type="file"
+                  accept=".jpg,.jpeg,.png"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setArchivo(file);
+                    setPrevLogin((anterior) => {
+                      if (anterior) URL.revokeObjectURL(anterior);
+                      return file ? URL.createObjectURL(file) : '';
+                    });
+                  }}
+                />
+                <small>{archivo ? `Se va a guardar: ${archivo.name}` : 'JPG o PNG. Después hay que pulsar Guardar.'}</small>
+              </label>
+            ) : (
+              <p className="ap-aviso">Con esta opción no se usa ninguna foto. El fondo lo pone la plantilla de login que elegiste arriba.</p>
+            )}
           </div>
-          <FotoCaja
-            etiqueta="Imagen del login"
-            ayuda="Se usa cuando el fondo del login está en Imagen. JPG o PNG."
-            src={datos.login_fondo ? urlMedia(datos.login_fondo) : ''}
-            vacio="Todavía no hay imagen"
-            onArchivo={setArchivo}
+          <VistaFoto
+            src={datos.login_fondo_modo === 'imagen' ? (prevLogin || (datos.login_fondo ? urlMedia(datos.login_fondo) : '')) : ''}
+            vacio={datos.login_fondo_modo === 'imagen' ? 'Todavía no hay foto. Elígela aquí arriba.' : 'Ahora no hay foto: se usa el color de la plantilla.'}
           />
+        </section>
+
+        <h3 className="ap-titulo">Área de trabajo de la intranet</h3>
+        <p className="ap-nota">Es el espacio grande a la derecha del menú de la izquierda, donde se abren las páginas. No es la foto de la página web.</p>
+        <section className="ap-bloque">
+          <div className="ap-bloque-texto">
+            <strong>Fondo de esa área</strong>
+            <p>Si eliges un color, se pinta liso. Si eliges una foto, el archivo se elige aquí mismo.</p>
+            <label className="ap-elige">
+              Qué se usa
+              <select
+                value={datos.intranet_fondo_modo}
+                onChange={(e) => setDatos((p) => ({ ...p, intranet_fondo_modo: e.target.value }))}
+              >
+                <option value="color">Un color</option>
+                <option value="imagen">Una foto que yo subo</option>
+              </select>
+            </label>
+            {datos.intranet_fondo_modo === 'imagen' ? (
+              <label className="ap-elige">
+                Foto del área de trabajo
+                <input
+                  type="file"
+                  accept=".jpg,.jpeg,.png"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setArchivoIntranet(file);
+                    setPrevCentro((anterior) => {
+                      if (anterior) URL.revokeObjectURL(anterior);
+                      return file ? URL.createObjectURL(file) : '';
+                    });
+                  }}
+                />
+                <small>{archivoIntranet ? `Se va a guardar: ${archivoIntranet.name}` : 'JPG o PNG. Después hay que pulsar Guardar.'}</small>
+              </label>
+            ) : (
+              <div className="ap-color ap-color-dentro">
+                <label className="ap-color-muestra" style={{ background: datos.color_fondo || '#f5f6fa' }}>
+                  <input
+                    type="color"
+                    value={datos.color_fondo || '#f5f6fa'}
+                    aria-label="Color del área de trabajo"
+                    onChange={(e) => setDatos((p) => ({ ...p, color_fondo: e.target.value }))}
+                  />
+                </label>
+                <div className="ap-color-texto">
+                  <strong>Color de esa área</strong>
+                  <p>Haz clic en el cuadrado para cambiarlo.</p>
+                  <div className="ap-color-linea">
+                    <code>{datos.color_fondo ? String(datos.color_fondo).toUpperCase() : 'Color de siempre'}</code>
+                    {datos.color_fondo ? (
+                      <button type="button" className="ap-color-quitar" onClick={() => setDatos((p) => ({ ...p, color_fondo: '' }))}>
+                        Quitar
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          {datos.intranet_fondo_modo === 'imagen' ? (
+            <VistaFoto
+              src={prevCentro || (datos.intranet_fondo ? urlMedia(datos.intranet_fondo) : '')}
+              vacio="Todavía no hay foto. Elígela aquí al lado."
+            />
+          ) : (
+            <div className="ap-vista" style={{ background: datos.color_fondo || '#f5f6fa' }}>
+              <span className="ap-vista-nota">Así se ve el color del área de trabajo</span>
+            </div>
+          )}
+        </section>
+
+        <h3 className="ap-titulo">Colores de la intranet</h3>
+        <p className="ap-nota">El cuadrado es el color. Se hace clic encima para cambiarlo. Si dice «Color de siempre», todavía no hay uno elegido.</p>
+        <div className="ap-colores">
           <ColorFila
             etiqueta="Color del menú lateral"
             ayuda="La barra de la izquierda."
@@ -374,33 +487,6 @@ export default function AdminApariencia() {
             valor={datos.color_navbar}
             sugerido="#d7eafe"
             onChange={(color) => setDatos((p) => ({ ...p, color_navbar: color }))}
-          />
-          <div className="ap-color ap-color-modo">
-            <div className="ap-color-texto">
-              <strong>Fondo del centro</strong>
-              <p>El área de trabajo de la intranet, no la página web.</p>
-              <select
-                value={datos.intranet_fondo_modo}
-                onChange={(e) => setDatos((p) => ({ ...p, intranet_fondo_modo: e.target.value }))}
-              >
-                <option value="color">Color</option>
-                <option value="imagen">Imagen</option>
-              </select>
-            </div>
-          </div>
-          <ColorFila
-            etiqueta="Color del centro"
-            ayuda="Se usa cuando el fondo del centro está en Color."
-            valor={datos.color_fondo}
-            sugerido="#f5f6fa"
-            onChange={(color) => setDatos((p) => ({ ...p, color_fondo: color }))}
-          />
-          <FotoCaja
-            etiqueta="Imagen del centro"
-            ayuda="Se usa cuando el fondo del centro está en Imagen."
-            src={datos.intranet_fondo ? urlMedia(datos.intranet_fondo) : ''}
-            vacio="Todavía no hay imagen"
-            onArchivo={setArchivoIntranet}
           />
           <ColorFila
             etiqueta="Color secundario"
@@ -417,7 +503,7 @@ export default function AdminApariencia() {
             onChange={(color) => setDatos((p) => ({ ...p, color_acento: color }))}
           />
         </div>
-        <div className="card-actions">
+        <div className="ap-acciones">
           <button
             type="button"
             className="btn-submit-card"
@@ -450,7 +536,7 @@ export default function AdminApariencia() {
               disabled={guardando || !listo}
               onClick={() => aplicar({ quitar_fondo: '1' })}
             >
-              Quitar imagen de fondo
+              Quitar la foto del login
             </button>
           ) : null}
           {datos.intranet_fondo ? (
@@ -460,7 +546,7 @@ export default function AdminApariencia() {
               disabled={guardando || !listo}
               onClick={() => aplicar({ quitar_fondo_intranet: '1', intranet_fondo_modo: 'color' })}
             >
-              Quitar imagen del centro
+              Quitar la foto del área de trabajo
             </button>
           ) : null}
         </div>

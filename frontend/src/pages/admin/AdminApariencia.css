@@ -153,21 +153,132 @@
   font-size: 0.82rem;
 }
 
+.ap-bloque {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(180px, 0.8fr);
+  gap: 1rem;
+  align-items: stretch;
+  margin-bottom: 0.5rem;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.ap-bloque-texto {
+  min-width: 0;
+}
+
+.ap-bloque-texto > strong {
+  display: block;
+  color: #0f172a;
+}
+
+.ap-bloque-texto > p,
+.ap-aviso {
+  margin: 0.35rem 0 0.75rem;
+  color: #475569;
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+
+.ap-elige {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.ap-elige select,
+.ap-elige input[type='file'] {
+  width: 100%;
+  max-width: 100%;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.ap-elige small {
+  font-weight: 500;
+  color: #64748b;
+}
+
+.ap-vista {
+  min-height: 140px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ap-vista img {
+  width: 100%;
+  height: 100%;
+  max-height: 180px;
+  object-fit: cover;
+}
+
+.ap-vista.is-vacia,
+.ap-vista-nota {
+  padding: 0.8rem;
+  color: #64748b;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.ap-color-dentro {
+  margin-top: 0.8rem;
+  border: 0;
+  padding: 0;
+}
+
+.ap-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  padding-top: 1.15rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.ap-acciones .btn-submit-card:not(:first-child) {
+  background: #fff;
+  color: #1e3a5f;
+  border: 1px solid #cbd5e1;
+  box-shadow: none;
+}
+
 .ap-colores {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 0.75rem;
 }
 
-.ap-color,
-.ap-foto {
+@media (max-width: 720px) {
+  .ap-bloque {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ap-color {
   display: flex;
   gap: 0.8rem;
   align-items: center;
+  min-width: 0;
   padding: 0.8rem;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   background: #fff;
+}
+
+.ap-color-texto {
+  min-width: 0;
 }
 
 .ap-color-muestra {

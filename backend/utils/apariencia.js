@@ -13,7 +13,7 @@ const CLAVES = [
   'login_plantilla', 'login_fondo_modo', 'web_plantilla',
   'color_primario', 'color_secundario', 'color_acento',
   'color_navbar', 'color_fondo', 'intranet_fondo_modo', 'intranet_fondo',
-  'web_intranet_url',
+  'web_intranet_url', 'web_titulo',
 ];
 
 function unoDe(valor, lista, defecto) {
@@ -41,6 +41,10 @@ function urlIntranet(valor, estricto) {
   }
   const ruta = u.pathname === '/' ? '' : u.pathname.replace(/\/$/, '');
   return `${u.origin}${ruta}${u.search}`;
+}
+
+function fraseTitulo(valor) {
+  return String(valor || '').replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 140);
 }
 
 function colorHex(valor) {
@@ -88,6 +92,7 @@ async function leerApariencia(colegioId) {
     intranet_fondo_modo: unoDe(map.intranet_fondo_modo, FONDO, 'color'),
     intranet_fondo: urlFondoConfig(map.intranet_fondo),
     web_intranet_url: urlIntranet(map.web_intranet_url, false),
+    web_titulo: fraseTitulo(map.web_titulo),
   };
 }
 
@@ -110,6 +115,7 @@ async function guardarApariencia(colegioId, body, archivoFondo, archivoIntranet)
   if (body.web_intranet_url != null) {
     campos.push(['web_intranet_url', urlIntranet(body.web_intranet_url, true)]);
   }
+  if (body.web_titulo != null) campos.push(['web_titulo', fraseTitulo(body.web_titulo)]);
   if (body.intranet_fondo_modo != null) {
     campos.push(['intranet_fondo_modo', unoDe(body.intranet_fondo_modo, FONDO, 'color')]);
   }
