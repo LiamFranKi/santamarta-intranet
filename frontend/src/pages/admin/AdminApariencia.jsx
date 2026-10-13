@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { invalidarIdentidadColegio } from '../../utils/identidadColegio';
@@ -36,6 +37,50 @@ const VACIO = {
   intranet_fondo: '',
   web_intranet_url: '',
 };
+
+function ColorFila({ etiqueta, ayuda, valor, sugerido, onChange }) {
+  const activo = /^#[0-9a-fA-F]{6}$/.test(String(valor || ''));
+  const muestra = activo ? valor : sugerido;
+  return (
+    <div className="ap-color">
+      <label className="ap-color-muestra" style={{ background: muestra }} title={muestra}>
+        <input
+          type="color"
+          value={muestra}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={etiqueta}
+        />
+      </label>
+      <div className="ap-color-texto">
+        <strong>{etiqueta}</strong>
+        <p>{ayuda}</p>
+        <div className="ap-color-linea">
+          <code>{activo ? String(valor).toUpperCase() : 'Color de siempre'}</code>
+          {activo ? (
+            <button type="button" className="ap-color-quitar" onClick={() => onChange('')}>
+              Quitar
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FotoCaja({ etiqueta, ayuda, src, vacio, onArchivo }) {
+  return (
+    <div className="ap-foto">
+      <div className={`ap-foto-marco${src ? '' : ' is-vacia'}`}>
+        {src ? <img src={src} alt={etiqueta} /> : <span>{vacio}</span>}
+      </div>
+      <div className="ap-color-texto">
+        <strong>{etiqueta}</strong>
+        <p>{ayuda}</p>
+        <input type="file" accept=".jpg,.jpeg,.png" onChange={(e) => onArchivo(e.target.files?.[0] || null)} />
+      </div>
+    </div>
+  );
+}
 
 function urlMedia(ruta) {
   const raw = String(ruta || '');
@@ -263,105 +308,114 @@ export default function AdminApariencia() {
           ))}
         </div>
 
+        <div className="ap-guia">
+          <strong>Dónde se cambian las imágenes de la página web</strong>
+          <p>
+            El logo del menú de la página es el <b>Logo a color</b> de Información general, la tarjeta de arriba.
+            El <b>Logo blanco</b> es el del pie oscuro de la página.
+          </p>
+          <p>
+            La foto grande del inicio (el campo, detrás de Contáctanos) no está aquí. Se cambia en el menú{' '}
+            <Link to="/admin/comunicaciones/web?tab=paginas&seccion=banner">Web → Páginas → Banner del inicio</Link>.
+          </p>
+          <p>
+            En esta pantalla, la imagen de fondo es solo del login. La imagen del centro es el fondo de la intranet.
+          </p>
+        </div>
+
         <h3 className="ap-titulo">Botón Intranet de la página web</h3>
         <div className="form-group">
           <label>Dirección de la intranet</label>
           <input
             type="url"
             value={datos.web_intranet_url}
-            placeholder="https://sistema.vanguardschools.edu.pe"
+            placeholder="https://intranet.del.colegio"
             onChange={(e) => setDatos((p) => ({ ...p, web_intranet_url: e.target.value }))}
           />
           <small>
-            El botón Intranet de la página abre esta dirección. En Santa Marta, por ejemplo,
-            http://89.117.52.9:8080. Si se deja vacío, la web de Vanguard sigue yendo a la intranet de siempre.
+            El botón Intranet de la página abre esta dirección. En Santa Marta es http://89.117.52.9:8080.
+            Si el recuadro está vacío, la web de Vanguard sigue yendo a su intranet de siempre.
           </small>
         </div>
 
         <h3 className="ap-titulo">Fondo del login y colores</h3>
-        <div className="form-grid">
-          <div className="form-group">
-            <label>Fondo del login</label>
-            <select
-              value={datos.login_fondo_modo}
-              onChange={(e) => setDatos((p) => ({ ...p, login_fondo_modo: e.target.value }))}
-            >
-              <option value="color">Color</option>
-              <option value="imagen">Imagen</option>
-            </select>
+        <p className="ap-nota">El cuadrado es el color. Se hace clic encima para cambiarlo. Si dice «Color de siempre», todavía no hay uno elegido.</p>
+        <div className="ap-colores">
+          <div className="ap-color ap-color-modo">
+            <div className="ap-color-texto">
+              <strong>Fondo del login</strong>
+              <p>Color o una foto detrás del formulario de ingreso.</p>
+              <select
+                value={datos.login_fondo_modo}
+                onChange={(e) => setDatos((p) => ({ ...p, login_fondo_modo: e.target.value }))}
+              >
+                <option value="color">Color</option>
+                <option value="imagen">Imagen</option>
+              </select>
+            </div>
           </div>
-          <div className="form-group">
-            <label>Imagen de fondo</label>
-            {datos.login_fondo ? (
-              <div className="file-preview">
-                <img src={urlMedia(datos.login_fondo)} alt="Fondo actual del login" />
-              </div>
-            ) : null}
-            <input type="file" accept=".jpg,.jpeg,.png" onChange={(e) => setArchivo(e.target.files?.[0] || null)} />
-            <small>Se usa cuando el fondo está en Imagen. JPG o PNG.</small>
+          <FotoCaja
+            etiqueta="Imagen del login"
+            ayuda="Se usa cuando el fondo del login está en Imagen. JPG o PNG."
+            src={datos.login_fondo ? urlMedia(datos.login_fondo) : ''}
+            vacio="Todavía no hay imagen"
+            onArchivo={setArchivo}
+          />
+          <ColorFila
+            etiqueta="Color del menú lateral"
+            ayuda="La barra de la izquierda."
+            valor={datos.color_primario}
+            sugerido="#375b81"
+            onChange={(color) => setDatos((p) => ({ ...p, color_primario: color }))}
+          />
+          <ColorFila
+            etiqueta="Color de la barra superior"
+            ayuda="La franja de arriba, donde está el nombre."
+            valor={datos.color_navbar}
+            sugerido="#d7eafe"
+            onChange={(color) => setDatos((p) => ({ ...p, color_navbar: color }))}
+          />
+          <div className="ap-color ap-color-modo">
+            <div className="ap-color-texto">
+              <strong>Fondo del centro</strong>
+              <p>El área de trabajo de la intranet, no la página web.</p>
+              <select
+                value={datos.intranet_fondo_modo}
+                onChange={(e) => setDatos((p) => ({ ...p, intranet_fondo_modo: e.target.value }))}
+              >
+                <option value="color">Color</option>
+                <option value="imagen">Imagen</option>
+              </select>
+            </div>
           </div>
-          <div className="form-group">
-            <label>Color del menú lateral</label>
-            <input
-              type="color"
-              value={datos.color_primario || '#375b81'}
-              onChange={(e) => setDatos((p) => ({ ...p, color_primario: e.target.value }))}
-            />
-            <small>La barra de la izquierda. Vacío, se queda el azul de siempre.</small>
-          </div>
-          <div className="form-group">
-            <label>Color de la barra superior</label>
-            <input
-              type="color"
-              value={datos.color_navbar || '#d7eafe'}
-              onChange={(e) => setDatos((p) => ({ ...p, color_navbar: e.target.value }))}
-            />
-            <small>La franja de arriba, donde está el nombre.</small>
-          </div>
-          <div className="form-group">
-            <label>Fondo del centro</label>
-            <select
-              value={datos.intranet_fondo_modo}
-              onChange={(e) => setDatos((p) => ({ ...p, intranet_fondo_modo: e.target.value }))}
-            >
-              <option value="color">Color</option>
-              <option value="imagen">Imagen</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Color del centro</label>
-            <input
-              type="color"
-              value={datos.color_fondo || '#f5f6fa'}
-              onChange={(e) => setDatos((p) => ({ ...p, color_fondo: e.target.value }))}
-            />
-          </div>
-          <div className="form-group">
-            <label>Imagen del centro</label>
-            {datos.intranet_fondo ? (
-              <div className="file-preview">
-                <img src={urlMedia(datos.intranet_fondo)} alt="Fondo del centro" />
-              </div>
-            ) : null}
-            <input type="file" accept=".jpg,.jpeg,.png" onChange={(e) => setArchivoIntranet(e.target.files?.[0] || null)} />
-            <small>Se usa cuando el fondo del centro está en Imagen.</small>
-          </div>
-          <div className="form-group">
-            <label>Color secundario</label>
-            <input
-              type="color"
-              value={datos.color_secundario || '#4a83c1'}
-              onChange={(e) => setDatos((p) => ({ ...p, color_secundario: e.target.value }))}
-            />
-          </div>
-          <div className="form-group">
-            <label>Acento</label>
-            <input
-              type="color"
-              value={datos.color_acento || '#2563eb'}
-              onChange={(e) => setDatos((p) => ({ ...p, color_acento: e.target.value }))}
-            />
-          </div>
+          <ColorFila
+            etiqueta="Color del centro"
+            ayuda="Se usa cuando el fondo del centro está en Color."
+            valor={datos.color_fondo}
+            sugerido="#f5f6fa"
+            onChange={(color) => setDatos((p) => ({ ...p, color_fondo: color }))}
+          />
+          <FotoCaja
+            etiqueta="Imagen del centro"
+            ayuda="Se usa cuando el fondo del centro está en Imagen."
+            src={datos.intranet_fondo ? urlMedia(datos.intranet_fondo) : ''}
+            vacio="Todavía no hay imagen"
+            onArchivo={setArchivoIntranet}
+          />
+          <ColorFila
+            etiqueta="Color secundario"
+            ayuda="El segundo color del círculo de la foto, arriba a la derecha."
+            valor={datos.color_secundario}
+            sugerido="#4a83c1"
+            onChange={(color) => setDatos((p) => ({ ...p, color_secundario: color }))}
+          />
+          <ColorFila
+            etiqueta="Acento"
+            ayuda="La franja del menú que está seleccionado."
+            valor={datos.color_acento}
+            sugerido="#2563eb"
+            onChange={(color) => setDatos((p) => ({ ...p, color_acento: color }))}
+          />
         </div>
         <div className="card-actions">
           <button

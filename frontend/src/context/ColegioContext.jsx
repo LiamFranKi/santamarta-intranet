@@ -94,6 +94,15 @@ export const ColegioProvider = ({ children, colegioId = 1 }) => {
       delete root.dataset.navbarCustom;
     }
 
+    const acento = String(colegioData?.color_acento || '').trim();
+    if (acento) {
+      root.style.setProperty('--apariencia-acento', acento);
+      root.dataset.acento = '1';
+    } else {
+      root.style.removeProperty('--apariencia-acento');
+      delete root.dataset.acento;
+    }
+
     const fondo = String(colegioData?.color_fondo || '').trim();
     if (fondo) root.style.setProperty('--apariencia-fondo', fondo);
     else root.style.removeProperty('--apariencia-fondo');

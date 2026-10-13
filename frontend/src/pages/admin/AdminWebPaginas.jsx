@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import api from '../../services/api';
 import AdminWebConvenios from './AdminWebConvenios';
@@ -125,7 +126,8 @@ function NivelFoto({ ruta, alt, className }) {
 }
 
 export default function AdminWebPaginas() {
-  const [subTab, setSubTab] = useState('niveles');
+  const [searchParams] = useSearchParams();
+  const [subTab, setSubTab] = useState(searchParams.get('seccion') === 'banner' ? 'banner' : 'niveles');
   const [nivelId, setNivelId] = useState('inicial');
   const [form, setForm] = useState(VACIO_PRECIO);
   const [media, setMedia] = useState({

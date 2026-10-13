@@ -148,6 +148,10 @@
   opacity: 1;
 }
 
+html[data-acento='1'] .sidebar-link.active {
+  border-left-color: var(--apariencia-acento);
+}
+
 .sidebar-link.active {
   background: rgba(255, 255, 255, 0.2) !important;
   color: var(--sidebar-text, white) !important;
