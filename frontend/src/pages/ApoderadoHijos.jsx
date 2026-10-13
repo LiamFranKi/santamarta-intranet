@@ -1560,16 +1560,16 @@ function ApoderadoHijos() {
       const r = await exportIncidenciasHijoBimestresPdf({
         alumnoNombre: nombre,
         anio: anioIncidencias,
-        bimestres: bimestresIncidencias,
+        bimestres: bimestresIncidencias.filter((b) => Number(b.ciclo) === Number(cicloFiltroIncidenciasHijo)),
         notaMax: reglaIncidencias?.max,
       });
       if (!r.ok) {
-        Swal.fire({ icon: 'info', title: 'Sin registros', text: 'No hay datos para exportar.' });
+        Swal.fire({ icon: 'info', title: 'Sin registros', text: 'No hay datos de este bimestre para exportar.' });
         return;
       }
       Swal.fire({
         title: '¡PDF Generado!',
-        text: 'Se exportó el historial completo por bimestre',
+        text: `Se exportó el bimestre ${cicloFiltroIncidenciasHijo}`,
         icon: 'success',
         timer: 2000,
         showConfirmButton: false,
@@ -4095,10 +4095,10 @@ function ApoderadoHijos() {
                       type="button"
                       className="btn-exportar-mes"
                       onClick={handleExportarIncidenciasPDF}
-                      disabled={!bimestresIncidencias.some((b) => (b.incidencias || []).length > 0)}
+                      disabled={!(bimestresIncidencias.find((b) => Number(b.ciclo) === Number(cicloFiltroIncidenciasHijo))?.incidencias || []).length}
                     >
                       <span className="btn-icon">📄</span>
-                      <span>Exportar PDF completo</span>
+                      <span>Exportar este bimestre</span>
                     </button>
                   </div>
 

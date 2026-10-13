@@ -20,8 +20,8 @@ function Icono({ d, size = 16 }) {
 }
 
 const ICO_MAS = 'M12 5v14M5 12h14';
-const ICO_LAPIZ = 'M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3zM13.5 6.5l3 3';
-const ICO_BASURA = 'M4 7h16M9 7V5h6v2M8 7l1 13h6l1-13';
+const ICO_LAPIZ = 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z';
+const ICO_BASURA = 'M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14H6L5 6M10 11v6M14 11v6';
 
 const VACIO = {
   grupo: 'leve',
@@ -258,11 +258,13 @@ export default function AdminConductaCatalogo() {
                   </div>
                   <div className="cond-cat-pts">−{Number(item.descuento).toFixed(2)}</div>
                   <div className="cond-cat-acc">
-                    <button type="button" className="cond-cat-icon" onClick={() => abrirEditar(item)} aria-label={`Editar ${item.codigo}`} title="Editar">
-                      <Icono d={ICO_LAPIZ} />
+                    <button type="button" className="cond-cat-accion" onClick={() => abrirEditar(item)} aria-label={`Editar ${item.codigo}`}>
+                      <Icono d={ICO_LAPIZ} size={18} />
+                      <span>Editar</span>
                     </button>
-                    <button type="button" className="cond-cat-icon cond-cat-icon--danger" onClick={() => quitar(item)} aria-label={`Quitar ${item.codigo}`} title="Quitar">
-                      <Icono d={ICO_BASURA} />
+                    <button type="button" className="cond-cat-accion cond-cat-accion--danger" onClick={() => quitar(item)} aria-label={`Quitar ${item.codigo}`}>
+                      <Icono d={ICO_BASURA} size={18} />
+                      <span>Quitar</span>
                     </button>
                   </div>
                 </article>

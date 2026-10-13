@@ -789,68 +789,141 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
         const hojasConducta = (datosLibreta.resumen?.conducta_detalle || []).filter((h) => h && h.ciclo <= cicloSel);
         hojasConducta.forEach((hoja) => {
           doc.addPage();
-          let yC = margin;
+          const m = 14;
+          const inner = pageWidth - m * 2;
+          const alumno = datosLibreta.alumno || {};
+          const nombreAlumno = `${alumno.apellido_paterno || ''} ${alumno.apellido_materno || ''} ${alumno.nombres || ''}`.replace(/\s+/g, ' ').trim();
+          const gradoTxt = `${alumno.grado ?? ''}° ${alumno.seccion || ''}`.replace(/\s+/g, ' ').trim();
+          const nivelTxt = `${alumno.nivel_nombre || ''}  ·  ${alumno.anio || ''}`.replace(/\s+/g, ' ').trim();
+          let yC = 0;
+
+          doc.setFillColor(...colorLabel);
+          doc.rect(0, 0, pageWidth, 32, 'F');
+          doc.setTextColor(255, 255, 255);
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(13);
-          doc.setTextColor(15, 23, 42);
-          doc.text(`Conducta — Bimestre ${hoja.ciclo}`, margin, yC);
-          yC += 6;
+          doc.setFontSize(16);
+          doc.text('CONDUCTA', m, 13);
+          doc.setFontSize(11);
+          doc.text(`Bimestre ${hoja.ciclo}`, m, 21);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.text('Dirección Académica', m, 27);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(10);
+          const nombreLinea = doc.splitTextToSize(nombreAlumno || 'Alumno', 100)[0];
+          doc.text(nombreLinea, pageWidth - m, 13, { align: 'right' });
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(9);
-          doc.text('Cada falta resta directo a la nota. La nota del bimestre es el promedio de los dos bloques.', margin, yC);
-          yC += 6;
-          doc.text(`Primeras 4 semanas: ${hoja.nota_mes_1}   (restado ${hoja.descontado_1})`, margin, yC);
-          yC += 5;
-          doc.text(`Siguientes semanas: ${hoja.nota_mes_2}   (restado ${hoja.descontado_2})`, margin, yC);
-          yC += 5;
-          doc.setFont('helvetica', 'bold');
-          doc.text(`Nota del bimestre: ${hoja.nota_final}`, margin, yC);
-          yC += 8;
-          const colF = 24;
-          const colC = 18;
-          const colD = 18;
-          const colN = pageWidth - margin * 2 - colF - colC - colD;
-          const cabeza = () => {
-            doc.setFillColor(30, 64, 175);
-            doc.setTextColor(255, 255, 255);
-            doc.rect(margin, yC, colF, 7, 'F');
-            doc.rect(margin + colF, yC, colC, 7, 'F');
-            doc.rect(margin + colF + colC, yC, colN, 7, 'F');
-            doc.rect(margin + colF + colC + colN, yC, colD, 7, 'F');
-            doc.setFontSize(8);
-            doc.text('Fecha', margin + 2, yC + 4.5);
-            doc.text('Código', margin + colF + 2, yC + 4.5);
-            doc.text('Falta', margin + colF + colC + 2, yC + 4.5);
-            doc.text('Resta', margin + colF + colC + colN + 2, yC + 4.5);
-            yC += 7;
-            doc.setTextColor(15, 23, 42);
+          doc.text(gradoTxt, pageWidth - m, 20, { align: 'right' });
+          doc.text(nivelTxt, pageWidth - m, 26, { align: 'right' });
+
+          yC = 40;
+          doc.setTextColor(51, 65, 85);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(9);
+          const intro = 'Cada falta resta en la parte del bimestre donde ocurrió. La nota del bimestre es el promedio de las dos partes de cuatro semanas.';
+          doc.splitTextToSize(intro, inner).forEach((ln) => {
+            doc.text(ln, m, yC);
+            yC += 4.4;
+          });
+          yC += 3;
+
+          const gap = 4;
+          const cardW = (inner - gap * 2) / 3;
+          const cardH = 24;
+          const tarjetas = [
+            { titulo: 'Primeras 4 semanas', nota: hoja.nota_mes_1, pie: `Restó ${hoja.descontado_1 ?? '0.00'}` },
+            { titulo: 'Siguientes semanas', nota: hoja.nota_mes_2, pie: `Restó ${hoja.descontado_2 ?? '0.00'}` },
+            { titulo: 'Nota del bimestre', nota: hoja.nota_final, pie: 'Promedio de las dos' },
+          ];
+          tarjetas.forEach((tarjeta, i) => {
+            const x = m + i * (cardW + gap);
+            const ultima = i === 2;
+            doc.setFillColor(ultima ? 255 : 248, ultima ? 247 : 250, ultima ? 237 : 252);
+            doc.setDrawColor(ultima ? 217 : 203, ultima ? 119 : 213, ultima ? 6 : 225);
+            doc.setLineWidth(0.4);
+            doc.roundedRect(x, yC, cardW, cardH, 2, 2, 'FD');
             doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            doc.setTextColor(100, 116, 139);
+            doc.text(tarjeta.titulo, x + cardW / 2, yC + 7, { align: 'center' });
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(16);
+            doc.setTextColor(ultima ? 146 : 15, ultima ? 64 : 23, ultima ? 14 : 42);
+            doc.text(String(tarjeta.nota ?? '—'), x + cardW / 2, yC + 15.5, { align: 'center' });
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            doc.setTextColor(100, 116, 139);
+            doc.text(tarjeta.pie, x + cardW / 2, yC + 20.5, { align: 'center' });
+          });
+          yC += cardH + 8;
+
+          const colF = 28;
+          const colC = 22;
+          const colD = 22;
+          const colN = inner - colF - colC - colD;
+          const cabeza = () => {
+            doc.setFillColor(...colorLabel);
+            doc.rect(m, yC, inner, 8, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.text('Fecha', m + 2, yC + 5.2);
+            doc.text('Código', m + colF + 2, yC + 5.2);
+            doc.text('Falta', m + colF + colC + 2, yC + 5.2);
+            doc.text('Resta', m + colF + colC + colN + colD / 2, yC + 5.2, { align: 'center' });
+            yC += 8;
           };
           cabeza();
           const regs = hoja.registros || [];
           if (!regs.length) {
-            doc.text('Sin faltas en este bimestre.', margin, yC + 5);
+            doc.setFillColor(248, 250, 252);
+            doc.setDrawColor(226, 232, 240);
+            doc.rect(m, yC, inner, 12, 'FD');
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(9);
+            doc.setTextColor(100, 116, 139);
+            doc.text('Sin faltas en este bimestre.', m + inner / 2, yC + 7.5, { align: 'center' });
+            yC += 16;
           }
-          regs.forEach((r) => {
-            const lineas = doc.splitTextToSize(String(r.nombre || ''), colN - 3);
-            const alto = Math.max(6, lineas.length * 4 + 2);
-            if (yC + alto > pageHeight - 16) {
+          regs.forEach((r, idx) => {
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            const lineas = doc.splitTextToSize(String(r.nombre || ''), colN - 4);
+            const alto = Math.max(8, lineas.length * 4 + 3);
+            if (yC + alto > pageHeight - 18) {
               doc.addPage();
-              yC = margin;
+              yC = 16;
               cabeza();
             }
-            doc.setFillColor(248, 250, 252);
-            doc.rect(margin, yC, colF, alto, 'FD');
-            doc.rect(margin + colF, yC, colC, alto, 'FD');
-            doc.rect(margin + colF + colC, yC, colN, alto, 'FD');
-            doc.rect(margin + colF + colC + colN, yC, colD, alto, 'FD');
-            doc.text(String(r.fecha || ''), margin + 1.5, yC + 4);
-            doc.text(String(r.codigo || ''), margin + colF + 1.5, yC + 4);
-            let yy = yC + 4;
-            lineas.forEach((ln) => { doc.text(ln, margin + colF + colC + 1.5, yy); yy += 4; });
-            doc.text(`-${r.descuento}`, margin + colF + colC + colN + colD / 2, yC + 4, { align: 'center' });
+            const zebra = idx % 2 === 0;
+            doc.setFillColor(zebra ? 248 : 255, zebra ? 250 : 255, zebra ? 252 : 255);
+            doc.setDrawColor(226, 232, 240);
+            doc.setLineWidth(0.2);
+            doc.rect(m, yC, colF, alto, 'FD');
+            doc.rect(m + colF, yC, colC, alto, 'FD');
+            doc.rect(m + colF + colC, yC, colN, alto, 'FD');
+            doc.rect(m + colF + colC + colN, yC, colD, alto, 'FD');
+            doc.setTextColor(15, 23, 42);
+            doc.text(String(r.fecha || ''), m + 2, yC + 5);
+            doc.setFont('helvetica', 'bold');
+            doc.text(String(r.codigo || ''), m + colF + 2, yC + 5);
+            doc.setFont('helvetica', 'normal');
+            let yy = yC + 5;
+            lineas.forEach((ln) => { doc.text(ln, m + colF + colC + 2, yy); yy += 4; });
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(190, 18, 60);
+            doc.text(`-${r.descuento}`, m + colF + colC + colN + colD / 2, yC + 5, { align: 'center' });
             yC += alto;
           });
+
+          doc.setDrawColor(226, 232, 240);
+          doc.line(m, pageHeight - 12, pageWidth - m, pageHeight - 12);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(100, 116, 139);
+          doc.text('La nota del bimestre es el promedio de las dos partes.', m, pageHeight - 7);
+          doc.text(`Bimestre ${hoja.ciclo}`, pageWidth - m, pageHeight - 7, { align: 'right' });
         });
 
         doc.save(nombreArchivo);

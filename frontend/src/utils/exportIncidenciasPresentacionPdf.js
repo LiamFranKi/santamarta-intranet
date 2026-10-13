@@ -26,13 +26,18 @@ function formatearFechaHoraPeru(iso) {
   }
 }
 
-/** jsPDF no dibuja bien emojis/símbolos; evita basura tipo Ø=Þ¯ y anchos raros */
+/** jsPDF Helvetica dibuja tildes; se quitan solo emojis y signos que salen rotos. */
 function sanitizePdfText(t) {
   return String(t || '')
-    .normalize('NFKD')
+    .replace(/[\u2010-\u2015\u2212]/g, '-')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/\u2026/g, '...')
+    .replace(/[\u2022\u30FB]/g, '·')
     .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}]/gu, '')
-    .replace(/[^\x09\x0A\x0D\x20-\x7E\u00A0-\u00FF\u0100-\u017F]/gu, ' ')
-    .replace(/\s+/g, ' ')
+    .normalize('NFC')
+    .replace(/[^\x09\x0A\x0D\x20-\x7E\u00A0-\u00FF]/gu, ' ')
+    .replace(/[ \t]{2,}/g, ' ')
     .trim();
 }
 
@@ -311,7 +316,15 @@ export async function exportIncidenciasHijoBimestresPdf({
       doc.setFontSize(9);
       doc.setTextColor(226, 232, 240);
       doc.text(sanitizePdfText(alumnoNombre || 'Alumno'), xText, 20);
-      doc.text(`Año escolar ${anio || ''}  ·  Agrupado por bimestre`, xText, 26);
+      doc.text(
+        sanitizePdfText(
+          bimestres.length === 1
+            ? `Año escolar ${anio || ''}  ·  Bimestre ${bimestres[0].ciclo}`
+            : `Año escolar ${anio || ''}  ·  Agrupado por bimestre`
+        ),
+        xText,
+        26
+      );
       y = 40;
     } else {
       y = 26;
@@ -360,19 +373,34 @@ export async function exportIncidenciasHijoBimestresPdf({
     y += 18;
 
     if (bim.modo === 'nueva') {
-      asegurar(16);
-      doc.setFillColor(248, 250, 252);
-      doc.setDrawColor(226, 232, 240);
-      doc.roundedRect(mm, y, innerW, 12, 1.2, 1.2, 'FD');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.setTextColor(15, 23, 42);
-      doc.text(
-        `Primeras 4 semanas: ${bim.nota_mes_1 ?? '—'} (−${bim.descontado_1 ?? '0.00'})   ·   Siguientes semanas: ${bim.nota_mes_2 ?? '—'} (−${bim.descontado_2 ?? '0.00'})   ·   Promedio: ${bim.nota_conducta ?? notaMax}`,
-        mm + 3,
-        y + 7.5
-      );
-      y += 16;
+      asegurar(20);
+      const gap = 3;
+      const boxW = (innerW - gap * 2) / 3;
+      const cajas = [
+        ['Primeras 4 semanas', String(bim.nota_mes_1 ?? '—'), `Resto ${bim.descontado_1 ?? '0.00'}`],
+        ['Siguientes semanas', String(bim.nota_mes_2 ?? '—'), `Resto ${bim.descontado_2 ?? '0.00'}`],
+        ['Promedio', String(bim.nota_conducta ?? notaMax), 'De las dos partes'],
+      ];
+      cajas.forEach((caja, i) => {
+        const x = mm + i * (boxW + gap);
+        const ultima = i === 2;
+        doc.setFillColor(ultima ? 255 : 248, ultima ? 251 : 250, ultima ? 235 : 252);
+        doc.setDrawColor(ultima ? 251 : 226, ultima ? 191 : 232, ultima ? 36 : 240);
+        doc.roundedRect(x, y, boxW, 16, 1.4, 1.4, 'FD');
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(caja[0], x + boxW / 2, y + 4.5, { align: 'center' });
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.setTextColor(ultima ? 146 : 15, ultima ? 64 : 23, ultima ? 14 : 42);
+        doc.text(caja[1], x + boxW / 2, y + 10, { align: 'center' });
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(caja[2], x + boxW / 2, y + 14, { align: 'center' });
+      });
+      y += 20;
     }
 
     if (!regs.length) {
@@ -461,20 +489,24 @@ export async function exportIncidenciasHijoBimestresPdf({
       y += 2;
       continue;
     }
-    // Resumen conducta del bimestre
-    asegurar(16);
+    const resumen = sanitizePdfText(
+      `Resumen B${bim.ciclo}: ${bim.total_incidencias || 0} incidencia(s) + ${bim.total_presentacion || 0} presentación(es) + ${bim.total_tardanzas || 0} tardanza(s) + ${bim.total_olvido_qr || 0} olvido QR = promedio ${bim.nota_conducta ?? notaMax}`
+    );
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    const lineasRes = doc.splitTextToSize(resumen, innerW - 6);
+    const altoRes = lineasRes.length * 4.2 + 5;
+    asegurar(altoRes + 4);
     doc.setFillColor(254, 243, 199);
     doc.setDrawColor(251, 191, 36);
-    doc.roundedRect(mm, y, innerW, 12, 1.2, 1.2, 'FD');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
+    doc.roundedRect(mm, y, innerW, altoRes, 1.2, 1.2, 'FD');
     doc.setTextColor(146, 64, 14);
-    doc.text(
-      `Resumen B${bim.ciclo}: ${bim.total_incidencias || 0} incidencia(s) + ${bim.total_presentacion || 0} presentación(es) + ${bim.total_tardanzas || 0} tardanza(s) + ${bim.total_olvido_qr || 0} olvido QR = promedio ${bim.nota_conducta ?? notaMax}`,
-      mm + 3,
-      y + 7.5
-    );
-    y += 18;
+    let yr = y + 5;
+    lineasRes.forEach((ln) => {
+      doc.text(ln, mm + 3, yr);
+      yr += 4.2;
+    });
+    y += altoRes + 6;
   }
 
   const genTxt = `Generado: ${new Date().toLocaleString('es-PE')}`;
