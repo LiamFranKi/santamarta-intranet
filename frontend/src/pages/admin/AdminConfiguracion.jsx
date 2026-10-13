@@ -1696,7 +1696,7 @@ function AdminConfiguracion() {
                   accept=".png,image/png"
                   onChange={handleFileChange}
                 />
-                <small>PNG 512×512. Pestaña, instalación, inicio y notificaciones.</small>
+                <small>PNG 512×512. Es el icono de la pestaña en la intranet y en la página web. Si no hay archivo, la página web usa el Logo a color.</small>
               </div>
               <div className="form-group">
                 <label>Logo de la libreta</label>
