@@ -107,6 +107,36 @@ function ConfigTabIcon({ name }) {
           <path d="M8 7h8M8 11h6" />
         </svg>
       );
+    case 'apariencia':
+      return (
+        <svg {...common}>
+          <circle cx="13.5" cy="6.5" r="2.5" />
+          <circle cx="17.5" cy="10.5" r="2.5" />
+          <circle cx="8.5" cy="7.5" r="2.5" />
+          <circle cx="6.5" cy="12.5" r="2.5" />
+          <path d="M12 22a8 8 0 0 0 8-8c0-3-2-5-4-6l-4 4-4-4c-2 1-4 3-4 6a8 8 0 0 0 8 8z" />
+        </svg>
+      );
+    case 'conducta':
+      return (
+        <svg {...common}>
+          <path d="M12 3l2.2 4.5L19 8.2l-3.5 3.4.8 4.9L12 14.8 7.7 16.5l.8-4.9L5 8.2l4.8-.7L12 3z" />
+        </svg>
+      );
+    case 'ia':
+      return (
+        <svg {...common}>
+          <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+          <path d="M18 14l.8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8L18 14z" />
+        </svg>
+      );
+    case 'permisos':
+      return (
+        <svg {...common}>
+          <rect x="5" y="11" width="14" height="10" rx="2" />
+          <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -119,7 +149,39 @@ const CONFIG_TABS = [
     icon: 'general',
     tone: 'blue',
     helpTitle: 'Identidad del colegio',
-    help: 'Nombre, código modular, resolución, texto del menú y logos. Guarde cada bloque con su propio botón.',
+    help: 'Nombre, código modular, resolución, texto del menú, logos y comisión de tarjeta. Guarde cada bloque con su propio botón.',
+  },
+  {
+    id: 'apariencia',
+    label: 'Apariencia',
+    icon: 'apariencia',
+    tone: 'rose',
+    helpTitle: 'Apariencia',
+    help: 'Plantilla del ingreso, de la web y colores.',
+  },
+  {
+    id: 'conducta',
+    label: 'Conducta',
+    icon: 'conducta',
+    tone: 'sky',
+    helpTitle: 'Conducta',
+    help: 'Nota máxima, mínima y descuento de incidencias, presentación, tardanzas y olvido de QR.',
+  },
+  {
+    id: 'ia',
+    label: 'IA principal',
+    icon: 'ia',
+    tone: 'violet',
+    helpTitle: 'IA principal',
+    help: 'Nombre y dibujos del asistente de este colegio.',
+  },
+  {
+    id: 'permisos',
+    label: 'Permisos',
+    icon: 'permisos',
+    tone: 'emerald',
+    helpTitle: 'Permisos',
+    help: 'Permisos de entrada del personal: a quién, desde qué día y a qué hora.',
   },
   {
     id: 'recaudo',
@@ -1786,96 +1848,6 @@ function AdminConfiguracion() {
             </div>
           </div>
 
-          <AdminApariencia />
-
-          <div className="config-panel-card config-panel-card--spaced">
-            <div className="config-panel-card-header">
-              <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="notas" /></span>
-              Conducta
-            </div>
-            <div className="config-section">
-              <div className="conducta-casilleros">
-                {CASILLEROS_CONDUCTA.map((key) => {
-                  const bloque = config.regla_conducta?.[key] || {};
-                  return (
-                    <div key={key} className="conducta-casillero">
-                      <h4 className="conducta-casillero-title">{LABELS_CASILLERO[key]}</h4>
-                      <div className="conducta-casillero-fields">
-                        <div className="form-group">
-                          <label>Nota máxima</label>
-                          <input
-                            type="number"
-                            min="0"
-                            max="20"
-                            step="1"
-                            value={bloque.max ?? 20}
-                            onChange={(e) => handleReglaConductaBloqueChange(key, 'max', e.target.value)}
-                          />
-                        </div>
-                        <div className="form-group">
-                          <label>Nota mínima</label>
-                          <input
-                            type="number"
-                            min="0"
-                            max="20"
-                            step="1"
-                            value={bloque.min ?? 6}
-                            onChange={(e) => handleReglaConductaBloqueChange(key, 'min', e.target.value)}
-                          />
-                        </div>
-                        <div className="form-group">
-                          <label>Descuento</label>
-                          <input
-                            type="number"
-                            min="0.1"
-                            max="5"
-                            step="0.1"
-                            value={bloque.descuento ?? 0.5}
-                            onChange={(e) => handleReglaConductaBloqueChange(key, 'descuento', e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      <div className="conducta-ejemplos conducta-ejemplos--mini">
-                        {ejemplosReglaBloque({
-                          ...bloque,
-                          redondear: !!config.regla_conducta?.redondear_promedio,
-                        }).slice(0, 4).map((ej) => (
-                          <span key={`${key}-${ej.registros}`}>
-                            {ej.registros}→<strong>{ej.nota}</strong>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="form-group" style={{ marginTop: '0.75rem' }}>
-                <label className="config-check-label">
-                  <input
-                    type="checkbox"
-                    checked={!!config.regla_conducta?.redondear_promedio}
-                    onChange={(e) => handleReglaConductaPromedioChange(e.target.checked)}
-                  />
-                  Redondear .5 hacia arriba
-                </label>
-              </div>
-              <div className="card-actions">
-                <button
-                  type="button"
-                  onClick={handleSaveConducta}
-                  disabled={saving}
-                  className="btn-submit-card"
-                >
-                  {saving ? 'Guardando y recalculando…' : 'Guardar y recalcular conducta'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <AdminMascotaColegio />
-
-          <AdminPermisosEntrada />
-
           <div className="config-panel-card config-panel-card--spaced">
             <div className="config-panel-card-header config-panel-card-header--violet">
               <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="pagos" /></span>
@@ -1934,6 +1906,104 @@ function AdminConfiguracion() {
             </div>
           </div>
           </>
+          )}
+
+          {activeTab === 'apariencia' && (
+            <AdminApariencia />
+          )}
+
+          {activeTab === 'conducta' && (
+            <div className="config-panel-card config-panel-card--spaced">
+              <div className="config-panel-card-header">
+                <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="conducta" /></span>
+                Conducta
+              </div>
+              <div className="config-section">
+                <div className="conducta-casilleros">
+                  {CASILLEROS_CONDUCTA.map((key) => {
+                    const bloque = config.regla_conducta?.[key] || {};
+                    return (
+                      <div key={key} className="conducta-casillero">
+                        <h4 className="conducta-casillero-title">{LABELS_CASILLERO[key]}</h4>
+                        <div className="conducta-casillero-fields">
+                          <div className="form-group">
+                            <label>Nota máxima</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="20"
+                              step="1"
+                              value={bloque.max ?? 20}
+                              onChange={(e) => handleReglaConductaBloqueChange(key, 'max', e.target.value)}
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Nota mínima</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="20"
+                              step="1"
+                              value={bloque.min ?? 6}
+                              onChange={(e) => handleReglaConductaBloqueChange(key, 'min', e.target.value)}
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Descuento</label>
+                            <input
+                              type="number"
+                              min="0.1"
+                              max="5"
+                              step="0.1"
+                              value={bloque.descuento ?? 0.5}
+                              onChange={(e) => handleReglaConductaBloqueChange(key, 'descuento', e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="conducta-ejemplos conducta-ejemplos--mini">
+                          {ejemplosReglaBloque({
+                            ...bloque,
+                            redondear: !!config.regla_conducta?.redondear_promedio,
+                          }).slice(0, 4).map((ej) => (
+                            <span key={`${key}-${ej.registros}`}>
+                              {ej.registros}→<strong>{ej.nota}</strong>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="form-group" style={{ marginTop: '0.75rem' }}>
+                  <label className="config-check-label">
+                    <input
+                      type="checkbox"
+                      checked={!!config.regla_conducta?.redondear_promedio}
+                      onChange={(e) => handleReglaConductaPromedioChange(e.target.checked)}
+                    />
+                    Redondear .5 hacia arriba
+                  </label>
+                </div>
+                <div className="card-actions">
+                  <button
+                    type="button"
+                    onClick={handleSaveConducta}
+                    disabled={saving}
+                    className="btn-submit-card"
+                  >
+                    {saving ? 'Guardando y recalculando…' : 'Guardar y recalcular conducta'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'ia' && (
+            <AdminMascotaColegio />
+          )}
+
+          {activeTab === 'permisos' && (
+            <AdminPermisosEntrada />
           )}
 
           {activeTab === 'recaudo' && (
