@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import DashboardLayout from '../components/DashboardLayout';
+import ConductaRegistroPanel from '../components/ConductaRegistroPanel';
 import api from '../services/api';
 import Swal from 'sweetalert2';
 import SwalSobreModal from '../utils/swalSobreModal';
@@ -963,11 +964,11 @@ function DocenteTutoria({
     }
   };
 
-  const handleRegistrarIncidenciaTutoria = async (e) => {
-    e.preventDefault();
+  const handleRegistrarIncidenciaTutoria = async (e, itemId) => {
+    if (e && e.preventDefault) e.preventDefault();
     const gid = getGrupoIdTutoria();
     if (!gid || !alumnoSeleccionadoTutoria?.id) return;
-    if (!formIncidenciasTutoria.description?.trim()) {
+    if (!itemId && !formIncidenciasTutoria.description?.trim()) {
       SwalSobreModal.fire({ title: 'Error', text: 'La descripción es requerida', icon: 'error' });
       return;
     }
@@ -975,7 +976,7 @@ function DocenteTutoria({
       setGuardandoIncidenciasTutoria(true);
       await api.post(
         `${apiPrefix}/grupos/${gid}/alumnos/${alumnoSeleccionadoTutoria.id}/incidencias`,
-        { description: formIncidenciasTutoria.description.trim() }
+        itemId ? { item_id: itemId } : { description: formIncidenciasTutoria.description.trim() }
       );
       SwalSobreModal.fire({ title: '¡Éxito!', text: 'Incidencia registrada correctamente', icon: 'success' });
       setFormIncidenciasTutoria({ description: '' });
@@ -5087,6 +5088,10 @@ function DocenteTutoria({
               {!soloLectura && (
               <div className="incidencias-form-section">
                 <h3 className="section-title-incidencias">Registrar Incidencia</h3>
+                <ConductaRegistroPanel
+                  guardando={guardandoIncidenciasTutoria}
+                  onRegistrar={(itemId) => handleRegistrarIncidenciaTutoria(null, itemId)}
+                >
                 <form onSubmit={handleRegistrarIncidenciaTutoria} className="form-incidencias">
                   <div className="form-group-incidencias">
                     <label htmlFor="description-incidencia-tutoria">Descripción de la Incidencia *</label>
@@ -5110,6 +5115,7 @@ function DocenteTutoria({
                     {guardandoIncidenciasTutoria ? 'Guardando...' : '📋 Registrar Incidencia'}
                   </button>
                 </form>
+                </ConductaRegistroPanel>
               </div>
               )}
 

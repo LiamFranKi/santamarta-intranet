@@ -786,6 +786,73 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
 
       if (save) {
         const nombreArchivo = `Libreta_${datosLibreta.alumno.apellido_paterno?.replace(/\s+/g, '_') || 'libreta'}_${new Date().getTime()}.pdf`;
+        const hojasConducta = (datosLibreta.resumen?.conducta_detalle || []).filter((h) => h && h.ciclo <= cicloSel);
+        hojasConducta.forEach((hoja) => {
+          doc.addPage();
+          let yC = margin;
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(13);
+          doc.setTextColor(15, 23, 42);
+          doc.text(`Conducta — Bimestre ${hoja.ciclo}`, margin, yC);
+          yC += 6;
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(9);
+          doc.text('Cada falta resta directo a la nota. La nota del bimestre es el promedio de los dos bloques.', margin, yC);
+          yC += 6;
+          doc.text(`Primeras 4 semanas: ${hoja.nota_mes_1}   (restado ${hoja.descontado_1})`, margin, yC);
+          yC += 5;
+          doc.text(`Siguientes semanas: ${hoja.nota_mes_2}   (restado ${hoja.descontado_2})`, margin, yC);
+          yC += 5;
+          doc.setFont('helvetica', 'bold');
+          doc.text(`Nota del bimestre: ${hoja.nota_final}`, margin, yC);
+          yC += 8;
+          const colF = 24;
+          const colC = 18;
+          const colD = 18;
+          const colN = pageWidth - margin * 2 - colF - colC - colD;
+          const cabeza = () => {
+            doc.setFillColor(30, 64, 175);
+            doc.setTextColor(255, 255, 255);
+            doc.rect(margin, yC, colF, 7, 'F');
+            doc.rect(margin + colF, yC, colC, 7, 'F');
+            doc.rect(margin + colF + colC, yC, colN, 7, 'F');
+            doc.rect(margin + colF + colC + colN, yC, colD, 7, 'F');
+            doc.setFontSize(8);
+            doc.text('Fecha', margin + 2, yC + 4.5);
+            doc.text('Código', margin + colF + 2, yC + 4.5);
+            doc.text('Falta', margin + colF + colC + 2, yC + 4.5);
+            doc.text('Resta', margin + colF + colC + colN + 2, yC + 4.5);
+            yC += 7;
+            doc.setTextColor(15, 23, 42);
+            doc.setFont('helvetica', 'normal');
+          };
+          cabeza();
+          const regs = hoja.registros || [];
+          if (!regs.length) {
+            doc.text('Sin faltas en este bimestre.', margin, yC + 5);
+          }
+          regs.forEach((r) => {
+            const lineas = doc.splitTextToSize(String(r.nombre || ''), colN - 3);
+            const alto = Math.max(6, lineas.length * 4 + 2);
+            if (yC + alto > pageHeight - 16) {
+              doc.addPage();
+              yC = margin;
+              cabeza();
+            }
+            doc.setFillColor(248, 250, 252);
+            doc.rect(margin, yC, colF, alto, 'FD');
+            doc.rect(margin + colF, yC, colC, alto, 'FD');
+            doc.rect(margin + colF + colC, yC, colN, alto, 'FD');
+            doc.rect(margin + colF + colC + colN, yC, colD, alto, 'FD');
+            doc.text(String(r.fecha || ''), margin + 1.5, yC + 4);
+            doc.text(String(r.codigo || ''), margin + colF + 1.5, yC + 4);
+            let yy = yC + 4;
+            lineas.forEach((ln) => { doc.text(ln, margin + colF + colC + 1.5, yy); yy += 4; });
+            doc.text(`-${r.descuento}`, margin + colF + colC + colN + colD / 2, yC + 4, { align: 'center' });
+            yC += alto;
+          });
+        });
+
         doc.save(nombreArchivo);
       }
       return doc;

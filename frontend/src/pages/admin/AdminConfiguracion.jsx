@@ -9,16 +9,13 @@ import { procesarHTMLMensaje } from '../../utils/mensajesHtml';
 import {
   REGLA_CONDUCTA_DEFAULT,
   normalizarReglaConducta,
-  textoReglaCorta,
-  ejemplosReglaBloque,
-  CASILLEROS_CONDUCTA,
-  LABELS_CASILLERO,
 } from '../../utils/reglaConducta';
 import { invalidarCacheLogo } from '../../utils/pdfReporteColegioLogo';
 import { invalidarIdentidadColegio } from '../../utils/identidadColegio';
 import AdminMascotaColegio from './AdminMascotaColegio';
 import AdminPermisosEntrada from './AdminPermisosEntrada';
 import AdminApariencia from './AdminApariencia';
+import AdminConductaCatalogo from './AdminConductaCatalogo';
 import './AdminConfiguracion.css';
 
 function ConfigTabIcon({ name }) {
@@ -165,7 +162,7 @@ const CONFIG_TABS = [
     icon: 'conducta',
     tone: 'sky',
     helpTitle: 'Conducta',
-    help: 'Nota máxima, mínima y descuento de incidencias, presentación, tardanzas y olvido de QR.',
+    help: 'Catálogo de faltas, presentación y puntualidad. Cada ítem resta directo a la nota desde el bimestre 4.',
   },
   {
     id: 'ia',
@@ -1381,74 +1378,6 @@ function AdminConfiguracion() {
     }
   };
 
-  const handleReglaConductaBloqueChange = (casillero, field, value) => {
-    setConfig((prev) => {
-      const r = normalizarReglaConducta(prev.regla_conducta);
-      return {
-        ...prev,
-        regla_conducta: {
-          ...r,
-          [casillero]: { ...r[casillero], [field]: value },
-        },
-      };
-    });
-  };
-
-  const handleReglaConductaPromedioChange = (checked) => {
-    setConfig((prev) => ({
-      ...prev,
-      regla_conducta: normalizarReglaConducta({
-        ...prev.regla_conducta,
-        redondear_promedio: checked,
-      }),
-    }));
-  };
-
-  const handleSaveConducta = async () => {
-    const regla = normalizarReglaConducta(config.regla_conducta);
-    const confirm = await Swal.fire({
-      icon: 'question',
-      title: 'Guardar regla de conducta',
-      html:
-        '<p style="text-align:left;margin:0;color:#b45309;font-weight:650;">Al guardar se recalcularán las notas de conducta de <strong>todos los alumnos del año activo</strong> (4 bimestres).</p>',
-      showCancelButton: true,
-      confirmButtonText: 'Guardar y recalcular',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#0ea5e9',
-    });
-    if (!confirm.isConfirmed) return;
-    try {
-      setSaving(true);
-      const formData = new FormData();
-      formData.append('regla_conducta', JSON.stringify(regla));
-      const { data } = await api.put('/admin/configuracion', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 180000,
-      });
-      const rec = data?.conducta_recalculada;
-      const extra = rec?.error
-        ? ` La regla se guardó, pero el recálculo falló: ${rec.error}`
-        : rec
-          ? ` Se actualizaron ${rec.matriculas || 0} alumnos (${rec.notas || 0} notas, año ${rec.anio || ''}).`
-          : '';
-      Swal.fire({
-        icon: rec?.error ? 'warning' : 'success',
-        title: rec?.error ? 'Regla guardada' : 'Conducta actualizada',
-        text: `${textoReglaCorta(regla)}${extra}`,
-      });
-      await cargarConfiguracion();
-    } catch (error) {
-      console.error('Error guardando regla de conducta:', error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: error.response?.data?.error || 'No se pudo guardar la regla de conducta',
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleGuardarEstructuraTemas = async () => {
     setGuardandoEstructura(true);
     try {
@@ -1913,89 +1842,7 @@ function AdminConfiguracion() {
           )}
 
           {activeTab === 'conducta' && (
-            <div className="config-panel-card config-panel-card--spaced">
-              <div className="config-panel-card-header">
-                <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="conducta" /></span>
-                Conducta
-              </div>
-              <div className="config-section">
-                <div className="conducta-casilleros">
-                  {CASILLEROS_CONDUCTA.map((key) => {
-                    const bloque = config.regla_conducta?.[key] || {};
-                    return (
-                      <div key={key} className="conducta-casillero">
-                        <h4 className="conducta-casillero-title">{LABELS_CASILLERO[key]}</h4>
-                        <div className="conducta-casillero-fields">
-                          <div className="form-group">
-                            <label>Nota máxima</label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="20"
-                              step="1"
-                              value={bloque.max ?? 20}
-                              onChange={(e) => handleReglaConductaBloqueChange(key, 'max', e.target.value)}
-                            />
-                          </div>
-                          <div className="form-group">
-                            <label>Nota mínima</label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="20"
-                              step="1"
-                              value={bloque.min ?? 6}
-                              onChange={(e) => handleReglaConductaBloqueChange(key, 'min', e.target.value)}
-                            />
-                          </div>
-                          <div className="form-group">
-                            <label>Descuento</label>
-                            <input
-                              type="number"
-                              min="0.1"
-                              max="5"
-                              step="0.1"
-                              value={bloque.descuento ?? 0.5}
-                              onChange={(e) => handleReglaConductaBloqueChange(key, 'descuento', e.target.value)}
-                            />
-                          </div>
-                        </div>
-                        <div className="conducta-ejemplos conducta-ejemplos--mini">
-                          {ejemplosReglaBloque({
-                            ...bloque,
-                            redondear: !!config.regla_conducta?.redondear_promedio,
-                          }).slice(0, 4).map((ej) => (
-                            <span key={`${key}-${ej.registros}`}>
-                              {ej.registros}→<strong>{ej.nota}</strong>
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="form-group" style={{ marginTop: '0.75rem' }}>
-                  <label className="config-check-label">
-                    <input
-                      type="checkbox"
-                      checked={!!config.regla_conducta?.redondear_promedio}
-                      onChange={(e) => handleReglaConductaPromedioChange(e.target.checked)}
-                    />
-                    Redondear .5 hacia arriba
-                  </label>
-                </div>
-                <div className="card-actions">
-                  <button
-                    type="button"
-                    onClick={handleSaveConducta}
-                    disabled={saving}
-                    className="btn-submit-card"
-                  >
-                    {saving ? 'Guardando y recalculando…' : 'Guardar y recalcular conducta'}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <AdminConductaCatalogo />
           )}
 
           {activeTab === 'ia' && (

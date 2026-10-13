@@ -4175,7 +4175,10 @@ function ApoderadoHijos() {
                                       </div>
                                     </div>
                                     {incidencia.description ? (
-                                      <p className="hijo-inc-detalle">{incidencia.description}</p>
+                                      <p className="hijo-inc-detalle">
+                                        {incidencia.description}
+                                        {incidencia.descuento ? ` · −${incidencia.descuento}` : ''}
+                                      </p>
                                     ) : null}
                                   </li>
                                   );
@@ -4190,6 +4193,18 @@ function ApoderadoHijos() {
                                 const nPres = bim.total_presentacion ?? c.presentacion;
                                 const nTard = bim.total_tardanzas ?? c.tardanzas;
                                 const nOlvido = bim.total_olvido_qr ?? c.olvido_qr;
+                                if (bim.modo === 'nueva') {
+                                  return (
+                                    <>
+                                      Cada falta resta directo a la nota.
+                                      {' '}Primeras 4 semanas: <strong>{bim.nota_mes_1}</strong>
+                                      {' '}(−{bim.descontado_1}).
+                                      {' '}Siguientes semanas: <strong>{bim.nota_mes_2}</strong>
+                                      {' '}(−{bim.descontado_2}).
+                                      {' '}Nota del bimestre: <strong>{bim.nota_conducta}</strong>.
+                                    </>
+                                  );
+                                }
                                 return (
                                   <>
                                     Resumen: {nInc} incidencia(s) + {nPres} presentación(es) + {nTard} tardanza(s) + {nOlvido} olvido QR

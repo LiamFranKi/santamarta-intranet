@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/DashboardLayout';
+import ConductaRegistroPanel from '../components/ConductaRegistroPanel';
 import ModalCopiarContenidoAsignatura from '../components/admin/ModalCopiarContenidoAsignatura';
 import ModalCriteriosIndicadoresAsignatura from '../components/admin/ModalCriteriosIndicadoresAsignatura';
 import api from '../services/api';
@@ -1039,10 +1040,10 @@ function DocenteCursos() {
     }
   };
 
-  const handleRegistrarIncidencia = async (e) => {
-    e.preventDefault();
-    
-    if (!formIncidencias.description || formIncidencias.description.trim() === '') {
+  const handleRegistrarIncidencia = async (e, itemId) => {
+    if (e && e.preventDefault) e.preventDefault();
+
+    if (!itemId && (!formIncidencias.description || formIncidencias.description.trim() === '')) {
       SwalSobreModal.fire({
         title: 'Error',
         text: 'La descripción es requerida',
@@ -1055,9 +1056,9 @@ function DocenteCursos() {
       setGuardandoIncidencias(true);
       await api.post(
         `/docente/cursos/${selectedCurso}/alumnos/${alumnoSeleccionado.id}/incidencias`,
-        {
-          description: formIncidencias.description.trim()
-        }
+        itemId
+          ? { item_id: itemId }
+          : { description: formIncidencias.description.trim() }
       );
 
       SwalSobreModal.fire({
@@ -4421,6 +4422,10 @@ function DocenteCursos() {
                 {/* Formulario para registrar incidencias */}
                 <div className="incidencias-form-section">
                   <h3 className="section-title-incidencias">Registrar Incidencia</h3>
+                  <ConductaRegistroPanel
+                    guardando={guardandoIncidencias}
+                    onRegistrar={(itemId) => handleRegistrarIncidencia(null, itemId)}
+                  >
                   <form onSubmit={handleRegistrarIncidencia} className="form-incidencias">
                     <div className="form-group-incidencias">
                       <label htmlFor="description-incidencia">Descripción de la Incidencia *</label>
@@ -4442,6 +4447,7 @@ function DocenteCursos() {
                       {guardandoIncidencias ? 'Guardando...' : '📋 Registrar Incidencia'}
                     </button>
                   </form>
+                  </ConductaRegistroPanel>
                 </div>
 
                 {/* Historial de Incidencias — elegir bimestre */}

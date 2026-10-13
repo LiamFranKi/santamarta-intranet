@@ -2842,6 +2842,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         conducta_presentacion: desgloseConducta.conducta_presentacion,
         conducta_tardanzas: desgloseConducta.conducta_tardanzas,
         conducta_olvido_qr: desgloseConducta.conducta_olvido_qr,
+        conducta_detalle: desgloseConducta.conducta_detalle || [],
         orden_merito: { b1: null, b2: null, b3: null, b4: null },
         inasistencias: { b1: inasistenciasB1, b2: inasistenciasB2, b3: inasistenciasB3, b4: inasistenciasB4 },
         tardanzas: { b1: tardanzasB1, b2: tardanzasB2, b3: tardanzasB3, b4: tardanzasB4 }
@@ -2924,6 +2925,12 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     const conductaPresentacionMap = mapaNotaCasillero(-105);
     const conductaTardanzasMap = mapaNotaCasillero(-106);
     const conductaOlvidoQrMap = mapaNotaCasillero(-107);
+    let conductaDetalleLibreta = [];
+    try {
+      conductaDetalleLibreta = await require('../utils/conductaCatalogo').detalleLibreta(matriculaId, colegio_id, anio);
+    } catch (eCond) {
+      conductaDetalleLibreta = [];
+    }
 
     // Recomendaciones: solo la del bimestre seleccionado (sin prefijo "Bimestre X:")
     let recomendacionesTexto = '';
@@ -3188,6 +3195,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       conducta_presentacion: conductaPresentacionMap,
       conducta_tardanzas: conductaTardanzasMap,
       conducta_olvido_qr: conductaOlvidoQrMap,
+      conducta_detalle: conductaDetalleLibreta,
       orden_merito: {
         b1: ordenMerito.b1,
         b2: ordenMerito.b2,

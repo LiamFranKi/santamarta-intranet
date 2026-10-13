@@ -19,6 +19,7 @@ import ComunicadoHomeModal from './ComunicadoHomeModal';
 import EncuestaActivacionModal from './EncuestaActivacionModal';
 import HerramientasExamenActivacionModal from './HerramientasExamenActivacionModal';
 import SgoiFlotante from './SgoiFlotante';
+import ConductaRapidaFlotante from './ConductaRapidaFlotante';
 import ChatFlotante, { ChatEnLinea } from './ChatFlotante';
 import { usuarioPuedeSgoi } from '../utils/sgoiFormat';
 import { esPaqueteCoordinador, esPaqueteAcademico, esCoordinador } from '../utils/coordinadorAcceso';
@@ -2533,6 +2534,11 @@ export default function DashboardLayout({ children }) {
           />
         )}
 
+        {role === 'DOCENTE' && (
+          <ConductaRapidaFlotante
+            pisos={(activo('comunicaciones.chat') && role !== 'ASISTENCIA' ? 1 : 0) + (puedeVerSgoi && activo('sgoi') ? 1 : 0)}
+          />
+        )}
         {puedeVerSgoi && activo('sgoi') && <SgoiFlotante />}
         {activo('comunicaciones.chat') && role !== 'ASISTENCIA' && (
           <>

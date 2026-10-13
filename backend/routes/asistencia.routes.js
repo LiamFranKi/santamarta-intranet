@@ -598,6 +598,22 @@ router.post('/registrar', async (req, res) => {
                 );
                 console.log(`✅ [ASISTENCIA] Creado registro en matriculas_asistencias: ${tipoAsistenciaParaNotificacion}`);
               }
+              if (tipoAsistenciaParaNotificacion === 'TARDANZA') {
+                try {
+                  const { registrarRolEscaneo } = require('../utils/conductaCatalogo');
+                  await registrarRolEscaneo({
+                    matriculaId: matricula[0].matricula_id,
+                    colegioId: colegio_id,
+                    anio: anio_activo,
+                    fecha: fechaHoy,
+                    hora: horaActual,
+                    rol: 'tardanza',
+                    usuarioId: asistencia_usuario_id,
+                  });
+                } catch (eTar) {
+                  console.warn('[ASISTENCIA] conducta tardanza de ingreso:', eTar.message);
+                }
+              }
               try {
                 await sincronizarConductaMatriculaPorFecha(query, execute, {
                   matriculaId: matricula[0].matricula_id,
@@ -1330,6 +1346,24 @@ router.post('/registrar', async (req, res) => {
           } catch (errIns) {
             console.error(`❌ [ASISTENCIA] Insert descuento ${motivo}:`, errIns.message);
             continue;
+          }
+          if (matriculaIdEspejo && (motivo === 'OLVIDO_QR' || motivo === 'PRESENTACION' || motivo === 'UNIFORME' || motivo === 'CABELLO')) {
+            try {
+              const { registrarRolEscaneo } = require('../utils/conductaCatalogo');
+              await registrarRolEscaneo({
+                matriculaId: matriculaIdEspejo,
+                colegioId: colegio_id,
+                anio: anioGrupoEspejo,
+                fecha: fechaHoy,
+                hora: horaActual,
+                rol: motivo === 'OLVIDO_QR' ? 'olvido_qr' : 'vestimenta',
+                usuarioId: asistencia_usuario_id,
+                pedId: ins.insertId,
+                workerId: workerIdEspejo || null,
+              });
+            } catch (eRol) {
+              console.warn('[ASISTENCIA] conducta ítem de ingreso:', eRol.message);
+            }
           }
           if (matriculaIdEspejo && motivo !== 'OLVIDO_QR') {
             try {

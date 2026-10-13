@@ -3973,9 +3973,10 @@ router.post('/cursos/:cursoId/alumnos/:alumnoId/incidencias', async (req, res) =
   try {
     const { cursoId, alumnoId } = req.params;
     const { colegio_id, anio_activo } = req.user;
-    const { description } = req.body;
+    const { description, item_id: itemIdBody } = req.body || {};
+    const itemIdCatalogo = parseInt(itemIdBody, 10);
 
-    if (!description || description.trim() === '') {
+    if (!itemIdCatalogo && (!description || description.trim() === '')) {
       return res.status(400).json({ error: 'La descripción es requerida' });
     }
 
@@ -4002,6 +4003,38 @@ router.post('/cursos/:cursoId/alumnos/:alumnoId/incidencias', async (req, res) =
     }
 
     const matriculaId = matricula[0].id;
+
+    if (itemIdCatalogo) {
+      try {
+        const { registrarManual } = require('../utils/conductaCatalogo');
+        const out = await registrarManual({
+          matriculaId,
+          colegioId: colegio_id,
+          anio: anio_activo,
+          itemId: itemIdCatalogo,
+          usuarioId: req.user.usuario_id,
+          workerId: personal_id,
+          assignmentId: parseInt(cursoId, 10),
+        });
+        return res.json({
+          success: true,
+          message: 'Falta registrada',
+          incident_id: out.incidentId,
+          nota: out.nota,
+        });
+      } catch (eItem) {
+        const status = eItem.status || 500;
+        if (status >= 500) console.error('Error registrando ítem de conducta:', eItem);
+        return res.status(status).json({ error: eItem.message || 'No se pudo registrar la falta' });
+      }
+    }
+    try {
+      const { regimenHoy } = require('../utils/conductaCatalogo');
+      const reg = await regimenHoy(colegio_id, anio_activo);
+      if (reg.nueva) {
+        return res.status(400).json({ error: 'Elige la falta en la lista. Cada ítem ya tiene su puntaje.' });
+      }
+    } catch (_) { /* el bimestre anterior sigue con texto libre */ }
 
     // Crear registro de incidencia (type = 1, points = 0)
     const now = fechaHoraMySQLLima();
@@ -4152,6 +4185,10 @@ router.delete('/cursos/:cursoId/alumnos/:alumnoId/incidencias/:incidentId', asyn
       `DELETE FROM enrollment_incidents WHERE id = ?`,
       [incidentId]
     );
+    try {
+      const { borrarRegistroVinculado } = require('../utils/conductaCatalogo');
+      await borrarRegistroVinculado('enrollment_incident_id', incidentId);
+    } catch (_) { /* no corta el borrado de la incidencia */ }
 
     // Registrar auditoría
     registrarAccion({
@@ -8757,10 +8794,11 @@ router.post('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req
   try {
     const { grupoId, alumnoId } = req.params;
     const { colegio_id, anio_activo, personal_id, usuario_id } = req.user;
-    const { description } = req.body;
+    const { description, item_id: itemIdBody } = req.body || {};
+    const itemIdCatalogo = parseInt(itemIdBody, 10);
 
     if (!personal_id) return res.status(404).json({ error: 'Docente no encontrado' });
-    if (!description || String(description).trim() === '') {
+    if (!itemIdCatalogo && (!description || String(description).trim() === '')) {
       return res.status(400).json({ error: 'La descripción es requerida' });
     }
 
@@ -8783,6 +8821,38 @@ router.post('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req
     }
 
     const matriculaId = matricula[0].id;
+    if (itemIdCatalogo) {
+      try {
+        const { registrarManual } = require('../utils/conductaCatalogo');
+        const out = await registrarManual({
+          matriculaId,
+          colegioId: colegio_id,
+          anio: anio_activo,
+          itemId: itemIdCatalogo,
+          usuarioId: usuario_id,
+          workerId: personal_id,
+          assignmentId: ASSIGNMENT_ID_TUTORIA,
+        });
+        return res.json({
+          success: true,
+          message: 'Falta registrada',
+          incident_id: out.incidentId,
+          nota: out.nota,
+        });
+      } catch (eItem) {
+        const status = eItem.status || 500;
+        if (status >= 500) console.error('Error registrando ítem de conducta (tutoría):', eItem);
+        return res.status(status).json({ error: eItem.message || 'No se pudo registrar la falta' });
+      }
+    }
+    try {
+      const { regimenHoy } = require('../utils/conductaCatalogo');
+      const reg = await regimenHoy(colegio_id, anio_activo);
+      if (reg.nueva) {
+        return res.status(400).json({ error: 'Elige la falta en la lista. Cada ítem ya tiene su puntaje.' });
+      }
+    } catch (_) { /* bimestre anterior: texto libre */ }
+
     const now = fechaHoraMySQLLima();
     const result = await execute(
       `INSERT INTO enrollment_incidents 
@@ -8897,6 +8967,10 @@ router.delete('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias/:incidentI
     }
 
     await execute(`DELETE FROM enrollment_incidents WHERE id = ?`, [incidentId]);
+    try {
+      const { borrarRegistroVinculado } = require('../utils/conductaCatalogo');
+      await borrarRegistroVinculado('enrollment_incident_id', incidentId);
+    } catch (_) { /* no corta el borrado de la incidencia */ }
 
     registrarAccion({
       usuario_id,
@@ -13988,6 +14062,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         conducta_presentacion: desgloseConducta.conducta_presentacion,
         conducta_tardanzas: desgloseConducta.conducta_tardanzas,
         conducta_olvido_qr: desgloseConducta.conducta_olvido_qr,
+        conducta_detalle: desgloseConducta.conducta_detalle || [],
         orden_merito: { b1: null, b2: null, b3: null, b4: null },
         inasistencias: { b1: inasistenciasB1, b2: inasistenciasB2, b3: inasistenciasB3, b4: inasistenciasB4 },
         tardanzas: { b1: tardanzasB1, b2: tardanzasB2, b3: tardanzasB3, b4: tardanzasB4 }
@@ -14252,6 +14327,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       conducta_presentacion: desgloseConducta.conducta_presentacion,
       conducta_tardanzas: desgloseConducta.conducta_tardanzas,
       conducta_olvido_qr: desgloseConducta.conducta_olvido_qr,
+      conducta_detalle: desgloseConducta.conducta_detalle || [],
       orden_merito: {
         b1: ordenMerito.b1,
         b2: ordenMerito.b2,

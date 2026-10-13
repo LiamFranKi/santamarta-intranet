@@ -220,6 +220,38 @@ async function sincronizarConductaMatriculaBimestre(query, execute, {
 }) {
   const regla = reglaIn || await fetchReglaConducta(query);
   const rango = await obtenerRangoBimestre(query, colegio_id, ciclo, anioEscolar);
+  try {
+    const { usaConductaNueva, sincronizarConductaNueva } = require('./conductaCatalogo');
+    if (usaConductaNueva(anioEscolar, rango.ciclo)) {
+      const nueva = await sincronizarConductaNueva(query, execute, {
+        matriculaId,
+        colegio_id,
+        anioEscolar,
+        ciclo: rango.ciclo,
+        rango,
+        avisar: false,
+      });
+      if (nueva) {
+        return {
+          nota: nueva.nota,
+          notas: {
+            final: nueva.notas.final,
+            incidencias: nueva.notas.mes1,
+            presentacion: nueva.notas.mes2,
+            tardanzas: nueva.notas.final,
+            olvido_qr: nueva.notas.final,
+          },
+          cantidad: 0,
+          conteos: { incidencias: 0, presentacion: 0, tardanzas: 0, olvido_qr: 0 },
+          regla,
+          modo: 'nueva',
+          ...rango,
+        };
+      }
+    }
+  } catch (eNueva) {
+    console.warn('[conducta] régimen nuevo:', eNueva.message);
+  }
   const conteos = await contarComponentesConductaEnRango(query, matriculaId, rango.desde, rango.hasta);
   const notas = notasDesdeConteos(conteos, regla);
   await persistirNotasConductaDesglose(execute, matriculaId, rango.ciclo, notas);
@@ -270,6 +302,10 @@ async function borrarDescuentoPresentacionGrupo(query, execute, {
   const row = rows[0];
   const esOlvido = esMotivoOlvidoQr(row.motivo);
   await execute(`DELETE FROM presentacion_escolar_descuentos WHERE id = ?`, [id]);
+  try {
+    const { borrarRegistroVinculado } = require('./conductaCatalogo');
+    await borrarRegistroVinculado('presentacion_descuento_id', id);
+  } catch (_) { /* el descuento ya se borró */ }
   if (!esOlvido) {
     try {
       await execute(
@@ -375,6 +411,19 @@ async function fetchMapasNotasConductaLibreta(query, matriculaId) {
     if (!k || ciclo < 1 || ciclo > 4) return;
     maps[k][`b${ciclo}`] = r.promedio != null && r.promedio !== '' ? r.promedio : null;
   });
+  maps.conducta_detalle = [];
+  try {
+    const meta = await query(
+      `SELECT m.colegio_id, g.anio FROM matriculas m INNER JOIN grupos g ON g.id = m.grupo_id WHERE m.id = ? LIMIT 1`,
+      [matriculaId]
+    );
+    if (meta?.[0]) {
+      const { detalleLibreta } = require('./conductaCatalogo');
+      maps.conducta_detalle = await detalleLibreta(matriculaId, meta[0].colegio_id, meta[0].anio);
+    }
+  } catch (eDet) {
+    maps.conducta_detalle = [];
+  }
   return maps;
 }
 
@@ -898,6 +947,13 @@ async function listarIncidenciasUnificadasMatricula(query, {
     });
   }
 
+  try {
+    const { aplicarEnBimestres } = require('./conductaCatalogo');
+    await aplicarEnBimestres(bimestres, { matriculaId, anio: anioInt });
+  } catch (eNuevo) {
+    console.warn('[conducta] detalle nuevo:', eNuevo.message);
+  }
+
   return {
     incidencias: lista,
     bimestres,
@@ -1054,7 +1110,18 @@ async function recalcularConductaColegioAnio(query, execute, { colegio_id, anio 
 
   const CHUNK = 150;
   let notas = 0;
+  let catalogo;
+  try {
+    catalogo = require('./conductaCatalogo');
+  } catch (eCat) {
+    catalogo = null;
+  }
   for (let ciclo = 1; ciclo <= 4; ciclo += 1) {
+    if (catalogo && catalogo.usaConductaNueva(anioInt, ciclo)) {
+      notas += await catalogo.recalcularCicloNuevo(colegio_id, anioInt, ciclo);
+      continue;
+    }
+    if (catalogo) continue;
     const rango = await obtenerRangoBimestre(query, colegio_id, ciclo, anioInt);
     const incRows = await query(
       `SELECT ei.enrollment_id AS mid, COUNT(*) AS c

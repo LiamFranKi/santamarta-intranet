@@ -1338,6 +1338,10 @@ router.delete('/grupos/:grupoId/alumnos/:alumnoId/incidencias/:incidentId', asyn
     }
 
     await execute(`DELETE FROM enrollment_incidents WHERE id = ? AND type = 1`, [incidentId]);
+    try {
+      const { borrarRegistroVinculado } = require('../utils/conductaCatalogo');
+      await borrarRegistroVinculado('enrollment_incident_id', incidentId);
+    } catch (_) { /* no corta el borrado */ }
 
     registrarAccion({
       usuario_id,
