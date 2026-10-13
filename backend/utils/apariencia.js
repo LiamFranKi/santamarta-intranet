@@ -13,7 +13,7 @@ const CLAVES = [
   'login_plantilla', 'login_fondo_modo', 'web_plantilla',
   'color_primario', 'color_secundario', 'color_acento',
   'color_navbar', 'color_fondo', 'intranet_fondo_modo', 'intranet_fondo',
-  'web_intranet_url', 'web_titulo',
+  'web_intranet_url', 'web_titulo', 'web_lema', 'web_lema_verde',
 ];
 
 function unoDe(valor, lista, defecto) {
@@ -93,6 +93,8 @@ async function leerApariencia(colegioId) {
     intranet_fondo: urlFondoConfig(map.intranet_fondo),
     web_intranet_url: urlIntranet(map.web_intranet_url, false),
     web_titulo: fraseTitulo(map.web_titulo),
+    web_lema: fraseTitulo(map.web_lema),
+    web_lema_verde: fraseTitulo(map.web_lema_verde),
   };
 }
 
@@ -116,6 +118,8 @@ async function guardarApariencia(colegioId, body, archivoFondo, archivoIntranet)
     campos.push(['web_intranet_url', urlIntranet(body.web_intranet_url, true)]);
   }
   if (body.web_titulo != null) campos.push(['web_titulo', fraseTitulo(body.web_titulo)]);
+  if (body.web_lema != null) campos.push(['web_lema', fraseTitulo(body.web_lema)]);
+  if (body.web_lema_verde != null) campos.push(['web_lema_verde', fraseTitulo(body.web_lema_verde)]);
   if (body.intranet_fondo_modo != null) {
     campos.push(['intranet_fondo_modo', unoDe(body.intranet_fondo_modo, FONDO, 'color')]);
   }

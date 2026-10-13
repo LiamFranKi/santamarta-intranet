@@ -37,6 +37,8 @@ const VACIO = {
   intranet_fondo: '',
   web_intranet_url: '',
   web_titulo: '',
+  web_lema: '',
+  web_lema_verde: '',
 };
 
 function ColorFila({ etiqueta, ayuda, valor, sugerido, onChange }) {
@@ -200,6 +202,8 @@ export default function AdminApariencia() {
         intranet_fondo: data?.intranet_fondo || '',
         web_intranet_url: data?.web_intranet_url || '',
         web_titulo: data?.web_titulo || '',
+        web_lema: data?.web_lema || '',
+        web_lema_verde: data?.web_lema_verde || '',
       });
       setListo(true);
     } catch (e) {
@@ -225,6 +229,8 @@ export default function AdminApariencia() {
       fd.append('intranet_fondo_modo', junto.intranet_fondo_modo || 'color');
       fd.append('web_intranet_url', junto.web_intranet_url || '');
       fd.append('web_titulo', junto.web_titulo || '');
+      fd.append('web_lema', junto.web_lema || '');
+      fd.append('web_lema_verde', junto.web_lema_verde || '');
       if (parcial?.quitar_fondo) fd.append('quitar_fondo', '1');
       else if (file) fd.append('login_fondo', file);
       if (parcial?.quitar_fondo_intranet) fd.append('quitar_fondo_intranet', '1');
@@ -237,6 +243,8 @@ export default function AdminApariencia() {
         intranet_fondo: data?.intranet_fondo || '',
         web_intranet_url: data?.web_intranet_url || '',
         web_titulo: data?.web_titulo || '',
+        web_lema: data?.web_lema || '',
+        web_lema_verde: data?.web_lema_verde || '',
       });
       setArchivo(null);
       setArchivoIntranet(null);
@@ -342,6 +350,34 @@ export default function AdminApariencia() {
             Si lo dejas vacío, sale el Título / Nombre del Colegio. En Vanguard, vacío, sigue la frase de siempre.
           </small>
         </div>
+
+        <h3 className="ap-titulo">Frase debajo del nombre</h3>
+        <div className="form-grid">
+          <div className="form-group">
+            <label>Frase</label>
+            <input
+              type="text"
+              maxLength={140}
+              value={datos.web_lema}
+              placeholder="A la vanguardia"
+              onChange={(e) => setDatos((p) => ({ ...p, web_lema: e.target.value }))}
+            />
+          </div>
+          <div className="form-group">
+            <label>Final en verde</label>
+            <input
+              type="text"
+              maxLength={140}
+              value={datos.web_lema_verde}
+              placeholder="de la tecnología"
+              onChange={(e) => setDatos((p) => ({ ...p, web_lema_verde: e.target.value }))}
+            />
+          </div>
+        </div>
+        <small>
+          Es la línea chica debajo del nombre, en el menú de la página web. El segundo recuadro sale en verde.
+          Si los dos quedan vacíos, Vanguard sigue con «A la vanguardia de la tecnología» y el otro colegio no muestra frase.
+        </small>
 
         <h3 className="ap-titulo">Botón Intranet de la página web</h3>
         <div className="form-group">
