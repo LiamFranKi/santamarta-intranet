@@ -1,0 +1,38 @@
+.cra-vacio { margin: 0.2rem 0 0.6rem; color: #64748b; font-size: 0.9rem; }
+.cra-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.cra-lista li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.35rem 0.6rem;
+  align-items: center;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+}
+.cra-lista li > div { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: baseline; }
+.cra-lista strong { color: #1e3a8a; }
+.cra-lista span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #0f766e;
+  background: #ccfbf1;
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+}
+.cra-lista small { color: #64748b; }
+.cra-lista p { grid-column: 1 / -2; margin: 0; color: #0f172a; font-size: 0.88rem; }
+.cra-lista em { font-style: normal; font-weight: 800; color: #be123c; }
+.cra-lista button {
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 8px;
+  background: #fff1f2;
+  color: #be123c;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.cra-lista button:hover { background: #ffe4e6; }
+.cra-lista--compacta { max-height: 180px; overflow: auto; margin-bottom: 0.7rem; }

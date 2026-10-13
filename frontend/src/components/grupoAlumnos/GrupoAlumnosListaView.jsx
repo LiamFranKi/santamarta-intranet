@@ -10,6 +10,7 @@ import '../../pages/DocenteGrupos.css';
 import { useGrupoAlumnoAccionesAcademicas } from './useGrupoAlumnoAccionesAcademicas';
 import GrupoAlumnoAccionesAcademicasModals from './GrupoAlumnoAccionesAcademicasModals';
 import { esNivelInicial } from '../../utils/esNivelInicial';
+import ConductaRegistrosAlumno from '../ConductaRegistrosAlumno';
 
 const MENU_ACADEMICO_ALUMNO = [
   { key: 'asistencias', label: 'Asistencias', icon: '✅' },
@@ -44,6 +45,8 @@ export default function GrupoAlumnosListaView({
   const [alumnos, setAlumnos] = useState([]);
   const [loadingAlumnos, setLoadingAlumnos] = useState(false);
   const [openDropdownAlumno, setOpenDropdownAlumno] = useState(null); // { id, top, left } o null
+  const [filtroAlumno, setFiltroAlumno] = useState('');
+  const [conductaAlumno, setConductaAlumno] = useState(null);
   const [alumnoInfo, setAlumnoInfo] = useState(null); // Información completa del alumno seleccionado
   const [loadingAlumnoInfo, setLoadingAlumnoInfo] = useState(false);
 
@@ -482,6 +485,14 @@ export default function GrupoAlumnosListaView({
     }
   };
 
+  const qAlumno = filtroAlumno.trim().toLowerCase();
+  const alumnosVisibles = !qAlumno
+    ? alumnos
+    : alumnos.filter((alumno) => {
+      const nombre = `${alumno.apellido_paterno || ''} ${alumno.apellido_materno || ''} ${alumno.nombres || ''} ${alumno.nro_documento || ''}`.toLowerCase();
+      return nombre.includes(qAlumno);
+    });
+
   return (
       <div className="docente-grupos">
           <div className="alumnos-container">
@@ -497,6 +508,14 @@ export default function GrupoAlumnosListaView({
                 </h2>
                 <p className="grupo-subtitle">{grupoInfo?.nivel_nombre} - {grupoInfo?.turno_nombre}</p>
               </div>
+              <input
+                type="search"
+                className="grupo-buscar-alumno"
+                value={filtroAlumno}
+                onChange={(e) => setFiltroAlumno(e.target.value)}
+                placeholder="Buscar por nombre o DNI"
+                aria-label="Buscar alumno"
+              />
             </div>
             
             <div className="alumnos-list-section mundo-card">
@@ -504,8 +523,8 @@ export default function GrupoAlumnosListaView({
                 <div className="loading-alumnos">Cargando alumnos...</div>
               ) : (
                 <div className="alumnos-cards-container">
-                  {alumnos.length > 0 ? (
-                    alumnos.map((alumno, index) => {
+                  {alumnosVisibles.length > 0 ? (
+                    alumnosVisibles.map((alumno, index) => {
                       // Colores pasteles suaves para cada card de alumno
                       const coloresPasteles = [
                         'linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%)', // Light Cyan
@@ -558,7 +577,7 @@ export default function GrupoAlumnosListaView({
                                   } else {
                                     // Calcular posición del dropdown
                                     const dropdownWidth = 250;
-                                    const extraItems = menuAcademicoAlumno ? menuAcademicoAlumnoItems(grupoInfo).length : 0;
+                                    const extraItems = (menuAcademicoAlumno ? menuAcademicoAlumnoItems(grupoInfo).length : 0) + (psicologiaLinkMode === 'docente' ? 1 : 0);
                                     const dropdownHeight = 200 + extraItems * 42;
                                     let left = rect.left;
                                     let top = rect.bottom + 2;
@@ -655,6 +674,21 @@ export default function GrupoAlumnosListaView({
                                       <span className="dropdown-icon">🧠</span>
                                       <span>Derivación psicológica</span>
                                     </button>
+                                    {psicologiaLinkMode === 'docente' ? (
+                                      <button
+                                        className="dropdown-item"
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          e.preventDefault();
+                                          setOpenDropdownAlumno(null);
+                                          setConductaAlumno(alumno);
+                                        }}
+                                      >
+                                        <span className="dropdown-icon">📋</span>
+                                        <span>Conducta</span>
+                                      </button>
+                                    ) : null}
                                     {menuAcademicoAlumno &&
                                       menuAcademicoAlumnoItems(grupoInfo).map((item) => (
                                         <button
@@ -683,7 +717,7 @@ export default function GrupoAlumnosListaView({
                     })
                   ) : (
                     <div className="empty-state">
-                      No hay alumnos en este grupo
+                      {alumnos.length ? 'Ningún alumno coincide con la búsqueda' : 'No hay alumnos en este grupo'}
                     </div>
                   )}
                 </div>
@@ -692,6 +726,21 @@ export default function GrupoAlumnosListaView({
           </div>
 
       {menuAcademicoAlumno ? <GrupoAlumnoAccionesAcademicasModals {...accionesAcademicas} /> : null}
+
+      {conductaAlumno ? (
+        <div className="alumno-info-modal-overlay" onClick={() => setConductaAlumno(null)}>
+          <div className="cond-alumno-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Conducta del alumno">
+            <header>
+              <div>
+                <h2>Conducta</h2>
+                <p>{conductaAlumno.apellido_paterno} {conductaAlumno.apellido_materno}, {conductaAlumno.nombres}</p>
+              </div>
+              <button type="button" onClick={() => setConductaAlumno(null)} aria-label="Cerrar">×</button>
+            </header>
+            <ConductaRegistrosAlumno matriculaId={conductaAlumno.matricula_id} />
+          </div>
+        </div>
+      ) : null}
 
       {/* Modal de Información del Alumno */}
       {alumnoInfo && (

@@ -2414,6 +2414,33 @@ function DocenteTutoria({
   };
 
   const eliminarRegistroConductaDetalle = async (inc) => {
+    const cat = String(inc?.id || '').match(/^cat-(\d+)$/);
+    if (cat && puedeQuitarConducta) {
+      const ok = await Swal.fire({
+        icon: 'warning',
+        title: `¿Quitar ${inc.codigo || 'este registro'}?`,
+        text: 'Se elimina y la nota de conducta se calcula de nuevo.',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, quitar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#dc2626',
+      });
+      if (!ok.isConfirmed) return;
+      try {
+        await api.delete(`/docente/conducta/registros/${cat[1]}`);
+        const mid = detalleConductaAlumno?.alumno?.matricula_id;
+        if (mid && grupoParaConducta?.id) {
+          const res = await api.get(`${apiPrefix}/grupos/${grupoParaConducta.id}/conducta`, { params: { ciclo: conductaCiclo } });
+          setConductaAlumnos(res.data.alumnos || []);
+          const actualizado = (res.data.alumnos || []).find((a) => Number(a.matricula_id) === Number(mid));
+          if (actualizado) await abrirDetalleConductaAlumno(actualizado);
+        }
+        Swal.fire({ icon: 'success', title: 'Listo', text: 'La nota de conducta se actualizó.', timer: 1800, showConfirmButton: false });
+      } catch (e) {
+        Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo quitar' });
+      }
+      return;
+    }
     const parsed = parseIdRegistroConducta(inc?.id);
     if (!parsed || !grupoParaConducta?.id || !puedeQuitarConducta) return;
     const esPed = parsed.tipo === 'ped';
@@ -3692,7 +3719,7 @@ function DocenteTutoria({
                             <span className={`tutor-inc-origen ${claseOrigenConducta(inc.origen)}`}>
                               {etiquetaOrigenConducta(inc.origen)}
                             </span>
-                            {puedeQuitarConducta && (inc.origen === 'vestimenta' || inc.origen === 'tardanza' || inc.origen === 'olvido_qr') ? (
+                            {puedeQuitarConducta && (String(inc.id || '').startsWith('cat-') || inc.origen === 'vestimenta' || inc.origen === 'tardanza' || inc.origen === 'olvido_qr') ? (
                               <button
                                 type="button"
                                 className="btn-eliminar-conducta-item"
@@ -3716,7 +3743,7 @@ function DocenteTutoria({
                         {(inc.description || '').trim() ? (
                           <p className="tutor-inc-detalle">{inc.description}</p>
                         ) : null}
-                        {puedeQuitarConducta && (inc.origen === 'vestimenta' || inc.origen === 'tardanza' || inc.origen === 'olvido_qr') ? (
+                        {puedeQuitarConducta && (String(inc.id || '').startsWith('cat-') || inc.origen === 'vestimenta' || inc.origen === 'tardanza' || inc.origen === 'olvido_qr') ? (
                           <div className="tutor-inc-card-quitar">
                             <button
                               type="button"

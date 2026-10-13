@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import ConductaRegistrosAlumno from './ConductaRegistrosAlumno';
 import './ConductaRapidaFlotante.css';
 
 const TIPOS = [
@@ -29,6 +30,7 @@ export default function ConductaRapidaFlotante({ pisos = 0 }) {
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState('');
   const [hecho, setHecho] = useState(null);
+  const [rev, setRev] = useState(0);
 
   useEffect(() => {
     if (!abierto) return undefined;
@@ -109,6 +111,7 @@ export default function ConductaRapidaFlotante({ pisos = 0 }) {
       });
       setHecho({ codigo: data.codigo || item.codigo, nota: data.nota });
       setItem(null);
+      setRev((n) => n + 1);
     } catch (e) {
       setAviso(e.response?.data?.error || 'No se pudo registrar');
     } finally {
@@ -182,6 +185,8 @@ export default function ConductaRapidaFlotante({ pisos = 0 }) {
 
             {alumno && !tipo && !hecho ? (
               <div className="crf-tipos">
+                <p className="crf-seccion">Registros de este año</p>
+                <ConductaRegistrosAlumno key={`${alumno.matricula_id}-${rev}`} matriculaId={alumno.matricula_id} compacto />
                 {TIPOS.map((t) => (
                   <button key={t.id} type="button" className={`crf-tipo crf-tipo--${t.tono}`} onClick={() => { setTipo(t.id); setItem(null); }}>
                     <strong>{t.label}</strong>
@@ -197,22 +202,22 @@ export default function ConductaRapidaFlotante({ pisos = 0 }) {
                 {tipo === 'incidencia' ? (
                   <div className="crf-niveles">
                     {[
-                      ['leve', 'Leve'],
-                      ['grave', 'Grave'],
-                      ['muy_grave', 'Muy grave'],
-                    ].map(([id, label]) => (
-                      <button key={id} type="button" className={nivel === id ? 'is-on' : ''} onClick={() => { setNivel(id); setItem(null); }}>
+                      ['leve', 'Leve', 'sky'],
+                      ['grave', 'Grave', 'amber'],
+                      ['muy_grave', 'Muy grave', 'rose'],
+                    ].map(([id, label, tono]) => (
+                      <button key={id} type="button" className={`crf-nivel crf-nivel--${tono}${nivel === id ? ' is-on' : ''}`} onClick={() => { setNivel(id); setItem(null); }}>
                         {label}
                       </button>
                     ))}
                   </div>
                 ) : null}
-                <div className="crf-lista">
+                <div className={`crf-lista crf-lista--items crf-lista--${tipo === 'incidencia' ? nivel : tipo}`}>
                   {items.map((it) => (
                     <button
                       key={it.id}
                       type="button"
-                      className={`crf-item${item?.id === it.id ? ' is-on' : ''}`}
+                      className={`crf-item crf-item--${tipo === 'incidencia' ? nivel : tipo}${item?.id === it.id ? ' is-on' : ''}`}
                       onClick={() => setItem(it)}
                     >
                       <b>{it.codigo}</b>

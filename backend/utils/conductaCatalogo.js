@@ -97,8 +97,15 @@ function addDaysYmd(ymd, days) {
 }
 
 function bloquesDelBimestre(desde, hasta) {
-  const ini = String(desde || '').slice(0, 10);
-  const fin = String(hasta || '').slice(0, 10);
+  const ymd = (v) => {
+    try {
+      const n = legacy().toFechaYmd(v);
+      if (n) return n;
+    } catch (_) { /* fecha ya viene en texto */ }
+    return String(v || '').slice(0, 10);
+  };
+  const ini = ymd(desde);
+  const fin = ymd(hasta);
   if (!ini || !fin) return [{ desde: ini, hasta: fin }, null];
   const fin1 = addDaysYmd(ini, 27);
   if (fin1 >= fin) return [{ desde: ini, hasta: fin }, null];
@@ -877,6 +884,143 @@ async function borrarRegistroVinculado(campo, id) {
   }
 }
 
+async function accesoMatriculaDocente({ colegioId, anio, personalId, matriculaId }) {
+  const acceso = await query(
+    `SELECT m.id
+     FROM matriculas m
+     INNER JOIN grupos g ON g.id = m.grupo_id
+     WHERE m.id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)
+       AND (
+         g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)
+         OR EXISTS (
+           SELECT 1 FROM asignaturas asig
+           WHERE asig.grupo_id = g.id AND asig.personal_id = ? AND asig.colegio_id = m.colegio_id AND asig.id > 0
+         )
+       )
+     LIMIT 1`,
+    [matriculaId, colegioId, anio, personalId, personalId, personalId]
+  );
+  return acceso?.[0] || null;
+}
+
+function filaRegistroVista(r) {
+  const ymd = legacy().toFechaYmd(r.fecha) || String(r.fecha || '').slice(0, 10);
+  const hora = r.hora ? String(r.hora).slice(0, 5) : '';
+  return {
+    id: r.id,
+    grupo: r.grupo,
+    etiqueta: etiquetaGrupo(r.grupo, r),
+    codigo: r.codigo,
+    nombre: r.nombre,
+    descuento: notaTexto(r.descuento),
+    fecha: ymd,
+    hora,
+    ciclo: r.ciclo,
+    origen: r.origen || 'manual',
+  };
+}
+
+async function listarRegistrosDocente({ colegioId, anio, personalId, matriculaId }) {
+  const acceso = await accesoMatriculaDocente({ colegioId, anio, personalId, matriculaId });
+  if (!acceso) {
+    const err = new Error('No puedes ver la conducta de este alumno');
+    err.status = 403;
+    throw err;
+  }
+  await asegurarTablas();
+  const rows = await query(
+    `SELECT r.*, COALESCE(i.es_olvido_qr, 0) AS es_olvido_qr
+     FROM conducta_registros r
+     LEFT JOIN conducta_items i ON i.id = r.item_id
+     WHERE r.matricula_id = ? AND r.colegio_id = ? AND r.anio = ?
+     ORDER BY r.fecha DESC, r.hora DESC, r.id DESC`,
+    [matriculaId, colegioId, anio]
+  );
+  return (rows || []).map(filaRegistroVista);
+}
+
+async function limpiarEspejosRegistro(row) {
+  if (!row) return;
+  if (row.presentacion_descuento_id) {
+    try {
+      await execute(`DELETE FROM presentacion_escolar_descuentos WHERE id = ?`, [row.presentacion_descuento_id]);
+    } catch (e) {
+      console.warn('[conducta] quitar presentación:', e.message);
+    }
+  }
+  if (row.asistencia_id) {
+    try {
+      await execute(
+        `UPDATE matriculas_asistencias SET tipo = 'PRESENTE' WHERE id = ? AND tipo = 'TARDANZA'`,
+        [row.asistencia_id]
+      );
+    } catch (e) {
+      console.warn('[conducta] corregir tardanza:', e.message);
+    }
+  }
+  if (row.enrollment_incident_id) {
+    try {
+      await execute(`DELETE FROM enrollment_incidents WHERE id = ? AND type = 1`, [row.enrollment_incident_id]);
+    } catch (e) {
+      console.warn('[conducta] quitar incidencia:', e.message);
+    }
+  }
+  await execute(`DELETE FROM conducta_registros WHERE id = ?`, [row.id]);
+}
+
+async function sincronizarTrasBorrar(row) {
+  const { sincronizarConductaMatriculaBimestre } = require('./conductaIncidenciasBimestre');
+  return sincronizarConductaMatriculaBimestre(query, execute, {
+    matriculaId: row.matricula_id,
+    colegio_id: row.colegio_id,
+    anioEscolar: row.anio,
+    ciclo: row.ciclo,
+  });
+}
+
+async function eliminarRegistroDocente({ registroId, colegioId, anio, personalId }) {
+  await asegurarTablas();
+  const rows = await query(
+    `SELECT * FROM conducta_registros WHERE id = ? AND colegio_id = ? LIMIT 1`,
+    [registroId, colegioId]
+  );
+  const row = rows?.[0];
+  if (!row) {
+    const err = new Error('Ese registro ya no está');
+    err.status = 404;
+    throw err;
+  }
+  const acceso = await accesoMatriculaDocente({
+    colegioId, anio, personalId, matriculaId: row.matricula_id,
+  });
+  if (!acceso) {
+    const err = new Error('No puedes quitar la conducta de este alumno');
+    err.status = 403;
+    throw err;
+  }
+  await limpiarEspejosRegistro(row);
+  const sync = await sincronizarTrasBorrar(row);
+  return { nota: sync?.nota ?? null, codigo: row.codigo };
+}
+
+async function prepararBorradoIncidente(incidentId) {
+  const id = parseInt(incidentId, 10);
+  if (!id) return;
+  try {
+    await asegurarTablas();
+  } catch (e) {
+    return;
+  }
+  const rows = await query(
+    `SELECT * FROM conducta_registros WHERE enrollment_incident_id = ? LIMIT 1`,
+    [id]
+  );
+  if (!rows?.length) return;
+  const row = rows[0];
+  row.enrollment_incident_id = null;
+  await limpiarEspejosRegistro(row);
+}
+
 async function detalleLibreta(matriculaId, colegioId, anio) {
   try {
     await asegurarTablas();
@@ -1012,6 +1156,9 @@ module.exports = {
   buscarAlumnosDocente,
   registrarRolEscaneo,
   borrarRegistroVinculado,
+  listarRegistrosDocente,
+  eliminarRegistroDocente,
+  prepararBorradoIncidente,
   detalleLibreta,
   aplicarEnBimestres,
   avisarTutor,

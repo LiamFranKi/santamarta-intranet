@@ -34,8 +34,10 @@ async function listarAlumnosConductaPorGrupo(query, execute, { grupoId, colegio_
   const anio = grupo?.anio || new Date().getFullYear();
   const rango = await obtenerRangoBimestre(query, colegio_id, cicloInt, anio);
   const regla = await fetchReglaConducta(query);
+  const { usaConductaNueva, sincronizarConductaNueva } = require('./conductaCatalogo');
+  const regimenNuevo = usaConductaNueva(anio, cicloInt);
 
-  if (execute) {
+  if (execute && !regimenNuevo) {
     try {
       await backfillVestimentaAIncidenciasGrupo(query, execute, {
         grupoId,
@@ -73,6 +75,45 @@ async function listarAlumnosConductaPorGrupo(query, execute, { grupoId, colegio_
   const lista = [];
   for (let i = 0; i < matriculas.length; i += 1) {
     const m = matriculas[i];
+    if (regimenNuevo) {
+      let nota = '20.00';
+      let mes1 = '20.00';
+      let mes2 = '20.00';
+      try {
+        const sync = await sincronizarConductaNueva(query, execute, {
+          matriculaId: m.matricula_id,
+          colegio_id,
+          anioEscolar: anio,
+          ciclo: cicloInt,
+          rango,
+          avisar: false,
+        });
+        if (sync?.nota != null) {
+          nota = String(sync.nota);
+          mes1 = String(sync.notas?.mes1 ?? nota);
+          mes2 = String(sync.notas?.mes2 ?? nota);
+        }
+      } catch (e) {
+        console.warn('[conducta] nota nueva:', e.message);
+      }
+      lista.push({
+        numero: i + 1,
+        matricula_id: m.matricula_id,
+        alumno_id: m.alumno_id,
+        nombre_completo: m.nombre_completo,
+        nota_conducta: nota,
+        nota_incidencias: mes1,
+        nota_presentacion: mes2,
+        nota_tardanzas: nota,
+        nota_olvido_qr: nota,
+        modo: 'nueva',
+        total_incidencias: 0,
+        total_presentacion: 0,
+        total_tardanzas: 0,
+        total_olvido_qr: 0,
+      });
+      continue;
+    }
     const conteos = await contarComponentesConductaEnRango(
       query,
       m.matricula_id,

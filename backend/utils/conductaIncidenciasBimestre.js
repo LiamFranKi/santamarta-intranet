@@ -420,6 +420,12 @@ async function fetchMapasNotasConductaLibreta(query, matriculaId) {
     if (meta?.[0]) {
       const { detalleLibreta } = require('./conductaCatalogo');
       maps.conducta_detalle = await detalleLibreta(matriculaId, meta[0].colegio_id, meta[0].anio);
+      (maps.conducta_detalle || []).forEach((h) => {
+        const c = parseInt(h.ciclo, 10);
+        if (c >= 1 && c <= 4 && h.nota_final != null && h.nota_final !== '') {
+          maps.promedio_conducta[`b${c}`] = h.nota_final;
+        }
+      });
     }
   } catch (eDet) {
     maps.conducta_detalle = [];

@@ -11,6 +11,8 @@ const {
   recalcularCicloNuevo,
   buscarAlumnosDocente,
   registrarRapido,
+  listarRegistrosDocente,
+  eliminarRegistroDocente,
   ANIO_INICIO,
   CICLO_INICIO,
 } = require('../utils/conductaCatalogo');
@@ -106,6 +108,48 @@ docente.get('/buscar', async (req, res) => {
   } catch (e) {
     console.error('[conducta] buscar', e);
     res.status(500).json({ error: 'No se pudo buscar' });
+  }
+});
+
+docente.get('/registros', async (req, res) => {
+  try {
+    const anio = parseInt(req.user?.anio_activo, 10) || new Date().getFullYear();
+    const personalId = parseInt(req.user?.personal_id, 10) || 0;
+    if (!personalId) return res.status(403).json({ error: 'Tu usuario no está ligado a un docente' });
+    const registros = await listarRegistrosDocente({
+      colegioId: req.user.colegio_id,
+      anio,
+      personalId,
+      matriculaId: parseInt(req.query.matricula_id, 10),
+    });
+    res.json({ registros });
+  } catch (e) {
+    const status = e.status || 500;
+    if (status >= 500) console.error('[conducta] registros', e);
+    res.status(status).json({ error: e.message || 'No se pudo cargar la conducta' });
+  }
+});
+
+docente.delete('/registros/:id', async (req, res) => {
+  try {
+    const anio = parseInt(req.user?.anio_activo, 10) || new Date().getFullYear();
+    const personalId = parseInt(req.user?.personal_id, 10) || 0;
+    if (!personalId) return res.status(403).json({ error: 'Tu usuario no está ligado a un docente' });
+    const out = await eliminarRegistroDocente({
+      registroId: parseInt(req.params.id, 10),
+      colegioId: req.user.colegio_id,
+      anio,
+      personalId,
+    });
+    res.json({
+      success: true,
+      message: 'Se quitó el registro y se actualizó la nota de conducta.',
+      nota: out.nota,
+    });
+  } catch (e) {
+    const status = e.status || 500;
+    if (status >= 500) console.error('[conducta] eliminar registro', e);
+    res.status(status).json({ error: e.message || 'No se pudo quitar' });
   }
 });
 

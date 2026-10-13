@@ -3929,17 +3929,20 @@ router.get('/cursos/:cursoId/alumnos/:alumnoId/incidencias', async (req, res) =>
     // - Filtrar solo incidencias del año activo
     // - Mostrar TODAS las incidencias del alumno sin filtrar por curso (assignment_id)
     // - Incluir información del docente que registró la incidencia y el curso donde se registró
+    try { await require('../utils/conductaCatalogo').asegurarTablas(); } catch (_) { /* la lista sigue si la tabla aún no existe */ }
+
     const incidencias = await query(
       `SELECT ei.id, ei.description, ei.created_at, ei.worker_id, ei.assignment_id,
               CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
               c.nombre as curso_nombre,
-              CASE WHEN ${esStaff ? '1=1' : 'ei.worker_id = ?'} THEN 1 ELSE 0 END as puede_eliminar
+              CASE WHEN ${esStaff ? '1=1' : '(ei.worker_id = ? OR cr.id IS NOT NULL)'} THEN 1 ELSE 0 END as puede_eliminar
        FROM enrollment_incidents ei
        INNER JOIN matriculas m ON m.id = ei.enrollment_id
        INNER JOIN grupos g ON g.id = m.grupo_id
        LEFT JOIN personal p ON p.id = ei.worker_id
        LEFT JOIN asignaturas a ON a.id = ei.assignment_id
        LEFT JOIN cursos c ON c.id = a.curso_id
+       LEFT JOIN conducta_registros cr ON cr.enrollment_incident_id = ei.id
        WHERE ei.enrollment_id = ? 
          AND ei.type = 1
          AND g.anio = ?
@@ -4153,7 +4156,7 @@ router.delete('/cursos/:cursoId/alumnos/:alumnoId/incidencias/:incidentId', asyn
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
 
-    const incidente = esStaff
+    let incidente = esStaff
       ? await query(
           `SELECT ei.* FROM enrollment_incidents ei
            INNER JOIN matriculas m ON m.id = ei.enrollment_id
@@ -4175,10 +4178,27 @@ router.delete('/cursos/:cursoId/alumnos/:alumnoId/incidencias/:incidentId', asyn
         );
 
     if (!incidente || incidente.length === 0) {
+      const ligada = await query(
+        `SELECT ei.* FROM enrollment_incidents ei
+         INNER JOIN matriculas m ON m.id = ei.enrollment_id
+         INNER JOIN grupos g ON g.id = m.grupo_id
+         INNER JOIN conducta_registros cr ON cr.enrollment_incident_id = ei.id
+         WHERE ei.id = ? AND ei.type = 1 AND g.anio = ? AND m.alumno_id = ?`,
+        [incidentId, anio_activo, alumnoId]
+      );
+      if (ligada?.length) incidente = ligada;
+    }
+
+    if (!incidente || incidente.length === 0) {
       return res.status(403).json({ 
         error: 'No puedes eliminar esta incidencia. Solo puedes eliminar las que tú mismo registraste del año activo.' 
       });
     }
+
+    try {
+      const { prepararBorradoIncidente } = require('../utils/conductaCatalogo');
+      await prepararBorradoIncidente(incidentId);
+    } catch (_) { /* el borrado de la incidencia sigue */ }
 
     // Eliminar el incidente
     await execute(
@@ -8691,17 +8711,20 @@ router.get('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req,
 
     const matriculaId = matricula[0].id;
 
+    try { await require('../utils/conductaCatalogo').asegurarTablas(); } catch (_) { /* la lista sigue si la tabla aún no existe */ }
+
     const incidencias = await query(
       `SELECT ei.id, ei.description, ei.created_at, ei.worker_id, ei.assignment_id,
               CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
               CASE WHEN ei.assignment_id = ? THEN 'Tutoría' ELSE c.nombre END as curso_nombre,
-              CASE WHEN ei.worker_id = ? THEN 1 ELSE 0 END as puede_eliminar
+              CASE WHEN ei.worker_id = ? OR cr.id IS NOT NULL THEN 1 ELSE 0 END as puede_eliminar
        FROM enrollment_incidents ei
        INNER JOIN matriculas m ON m.id = ei.enrollment_id
        INNER JOIN grupos g ON g.id = m.grupo_id
        LEFT JOIN personal p ON p.id = ei.worker_id
        LEFT JOIN asignaturas a ON a.id = ei.assignment_id
        LEFT JOIN cursos c ON c.id = a.curso_id
+       LEFT JOIN conducta_registros cr ON cr.enrollment_incident_id = ei.id
        WHERE ei.enrollment_id = ? AND ei.type = 1 AND g.anio = ?
        ORDER BY ei.created_at DESC`,
       [ASSIGNMENT_ID_TUTORIA, personal_id, matriculaId, anio_activo]
@@ -8950,7 +8973,7 @@ router.delete('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias/:incidentI
     );
     if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
-    const incidente = await query(
+    let incidente = await query(
       `SELECT ei.* FROM enrollment_incidents ei
        INNER JOIN matriculas m ON m.id = ei.enrollment_id
        INNER JOIN alumnos al ON al.id = m.alumno_id
@@ -8961,10 +8984,27 @@ router.delete('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias/:incidentI
     );
 
     if (!incidente || incidente.length === 0) {
+      incidente = await query(
+        `SELECT ei.* FROM enrollment_incidents ei
+         INNER JOIN matriculas m ON m.id = ei.enrollment_id
+         INNER JOIN grupos g ON g.id = m.grupo_id
+         INNER JOIN conducta_registros cr ON cr.enrollment_incident_id = ei.id
+         WHERE ei.id = ? AND ei.type = 1
+           AND m.alumno_id = ? AND m.grupo_id = ? AND g.anio = ?`,
+        [incidentId, alumnoId, grupoId, anio_activo]
+      );
+    }
+
+    if (!incidente || incidente.length === 0) {
       return res.status(403).json({
         error: 'No puedes eliminar esta incidencia. Solo las que registraste para este alumno en tu grupo de tutoría.'
       });
     }
+
+    try {
+      const { prepararBorradoIncidente } = require('../utils/conductaCatalogo');
+      await prepararBorradoIncidente(incidentId);
+    } catch (_) { /* el borrado de la incidencia sigue */ }
 
     await execute(`DELETE FROM enrollment_incidents WHERE id = ?`, [incidentId]);
     try {

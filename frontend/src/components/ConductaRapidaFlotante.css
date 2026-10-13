@@ -90,6 +90,7 @@
 }
 .crf-buscar input:focus { outline: 2px solid #99f6e4; border-color: #0f766e; }
 .crf-lista { display: flex; flex-direction: column; gap: 0.45rem; margin-top: 0.75rem; max-height: 50vh; overflow: auto; }
+.crf-lista--items { gap: 0.35rem; margin-top: 0.35rem; max-height: 46vh; }
 .crf-alumno, .crf-item {
   display: flex;
   gap: 0.7rem;
@@ -102,6 +103,13 @@
   padding: 0.7rem 0.75rem;
   cursor: pointer;
   font: inherit;
+}
+.crf-item {
+  gap: 0.45rem;
+  padding: 0.42rem 0.5rem;
+  border-radius: 12px;
+  border-left-width: 4px;
+  align-items: flex-start;
 }
 .crf-alumno strong, .crf-item span { display: block; color: #0f172a; }
 .crf-alumno small { color: #64748b; }
@@ -131,20 +139,57 @@
 .crf-tipo--sky { background: #e0f2fe; }
 .crf-tipo--amber { background: #ffedd5; }
 .crf-tipo--teal { background: #ccfbf1; }
-.crf-niveles { display: flex; gap: 0.4rem; margin-bottom: 0.65rem; }
-.crf-niveles button, .crf-link, .crf-go {
+.crf-niveles { display: flex; gap: 0.35rem; margin-bottom: 0.45rem; }
+.crf-nivel, .crf-link, .crf-go {
   border-radius: 999px;
-  padding: 0.55rem 0.9rem;
+  padding: 0.4rem 0.75rem;
   font-weight: 700;
   cursor: pointer;
   font: inherit;
+  font-size: 0.86rem;
 }
-.crf-niveles button { border: 1px solid #cbd5e1; background: #fff; color: #334155; }
-.crf-niveles button.is-on { background: #0f172a; color: #fff; border-color: #0f172a; }
-.crf-item b { color: #1e3a8a; min-width: 3.2rem; }
-.crf-item span { flex: 1; }
-.crf-item em { font-style: normal; font-weight: 800; color: #be123c; }
-.crf-item.is-on { border-color: #0f766e; background: #f0fdfa; }
+.crf-nivel { border: 1px solid transparent; }
+.crf-nivel--sky { background: #e0f2fe; color: #0369a1; }
+.crf-nivel--amber { background: #ffedd5; color: #c2410c; }
+.crf-nivel--rose { background: #ffe4e6; color: #be123c; }
+.crf-nivel--sky.is-on { background: #0284c7; color: #fff; }
+.crf-nivel--amber.is-on { background: #ea580c; color: #fff; }
+.crf-nivel--rose.is-on { background: #e11d48; color: #fff; }
+.crf-item b {
+  flex: 0 0 auto;
+  min-width: 2.8rem;
+  border-radius: 8px;
+  padding: 0.12rem 0.35rem;
+  font-size: 0.75rem;
+  text-align: center;
+}
+.crf-item span { flex: 1; font-size: 0.84rem; line-height: 1.25; color: #0f172a; }
+.crf-item em {
+  flex: 0 0 auto;
+  font-style: normal;
+  font-weight: 800;
+  font-size: 0.78rem;
+  border-radius: 999px;
+  padding: 0.12rem 0.4rem;
+  background: #fff;
+}
+.crf-item--leve { background: #f0f9ff; border-color: #bae6fd; border-left-color: #0284c7; }
+.crf-item--leve b { background: #e0f2fe; color: #0369a1; }
+.crf-item--leve em { color: #0369a1; }
+.crf-item--grave { background: #fff7ed; border-color: #fed7aa; border-left-color: #ea580c; }
+.crf-item--grave b { background: #ffedd5; color: #c2410c; }
+.crf-item--grave em { color: #c2410c; }
+.crf-item--muy_grave { background: #fff1f2; border-color: #fecdd3; border-left-color: #e11d48; }
+.crf-item--muy_grave b { background: #ffe4e6; color: #be123c; }
+.crf-item--muy_grave em { color: #be123c; }
+.crf-item--presentacion { background: #f0fdfa; border-color: #99f6e4; border-left-color: #0f766e; }
+.crf-item--presentacion b { background: #ccfbf1; color: #115e59; }
+.crf-item--presentacion em { color: #115e59; }
+.crf-item--puntualidad { background: #f5f3ff; border-color: #ddd6fe; border-left-color: #7c3aed; }
+.crf-item--puntualidad b { background: #ede9fe; color: #6d28d9; }
+.crf-item--puntualidad em { color: #6d28d9; }
+.crf-item.is-on { box-shadow: inset 0 0 0 2px #0f172a; }
+.crf-seccion { margin: 0 0 0.35rem; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: #64748b; }
 .crf-acc { display: flex; justify-content: space-between; gap: 0.5rem; margin-top: 0.8rem; }
 .crf-link { border: 0; background: transparent; color: #0f766e; }
 .crf-go { border: 0; background: #0f766e; color: #fff; }
@@ -165,5 +210,6 @@
     border-radius: 22px 22px 0 0;
     padding-bottom: calc(1rem + env(safe-area-inset-bottom));
   }
-  .crf-alumno, .crf-tipo, .crf-item, .crf-go { min-height: 3rem; }
+  .crf-alumno, .crf-tipo, .crf-go { min-height: 3rem; }
+  .crf-item { min-height: 0; }
 }

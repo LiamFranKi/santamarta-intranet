@@ -11,6 +11,18 @@ const GRUPOS = [
   { id: 'puntualidad', label: 'Puntualidad', tono: 'violet' },
 ];
 
+function Icono({ d, size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d={d} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+const ICO_MAS = 'M12 5v14M5 12h14';
+const ICO_LAPIZ = 'M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3zM13.5 6.5l3 3';
+const ICO_BASURA = 'M4 7h16M9 7V5h6v2M8 7l1 13h6l1-13';
+
 const VACIO = {
   grupo: 'leve',
   codigo: '',
@@ -29,6 +41,7 @@ export default function AdminConductaCatalogo() {
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(VACIO);
   const [abierto, setAbierto] = useState(false);
+  const [tab, setTab] = useState('leve');
 
   const cargar = useCallback(async () => {
     const { data } = await api.get('/admin/conducta/catalogo');
@@ -200,13 +213,35 @@ export default function AdminConductaCatalogo() {
         </button>
       </section>
 
-      {grupos.map((g) => {
-        const meta = GRUPOS.find((x) => x.id === g.id) || { tono: 'sky', label: g.label };
+      <div className="cond-cat-tabs" role="tablist">
+        {GRUPOS.map((meta) => {
+          const g = grupos.find((x) => x.id === meta.id);
+          const n = (g?.items || []).length;
+          return (
+            <button
+              key={meta.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === meta.id}
+              className={`cond-cat-tab cond-cat-tab--${meta.tono}${tab === meta.id ? ' is-on' : ''}`}
+              onClick={() => setTab(meta.id)}
+            >
+              <span>{meta.label}</span>
+              <b>{n}</b>
+            </button>
+          );
+        })}
+      </div>
+
+      {GRUPOS.filter((meta) => meta.id === tab).map((meta) => {
+        const g = grupos.find((x) => x.id === meta.id) || { items: [] };
         return (
-          <section key={g.id} className={`cond-cat-grupo cond-cat-grupo--${meta.tono}`}>
+          <section key={meta.id} className={`cond-cat-grupo cond-cat-grupo--${meta.tono}`}>
             <header>
               <h4>{meta.label}</h4>
-              <button type="button" onClick={() => abrirNuevo(g.id)}>Agregar ítem</button>
+              <button type="button" className="cond-cat-icon cond-cat-icon--add" onClick={() => abrirNuevo(meta.id)} aria-label="Agregar ítem" title="Agregar ítem">
+                <Icono d={ICO_MAS} />
+              </button>
             </header>
             <div className="cond-cat-tabla">
               {(g.items || []).map((item) => (
@@ -223,8 +258,12 @@ export default function AdminConductaCatalogo() {
                   </div>
                   <div className="cond-cat-pts">−{Number(item.descuento).toFixed(2)}</div>
                   <div className="cond-cat-acc">
-                    <button type="button" onClick={() => abrirEditar(item)}>Editar</button>
-                    <button type="button" onClick={() => quitar(item)}>Quitar</button>
+                    <button type="button" className="cond-cat-icon" onClick={() => abrirEditar(item)} aria-label={`Editar ${item.codigo}`} title="Editar">
+                      <Icono d={ICO_LAPIZ} />
+                    </button>
+                    <button type="button" className="cond-cat-icon cond-cat-icon--danger" onClick={() => quitar(item)} aria-label={`Quitar ${item.codigo}`} title="Quitar">
+                      <Icono d={ICO_BASURA} />
+                    </button>
                   </div>
                 </article>
               ))}
