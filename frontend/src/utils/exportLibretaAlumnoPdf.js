@@ -810,15 +810,14 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
         });
       }
 
-      // Segunda hoja(s): lista de verificación orden de mérito por bimestre (solo libretas numéricas)
       const ordenMeritoDetalle = datosLibreta.resumen?.orden_merito_detalle;
       if (incluirHojaPuestos && ordenMeritoDetalle && cicloSel >= 1) {
         const bimestresLabel = ['I', 'II', 'III', 'IV'];
+        const b = Number(cicloSel);
         const colPuesto = 18;
         const colPromedio = 28;
         const colNombres = pageWidth - margin * 2 - colPuesto - colPromedio;
-        const b = Number(cicloSel);
-          doc.addPage();
+        doc.addPage();
           let yP = margin + 12;
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(11);
