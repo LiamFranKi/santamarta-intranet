@@ -7,7 +7,7 @@ const { upsertClave } = require('./logoColegio');
 const { urlFondoConfig } = require('./staticStorage');
 
 const LOGIN = ['actual', 'partido', 'tarjeta', 'amplio', 'compacto'];
-const WEB = ['actual', 'barra', 'sobre-banner', 'editorial', 'tarjetas', 'sobrio'];
+const WEB = ['actual', 'barra', 'sobre-banner', 'editorial', 'tarjetas', 'sobrio', 'bilingue'];
 const FONDO = ['color', 'imagen'];
 const CLAVES = [
   'login_plantilla', 'login_fondo_modo', 'web_plantilla',
