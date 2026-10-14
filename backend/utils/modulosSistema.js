@@ -84,6 +84,7 @@ const MODULOS = [
   { clave: 'config.tutoria', grupo: 'Configuración', nombre: 'Tutoría', defecto: true },
   { clave: 'config.cajero', grupo: 'Configuración', nombre: 'Cajero', defecto: true },
   { clave: 'config.biblioteca', grupo: 'Configuración', nombre: 'Biblioteca', defecto: true },
+  { clave: 'config.libreta', grupo: 'Configuración', nombre: 'Documento de libreta', defecto: true },
   { clave: 'config.cumpleanos', grupo: 'Configuración', nombre: 'Cumpleaños', defecto: true },
   { clave: 'config.indicadores', grupo: 'Configuración', nombre: 'Indicadores', defecto: true },
 ];

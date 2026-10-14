@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
+const { leerHojasLibreta } = require('../utils/libretaHojas');
 const { esCualitativoNivel, anexarPruebaEnNiveles } = require('../utils/cnebTipoNivel');
 const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
@@ -2629,6 +2630,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
 
     const alumno = alumnoInfo[0];
     const esCualitativa = esCualitativoNivel(alumno.tipo_calificacion, alumno.nivel_nombre);
+    const hojas_libreta = await leerHojasLibreta(query);
 
     // Obtener título de la intranet
     const colegioInfo = await query(
@@ -2881,7 +2883,8 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         resumen: resumenCual,
         recomendaciones: recomendacionesTexto,
         ciclo,
-        detalle_notas: detalle_notas_cual
+        detalle_notas: detalle_notas_cual,
+        hojas_libreta,
       });
     }
 
@@ -3240,6 +3243,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       ciclo,
       detalle_notas,
       rangos_letras,
+      hojas_libreta,
     });
   } catch (error) {
     console.error('Error obteniendo libreta:', error);

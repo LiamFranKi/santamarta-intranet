@@ -185,14 +185,14 @@ export default function ConductaRapidaFlotante({ pisos = 0 }) {
 
             {alumno && !tipo && !hecho ? (
               <div className="crf-tipos">
-                <p className="crf-seccion">Registros de este año</p>
-                <ConductaRegistrosAlumno key={`${alumno.matricula_id}-${rev}`} matriculaId={alumno.matricula_id} compacto />
                 {TIPOS.map((t) => (
                   <button key={t.id} type="button" className={`crf-tipo crf-tipo--${t.tono}`} onClick={() => { setTipo(t.id); setItem(null); }}>
                     <strong>{t.label}</strong>
                     <span>{t.texto}</span>
                   </button>
                 ))}
+                <p className="crf-seccion crf-seccion--abajo">Registros de este año</p>
+                <ConductaRegistrosAlumno key={`${alumno.matricula_id}-${rev}`} matriculaId={alumno.matricula_id} compacto />
                 <button type="button" className="crf-link" onClick={() => setAlumno(null)}>Elegir otro alumno</button>
               </div>
             ) : null}

@@ -689,7 +689,6 @@ async function avisarTutor(alumno, titulo, mensaje, usuarioId) {
     [...ids, alumno.colegio_id]
   );
   for (const u of usuarios || []) {
-    if (usuarioId && Number(u.id) === Number(usuarioId)) continue;
     try {
       await insertNotificacionUsuario(execute, {
         usuario_id: usuarioId || u.id,

@@ -1607,6 +1607,9 @@ router.get('/configuracion', async (req, res) => {
       cumpleanos_plantilla_correo_cuerpo: configMap['cumpleanos_plantilla_correo_cuerpo'] || '',
       cumpleanos_plantilla_mensaje_sistema: configMap['cumpleanos_plantilla_mensaje_sistema'] || '',
       enable_enrollment_form: configMap['enable_enrollment_form'] || 'NO',
+      libreta_hoja_conducta: configMap['libreta_hoja_conducta'] === '0' ? '0' : '1',
+      libreta_hoja_puestos: configMap['libreta_hoja_puestos'] === '1' ? '1' : '0',
+      libreta_hoja_detalle: configMap['libreta_hoja_detalle'] === '1' ? '1' : '0',
       login_fondo: urlFondoConfig(colegioData.login_background),
       libreta_logo: urlFondoConfig(configMap['libreta_logo']),
       libreta_fondo: urlFondoConfig(configMap['libreta_fondo']),
@@ -1960,7 +1963,8 @@ router.put('/configuracion', uploadConfig.fields([
       'cumpleanos_plantilla_correo_asunto',
       'cumpleanos_plantilla_correo_cuerpo',
       'cumpleanos_plantilla_mensaje_sistema',
-      'enable_enrollment_form'
+      'enable_enrollment_form',
+      'libreta_hoja_conducta', 'libreta_hoja_puestos', 'libreta_hoja_detalle'
     ];
 
     for (const field of configFields) {

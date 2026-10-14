@@ -79,6 +79,7 @@ export const MODULOS = [
   { clave: 'config.tutoria', grupo: 'Configuración', nombre: 'Tutoría', defecto: true, rutas: [] },
   { clave: 'config.cajero', grupo: 'Configuración', nombre: 'Cajero', defecto: true, rutas: [] },
   { clave: 'config.biblioteca', grupo: 'Configuración', nombre: 'Biblioteca', defecto: true, rutas: [] },
+  { clave: 'config.libreta', grupo: 'Configuración', nombre: 'Documento de libreta', defecto: true, rutas: [] },
   { clave: 'config.cumpleanos', grupo: 'Configuración', nombre: 'Cumpleaños', defecto: true, rutas: ['/admin/config/cumpleanos'] },
   { clave: 'config.indicadores', grupo: 'Configuración', nombre: 'Indicadores', defecto: true, rutas: ['/admin/config/indicadores'] },
 ];
@@ -96,6 +97,7 @@ export const CLAVES_CONFIG_PAGINA = [
   'config.tutoria',
   'config.cajero',
   'config.biblioteca',
+  'config.libreta',
 ];
 
 const RUTAS = MODULOS

@@ -66,18 +66,21 @@ export default function ConductaRegistrosAlumno({ matriculaId, compacto = false 
     <ul className={`cra-lista${compacto ? ' cra-lista--compacta' : ''}`}>
       {registros.map((reg) => (
         <li key={reg.id}>
-          <div>
+          <div className="cra-top">
             <strong>{reg.codigo}</strong>
             <span>{reg.etiqueta}</span>
             <small>{fechaCorta(reg.fecha, reg.hora)}</small>
           </div>
-          <p>{reg.nombre}</p>
-          <em>−{reg.descuento}</em>
-          <button type="button" onClick={() => quitar(reg)} aria-label={`Quitar ${reg.codigo}`} title="Quitar">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M4 7h16M9 7V5h6v2M8 7l1 13h6l1-13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
+          <div className="cra-fila">
+            <p>{reg.nombre}</p>
+            <em title="Puntaje">−{reg.descuento}</em>
+            <button type="button" onClick={() => quitar(reg)} aria-label={`Quitar ${reg.codigo}`} title="Quitar">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="8.25" stroke="currentColor" strokeWidth="1.7" />
+                <path d="M9 12h6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
         </li>
       ))}
     </ul>

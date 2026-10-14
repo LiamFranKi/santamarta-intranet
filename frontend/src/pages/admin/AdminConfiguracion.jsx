@@ -134,10 +134,35 @@ function ConfigTabIcon({ name }) {
           <path d="M8 11V7a4 4 0 0 1 8 0v4" />
         </svg>
       );
+    case 'libreta':
+      return (
+        <svg {...common}>
+          <path d="M6 3h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+          <path d="M14 3v6h6M8 13h8M8 17h5" />
+        </svg>
+      );
     default:
       return null;
   }
 }
+
+const HOJAS_LIBRETA = [
+  {
+    clave: 'libreta_hoja_conducta',
+    titulo: 'Hoja de conducta',
+    texto: 'Va junto a la boleta. Muestra la nota del bimestre y el detalle de faltas.',
+  },
+  {
+    clave: 'libreta_hoja_puestos',
+    titulo: 'Ranking de puestos',
+    texto: 'Lista del salón con el puesto y el promedio de cada bimestre.',
+  },
+  {
+    clave: 'libreta_hoja_detalle',
+    titulo: 'Detalle por curso',
+    texto: 'La explicación que el docente escribe en cada curso, con el promedio del bimestre.',
+  },
+];
 
 const CONFIG_TABS = [
   {
@@ -147,6 +172,46 @@ const CONFIG_TABS = [
     tone: 'blue',
     helpTitle: 'Identidad del colegio',
     help: 'Nombre, código modular, resolución, texto del menú, logos y comisión de tarjeta. Guarde cada bloque con su propio botón.',
+  },
+  {
+    id: 'anio',
+    label: 'Año académico',
+    icon: 'anio',
+    tone: 'teal',
+    helpTitle: 'Año lectivo',
+    help: 'Define el año activo del sistema y el de matrículas. Debajo puede configurar la estructura de temas del aula virtual. El reinicio de contraseñas es irreversible: usará el DNI.',
+  },
+  {
+    id: 'recaudo',
+    label: 'Recaudo',
+    icon: 'recaudo',
+    tone: 'amber',
+    helpTitle: 'Datos de recaudo',
+    help: 'Sucursal, cuenta y razón social usados en cobros. Guarde el bloque antes de cambiar de pestaña.',
+  },
+  {
+    id: 'pagos',
+    label: 'Pagos',
+    icon: 'pagos',
+    tone: 'violet',
+    helpTitle: 'Pensiones y vencimientos',
+    help: 'Ciclo, cantidad de pensiones, moneda, bloqueo de deudores y fechas de vencimiento por mes.',
+  },
+  {
+    id: 'notas',
+    label: 'Notas',
+    icon: 'notas',
+    tone: 'sky',
+    helpTitle: 'Evaluación',
+    help: 'Ciclos de notas, conversión a letras (primaria) y rangos de apreciaciones para reportes.',
+  },
+  {
+    id: 'facturacion',
+    label: 'Facturación',
+    icon: 'facturacion',
+    tone: 'indigo',
+    helpTitle: 'Datos fiscales',
+    help: 'RUC, razón social, dirección y enlace de consulta de comprobantes.',
   },
   {
     id: 'apariencia',
@@ -181,46 +246,6 @@ const CONFIG_TABS = [
     help: 'Permisos de entrada del personal: a quién, desde qué día y a qué hora.',
   },
   {
-    id: 'recaudo',
-    label: 'Recaudo',
-    icon: 'recaudo',
-    tone: 'amber',
-    helpTitle: 'Datos de recaudo',
-    help: 'Sucursal, cuenta y razón social usados en cobros. Guarde el bloque antes de cambiar de pestaña.',
-  },
-  {
-    id: 'anio',
-    label: 'Año académico',
-    icon: 'anio',
-    tone: 'teal',
-    helpTitle: 'Año lectivo',
-    help: 'Define el año activo del sistema y el de matrículas. Debajo puede configurar la estructura de temas del aula virtual. El reinicio de contraseñas es irreversible: usará el DNI.',
-  },
-  {
-    id: 'pagos',
-    label: 'Pagos',
-    icon: 'pagos',
-    tone: 'violet',
-    helpTitle: 'Pensiones y vencimientos',
-    help: 'Ciclo, cantidad de pensiones, moneda, bloqueo de deudores y fechas de vencimiento por mes.',
-  },
-  {
-    id: 'notas',
-    label: 'Notas',
-    icon: 'notas',
-    tone: 'sky',
-    helpTitle: 'Evaluación',
-    help: 'Ciclos de notas, conversión a letras (primaria) y rangos de apreciaciones para reportes.',
-  },
-  {
-    id: 'facturacion',
-    label: 'Facturación',
-    icon: 'facturacion',
-    tone: 'indigo',
-    helpTitle: 'Datos fiscales',
-    help: 'RUC, razón social, dirección y enlace de consulta de comprobantes.',
-  },
-  {
     id: 'tutoria',
     label: 'Tutoría',
     icon: 'tutoria',
@@ -246,6 +271,14 @@ const CONFIG_TABS = [
     soloAdmin: true,
     helpTitle: 'Función Biblioteca',
     help: 'Asigne personal que podrá dar de alta libros, prestar y cambiar estados. Admin y secretaría ya tienen este acceso.',
+  },
+  {
+    id: 'libreta',
+    label: 'Documento de libreta',
+    icon: 'libreta',
+    tone: 'indigo',
+    helpTitle: 'Documento de libreta',
+    help: 'Activo se imprime junto a la boleta. Desactivado no sale en el PDF, ni de un alumno ni del aula.',
   },
 ];
 
@@ -906,6 +939,9 @@ function AdminConfiguracion() {
     boleta_logo: null,
     icono_app: null,
     regla_conducta: { ...REGLA_CONDUCTA_DEFAULT },
+    libreta_hoja_conducta: '1',
+    libreta_hoja_puestos: '0',
+    libreta_hoja_detalle: '0',
   });
 
   const [archivosPreview, setArchivosPreview] = useState({
@@ -1034,7 +1070,10 @@ function AdminConfiguracion() {
         libreta_logo: null,
         libreta_fondo: null,
         boleta_logo: null,
-        icono_app: null
+        icono_app: null,
+        libreta_hoja_conducta: data.libreta_hoja_conducta === '0' || data.libreta_hoja_conducta === 0 ? '0' : '1',
+        libreta_hoja_puestos: data.libreta_hoja_puestos === '1' || data.libreta_hoja_puestos === 1 ? '1' : '0',
+        libreta_hoja_detalle: data.libreta_hoja_detalle === '1' || data.libreta_hoja_detalle === 1 ? '1' : '0',
       };
       
       // Debug final: verificar qué se estableció en el estado
@@ -2795,6 +2834,56 @@ function AdminConfiguracion() {
             </div>
             <div className="config-section">
               <PanelBibliotecaPersonal />
+            </div>
+          </div>
+          )}
+
+          {activeTab === 'libreta' && (
+          <div className="config-panel-card">
+            <div className="config-panel-card-header config-panel-card-header--indigo">
+              <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="libreta" /></span>
+              Hojas del PDF
+            </div>
+            <div className="config-section">
+              <p className="config-section-desc">
+                La boleta de notas siempre se imprime. Estas tres hojas se agregan solo si el interruptor está activo.
+              </p>
+              <div className="libreta-hojas">
+                {HOJAS_LIBRETA.map((hoja) => {
+                  const activoHoja = String(config[hoja.clave]) === '1';
+                  return (
+                    <div key={hoja.clave} className={`libreta-hoja${activoHoja ? ' is-on' : ''}`}>
+                      <div>
+                        <strong>{hoja.titulo}</strong>
+                        <p>{hoja.texto}</p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={activoHoja}
+                        className={`libreta-switch${activoHoja ? ' is-on' : ''}`}
+                        onClick={() => setConfig((prev) => ({ ...prev, [hoja.clave]: activoHoja ? '0' : '1' }))}
+                      >
+                        <span>{activoHoja ? 'Se imprime' : 'Oculta'}</span>
+                        <i aria-hidden="true" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="card-actions">
+                <button
+                  type="button"
+                  onClick={() => handleSaveSection(
+                    ['libreta_hoja_conducta', 'libreta_hoja_puestos', 'libreta_hoja_detalle'],
+                    'Documento de libreta'
+                  )}
+                  disabled={saving}
+                  className="btn-submit-card"
+                >
+                  {saving ? 'Guardando…' : 'Guardar hojas'}
+                </button>
+              </div>
             </div>
           </div>
           )}

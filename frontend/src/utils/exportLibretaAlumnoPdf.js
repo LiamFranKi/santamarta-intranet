@@ -13,6 +13,12 @@ import { formatearTutoresLibreta } from './tutoresGrupoTexto';
 import { descargarCnebHijoConAviso, esInicialEnAnio } from './cnebHijoPdfs';
 import { esInicialLibretaPrevia } from './inicialLibretaPrevia';
 
+function libretaHojaActiva(valor, defecto) {
+  if (valor === true || valor === 1 || valor === '1') return true;
+  if (valor === false || valor === 0 || valor === '0') return false;
+  return defecto;
+}
+
 export async function fetchYExportarLibretaAlumno(hijoId, ciclo = 1, anio = null) {
   try {
     const params = { ciclo };
@@ -214,6 +220,11 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
         }
         return externalDoc || null;
       }
+
+      const hojasLibreta = datosLibreta.hojas_libreta || {};
+      const incluirHojaDetalle = libretaHojaActiva(hojasLibreta.detalle, false);
+      const incluirHojaPuestos = libretaHojaActiva(hojasLibreta.puestos, false);
+      const incluirHojaConducta = libretaHojaActiva(hojasLibreta.conducta, true);
 
       const doc =
         externalDoc ||
@@ -656,14 +667,9 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
       doc.setFont('helvetica', 'bold'); // Texto en negrita
       doc.text('Dirección Académica', firmaX + firmaWidth / 2, yPos, { align: 'center' });
 
-      // Libreta: por ahora solo la Boleta de Información Académica.
-      // Código conservado; poner en true para volver a incluir estas hojas.
-      const INCLUIR_HOJA_DETALLE_NOTAS_LIBRETA = false;
-      const INCLUIR_HOJA_ORDEN_MERITO_LIBRETA = false;
-
       // Sección Detalle de Notas (explicaciones del docente por curso) — antes del Reporte de Orden de Mérito
       let detalleNotasDoc = datosLibreta.detalle_notas || [];
-      if (INCLUIR_HOJA_DETALLE_NOTAS_LIBRETA && detalleNotasDoc.length === 0 && datosLibreta.areas) {
+      if (incluirHojaDetalle && detalleNotasDoc.length === 0 && datosLibreta.areas) {
         // Fallback: construir desde areas/asignaturas_sin_area cuando no hay detalle_notas
         const items = [];
         (datosLibreta.areas || []).forEach(ar => {
@@ -678,7 +684,7 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
         });
         detalleNotasDoc = items;
       }
-      if (INCLUIR_HOJA_DETALLE_NOTAS_LIBRETA && detalleNotasDoc.length > 0) {
+      if (incluirHojaDetalle && detalleNotasDoc.length > 0) {
         doc.addPage();
         let yDet = margin + 12;
         doc.setFont('helvetica', 'bold');
@@ -740,7 +746,7 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
 
       // Segunda hoja(s): lista de verificación orden de mérito por bimestre (solo libretas numéricas)
       const ordenMeritoDetalle = datosLibreta.resumen?.orden_merito_detalle;
-      if (INCLUIR_HOJA_ORDEN_MERITO_LIBRETA && ordenMeritoDetalle && cicloSel >= 1) {
+      if (incluirHojaPuestos && ordenMeritoDetalle && cicloSel >= 1) {
         const bimestresLabel = ['I', 'II', 'III', 'IV'];
         const colPuesto = 18;
         const colPromedio = 28;
@@ -784,8 +790,7 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
       }
       } // fin else layout cuantitativo
 
-      if (save) {
-        const nombreArchivo = `Libreta_${datosLibreta.alumno.apellido_paterno?.replace(/\s+/g, '_') || 'libreta'}_${new Date().getTime()}.pdf`;
+      if (incluirHojaConducta) {
         const hojasConducta = (datosLibreta.resumen?.conducta_detalle || []).filter((h) => h && h.ciclo <= cicloSel);
         hojasConducta.forEach((hoja) => {
           doc.addPage();
@@ -925,7 +930,10 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
           doc.text('La nota del bimestre es el promedio de las dos partes.', m, pageHeight - 7);
           doc.text(`Bimestre ${hoja.ciclo}`, pageWidth - m, pageHeight - 7, { align: 'right' });
         });
+      }
 
+      if (save) {
+        const nombreArchivo = `Libreta_${datosLibreta.alumno.apellido_paterno?.replace(/\s+/g, '_') || 'libreta'}_${new Date().getTime()}.pdf`;
         doc.save(nombreArchivo);
       }
       return doc;

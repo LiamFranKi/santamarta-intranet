@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
+const { leerHojasLibreta } = require('../utils/libretaHojas');
 const { esCualitativoNivel, anexarPruebaEnNiveles, bimestrePruebaCneb } = require('../utils/cnebTipoNivel');
 const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
 const {
@@ -13890,6 +13891,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     })();
     alumno.foto_url = fotoLibretaUrl;
     const esCualitativa = esCualitativoNivel(alumno.tipo_calificacion, alumno.nivel_nombre);
+    const hojas_libreta = await leerHojasLibreta(query);
 
     // Obtener título de la intranet desde la tabla colegios
     const colegioInfo = await query(
@@ -14121,7 +14123,8 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         resumen: resumenCual,
         recomendaciones: recomendacionesTexto,
         ciclo,
-        detalle_notas: detalle_notas_cual
+        detalle_notas: detalle_notas_cual,
+        hojas_libreta,
       });
     }
 
@@ -14444,6 +14447,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       ciclo,
       detalle_notas,
       rangos_letras,
+      hojas_libreta,
     });
   } catch (error) {
     console.error('❌ [HIJOS-LIBRETA] Error obteniendo libreta:', error);
