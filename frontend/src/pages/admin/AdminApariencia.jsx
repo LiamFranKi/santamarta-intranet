@@ -21,6 +21,7 @@ const WEBS = [
   { id: 'editorial', nombre: 'Editorial', texto: 'Logo al centro, menú debajo y un banner más bajo.' },
   { id: 'tarjetas', nombre: 'Tarjetas', texto: 'El banner queda dentro de un marco, con el menú arriba.' },
   { id: 'sobrio', nombre: 'Sobrio', texto: 'Menú compacto y un banner corto, con más texto a la vista.' },
+  { id: 'bilingue', nombre: 'Bilingüe', texto: 'La portada de Santa Marta: una página en español e inglés. No la uses en Vanguard.' },
 ];
 
 const VACIO = {
@@ -170,6 +171,15 @@ function MiniWeb({ id }) {
     return (
       <div className="ap-mini">
         <div className="ap-mini-menu ap-mini-menu-bajo" />
+        <div className="ap-mini-banner ap-mini-banner-bajo" />
+      </div>
+    );
+  }
+  if (id === 'bilingue') {
+    return (
+      <div className="ap-mini ap-mini-claro">
+        <div className="ap-mini-franja" />
+        <div className="ap-mini-menu" />
         <div className="ap-mini-banner ap-mini-banner-bajo" />
       </div>
     );
