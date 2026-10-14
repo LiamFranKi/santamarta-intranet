@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getPublicStaticBaseUrl, urlDeEsteColegio } from '../utils/staticUrl';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
@@ -126,19 +127,12 @@ function AlumnoPerfil() {
       if (data.foto && data.foto !== '') {
         let fotoUrl;
         if (data.foto.startsWith('http')) {
-          // Ya es una URL completa
-          fotoUrl = data.foto;
-        } else if (data.foto.startsWith('/Static/')) {
-          // Es una ruta completa del sistema anterior
-          fotoUrl = `https://sistema.vanguardschools.edu.pe${data.foto}`;
-        } else if (data.foto.startsWith('/uploads/')) {
-          // Es una ruta de uploads (compatibilidad con archivos antiguos)
-          const currentProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-          const currentHost = window.location.hostname;
-          fotoUrl = `${currentProtocol}//${currentHost}${data.foto}`;
+          fotoUrl = urlDeEsteColegio(data.foto);
+        } else if (data.foto.startsWith('/Static/') || data.foto.startsWith('/uploads/')) {
+          fotoUrl = `${getPublicStaticBaseUrl()}${data.foto}`;
         } else {
           // Es solo el nombre del archivo (formato del sistema PHP, igual que publicaciones)
-          fotoUrl = `https://sistema.vanguardschools.edu.pe/Static/Image/Fotos/${data.foto}`;
+          fotoUrl = `${getPublicStaticBaseUrl()}/Static/Image/Fotos/${data.foto}`;
         }
         setFotoPreview(fotoUrl);
         console.log('📸 Foto de perfil cargada:', fotoUrl);
@@ -291,15 +285,11 @@ function AlumnoPerfil() {
           let fotoUrlForContext = null;
           if (perfilActualizado.foto) {
             if (perfilActualizado.foto.startsWith('http')) {
-              fotoUrlForContext = perfilActualizado.foto;
-            } else if (perfilActualizado.foto.startsWith('/Static/')) {
-              fotoUrlForContext = `https://sistema.vanguardschools.edu.pe${perfilActualizado.foto}`;
-            } else if (perfilActualizado.foto.startsWith('/uploads/')) {
-              const currentProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-              const currentHost = window.location.hostname;
-              fotoUrlForContext = `${currentProtocol}//${currentHost}${perfilActualizado.foto}`;
+              fotoUrlForContext = urlDeEsteColegio(perfilActualizado.foto);
+            } else if (perfilActualizado.foto.startsWith('/Static/') || perfilActualizado.foto.startsWith('/uploads/')) {
+              fotoUrlForContext = `${getPublicStaticBaseUrl()}${perfilActualizado.foto}`;
             } else {
-              fotoUrlForContext = `https://sistema.vanguardschools.edu.pe/Static/Image/Fotos/${perfilActualizado.foto}`;
+              fotoUrlForContext = `${getPublicStaticBaseUrl()}/Static/Image/Fotos/${perfilActualizado.foto}`;
             }
           }
           

@@ -13,8 +13,11 @@ function fotoUrlYPath(alumnoFoto, phpSystemUrl, isProduction, baseFotosPath) {
     ? `${phpSystemUrl}/Static/Image/Fotos/${alumnoFoto}`
     : `http://localhost:5000/Static/Image/Fotos/${alumnoFoto}`;
   let fotoPath = path.join(baseFotosPath, path.basename(alumnoFoto));
-  if (!fs.existsSync(fotoPath) && isProduction) {
-    fotoPath = path.join('/home/vanguard/intranet2026/backend/Static/Image/Fotos', path.basename(alumnoFoto));
+  if (!fs.existsSync(fotoPath)) {
+    const copiada = require('./staticStorage').asegurarArchivoStatic(
+      path.join('Image', 'Fotos', path.basename(alumnoFoto))
+    );
+    if (copiada) fotoPath = copiada;
   }
   return { foto_url, fotoPath };
 }
@@ -102,7 +105,7 @@ async function buildQrCarnetPayloadForAlumnoEnGrupo(query, { colegio_id, alumno_
 
   const qrDataStr = alumnoData.nro_documento || `ALUMNO-${alumnoData.id}`;
 
-  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
+  const phpSystemUrl = process.env.PHP_SYSTEM_URL || '';
   const isProduction = process.env.NODE_ENV === 'production';
   const baseFotosPath = process.env.STATIC_FOTOS_PATH || path.join(__dirname, '..', 'Static', 'Image', 'Fotos');
   const { foto_url, fotoPath } = fotoUrlYPath(alumnoData.foto, phpSystemUrl, isProduction, baseFotosPath);

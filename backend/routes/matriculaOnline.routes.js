@@ -209,7 +209,7 @@ router.get('/', async (req, res) => {
       documentos,
       seguros: SEGURO_OPCIONES,
       tipos_documento: TIPOS_DOCUMENTO,
-      url_publica: 'https://sistema.vanguardschools.edu.pe/matricula_online',
+      url_publica: `${require('../utils/staticStorage').getPublicStaticBaseUrl()}/matricula_online`,
       parentesco: [
         { id: 1, label: 'Padre / tutor' },
         { id: 2, label: 'Madre' },

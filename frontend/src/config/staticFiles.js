@@ -1,17 +1,13 @@
 /**
- * Configuración de URLs para archivos estáticos (PDFs, imágenes, etc.)
- * 
- * IMPORTANTE: Esta configuración puede cambiar cuando se suba al VPS.
- * Para cambiar el dominio, modifica la variable STATIC_FILES_DOMAIN abajo.
+ * URLs de PDFs e imágenes de esta intranet.
  */
+import { getPublicStaticBaseUrl, urlDeEsteColegio } from '../utils/staticUrl';
 
-// Dominio base para archivos estáticos (PDFs, imágenes, etc.)
-// NOTA: Este valor puede cambiar cuando se suba al VPS
-// Opciones comunes:
-//   - Desarrollo: 'https://sistema.vanguardschools.edu.pe'
-//   - Producción (mismo VPS): 'https://sistema.vanguardschools.edu.pe' o 'https://vanguardschools.edu.pe'
-//   - Producción (VPS diferente): ajustar según donde estén los archivos
-const STATIC_FILES_DOMAIN = process.env.REACT_APP_STATIC_FILES_DOMAIN || 'https://sistema.vanguardschools.edu.pe';
+function dominioArchivos() {
+  const desdeEntorno = String(process.env.REACT_APP_STATIC_FILES_DOMAIN || '').trim();
+  if (desdeEntorno && !/vanguardschools/i.test(desdeEntorno)) return desdeEntorno.replace(/\/$/, '');
+  return getPublicStaticBaseUrl();
+}
 
 /**
  * Construye la URL completa para un archivo estático
@@ -23,12 +19,11 @@ export const getStaticFileUrl = (filePath) => {
   
   // Si ya es una URL completa, validarla y corregir si es necesario
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-    let url = filePath
-      .replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, STATIC_FILES_DOMAIN)
-      .replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, STATIC_FILES_DOMAIN);
-    return url;
+    return urlDeEsteColegio(filePath);
   }
-  
+
+  const STATIC_FILES_DOMAIN = dominioArchivos();
+
   // Si empieza con /Static/, construir URL completa
   if (filePath.startsWith('/Static/')) {
     return `${STATIC_FILES_DOMAIN}${filePath}`;
@@ -51,32 +46,17 @@ export const getStaticFileUrl = (filePath) => {
  */
 export const normalizeStaticFileUrl = (url) => {
   if (!url) return null;
-  
-  const domain = STATIC_FILES_DOMAIN.replace(/^https?:\/\//, '');
-  const domainWithProtocol = STATIC_FILES_DOMAIN;
-  
-  let normalizedUrl = url.trim();
-  
-  // Si ya tiene protocolo, validar dominio
+  const normalizedUrl = String(url).trim();
   if (normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://')) {
-    normalizedUrl = normalizedUrl.replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, domainWithProtocol);
-    normalizedUrl = normalizedUrl.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, domainWithProtocol);
-    normalizedUrl = normalizedUrl.replace(/vanguardschools\.comstatic/gi, `${domainWithProtocol}/Static`);
-    normalizedUrl = normalizedUrl.replace(/vanguardschools\.com\/static/gi, `${domainWithProtocol}/Static`);
-    normalizedUrl = normalizedUrl.replace(/vanguardschools\.com\/Static/gi, `${domainWithProtocol}/Static`);
-    
-    // Limpiar múltiples barras
-    normalizedUrl = normalizedUrl.replace(/([^:]\/)\/+/g, '$1');
-  } else {
-    // Construir URL completa
-    normalizedUrl = getStaticFileUrl(normalizedUrl);
+    return urlDeEsteColegio(normalizedUrl);
   }
-  
-  return normalizedUrl;
+  return getStaticFileUrl(normalizedUrl);
 };
 
 export default {
-  STATIC_FILES_DOMAIN,
+  get STATIC_FILES_DOMAIN() {
+    return dominioArchivos();
+  },
   getStaticFileUrl,
   normalizeStaticFileUrl,
 };

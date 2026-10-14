@@ -124,7 +124,7 @@ router.get('/detalle/:id', async (req, res) => {
       grupoIds = grupos.map((g) => g.id);
     }
 
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || '';
     const isProduction = process.env.NODE_ENV === 'production';
 
     const buildFotoUrl = (fotoFileName) => {

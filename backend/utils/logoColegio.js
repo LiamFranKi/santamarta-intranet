@@ -22,14 +22,17 @@ function dirsArchivosLegacy() {
   const dirs = [];
   if (process.env.STATIC_ARCHIVOS_PATH) dirs.push(process.env.STATIC_ARCHIVOS_PATH);
   dirs.push(path.join(__dirname, '..', 'Static', 'Archivos'));
-  dirs.push('/home/vanguard/intranet2026/backend/Static/Archivos');
+  dirs.push(require('./staticStorage').staticFsSubdir('Archivos'));
   return dirs;
 }
 
 function buscarEnArchivosLegacy(nombre) {
   const name = path.basename(String(nombre || ''));
   if (!name || !/\.(png|jpe?g)$/i.test(name)) return null;
+  const copiado = require('./staticStorage').asegurarArchivoStatic(path.join('Archivos', name));
+  if (copiado) return copiado;
   for (const dir of dirsArchivosLegacy()) {
+    if (/intranet2026|vanguardschools/i.test(dir)) continue;
     const p = path.join(dir, name);
     if (fs.existsSync(p)) return p;
   }

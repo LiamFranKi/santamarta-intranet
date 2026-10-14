@@ -207,18 +207,26 @@ app.use('/uploads', express.static(uploadsPath, {
   }
 }));
 
-// Servir carpeta Static (Avatares, Fotos, Archivos compartidos con sistema PHP)
-const { resolveStaticFsRoot } = require('./utils/staticStorage');
+// Fotos, documentos y temas de ESTA intranet (backend/Static de esta carpeta).
+const { resolveStaticFsRoot, asegurarArchivoStatic } = require('./utils/staticStorage');
 const staticPath = resolveStaticFsRoot();
-if (fs.existsSync(staticPath)) {
-  console.log(`📁 Sirviendo /Static desde: ${staticPath}`);
-  app.use('/Static', express.static(staticPath, {
-    setHeaders: (res) => {
-      res.set('Access-Control-Allow-Origin', '*');
-      res.set('Cache-Control', 'public, max-age=86400');
-    }
-  }));
-}
+fs.mkdirSync(staticPath, { recursive: true });
+console.log(`📁 Sirviendo /Static desde: ${staticPath}`);
+app.use('/Static', (req, res, next) => {
+  try {
+    const rel = decodeURIComponent(req.path || '');
+    if (rel && !rel.includes('..')) asegurarArchivoStatic(rel);
+  } catch (e) {
+    /* si no se puede copiar, sigue y responde 404 */
+  }
+  next();
+});
+app.use('/Static', express.static(staticPath, {
+  setHeaders: (res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Cache-Control', 'public, max-age=86400');
+  }
+}));
 
 // Aplicar rate limiter solo a rutas de API (después de archivos estáticos)
 app.use('/api', limiter);

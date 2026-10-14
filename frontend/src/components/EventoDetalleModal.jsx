@@ -1,4 +1,5 @@
 import React from 'react';
+import { getPublicStaticBaseUrl, urlDeEsteColegio } from '../utils/staticUrl';
 import { useNavigate } from 'react-router-dom';
 import './EventoDetalleModal.css';
 import { crearFechaLima } from '../utils/fechaLima';
@@ -206,8 +207,8 @@ function EventoDetalleModal({ evento, tipo, onClose }) {
                 <span>
                   <a 
                     href={evento.archivo_pdf.startsWith('http') 
-                      ? evento.archivo_pdf 
-                      : `https://sistema.vanguardschools.edu.pe/Static/Archivos/${evento.archivo_pdf}`}
+                      ? urlDeEsteColegio(evento.archivo_pdf) 
+                      : `${getPublicStaticBaseUrl()}/Static/Archivos/${evento.archivo_pdf}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ color: '#4a83c1', textDecoration: 'underline' }}

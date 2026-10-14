@@ -11,7 +11,7 @@ function urlArchivoAula(archivo) {
     ? String(archivo).replace(/^\/Static\/Archivos\//, '')
     : String(archivo);
   const isDevelopment = process.env.NODE_ENV !== 'production';
-  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
+  const phpSystemUrl = process.env.PHP_SYSTEM_URL || '';
   return isDevelopment
     ? `http://localhost:5000/Static/Archivos/${nombre}`
     : `${phpSystemUrl}/Static/Archivos/${nombre}`;

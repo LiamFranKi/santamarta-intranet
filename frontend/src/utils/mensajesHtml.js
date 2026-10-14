@@ -1,5 +1,5 @@
 import api from '../services/api';
-import { getPublicStaticBaseUrl } from './staticUrl';
+import { getPublicStaticBaseUrl, urlDeEsteColegio } from './staticUrl';
 
 /** Marca al inicio del HTML (cumpleaños desde widget); no depende de columna en BD. */
 export const MARCA_CUMPLEANOS_HTML = '<!-- intranet-cumpleanos -->';
@@ -56,9 +56,7 @@ export function procesarHTMLMensaje(html) {
     // Corrige URLs mal concatenadas como:
     // https://midominio.comhttps://sistema.vanguardschools.edu.pe/Static/Archivos/...
     fixed = fixed.replace(/^(https?:\/\/[^/\s"'<>]+)(https?:\/\/.*)$/i, '$2');
-    fixed = fixed
-      .replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpBase)
-      .replace(/https?:\/\/(www\.)?vanguardschools\.com\/?static/gi, `${phpBase}/Static`);
+    fixed = urlDeEsteColegio(fixed) || fixed;
     if (/^https?:\/\//i.test(fixed)) {
       return `<img${before} src="${fixed}"${after}>`;
     }

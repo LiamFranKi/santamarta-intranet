@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../services/api';
+import { getPublicStaticBaseUrl, urlDeEsteColegio } from '../utils/staticUrl';
 import PsicologiaSignaturePad from '../components/PsicologiaSignaturePad';
 import './MatriculaOnline.css';
 
@@ -29,9 +30,9 @@ function dataUrlToBlob(dataUrl) {
 
 function buildDocUrl(url) {
   if (!url) return '#';
-  if (url.startsWith('http')) return url;
-  const { protocol, hostname } = window.location;
-  return `${protocol}//${hostname}${url.startsWith('/') ? url : `/${url}`}`;
+  if (url.startsWith('http')) return urlDeEsteColegio(url) || url;
+  const base = getPublicStaticBaseUrl();
+  return `${base}${url.startsWith('/') ? url : `/${url}`}`;
 }
 
 const emptyAlumno = () => ({

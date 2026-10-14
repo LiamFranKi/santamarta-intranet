@@ -47,7 +47,7 @@ const phpSerialize = require('php-serialize');
 
 const personalStorageAdmin = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadPath = '/home/vanguard/intranet2026/backend/Static/Image/Fotos';
+    const uploadPath = require('../utils/staticStorage').staticFsSubdir('Image', 'Fotos');
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
     }
@@ -258,7 +258,7 @@ function requireAdminOCoordinadorGetInstitucional(req, res, next) {
 }
 
 function buildArchivoUrlAdmin(nombreArchivo) {
-  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
+  const phpSystemUrl = process.env.PHP_SYSTEM_URL || '';
   const isProduction = process.env.NODE_ENV === 'production';
   if (isProduction) return `${phpSystemUrl}/Static/Archivos/${nombreArchivo}`;
   return `http://localhost:5000/Static/Archivos/${nombreArchivo}`;
@@ -2122,7 +2122,7 @@ function getAvataresBaseUrl(req) {
   let protocol = req.get('x-forwarded-proto') || req.protocol;
   if (!protocol || protocol === 'http') protocol = 'https';
   if (host) return `${protocol}://${host}/api/static/avatars`;
-  const fallback = process.env.API_PUBLIC_URL || process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
+  const fallback = process.env.API_PUBLIC_URL || process.env.PHP_SYSTEM_URL || '';
   return fallback.replace(/\/$/, '') + '/api/static/avatars';
 }
 
@@ -3682,7 +3682,7 @@ router.get('/perfil', async (req, res) => {
     const docente = personal[0];
     let fotoUrl = null;
     if (docente.foto && docente.foto !== '') {
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || '';
       const isProduction = process.env.NODE_ENV === 'production';
       if (isProduction) {
         fotoUrl = `${phpSystemUrl}/Static/Image/Fotos/${docente.foto}`;
@@ -3730,7 +3730,7 @@ router.put('/perfil', uploadPersonalAdmin.single('foto'), async (req, res) => {
     let fotoPath = docente.foto;
     if (req.file) {
       if (docente.foto && docente.foto !== '') {
-        const oldFotoPath = `/home/vanguard/intranet2026/backend/Static/Image/Fotos/${path.basename(docente.foto)}`;
+        const oldFotoPath = `${require('../utils/staticStorage').staticFsSubdir('Image', 'Fotos')}/${path.basename(docente.foto)}`;
         if (fs.existsSync(oldFotoPath)) {
           try {
             fs.unlinkSync(oldFotoPath);
@@ -3774,7 +3774,7 @@ router.put('/perfil', uploadPersonalAdmin.single('foto'), async (req, res) => {
     const row = personalActualizado[0] || {};
     let fotoUrlResp = null;
     if (row.foto && row.foto !== '') {
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || '';
       const isProduction = process.env.NODE_ENV === 'production';
       fotoUrlResp = isProduction
         ? `${phpSystemUrl}/Static/Image/Fotos/${row.foto}`

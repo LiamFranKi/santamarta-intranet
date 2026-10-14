@@ -11,7 +11,8 @@ function archivoUrlDeComunicado(com) {
     nombreArchivo.startsWith('/uploads/comunicados/') ||
     nombreArchivo.startsWith('uploads/comunicados/');
   const isProduction = process.env.NODE_ENV === 'production';
-  const dominioBase = 'https://sistema.vanguardschools.edu.pe';
+  const { getPublicStaticBaseUrl } = require('./staticStorage');
+  const dominioBase = getPublicStaticBaseUrl();
 
   if (esSistemaNuevo) {
     const pathNorm = nombreArchivo.startsWith('/') ? nombreArchivo : `/${nombreArchivo}`;

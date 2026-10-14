@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { getPublicStaticBaseUrl, urlDeEsteColegio } from '../utils/staticUrl';
 import { useParams } from 'react-router-dom';
 import api from '../services/api';
 import { fotoUsuarioAdmin } from '../utils/adminUsuariosFoto';
@@ -25,13 +26,9 @@ function getInitials(nombre) {
 function buildFotoUrl(fotoRaw) {
   if (fotoRaw == null || String(fotoRaw).trim() === '') return null;
   const foto = String(fotoRaw).trim();
-  if (foto.startsWith('http')) return foto;
-  if (foto.startsWith('/Static/')) {
-    return `https://sistema.vanguardschools.edu.pe${foto}`;
-  }
-  if (foto.startsWith('/uploads/')) {
-    const { protocol, hostname } = window.location;
-    return `${protocol}//${hostname}${foto}`;
+  if (foto.startsWith('http')) return urlDeEsteColegio(foto);
+  if (foto.startsWith('/Static/') || foto.startsWith('/uploads/')) {
+    return `${getPublicStaticBaseUrl()}${foto}`;
   }
   return fotoUsuarioAdmin(foto);
 }

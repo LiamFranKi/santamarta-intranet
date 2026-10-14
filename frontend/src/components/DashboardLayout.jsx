@@ -22,6 +22,7 @@ import SgoiFlotante from './SgoiFlotante';
 import ConductaRapidaFlotante from './ConductaRapidaFlotante';
 import ChatFlotante, { ChatEnLinea } from './ChatFlotante';
 import { usuarioPuedeSgoi } from '../utils/sgoiFormat';
+import { fotoUsuarioAdmin } from '../utils/adminUsuariosFoto';
 import { esPaqueteCoordinador, esPaqueteAcademico, esCoordinador } from '../utils/coordinadorAcceso';
 import '../styles/CumpleMarcoFestivo.css';
 import './DashboardLayout.css';
@@ -570,50 +571,10 @@ export default function DashboardLayout({ children }) {
     console.log('🔍 [DASHBOARD LAYOUT] Role detectado:', role, 'User tipo:', user?.tipo);
   }, [role, user?.tipo]);
   
-  // Construir URL de la foto del usuario
-  // La foto debería venir como URL completa del backend, pero manejamos todos los casos por compatibilidad
-  const userFotoUrl = useMemo(() => {
-    if (!user?.foto) return null;
-    
-    const currentHost = window.location.hostname;
-    const currentProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    
-    let fotoUrl;
-    
-    // Si ya es una URL completa (http/https), normalizarla
-    if (user.foto.startsWith('http')) {
-      fotoUrl = user.foto
-        .replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, 'https://sistema.vanguardschools.edu.pe')
-        .replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, 'https://sistema.vanguardschools.edu.pe');
-      if (fotoUrl.includes('/uploads/')) {
-        fotoUrl = fotoUrl.replace(
-          /https?:\/\/[^/]+\/uploads/g,
-          `${currentProtocol}//${currentHost}/uploads`
-        );
-      }
-      return fotoUrl;
-    }
-    
-    // Si es una ruta relativa que empieza con /, construir URL completa
-    if (user.foto.startsWith('/')) {
-      return `${currentProtocol}//${currentHost}${user.foto}`;
-    }
-    
-    // Si solo tenemos el nombre del archivo (caso legacy o localStorage antiguo)
-    // IMPORTANTE: Las fotos se guardan en Static/Image/Fotos/ (compartido con sistema PHP)
-    // Usar el mismo dominio del sistema PHP para servir fotos (igual que publicaciones)
-    const fotoNombre = user.foto_nombre || user.foto;
-    const phpSystemUrl = 'https://sistema.vanguardschools.edu.pe';
-    const isProduction = currentHost !== 'localhost' && currentHost !== '127.0.0.1';
-    
-    if (isProduction) {
-      // Producción: usar el dominio del sistema PHP
-      return `${phpSystemUrl}/Static/Image/Fotos/${fotoNombre}`;
-    } else {
-      // Desarrollo: usar localhost
-      return `http://localhost:5000/Static/Image/Fotos/${fotoNombre}`;
-    }
-  }, [user?.foto, user?.foto_nombre]);
+  const userFotoUrl = useMemo(
+    () => fotoUsuarioAdmin(user?.foto || user?.foto_nombre),
+    [user?.foto, user?.foto_nombre]
+  );
 
   return (
     <div className="dashboard-layout">

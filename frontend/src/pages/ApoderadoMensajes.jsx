@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { getPublicStaticBaseUrl, urlDeEsteColegio } from '../utils/staticUrl';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
@@ -72,10 +73,10 @@ function MensajeModalContent({ mensaje, vista, onClose, onMensajeLeido }) {
               // El backend ya devuelve archivo_url como URL completa (con dominio del sistema PHP)
               const archivoUrl = archivo.archivo_url 
                 ? (archivo.archivo_url.startsWith('http') 
-                    ? archivo.archivo_url 
-                    : `${process.env.REACT_APP_PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe'}${archivo.archivo_url}`)
+                    ? urlDeEsteColegio(archivo.archivo_url) 
+                    : `${getPublicStaticBaseUrl()}${archivo.archivo_url}`)
                 : archivo.archivo
-                ? `${process.env.REACT_APP_PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe'}/Static/Archivos/${archivo.archivo}`
+                ? `${getPublicStaticBaseUrl()}/Static/Archivos/${archivo.archivo}`
                 : null;
               
               if (!archivoUrl) {

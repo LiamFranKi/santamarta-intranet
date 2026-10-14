@@ -1,31 +1,42 @@
 /**
- * Archivos estáticos del intranet React (sistema.vanguardschools.edu.pe).
- * Disco: backend/Static (en VPS: /home/vanguard/intranet2026/backend/Static)
- * URL pública: https://sistema.vanguardschools.edu.pe/Static/...
+ * Archivos de ESTA intranet.
+ * Disco: backend/Static de la carpeta donde corre el proceso
+ * (Santa Marta: /home/vanguard/santamarta/backend/Static).
+ * URL: el mismo origen del navegador (/Static/...), nunca el dominio de otro colegio.
  */
 const path = require('path');
 const fs = require('fs');
 
-const DEFAULT_PUBLIC_BASE = 'https://sistema.vanguardschools.edu.pe';
+const LEGACY_STATIC_ROOT = '/home/vanguard/intranet2026/backend/Static';
+
+function urlApuntaAOtroColegio(valor) {
+  return /vanguardschools/i.test(String(valor || ''));
+}
+
+['PHP_SYSTEM_URL', 'FRONTEND_URL', 'STATIC_PUBLIC_URL', 'API_PUBLIC_URL'].forEach((clave) => {
+  if (urlApuntaAOtroColegio(process.env[clave])) delete process.env[clave];
+});
 
 function resolveStaticFsRoot() {
-  if (process.env.STATIC_FS_ROOT) {
+  if (process.env.STATIC_FS_ROOT && !urlApuntaAOtroColegio(process.env.STATIC_FS_ROOT) && !/intranet2026/i.test(process.env.STATIC_FS_ROOT)) {
     return String(process.env.STATIC_FS_ROOT).replace(/\/$/, '');
   }
   return path.join(__dirname, '..', 'Static');
 }
 
 function getPublicStaticBaseUrl() {
-  const u =
-    process.env.STATIC_PUBLIC_URL ||
-    process.env.API_PUBLIC_URL ||
-    process.env.FRONTEND_URL ||
-    process.env.PHP_SYSTEM_URL ||
-    DEFAULT_PUBLIC_BASE;
-  let base = String(u).replace(/\/$/, '');
-  // Seguridad: nunca devolver dominio legacy en producción
-  base = base.replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, DEFAULT_PUBLIC_BASE);
-  return base;
+  const candidatos = [
+    process.env.STATIC_PUBLIC_URL,
+    process.env.API_PUBLIC_URL,
+    process.env.FRONTEND_URL,
+    process.env.PHP_SYSTEM_URL,
+  ];
+  for (const candidato of candidatos) {
+    const base = String(candidato || '').trim().replace(/\/$/, '');
+    if (!base || urlApuntaAOtroColegio(base)) continue;
+    return base;
+  }
+  return '';
 }
 
 function staticFsSubdir(...segments) {
@@ -68,8 +79,8 @@ function normalizeLegacyStaticUrl(urlOrPath) {
   if (urlOrPath == null || urlOrPath === '') return null;
   const base = getPublicStaticBaseUrl();
   let s = String(urlOrPath).trim();
-  s = s.replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, base);
-  s = s.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, base);
+  s = s.replace(/https?:\/\/(?:nuevo\.|sistema\.|www\.)?vanguardschools\.edu\.pe/gi, base);
+  s = s.replace(/https?:\/\/(?:www\.)?vanguardschools\.com/gi, base);
   s = s.replace(/vanguardschools\.comstatic/gi, `${base}/Static`);
   s = s.replace(/vanguardschools\.com\/static/gi, `${base}/Static`);
   s = s.replace(/vanguardschools\.com\/Static/gi, `${base}/Static`);
@@ -87,15 +98,29 @@ function nombreFondoSeguro(filename) {
   return name;
 }
 
-/** Carpeta de fondos de esta copia. Si el archivo se guardó antes en la de Vanguard, también lo encuentra. */
+/**
+ * Si el archivo ya está en esta intranet, lo usa.
+ * Si una subida anterior quedó en la carpeta del otro colegio, lo copia aquí y desde entonces se sirve desde esta intranet.
+ */
+function asegurarArchivoStatic(rel) {
+  const limpio = path.normalize(String(rel || '')).replace(/^(\.\.(\/|\\|$))+/, '').replace(/^[/\\]+/, '');
+  if (!limpio || limpio.split(/[/\\]/).includes('..')) return null;
+  const local = path.join(resolveStaticFsRoot(), limpio);
+  if (fs.existsSync(local) && fs.statSync(local).isFile()) return local;
+  const legado = path.resolve(LEGACY_STATIC_ROOT, limpio);
+  const raizLegado = path.resolve(LEGACY_STATIC_ROOT);
+  if (!legado.startsWith(raizLegado)) return null;
+  if (!fs.existsSync(legado) || !fs.statSync(legado).isFile()) return null;
+  fs.mkdirSync(path.dirname(local), { recursive: true });
+  fs.copyFileSync(legado, local);
+  return local;
+}
+
+/** Carpeta de fondos de esta copia. */
 function rutaFondoConfig(filename) {
   const name = nombreFondoSeguro(filename);
   if (!name) return null;
-  const local = path.join(resolveStaticFsRoot(), 'Image', 'Fondos', name);
-  if (fs.existsSync(local)) return local;
-  const legado = '/home/vanguard/intranet2026/backend/Static/Image/Fondos/' + name;
-  if (fs.existsSync(legado)) return legado;
-  return null;
+  return asegurarArchivoStatic(path.join('Image', 'Fondos', name));
 }
 
 function urlFondoConfig(filename) {
@@ -131,11 +156,11 @@ function buildStaticArchivoUrl(archivo) {
 }
 
 module.exports = {
-  DEFAULT_PUBLIC_BASE,
   resolveStaticFsRoot,
   getPublicStaticBaseUrl,
   staticFsSubdir,
   joinStaticFs,
+  asegurarArchivoStatic,
   urlStaticArchivos,
   urlStaticFotos,
   normalizeLegacyStaticUrl,

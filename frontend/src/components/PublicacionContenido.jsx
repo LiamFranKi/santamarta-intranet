@@ -4,6 +4,7 @@ import {
   normalizarUrlImagenPublicacion,
   resolverVideoPublicacion,
 } from '../utils/publicacionesMedia';
+import { getPublicStaticBaseUrl } from '../utils/staticUrl';
 
 function nombreArchivoCorto(archivo, index) {
   const nombreArchivo = String(archivo || '').split('/').pop() || `Archivo ${index + 1}`;
@@ -107,7 +108,7 @@ export default function PublicacionContenido({
           {pub.images.slice(0, 3).map((imagenUrl, idx) => {
             const urlCompleta = imagenUrl?.startsWith?.('http')
               ? normalizarUrlImagenPublicacion(imagenUrl)
-              : `${window.location.protocol === 'https:' ? 'https:' : 'http:'}//${window.location.hostname}${String(imagenUrl || '').startsWith('/') ? '' : '/'}${imagenUrl}`;
+              : `${getPublicStaticBaseUrl()}${String(imagenUrl || '').startsWith('/') ? '' : '/'}${imagenUrl}`;
 
             return (
               <img

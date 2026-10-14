@@ -27,8 +27,6 @@ const TIPOS_PERSONAL_CV = [
 ];
 const TIPOS_SET = new Set(TIPOS_PERSONAL_CV);
 
-const FOTOS_LOCAL = path.join(__dirname, '..', 'Static', 'Image', 'Fotos');
-const FOTOS_PROD = '/home/vanguard/intranet2026/backend/Static/Image/Fotos';
 const MAX_FOTO_BYTES = 350 * 1024;
 
 function tipoValido(raw) {
@@ -86,25 +84,19 @@ function dataUrlDesdeArchivo(fsPath) {
 function buscarFotoEnDisco(nombreArchivo) {
   const base = path.basename(String(nombreArchivo || ''));
   if (!base || base.includes('..')) return null;
-  const candidatos = [
-    path.join(FOTOS_LOCAL, base),
-    path.join(FOTOS_PROD, base),
-  ];
-  for (const p of candidatos) {
-    if (fs.existsSync(p)) return p;
-  }
-  return null;
+  return require('./staticStorage').asegurarArchivoStatic(path.join('Image', 'Fotos', base));
 }
 
 function resolverFotoPersonal(fotoRaw) {
   const raw = String(fotoRaw || '').trim();
   if (!raw) return { foto_url: null, foto_base64: null };
 
-  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
+  const phpSystemUrl = process.env.PHP_SYSTEM_URL || '';
   const isProduction = process.env.NODE_ENV === 'production';
 
   if (/^https?:\/\//i.test(raw)) {
-    return { foto_url: raw, foto_base64: dataUrlDesdeArchivo(buscarFotoEnDisco(raw)) };
+    const { normalizeLegacyStaticUrl } = require('./staticStorage');
+    return { foto_url: normalizeLegacyStaticUrl(raw), foto_base64: dataUrlDesdeArchivo(buscarFotoEnDisco(raw)) };
   }
 
   if (raw.startsWith('/Static/Image/Fotos/') || raw.startsWith('/uploads/')) {

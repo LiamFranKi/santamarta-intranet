@@ -1007,7 +1007,7 @@ export default function AdminTardanzas() {
                   <div className="admin-tz-bio__url-box">
                     <p className="admin-tz-bio__hint">{bioEstado.webhook_url_hint}</p>
                     <pre className="admin-tz-bio__env">{`BIOMETRICO_WEBHOOK_TOKEN=un_token_largo_secreto
-BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe`}</pre>
+BIOMETRICO_PUBLIC_URL=${window.location.origin}`}</pre>
                   </div>
                 )}
 

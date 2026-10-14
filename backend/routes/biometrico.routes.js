@@ -144,7 +144,7 @@ router.get('/admin/estado', authenticateToken, async (req, res) => {
       webhook_url: tokenOk ? webhookPublicUrl(req) : null,
       webhook_url_hint: tokenOk
         ? 'Pegue esta URL en el huellero: Configuration → Network → Network Service → HTTP(S) → HTTP Listening.'
-        : 'Defina BIOMETRICO_WEBHOOK_TOKEN y BIOMETRICO_PUBLIC_URL=https://sistema.vanguardschools.edu.pe en backend/.env y reinicie PM2.',
+        : 'Defina BIOMETRICO_WEBHOOK_TOKEN y BIOMETRICO_PUBLIC_URL con la dirección de esta intranet en backend/.env y reinicie PM2.',
       migracion_pendiente: eventsProbe === null,
       marcaciones,
       eventos: marcaciones,

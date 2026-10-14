@@ -399,7 +399,7 @@ async function asegurarFichaHermana({ asignaturaId, trabajadorId, ciclo, numero,
 }
 
 function urlPublicaArchivoTema(archivo) {
-  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
+  const phpSystemUrl = process.env.PHP_SYSTEM_URL || '';
   const isDevelopment = process.env.NODE_ENV !== 'production';
   const raw = String(archivo?.archivo || '').trim();
   if (!raw) return null;

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { getPublicStaticBaseUrl, urlDeEsteColegio } from '../utils/staticUrl';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
@@ -3205,23 +3206,21 @@ function DocenteHijos() {
   // Construir URL de foto del alumno
   const getFotoUrl = (foto) => {
     if (!foto || foto === '') return null;
-    
-    const currentHost = window.location.hostname;
-    const currentProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    
+
     // Si ya es una URL completa
     if (foto.startsWith('http')) {
-      return foto;
+      return urlDeEsteColegio(foto);
     }
     
     // Si es una ruta relativa
     if (foto.startsWith('/')) {
-      return `${currentProtocol}//${currentHost}${foto}`;
+      return `${getPublicStaticBaseUrl()}${foto}`;
     }
     
     // Si solo tenemos el nombre del archivo
-    const phpSystemUrl = 'https://sistema.vanguardschools.edu.pe';
-    const isProduction = currentHost !== 'localhost' && currentHost !== '127.0.0.1';
+    const phpSystemUrl = getPublicStaticBaseUrl();
+    const host = window.location.hostname || '';
+    const isProduction = host !== 'localhost' && host !== '127.0.0.1';
     
     if (isProduction) {
       return `${phpSystemUrl}/Static/Image/Fotos/${foto}`;

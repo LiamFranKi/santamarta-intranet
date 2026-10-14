@@ -1575,7 +1575,7 @@ function getAvatarBaseUrlForReq(req) {
   let protocol = req.get('x-forwarded-proto') || req.protocol;
   if (!protocol || protocol === 'http') protocol = 'https';
   if (host) return `${protocol}://${host}/api/static/avatars`;
-  const fallback = process.env.API_PUBLIC_URL || process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
+  const fallback = process.env.API_PUBLIC_URL || process.env.PHP_SYSTEM_URL || '';
   return fallback.replace(/\/$/, '') + '/api/static/avatars';
 }
 

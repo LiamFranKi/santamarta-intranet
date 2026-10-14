@@ -1,6 +1,6 @@
 function urlArchivoTarea(archivoNombre) {
   if (!archivoNombre || String(archivoNombre).trim() === '') return null;
-  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
+  const phpSystemUrl = process.env.PHP_SYSTEM_URL || '';
   const isDevelopment = process.env.NODE_ENV !== 'production';
   const archivo = String(archivoNombre);
   if (archivo.startsWith('http')) {

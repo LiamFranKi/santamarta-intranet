@@ -1141,9 +1141,11 @@ function webhookPublicUrl(req) {
     const host = String(req.headers['x-forwarded-host'] || req.get?.('host') || '').split(',')[0].trim();
     if (host) base = `${proto}://${host}`;
   }
-  // Preferir dominio API real si FRONTEND_URL apunta a un host que no resuelve
-  if (/intranet\.vanguardschools\.com/i.test(base)) {
-    base = 'https://sistema.vanguardschools.edu.pe';
+  if (/vanguardschools/i.test(base)) base = '';
+  if (!base && req) {
+    const proto2 = String(req.headers['x-forwarded-proto'] || req.protocol || 'http').split(',')[0].trim();
+    const host2 = String(req.headers['x-forwarded-host'] || req.get?.('host') || '').split(',')[0].trim();
+    if (host2) base = `${proto2}://${host2}`;
   }
   const token = webhookTokenConfigured();
   const path = '/api/biometrico/hikvision/eventos';
