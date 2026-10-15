@@ -737,7 +737,7 @@ export default function GrupoAlumnosListaView({
               </div>
               <button type="button" onClick={() => setConductaAlumno(null)} aria-label="Cerrar">×</button>
             </header>
-            <ConductaRegistrosAlumno matriculaId={conductaAlumno.matricula_id} />
+            <ConductaRegistrosAlumno matriculaId={conductaAlumno.matricula_id} puedeQuitar={puedeEliminarIncidencias} />
           </div>
         </div>
       ) : null}

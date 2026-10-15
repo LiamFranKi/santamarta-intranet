@@ -114,6 +114,7 @@ function DocenteTutoria({
   subtitulo = 'Gestiona tus grupos como tutor',
 } = {}) {
   const puedeQuitarConducta = puedeQuitarDescuentosConducta ?? !soloLectura;
+  const mostrarQuitarConducta = false && puedeQuitarConducta;
   const navigate = useNavigate();
   const location = useLocation();
   const reportesGrupoPrefix = String(apiPrefix || '/docente/tutoria').replace(/^\//, '') + '/grupos';
@@ -3719,7 +3720,7 @@ function DocenteTutoria({
                             <span className={`tutor-inc-origen ${claseOrigenConducta(inc.origen)}`}>
                               {etiquetaOrigenConducta(inc.origen)}
                             </span>
-                            {puedeQuitarConducta && (String(inc.id || '').startsWith('cat-') || inc.origen === 'vestimenta' || inc.origen === 'tardanza' || inc.origen === 'olvido_qr') ? (
+                            {mostrarQuitarConducta && (String(inc.id || '').startsWith('cat-') || inc.origen === 'vestimenta' || inc.origen === 'tardanza' || inc.origen === 'olvido_qr') ? (
                               <button
                                 type="button"
                                 className="btn-eliminar-conducta-item"
@@ -3743,7 +3744,7 @@ function DocenteTutoria({
                         {(inc.description || '').trim() ? (
                           <p className="tutor-inc-detalle">{inc.description}</p>
                         ) : null}
-                        {puedeQuitarConducta && (String(inc.id || '').startsWith('cat-') || inc.origen === 'vestimenta' || inc.origen === 'tardanza' || inc.origen === 'olvido_qr') ? (
+                        {mostrarQuitarConducta && (String(inc.id || '').startsWith('cat-') || inc.origen === 'vestimenta' || inc.origen === 'tardanza' || inc.origen === 'olvido_qr') ? (
                           <div className="tutor-inc-card-quitar">
                             <button
                               type="button"
@@ -5210,7 +5211,7 @@ function DocenteTutoria({
                                   <td className="descripcion-cell">{item.description || '-'}</td>
                                   <td>{formatearFechaIncEstTutoria(item.created_at)}</td>
                                   <td>
-                                    {!soloLectura && item.puede_eliminar ? (
+                                    {false && !soloLectura && item.puede_eliminar ? (
                                       <button
                                         className="btn-eliminar-incidencia"
                                         onClick={() => handleEliminarIncidenciaTutoria(item.id)}

@@ -132,6 +132,9 @@ docente.get('/registros', async (req, res) => {
 
 docente.delete('/registros/:id', async (req, res) => {
   try {
+    if (String(req.user?.tipo || '').toUpperCase() === 'DOCENTE') {
+      return res.status(403).json({ error: 'Solo el administrador puede quitar este registro.' });
+    }
     const anio = parseInt(req.user?.anio_activo, 10) || new Date().getFullYear();
     const personalId = parseInt(req.user?.personal_id, 10) || 0;
     if (!personalId) return res.status(403).json({ error: 'Tu usuario no está ligado a un docente' });

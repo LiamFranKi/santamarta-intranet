@@ -2731,6 +2731,9 @@ router.get('/grupos/:grupoId/reporte-incidencias-grupo', async (req, res) => {
  */
 router.delete('/grupos/:grupoId/presentacion-descuentos/:id', async (req, res) => {
   try {
+    if (String(req.user?.tipo || '').toUpperCase() === 'DOCENTE') {
+      return res.status(403).json({ error: 'Solo el administrador puede quitar este registro.' });
+    }
     const acc = await assertAccesoReporteGrupoGeneral(req, req.params.grupoId);
     if (!acc.ok) return res.status(acc.status).json({ error: acc.error });
     const r = await borrarDescuentoPresentacionGrupo(query, execute, {
@@ -2758,6 +2761,9 @@ router.delete('/grupos/:grupoId/presentacion-descuentos/:id', async (req, res) =
  */
 router.delete('/grupos/:grupoId/tardanzas-asistencia/:id', async (req, res) => {
   try {
+    if (String(req.user?.tipo || '').toUpperCase() === 'DOCENTE') {
+      return res.status(403).json({ error: 'Solo el administrador puede quitar este registro.' });
+    }
     const acc = await assertAccesoReporteGrupoGeneral(req, req.params.grupoId);
     if (!acc.ok) return res.status(acc.status).json({ error: acc.error });
     const r = await corregirTardanzaAsistenciaGrupo(query, execute, {
@@ -4146,6 +4152,9 @@ router.post('/cursos/:cursoId/alumnos/:alumnoId/incidencias', async (req, res) =
  */
 router.delete('/cursos/:cursoId/alumnos/:alumnoId/incidencias/:incidentId', async (req, res) => {
   try {
+    if (String(req.user?.tipo || '').toUpperCase() === 'DOCENTE') {
+      return res.status(403).json({ error: 'Solo el administrador puede quitar esta incidencia.' });
+    }
     const { cursoId, alumnoId, incidentId } = req.params;
     const { colegio_id, anio_activo, personal_id } = req.user;
 
@@ -8962,6 +8971,9 @@ router.post('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req
  */
 router.delete('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias/:incidentId', async (req, res) => {
   try {
+    if (String(req.user?.tipo || '').toUpperCase() === 'DOCENTE') {
+      return res.status(403).json({ error: 'Solo el administrador puede quitar esta incidencia.' });
+    }
     const { grupoId, alumnoId, incidentId } = req.params;
     const { colegio_id, anio_activo, personal_id, usuario_id } = req.user;
 

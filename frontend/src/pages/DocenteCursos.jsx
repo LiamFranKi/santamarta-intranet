@@ -4517,7 +4517,7 @@ function DocenteCursos() {
                                     <td className="descripcion-cell">{item.description || '-'}</td>
                                     <td>{formatearFecha(item.created_at)}</td>
                                     <td>
-                                      {item.puede_eliminar ? (
+                                      {false && item.puede_eliminar ? (
                                         <button
                                           className="btn-eliminar-incidencia"
                                           onClick={() => handleEliminarIncidencia(item.id)}

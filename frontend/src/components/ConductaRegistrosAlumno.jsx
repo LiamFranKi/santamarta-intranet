@@ -10,7 +10,7 @@ function fechaCorta(fecha, hora) {
   return `${d}/${m}${hora ? ` ${hora}` : ''}`;
 }
 
-export default function ConductaRegistrosAlumno({ matriculaId, compacto = false }) {
+export default function ConductaRegistrosAlumno({ matriculaId, compacto = false, puedeQuitar = false }) {
   const [registros, setRegistros] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
@@ -74,12 +74,12 @@ export default function ConductaRegistrosAlumno({ matriculaId, compacto = false 
           <div className="cra-fila">
             <p>{reg.nombre}</p>
             <em title="Puntaje">−{reg.descuento}</em>
-            <button type="button" onClick={() => quitar(reg)} aria-label={`Quitar ${reg.codigo}`} title="Quitar">
+            {puedeQuitar ? <button type="button" onClick={() => quitar(reg)} aria-label={`Quitar ${reg.codigo}`} title="Quitar">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <circle cx="12" cy="12" r="8.25" stroke="currentColor" strokeWidth="1.7" />
                 <path d="M9 12h6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
               </svg>
-            </button>
+            </button> : null}
           </div>
         </li>
       ))}
