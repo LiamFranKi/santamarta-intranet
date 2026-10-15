@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
+const { armarSeguimientoTemas } = require('../utils/seguimientoTemasReporte');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -421,6 +422,26 @@ router.get('/aula-temas/contenido', async (req, res) => {
   } catch (e) {
     console.error('[admin/reportes/aula-temas/contenido]', e);
     res.status(500).json({ error: e.message || 'Error al cargar contenido' });
+  }
+});
+
+/**
+ * GET /api/admin/reportes/aula-temas/seguimiento?ciclo=&anio=
+ * Todo el colegio, ordenado de Inicial a Secundaria. Temas, fichas y sesiones por separado.
+ */
+router.get('/aula-temas/seguimiento', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const anio = await anioActivo(cid, req.query.anio != null ? parseInt(req.query.anio, 10) : null);
+    const data = await armarSeguimientoTemas({
+      colegioId: cid,
+      anio,
+      ciclo: req.query.ciclo,
+    });
+    res.json(data);
+  } catch (e) {
+    console.error('[admin/reportes/aula-temas/seguimiento]', e);
+    res.status(500).json({ error: e.message || 'Error al armar el seguimiento' });
   }
 });
 

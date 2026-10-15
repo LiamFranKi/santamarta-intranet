@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
+import SeguimientoTemasPanel from '../../components/reportes/SeguimientoTemasPanel';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import './AdminEstadisticas.css';
@@ -62,6 +63,15 @@ const MODO_CATALOG = [
     resumen: 'Todas las aulas asignadas a un docente.',
     ayuda:
       'Sirve para listar el contenido de un docente en todas sus asignaturas y salones. No requiere elegir grado primero.',
+  },
+  {
+    id: 'seguimiento',
+    label: 'Seguimiento general',
+    icon: '📊',
+    tone: 'docente',
+    resumen: 'Temas, fichas y sesiones de todo el colegio.',
+    ayuda:
+      'Una fila por docente, aula y curso, de Inicial a Secundaria. Temas, fichas y sesiones van por separado, con el nombre real y la fecha de subida.',
   },
 ];
 
@@ -401,6 +411,8 @@ export default function AdminReportesTemas() {
           </div>
 
           <div className={`art-panel art-panel--${modoActivo.tone}`}>
+            {tab === 'seguimiento' && <SeguimientoTemasPanel ciclo={ciclo} anio={meta?.anio} />}
+
             {tab === 'grado_curso' && (
               <div className="art-fila-filtros">
                 <div className="art-field art-field--grupo">
@@ -527,13 +539,15 @@ export default function AdminReportesTemas() {
               </div>
             )}
 
+            {tab !== 'seguimiento' && (
             <p className="art-hint">
               Tras una búsqueda, puede cambiar el bimestre arriba y la lista se actualizará automáticamente.
             </p>
+            )}
 
-            {loadingContenido && <div className="art-loading">Cargando contenido…</div>}
+            {tab !== 'seguimiento' && loadingContenido && <div className="art-loading">Cargando contenido…</div>}
 
-            {!loadingContenido && bloques.length > 0 && (
+            {tab !== 'seguimiento' && !loadingContenido && bloques.length > 0 && (
               <>
                 <div className="art-stats">
                   <span className="art-stat art-stat--asignaturas">
@@ -614,11 +628,11 @@ export default function AdminReportesTemas() {
               </>
             )}
 
-            {!loadingContenido && ultimoReq && bloques.length === 0 && (
+            {tab !== 'seguimiento' && !loadingContenido && ultimoReq && bloques.length === 0 && (
               <div className="art-empty">No se encontraron asignaturas o no hay contenido para los filtros elegidos.</div>
             )}
 
-            {!loadingContenido && !ultimoReq && (
+            {tab !== 'seguimiento' && !loadingContenido && !ultimoReq && (
               <div className="art-empty">Elija filtros y pulse Buscar para ver el contenido del aula virtual.</div>
             )}
           </div>
