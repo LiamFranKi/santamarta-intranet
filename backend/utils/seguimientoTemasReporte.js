@@ -102,7 +102,11 @@ async function armarSeguimientoTemas({ colegioId, anio, ciclo }) {
   const bim = Math.min(4, Math.max(1, parseInt(ciclo, 10) || 1));
   const colegio = await getColegioData(cid);
   const cfg = await obtenerConfigEstructura(cid, year);
-  const esperado = cfg.activo ? cantidadParaCiclo(cfg, bim) : 0;
+  const esperadoEstructura = cfg.activo ? cantidadParaCiclo(cfg, bim) : 0;
+  // Solo el 4.° bimestre de 2026: la meta de temas, fichas y sesiones es 7.
+  const metaB4_2026 = year === 2026 && bim === 4 ? 7 : 0;
+  const esperado = metaB4_2026 || (esperadoEstructura > 0 ? esperadoEstructura : 0);
+  const esperadoSesiones = metaB4_2026;
   const tieneCols = await archivosTieneEstructuraCols();
 
   const asignRows = await query(
@@ -212,6 +216,7 @@ async function armarSeguimientoTemas({ colegioId, anio, ciclo }) {
     anio: year,
     ciclo: bim,
     esperado: esperado > 0 ? esperado : 0,
+    esperado_sesiones: esperadoSesiones,
     fecha_revision: fechaMySQLLima(),
     colegio: colegio?.nombre_intranet || colegio?.nombre || '',
     filas,

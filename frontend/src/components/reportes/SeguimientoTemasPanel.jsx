@@ -238,7 +238,7 @@ export default function SeguimientoTemasPanel({ ciclo, anio }) {
                       </tr>
                       <tr className="st-fila-sesion">
                         <td className="st-tipo st-tipo-sesion">Sesiones</td>
-                        <td className="st-num"><Cantidad subidos={f.sesiones.subidos} /></td>
+                        <td className="st-num"><Cantidad subidos={f.sesiones.subidos} esperado={data.esperado_sesiones} conEsperado /></td>
                         <td className="st-det"><ListaSubidos items={f.sesiones.items} tipo="sesion" /></td>
                       </tr>
                     </React.Fragment>

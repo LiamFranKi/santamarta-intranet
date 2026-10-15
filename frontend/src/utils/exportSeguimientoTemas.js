@@ -37,6 +37,22 @@ function cantidadTexto(subidos, esperado, aplicaEsperado) {
   return String(n);
 }
 
+function filasFaltantes(filas, esperado, esperadoSesiones) {
+  const meta = Number(esperado) || 0;
+  const metaSes = Number(esperadoSesiones) || 0;
+  return (filas || [])
+    .map((f) => ({
+      docente: f.docente,
+      nivel: f.nivel,
+      aula: f.aula,
+      curso: f.curso,
+      faltan_temas: Math.max(0, meta - (f.temas?.subidos || 0)),
+      faltan_fichas: Math.max(0, meta - (f.fichas?.subidos || 0)),
+      faltan_sesiones: Math.max(0, metaSes - (f.sesiones?.subidos || 0)),
+    }))
+    .filter((r) => r.faltan_temas || r.faltan_fichas || r.faltan_sesiones);
+}
+
 export function resumirPorDocente(filas) {
   const map = new Map();
   (filas || []).forEach((f) => {
@@ -261,6 +277,7 @@ function chartDocentes(docentes) {
 export async function exportSeguimientoTemasExcel(data) {
   const filas = data?.filas || [];
   const esperado = Number(data?.esperado) || 0;
+  const esperadoSesiones = Number(data?.esperado_sesiones) || 0;
   const wb = new ExcelJS.Workbook();
   wb.creator = data?.colegio || 'Intranet';
   const logos = await logosExport();
@@ -302,7 +319,7 @@ export async function exportSeguimientoTemasExcel(data) {
     const tipos = [
       ['Temas', cantidadTexto(f.temas?.subidos, esperado, true), detalleLineas(f.temas?.items), f.temas?.subidos, FILL_TEMA],
       ['Fichas', cantidadTexto(f.fichas?.subidos, esperado, true), detalleLineas(f.fichas?.items), f.fichas?.subidos, FILL_FICHA],
-      ['Sesiones', String(f.sesiones?.subidos || 0), detalleLineas(f.sesiones?.items), f.sesiones?.subidos, FILL_SESION],
+      ['Sesiones', cantidadTexto(f.sesiones?.subidos, esperadoSesiones, true), detalleLineas(f.sesiones?.items), f.sesiones?.subidos, FILL_SESION],
     ];
     const inicio = row;
     tipos.forEach((t) => {
@@ -412,6 +429,35 @@ export async function exportSeguimientoTemasExcel(data) {
     });
   }
 
+  const faltantes = filasFaltantes(filas, esperado, esperadoSesiones);
+  const hojaFalta = wb.addWorksheet('Faltantes', {
+    views: [{ state: 'frozen', ySplit: 4, showGridLines: false }],
+    pageSetup: { orientation: 'landscape', paperSize: 9, fitToWidth: 1 },
+  });
+  hojaFalta.columns = [
+    { width: 36 }, { width: 16 }, { width: 18 }, { width: 36 }, { width: 16 }, { width: 16 }, { width: 18 },
+  ];
+  pintarBanda(wb, hojaFalta, logos, {
+    titulo: 'Faltantes por docente, aula y curso',
+    subtitulo,
+    nota: 'Solo números. No lista el nombre de cada tema. Sale cada curso al que todavía le falta algo.',
+    hastaCol: 7,
+  });
+  ponerCabeza(hojaFalta, 4, ['Docente', 'Nivel', 'Aula', 'Curso', 'Faltan temas', 'Faltan fichas', 'Faltan sesiones'], 'FF9A3412');
+  faltantes.forEach((f, i) => {
+    const r = hojaFalta.getRow(5 + i);
+    r.height = 22;
+    [f.docente, f.nivel, f.aula, f.curso, f.faltan_temas, f.faltan_fichas, f.faltan_sesiones].forEach((v, c) => {
+      const cell = r.getCell(c + 1);
+      cell.value = v;
+      const vacio = c >= 4 && !v;
+      cell.font = { name: 'Calibri', size: 11, bold: c === 0 || (c >= 4 && v > 0), color: { argb: c >= 4 && v > 0 ? AMBER : 'FF0F172A' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: vacio ? 'FFF8FAFC' : (i % 2 ? 'FFFFF7ED' : 'FFFFFFFF') } };
+      cell.alignment = { vertical: 'middle', horizontal: c >= 4 ? 'center' : 'left', indent: c >= 4 ? 0 : 1 };
+      borde(cell);
+    });
+  });
+
   const buffer = await wb.xlsx.writeBuffer();
   descargar(
     buffer,
@@ -429,6 +475,7 @@ const FONDO_PDF = {
 export async function exportSeguimientoTemasPdf(data) {
   const filas = data?.filas || [];
   const esperado = Number(data?.esperado) || 0;
+  const esperadoSesiones = Number(data?.esperado_sesiones) || 0;
   const doc = new jsPDF('l', 'mm', 'a4');
   const pw = doc.internal.pageSize.getWidth();
   const ph = doc.internal.pageSize.getHeight();
@@ -511,38 +558,67 @@ export async function exportSeguimientoTemasPdf(data) {
     }
   };
 
-  const dibujarSubfila = (f, tipo, cantidad, lineas, conIdentidad) => {
-    const leading = 3.8;
-    const alto = Math.max(8, lineas.length * leading + 2.6);
-    asegurar(alto);
-    doc.setFillColor(248, 250, 252);
-    doc.rect(m, y, cols[0] + cols[1] + cols[2] + cols[3], alto, 'F');
-    const fondo = FONDO_PDF[tipo] || [255, 255, 255];
-    doc.setFillColor(...fondo);
-    doc.rect(m + cols[0] + cols[1] + cols[2] + cols[3], y, cols[4] + cols[5] + cols[6], alto, 'F');
-    doc.setDrawColor(213, 222, 232);
-    doc.rect(m, y, pw - m * 2, alto);
-    doc.setTextColor(15, 23, 42);
-    doc.setFontSize(7.5);
-    if (conIdentidad) {
+  const altoDe = (nLineas) => Math.max(8, nLineas * 3.8 + 2.6);
+
+  const dibujarBloque = (f, partes) => {
+    let i = 0;
+    while (i < partes.length) {
+      if (y + partes[i].alto > ph - 10 && partes[i].alto < ph - 32) {
+        doc.addPage();
+        header(true);
+        dibujarCabezaTabla();
+      }
+      let alto = 0;
+      let j = i;
+      while (j < partes.length && alto + partes[j].alto <= ph - 10 - y) {
+        alto += partes[j].alto;
+        j += 1;
+      }
+      if (j === i) {
+        j = i + 1;
+        alto = partes[i].alto;
+        asegurar(alto);
+      }
+      const y0 = y;
+      const xDer = m + cols[0] + cols[1] + cols[2] + cols[3];
+      for (let k = i; k < j; k += 1) {
+        const p = partes[k];
+        const fondo = FONDO_PDF[p.tipo] || [255, 255, 255];
+        doc.setFillColor(...fondo);
+        doc.rect(xDer, y, cols[4] + cols[5] + cols[6], p.alto, 'F');
+        doc.setTextColor(15, 23, 42);
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'bold');
+        doc.text(p.tipo, xDer + 1.4, y + 3.6);
+        doc.setFont('helvetica', 'normal');
+        doc.text(pdfTexto(p.cantidad), xDer + cols[4] + 1.4, y + 3.6);
+        doc.text(p.lineas, xDer + cols[4] + cols[5] + 1.4, y + 3.5);
+        y += p.alto;
+      }
+      const altoSpan = y - y0;
+      doc.setFillColor(248, 250, 252);
+      doc.rect(m, y0, cols[0] + cols[1] + cols[2] + cols[3], altoSpan, 'F');
       let xi = m;
-      [f.docente, f.nivel, f.aula, f.curso].forEach((v, i) => {
-        const cupo = Math.max(1, Math.floor((alto - 1.5) / leading));
-        const ls = doc.splitTextToSize(pdfTexto(v), cols[i] - 3).slice(0, cupo);
-        doc.setFont('helvetica', i === 0 || i === 3 ? 'bold' : 'normal');
-        doc.text(ls, xi + 1.4, y + 3.5);
-        xi += cols[i];
+      [f.docente, f.nivel, f.aula, f.curso].forEach((v, idx) => {
+        const ls = doc.splitTextToSize(pdfTexto(v), cols[idx] - 3).slice(0, 8);
+        const textH = ls.length * 3.4;
+        const ty = y0 + Math.max(3.5, (altoSpan - textH) / 2 + 3);
+        doc.setFont('helvetica', idx === 0 || idx === 3 ? 'bold' : 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(15, 23, 42);
+        doc.text(ls, xi + 1.4, ty);
+        xi += cols[idx];
       });
+      doc.setDrawColor(213, 222, 232);
+      doc.rect(m, y0, pw - m * 2, altoSpan);
+      doc.line(xDer, y0, xDer, y);
+      let yy = y0;
+      for (let k = i; k < j - 1; k += 1) {
+        yy += partes[k].alto;
+        doc.line(xDer, yy, pw - m, yy);
+      }
+      i = j;
     }
-    let xt = m + cols[0] + cols[1] + cols[2] + cols[3];
-    doc.setFont('helvetica', 'bold');
-    doc.text(tipo, xt + 1.4, y + 3.6);
-    xt += cols[4];
-    doc.setFont('helvetica', 'normal');
-    doc.text(pdfTexto(cantidad), xt + 1.4, y + 3.6);
-    xt += cols[5];
-    doc.text(lineas, xt + 1.4, y + 3.5);
-    y += alto;
   };
 
   header(false);
@@ -613,16 +689,24 @@ export async function exportSeguimientoTemasPdf(data) {
     const tipos = [
       ['Temas', cantidadTexto(f.temas?.subidos, esperado, true), f.temas?.items],
       ['Fichas', cantidadTexto(f.fichas?.subidos, esperado, true), f.fichas?.items],
-      ['Sesiones', String(f.sesiones?.subidos || 0), f.sesiones?.items],
+      ['Sesiones', cantidadTexto(f.sesiones?.subidos, esperadoSesiones, true), f.sesiones?.items],
     ];
+    const partes = [];
     tipos.forEach((t) => {
       const crudas = detalleLineas(t[2]).flatMap((linea) => doc.splitTextToSize(pdfTexto(linea), cols[6] - 4));
       const lineas = crudas.length ? crudas : ['Ninguno'];
       const maxPorTrozo = 22;
       for (let i = 0; i < lineas.length; i += maxPorTrozo) {
-        dibujarSubfila(f, t[0], i === 0 ? t[1] : '', lineas.slice(i, i + maxPorTrozo), true);
+        const trozo = lineas.slice(i, i + maxPorTrozo);
+        partes.push({
+          tipo: t[0],
+          cantidad: i === 0 ? t[1] : '',
+          lineas: trozo,
+          alto: altoDe(trozo.length),
+        });
       }
     });
+    dibujarBloque(f, partes);
   });
 
   if (resumirPorDocente(filas).length) {
@@ -666,6 +750,60 @@ export async function exportSeguimientoTemasPdf(data) {
       y += 6;
     });
   }
+
+  const faltantes = filasFaltantes(filas, esperado, esperadoSesiones);
+  doc.addPage();
+  header(true);
+  doc.setTextColor(154, 52, 18);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.text('Faltantes por docente, aula y curso', m, y);
+  y += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+  doc.text(pdfTexto('Solo números. No lista el nombre de cada tema.'), m, y);
+  y += 5;
+  const cf = [62, 28, 32, 62, 28, 28, 32];
+  const cabezaFalta = () => {
+    doc.setFillColor(154, 52, 18);
+    doc.rect(m, y, cf.reduce((a, b) => a + b, 0), 7, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    let x = m;
+    ['Docente', 'Nivel', 'Aula', 'Curso', 'Faltan temas', 'Faltan fichas', 'Faltan sesiones'].forEach((h, i) => {
+      doc.text(h, x + 1.4, y + 4.6);
+      x += cf[i];
+    });
+    y += 7;
+  };
+  cabezaFalta();
+  if (!faltantes.length) {
+    doc.setTextColor(15, 23, 42);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Nadie tiene faltantes en este bimestre.', m, y + 4);
+  }
+  faltantes.forEach((f, i) => {
+    if (y > ph - 12) {
+      doc.addPage();
+      header(true);
+      cabezaFalta();
+    }
+    if (i % 2 === 0) {
+      doc.setFillColor(255, 247, 237);
+      doc.rect(m, y, cf.reduce((a, b) => a + b, 0), 6, 'F');
+    }
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    let x = m;
+    [f.docente, f.nivel, f.aula, f.curso, f.faltan_temas, f.faltan_fichas, f.faltan_sesiones].forEach((v, k) => {
+      doc.setTextColor(k >= 4 && Number(v) > 0 ? 180 : 15, k >= 4 && Number(v) > 0 ? 83 : 23, k >= 4 && Number(v) > 0 ? 9 : 42);
+      doc.text(pdfTexto(v), x + 1.4, y + 4);
+      x += cf[k];
+    });
+    y += 6;
+  });
 
   pie();
   doc.save(`seguimiento-temas-b${data?.ciclo || 1}-${data?.anio || ''}.pdf`);
