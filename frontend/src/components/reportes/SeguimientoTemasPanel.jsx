@@ -21,12 +21,17 @@ function fmtRevision(ymd) {
   return `${Number(m[3])} de ${meses[Number(m[2]) - 1]} de ${m[1]}`;
 }
 
-function ListaSubidos({ items }) {
+const PASTEL_FICHA = ['#fde7f3', '#e5f6ea', '#fff3d6', '#e6f0ff', '#f0e7ff', '#ffe8dc', '#e3f7f5', '#f8eadf'];
+
+function ListaSubidos({ items, tipo }) {
   if (!items?.length) return <span className="st-vacio">Ninguno</span>;
   return (
-    <ul className="st-chips">
-      {items.map((it) => (
-        <li key={it.id || `${it.nombre}-${it.fecha}`}>
+    <ul className={`st-chips st-chips-${tipo}`}>
+      {items.map((it, i) => (
+        <li
+          key={it.id || `${it.nombre}-${it.fecha}`}
+          style={tipo === 'ficha' ? { background: PASTEL_FICHA[i % PASTEL_FICHA.length] } : undefined}
+        >
           <strong>{it.nombre}</strong>
           {it.fecha ? <time>{fmtFecha(it.fecha)}</time> : null}
         </li>
@@ -116,6 +121,8 @@ export default function SeguimientoTemasPanel({ ciclo, anio }) {
   };
 
   let nivelAnterior = '';
+  let gradoAnterior = '';
+  let gradoIdx = -1;
 
   return (
     <section className="st-wrap">
@@ -202,6 +209,12 @@ export default function SeguimientoTemasPanel({ ciclo, anio }) {
                 {filas.map((f) => {
                   const cortaNivel = f.nivel !== nivelAnterior;
                   nivelAnterior = f.nivel;
+                  const claveGrado = `${f.nivel}|${f.grado}|${f.seccion}`;
+                  if (claveGrado !== gradoAnterior) {
+                    gradoIdx += 1;
+                    gradoAnterior = claveGrado;
+                  }
+                  const gradoCls = `st-bloque st-grado-${gradoIdx % 5}`;
                   return (
                     <React.Fragment key={f.asignatura_id}>
                       {cortaNivel && (
@@ -209,24 +222,24 @@ export default function SeguimientoTemasPanel({ ciclo, anio }) {
                           <td colSpan={7}>{f.nivel || 'Otros'}</td>
                         </tr>
                       )}
-                      <tr>
-                        <td rowSpan={3} className="st-ident">{f.docente}</td>
-                        <td rowSpan={3}>{f.nivel}</td>
-                        <td rowSpan={3}>{f.aula}</td>
-                        <td rowSpan={3} className="st-curso">{f.curso}</td>
+                      <tr className="st-fila-tema">
+                        <td rowSpan={3} className={`st-ident ${gradoCls}`}>{f.docente}</td>
+                        <td rowSpan={3} className={gradoCls}>{f.nivel}</td>
+                        <td rowSpan={3} className={gradoCls}>{f.aula}</td>
+                        <td rowSpan={3} className={`st-curso ${gradoCls}`}>{f.curso}</td>
                         <td className="st-tipo st-tipo-tema">Temas</td>
-                        <td><Cantidad subidos={f.temas.subidos} esperado={data.esperado} conEsperado /></td>
-                        <td><ListaSubidos items={f.temas.items} /></td>
+                        <td className="st-num"><Cantidad subidos={f.temas.subidos} esperado={data.esperado} conEsperado /></td>
+                        <td className="st-det"><ListaSubidos items={f.temas.items} tipo="tema" /></td>
                       </tr>
-                      <tr>
+                      <tr className="st-fila-ficha">
                         <td className="st-tipo st-tipo-ficha">Fichas</td>
-                        <td><Cantidad subidos={f.fichas.subidos} esperado={data.esperado} conEsperado /></td>
-                        <td><ListaSubidos items={f.fichas.items} /></td>
+                        <td className="st-num"><Cantidad subidos={f.fichas.subidos} esperado={data.esperado} conEsperado /></td>
+                        <td className="st-det"><ListaSubidos items={f.fichas.items} tipo="ficha" /></td>
                       </tr>
-                      <tr className="st-cierra">
+                      <tr className="st-fila-sesion">
                         <td className="st-tipo st-tipo-sesion">Sesiones</td>
-                        <td><Cantidad subidos={f.sesiones.subidos} /></td>
-                        <td><ListaSubidos items={f.sesiones.items} /></td>
+                        <td className="st-num"><Cantidad subidos={f.sesiones.subidos} /></td>
+                        <td className="st-det"><ListaSubidos items={f.sesiones.items} tipo="sesion" /></td>
                       </tr>
                     </React.Fragment>
                   );

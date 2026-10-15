@@ -1,37 +1,47 @@
 .st-wrap {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.05rem;
+  padding: 1.15rem 1.35rem 1.45rem;
 }
 
 .st-acciones {
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
-  align-items: flex-end;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0.95rem 1.1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
 }
 
 .st-acciones p {
   margin: 0;
-  max-width: 46rem;
+  flex: 1;
+  min-width: 0;
   color: #475569;
-  line-height: 1.45;
+  line-height: 1.5;
   font-size: 0.92rem;
 }
 
 .st-acciones div {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.65rem;
   flex-shrink: 0;
+  align-items: center;
 }
 
 .st-btn {
   border: 0;
-  border-radius: 999px;
-  padding: 0.55rem 1.05rem;
+  border-radius: 10px;
+  min-width: 6.5rem;
+  padding: 0.62rem 1.15rem;
   font-weight: 700;
+  letter-spacing: 0.02em;
   cursor: pointer;
   color: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
 }
 
 .st-btn:disabled {
@@ -222,9 +232,27 @@
 .st-resumen td {
   padding: 0.55rem 0.7rem;
   vertical-align: top;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e8eef5;
   color: #0f172a;
 }
+
+.st-grado-0 { background: #f4f7fb; }
+.st-grado-1 { background: #f7f4fb; }
+.st-grado-2 { background: #f3fbf6; }
+.st-grado-3 { background: #fbf7f3; }
+.st-grado-4 { background: #f3f8fb; }
+
+.st-fila-tema .st-tipo,
+.st-fila-tema .st-num,
+.st-fila-tema .st-det { background: #e7eef8; }
+
+.st-fila-ficha .st-tipo,
+.st-fila-ficha .st-num,
+.st-fila-ficha .st-det { background: #f8eef5; }
+
+.st-fila-sesion .st-tipo,
+.st-fila-sesion .st-num,
+.st-fila-sesion .st-det { background: #fff4e8; }
 
 .st-corte td {
   background: #e8f3f1;
@@ -240,8 +268,8 @@
   font-weight: 700;
 }
 
-.st-cierra td {
-  border-bottom: 2px solid #cbd5e1;
+.st-fila-sesion td {
+  border-bottom: 2px solid #d5dee8;
 }
 
 .st-tipo {
@@ -278,10 +306,24 @@
   flex-direction: column;
   gap: 0.05rem;
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  border: 1px solid transparent;
   border-radius: 10px;
-  padding: 0.28rem 0.5rem;
-  max-width: 16rem;
+  padding: 0.32rem 0.55rem;
+  max-width: 18rem;
+}
+
+.st-chips-tema li {
+  background: #dce7f6;
+  border-color: #c5d4ea;
+}
+
+.st-chips-sesion li {
+  background: #ffe7cc;
+  border-color: #f3d2ae;
+}
+
+.st-chips-ficha li {
+  border-color: rgba(15, 23, 42, 0.06);
 }
 
 .st-chips strong {

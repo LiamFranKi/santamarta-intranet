@@ -102,6 +102,13 @@ async function rasterToPngDataUrl(url) {
   }
 }
 
+/** Logo blanco de configuración, para cabeceras de fondo oscuro. */
+export async function cargarLogoBlancoPngDataUrl() {
+  const data = await cargarColegio();
+  if (!data?.logo_blanco_desde_config || !data.logo_blanco) return null;
+  return rasterToPngDataUrl(absoluto(data.logo_blanco));
+}
+
 /** PNG listo para jsPDF. Si el logo de configuración falla, usa el respaldo. */
 export async function cargarLogoPngDataUrl(fallbackPath = '/assets/logos/logo.png') {
   const cfg = await urlLogoConfigurado();
