@@ -14508,7 +14508,9 @@ async function obtenerOrdenMerito(grupoId, matriculaId, asignaturasIds) {
     if (!asignaturasIds || asignaturasIds.length === 0) {
       return { puestos: { b1: null, b2: null, b3: null, b4: null }, detalle: { b1: [], b2: [], b3: [], b4: [] } };
     }
-    const ids = asignaturasIds.filter(id => id !== -101 && id != null);
+    const ids = asignaturasIds
+      .map((id) => parseInt(id, 10))
+      .filter((id) => Number.isFinite(id) && id > 0);
     if (ids.length === 0) {
       return { puestos: { b1: null, b2: null, b3: null, b4: null }, detalle: { b1: [], b2: [], b3: [], b4: [] } };
     }
@@ -14550,20 +14552,37 @@ async function obtenerOrdenMerito(grupoId, matriculaId, asignaturasIds) {
         [...matriculaIds, ...ids, ciclo]
       );
 
-      const sumaPorMatricula = {};
-      const countPorMatricula = {};
-      (promedios || []).forEach(row => {
-        const mid = row.matricula_id;
-        if (!sumaPorMatricula[mid]) { sumaPorMatricula[mid] = 0; countPorMatricula[mid] = 0; }
+      const notaPorMatricula = {};
+      (promedios || []).forEach((row) => {
+        const mid = parseInt(row.matricula_id, 10);
+        const aid = parseInt(row.asignatura_id, 10);
         const n = parseFloat(row.promedio);
-        if (!isNaN(n)) { sumaPorMatricula[mid] += n; countPorMatricula[mid]++; }
+        if (!Number.isFinite(mid) || !Number.isFinite(aid) || !Number.isFinite(n)) return;
+        if (!notaPorMatricula[mid]) notaPorMatricula[mid] = {};
+        notaPorMatricula[mid][aid] = n;
       });
 
-      const promedioGeneral = Object.keys(sumaPorMatricula).map(matId => ({
-        matricula_id: parseInt(matId, 10),
-        promedio: countPorMatricula[matId] > 0 ? sumaPorMatricula[matId] / countPorMatricula[matId] : 0
-      }));
-      promedioGeneral.sort((a, b) => b.promedio - a.promedio);
+      const promedioGeneral = matriculaIds.map((matId) => {
+        const mid = parseInt(matId, 10);
+        const notas = notaPorMatricula[mid] || {};
+        let suma = 0;
+        ids.forEach((aid) => {
+          const n = notas[aid];
+          suma += Number.isFinite(n) ? n : 0;
+        });
+        return {
+          matricula_id: mid,
+          promedio: ids.length > 0 ? suma / ids.length : 0
+        };
+      });
+      promedioGeneral.sort((a, b) => {
+        if (b.promedio !== a.promedio) return b.promedio - a.promedio;
+        const na = mapNombres[a.matricula_id] || {};
+        const nb = mapNombres[b.matricula_id] || {};
+        const sa = `${na.apellido_paterno} ${na.apellido_materno} ${na.nombres}`;
+        const sb = `${nb.apellido_paterno} ${nb.apellido_materno} ${nb.nombres}`;
+        return sa.localeCompare(sb, 'es');
+      });
 
       const pos = promedioGeneral.findIndex(p => p.matricula_id === matIdNum);
       if (pos >= 0) puestos[`b${ciclo}`] = `Puesto ${String(pos + 1).padStart(2, '0')}`;
