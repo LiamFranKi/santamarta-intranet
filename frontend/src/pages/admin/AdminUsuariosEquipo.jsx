@@ -196,6 +196,7 @@ export default function AdminUsuariosEquipo() {
       nro_documento: '',
       email: '',
       telefono_celular: '',
+      direccion: '',
       cargo: '',
       profesion: '',
       sueldo: '',
@@ -240,6 +241,7 @@ export default function AdminUsuariosEquipo() {
         nro_documento: data.nro_documento || '',
         email: data.email || '',
         telefono_celular: data.telefono_celular || '',
+        direccion: data.direccion || '',
         cargo: data.cargo || '',
         profesion: data.profesion || '',
         sueldo: data.sueldo != null && data.sueldo !== '' ? String(data.sueldo) : '',
@@ -947,6 +949,14 @@ export default function AdminUsuariosEquipo() {
                         />
                       </div>
                     ))}
+                    <div className="admin-usu-field admin-usu-span-2">
+                      <label>Dirección</label>
+                      <input
+                        type="text"
+                        value={form.direccion || ''}
+                        onChange={(e) => setForm({ ...form, direccion: e.target.value })}
+                      />
+                    </div>
                     <div className="admin-usu-field">
                       <label>Sueldo (S/)</label>
                       <input
@@ -1084,6 +1094,14 @@ export default function AdminUsuariosEquipo() {
                         />
                       </div>
                     ))}
+                    <div className="admin-usu-field admin-usu-span-2">
+                      <label>Dirección</label>
+                      <input
+                        type="text"
+                        value={form.direccion || ''}
+                        onChange={(e) => setForm({ ...form, direccion: e.target.value })}
+                      />
+                    </div>
                     <div className="admin-usu-field">
                       <label>Sueldo (S/)</label>
                       <input
@@ -1225,6 +1243,7 @@ export default function AdminUsuariosEquipo() {
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Fecha de nacimiento</span><span className="admin-usu-info-value">{(modalInfo.fecha_nacimiento || '').toString().slice(0, 10) || '—'}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Correo</span><span className="admin-usu-info-value">{modalInfo.email || '—'}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Celular</span><span className="admin-usu-info-value">{modalInfo.telefono_celular || '—'}</span></div>
+                    <div className="admin-usu-info-item admin-usu-span-2"><span className="admin-usu-info-label">Dirección</span><span className="admin-usu-info-value">{modalInfo.direccion || '—'}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Cargo</span><span className="admin-usu-info-value">{modalInfo.cargo || '—'}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Profesión</span><span className="admin-usu-info-value">{modalInfo.profesion || '—'}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Sueldo</span><span className="admin-usu-info-value">{formatearSueldo(modalInfo.sueldo)}</span></div>

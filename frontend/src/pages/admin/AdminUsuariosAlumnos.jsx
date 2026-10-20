@@ -173,6 +173,7 @@ export default function AdminUsuariosAlumnos() {
       nro_documento: '',
       fecha_nacimiento: '2015-01-01',
       email: '',
+      domicilio: '',
     });
     setFotoCreateFile(null);
     setFotoCreatePreview('');
@@ -209,6 +210,7 @@ export default function AdminUsuariosAlumnos() {
         nro_documento: data.nro_documento || '',
         fecha_nacimiento: (data.fecha_nacimiento || '2015-01-01').toString().slice(0, 10),
         email: data.email || '',
+        domicilio: data.domicilio || '',
         foto: data.foto || '',
         usuario_estado: data.usuario_estado || 'ACTIVO',
         alergias: data.alergias || '',
@@ -884,6 +886,14 @@ export default function AdminUsuariosAlumnos() {
                         onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
                       />
                     </div>
+                    <div className="admin-usu-field admin-usu-span-2">
+                      <label>Dirección</label>
+                      <input
+                        type="text"
+                        value={form.domicilio || ''}
+                        onChange={(e) => setForm({ ...form, domicilio: e.target.value })}
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="admin-usu-profile-section">
@@ -961,6 +971,14 @@ export default function AdminUsuariosAlumnos() {
                         type="date"
                         value={form.fecha_nacimiento || ''}
                         onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
+                      />
+                    </div>
+                    <div className="admin-usu-field admin-usu-span-2">
+                      <label>Dirección</label>
+                      <input
+                        type="text"
+                        value={form.domicilio || ''}
+                        onChange={(e) => setForm({ ...form, domicilio: e.target.value })}
                       />
                     </div>
                   </div>
@@ -1075,6 +1093,7 @@ export default function AdminUsuariosAlumnos() {
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">DNI</span><span className="admin-usu-info-value">{modalInfo.nro_documento || '—'}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Nacimiento</span><span className="admin-usu-info-value">{formatFechaNacimiento(modalInfo.fecha_nacimiento)}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Correo</span><span className="admin-usu-info-value">{modalInfo.email || '—'}</span></div>
+                    <div className="admin-usu-info-item admin-usu-span-2"><span className="admin-usu-info-label">Dirección</span><span className="admin-usu-info-value">{modalInfo.domicilio || '—'}</span></div>
                   </div>
                 </div>
                 <div className="admin-usu-profile-section">

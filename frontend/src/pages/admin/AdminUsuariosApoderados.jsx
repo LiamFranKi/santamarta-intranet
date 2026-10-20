@@ -257,6 +257,7 @@ export default function AdminUsuariosApoderados() {
       nro_documento: '',
       email: '',
       telefono_celular: '',
+      direccion: '',
       parentesco: 1,
       fecha_nacimiento: '1985-01-01',
     });
@@ -306,6 +307,7 @@ export default function AdminUsuariosApoderados() {
     nro_documento: f.nro_documento,
     email: f.email,
     telefono_celular: f.telefono_celular,
+    direccion: f.direccion,
     parentesco: f.parentesco,
     fecha_nacimiento: f.fecha_nacimiento,
   });
@@ -330,6 +332,7 @@ export default function AdminUsuariosApoderados() {
         nro_documento: data.nro_documento || prev.nro_documento,
         email: data.email || prev.email,
         telefono_celular: data.telefono_celular || prev.telefono_celular,
+        direccion: data.direccion || prev.direccion,
         fecha_nacimiento: data.fecha_nacimiento || prev.fecha_nacimiento,
       }));
       Swal.fire({ icon: 'success', title: 'Datos cargados', text: 'Revise parentesco y guarde. Si es docente, se reutilizará su mismo usuario (DNI).', timer: 2800, showConfirmButton: false });
@@ -380,6 +383,7 @@ export default function AdminUsuariosApoderados() {
         nro_documento: data.nro_documento || '',
         email: data.email || '',
         telefono_celular: data.telefono_celular || '',
+        direccion: data.direccion || '',
         parentesco: parentescoSelectValue(data.parentesco),
         fecha_nacimiento: formatearFechaInputApi(data.fecha_nacimiento),
         usuario_estado: data.usuario_estado || 'ACTIVO',
@@ -905,6 +909,14 @@ export default function AdminUsuariosApoderados() {
                         onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
                       />
                     </div>
+                    <div className="admin-usu-field admin-usu-span-2">
+                      <label>Dirección</label>
+                      <input
+                        type="text"
+                        value={form.direccion || ''}
+                        onChange={(e) => setForm({ ...form, direccion: e.target.value })}
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="admin-usu-profile-section">
@@ -1006,6 +1018,14 @@ export default function AdminUsuariosApoderados() {
                         type="date"
                         value={form.fecha_nacimiento || ''}
                         onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
+                      />
+                    </div>
+                    <div className="admin-usu-field admin-usu-span-2">
+                      <label>Dirección</label>
+                      <input
+                        type="text"
+                        value={form.direccion || ''}
+                        onChange={(e) => setForm({ ...form, direccion: e.target.value })}
                       />
                     </div>
                   </div>
@@ -1119,6 +1139,10 @@ export default function AdminUsuariosApoderados() {
                       <div className="admin-usu-info-item">
                         <span className="admin-usu-info-label">Celular</span>
                         <span className="admin-usu-info-value">{modalInfo.telefono_celular || '—'}</span>
+                      </div>
+                      <div className="admin-usu-info-item admin-usu-span-2">
+                        <span className="admin-usu-info-label">Dirección</span>
+                        <span className="admin-usu-info-value">{modalInfo.direccion || '—'}</span>
                       </div>
                     </div>
                   </div>

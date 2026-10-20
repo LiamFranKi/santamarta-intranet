@@ -2182,6 +2182,10 @@ router.put('/equipo/:personalId', async (req, res) => {
       sets.push('nro_documento = ?');
       params.push(nro_documento);
     }
+    if (req.body.direccion != null) {
+      sets.push('direccion = ?');
+      params.push(String(req.body.direccion).trim());
+    }
     if (req.body.sueldo !== undefined) {
       const sueldoParsed = parseSueldo(req.body.sueldo);
       if (sueldoParsed === undefined) {
@@ -2751,7 +2755,7 @@ router.post('/alumnos', uploadUsuarioFoto.single('foto'), async (req, res) => {
         ALUMNO_DEFAULTS.segunda_lengua,
         ALUMNO_DEFAULTS.codigo,
         ALUMNO_DEFAULTS.discapacidad,
-        ALUMNO_DEFAULTS.domicilio,
+        String(req.body.domicilio || '').trim(),
         ALUMNO_DEFAULTS.estado_nacimiento,
         ALUMNO_DEFAULTS.observaciones_nacimiento,
         ALUMNO_DEFAULTS.actividades_nacimiento,
@@ -2890,6 +2894,10 @@ router.put('/alumnos/:id', multerFotoOpcional, async (req, res) => {
     if (email != null) {
       sets.push('email = ?');
       params.push(email);
+    }
+    if (req.body.domicilio != null) {
+      sets.push('domicilio = ?');
+      params.push(String(req.body.domicilio).trim());
     }
     if (salud) {
       sets.push('alergias = ?');
@@ -4729,7 +4737,7 @@ router.get('/personal-por-dni', async (req, res) => {
       return res.status(400).json({ error: 'Indique el DNI' });
     }
     const rows = await query(
-      `SELECT id, nombres, apellidos, nro_documento, email, telefono_celular, fecha_nacimiento
+      `SELECT id, nombres, apellidos, nro_documento, email, telefono_celular, fecha_nacimiento, direccion
        FROM personal WHERE colegio_id = ? AND TRIM(nro_documento) = ? LIMIT 1`,
       [colegio_id, dni]
     );
@@ -4750,6 +4758,7 @@ router.get('/personal-por-dni', async (req, res) => {
       nro_documento: String(p.nro_documento || '').trim(),
       email: p.email || '',
       telefono_celular: p.telefono_celular || '',
+      direccion: p.direccion || '',
       fecha_nacimiento: p.fecha_nacimiento ? String(p.fecha_nacimiento).slice(0, 10) : '1985-01-01',
     });
   } catch (e) {
@@ -5069,6 +5078,7 @@ router.post('/apoderados', uploadUsuarioFoto.single('foto'), async (req, res) =>
 
     const email = String(req.body.email || '').trim();
     const tel = String(req.body.telefono_celular || '').trim();
+    const direccion = String(req.body.direccion || '').trim();
     let parentesco = parseInt(req.body.parentesco, 10);
     if (Number.isNaN(parentesco) || parentesco < 1 || parentesco > 4) parentesco = 1;
     const fotoNombre = req.file && req.file.filename ? req.file.filename : null;
@@ -5090,7 +5100,7 @@ router.post('/apoderados', uploadUsuarioFoto.single('foto'), async (req, res) =>
         0,
         '',
         tel,
-        '',
+        direccion,
         '',
         0,
         '',
@@ -5257,6 +5267,10 @@ router.put('/apoderados/:id', async (req, res) => {
     if (fechaNac != null) {
       sets.push('fecha_nacimiento = ?');
       params.push(fechaNac);
+    }
+    if (req.body.direccion != null) {
+      sets.push('direccion = ?');
+      params.push(String(req.body.direccion).trim());
     }
     if (sets.length) {
       params.push(id, colegio_id);

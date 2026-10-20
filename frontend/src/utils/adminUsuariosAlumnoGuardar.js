@@ -8,6 +8,7 @@ export function payloadAlumnoEdit(form = {}) {
     nro_documento: form.nro_documento ?? '',
     fecha_nacimiento: String(form.fecha_nacimiento || '').slice(0, 10),
     email: form.email ?? '',
+    domicilio: form.domicilio ?? '',
     usuario_estado: form.usuario_estado || 'ACTIVO',
     alergias: form.alergias ?? '',
     vacunas: form.vacunas ?? '',
