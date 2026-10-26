@@ -30,12 +30,12 @@ function Campo({ label, value }) {
   );
 }
 
-function ImagenArchivo({ nombre, alt, vacio, cargando }) {
+function ImagenArchivo({ nombre, apoderadoId, alt, vacio, cargando }) {
   const [src, setSrc] = useState('');
-  const [estado, setEstado] = useState(nombre ? 'cargando' : 'vacio');
+  const [estado, setEstado] = useState(nombre || apoderadoId ? 'cargando' : 'vacio');
 
   useEffect(() => {
-    if (!nombre) {
+    if (!nombre && !apoderadoId) {
       setSrc('');
       setEstado('vacio');
       return undefined;
@@ -44,9 +44,10 @@ function ImagenArchivo({ nombre, alt, vacio, cargando }) {
     let blobUrl = '';
     setEstado('cargando');
     setSrc('');
+    const params = nombre ? { nombre } : { apoderado_id: apoderadoId };
     api
       .get('/admin/usuarios/inscripcion-matricula/archivo', {
-        params: { nombre },
+        params,
         responseType: 'blob',
       })
       .then((res) => {
@@ -67,7 +68,7 @@ function ImagenArchivo({ nombre, alt, vacio, cargando }) {
       cancel = true;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
-  }, [nombre]);
+  }, [nombre, apoderadoId]);
 
   if (estado === 'cargando') return <span className="admin-mat-firma-sin">{cargando}</span>;
   if (estado !== 'ok' || !src) return <span className="admin-mat-firma-sin">{vacio}</span>;
@@ -280,6 +281,7 @@ export default function AdminMatriculasConFirma() {
                 <p>Firma digital</p>
                 <ImagenArchivo
                   nombre={row.apoderado?.firma_archivo}
+                  apoderadoId={row.apoderado?.firma_apoderado_id}
                   alt="Firma del apoderado"
                   vacio="Sin archivo de firma"
                   cargando="Cargando firma…"

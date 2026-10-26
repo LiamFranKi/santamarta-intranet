@@ -965,8 +965,16 @@ function nombreMatriculaArchivo(filename) {
   return name;
 }
 
+function nombreFotoDni(filename) {
+  const propia = nombreMatriculaArchivo(filename);
+  if (propia && propia.toLowerCase().startsWith('matricula-dni')) return propia;
+  const name = path.basename(String(filename || '').trim());
+  if (/^[a-f0-9]{40}\.(png|jpe?g|webp)$/i.test(name)) return name;
+  return null;
+}
+
 function rutaMatriculaArchivo(filename) {
-  const name = nombreMatriculaArchivo(filename);
+  const name = nombreMatriculaArchivo(filename) || nombreFotoDni(filename);
   if (!name) return null;
   const carpetas = name.toLowerCase().startsWith('matricula-dni')
     ? ['Documentos', 'Archivos']
@@ -978,11 +986,55 @@ function rutaMatriculaArchivo(filename) {
   return null;
 }
 
-router.get('/inscripcion-matricula/archivo', (req, res) => {
-  const full = rutaMatriculaArchivo(req.query.nombre);
-  if (!full) return res.status(404).end();
-  res.set('Cache-Control', 'private, max-age=300');
-  res.sendFile(full);
+function decodificarFirma(raw) {
+  let s = String(raw || '').trim();
+  if (!s) return null;
+  let mime = 'image/png';
+  const marcada = s.match(/^data:image\/(png|jpeg|jpg|webp);base64,([\s\S]+)$/i);
+  if (marcada) {
+    const kind = marcada[1].toLowerCase();
+    mime = kind === 'png' ? 'image/png' : kind === 'webp' ? 'image/webp' : 'image/jpeg';
+    s = marcada[2];
+  } else if (s.startsWith('data:') || s.length < 80) {
+    return null;
+  }
+  const b64 = s.replace(/\s/g, '');
+  if (!/^[A-Za-z0-9+/=]+$/.test(b64)) return null;
+  const buffer = Buffer.from(b64, 'base64');
+  if (buffer.length < 32) return null;
+  const png = buffer[0] === 0x89 && buffer[1] === 0x50;
+  const jpg = buffer[0] === 0xff && buffer[1] === 0xd8;
+  const webp = buffer.length > 12 && buffer.toString('ascii', 0, 4) === 'RIFF';
+  if (!png && !jpg && !webp) return null;
+  if (png) mime = 'image/png';
+  else if (jpg) mime = 'image/jpeg';
+  else mime = 'image/webp';
+  return { mime, buffer };
+}
+
+router.get('/inscripcion-matricula/archivo', async (req, res) => {
+  try {
+    const apoderadoId = parseInt(req.query.apoderado_id, 10);
+    if (Number.isFinite(apoderadoId) && apoderadoId > 0) {
+      const colegioId = req.user.colegio_id || DEFAULT_COLEGIO_ID;
+      const rows = await query(
+        `SELECT firma_digital FROM apoderados WHERE id = ? AND colegio_id = ? LIMIT 1`,
+        [apoderadoId, colegioId]
+      );
+      const decoded = decodificarFirma(rows[0]?.firma_digital);
+      if (!decoded) return res.status(404).end();
+      res.set('Content-Type', decoded.mime);
+      res.set('Cache-Control', 'private, max-age=300');
+      return res.send(decoded.buffer);
+    }
+    const full = rutaMatriculaArchivo(req.query.nombre);
+    if (!full) return res.status(404).end();
+    res.set('Cache-Control', 'private, max-age=300');
+    return res.sendFile(full);
+  } catch (e) {
+    console.error('GET inscripcion-matricula/archivo', e);
+    return res.status(500).end();
+  }
 });
 
 function fechaLatina(val) {
@@ -1074,7 +1126,15 @@ router.get('/inscripcion-matricula/con-firma', async (req, res) => {
               ap.nro_documento AS ap_documento, ap.email AS ap_email, ap.telefono_celular AS ap_celular,
               ap.direccion AS ap_direccion, ap.parentesco,
               DATE_FORMAT(ap.fecha_nacimiento, '%Y-%m-%d') AS ap_nacimiento,
-              ap.firma_digital
+              ap.id AS apoderado_id,
+              CASE
+                WHEN ap.firma_digital LIKE 'matricula-firma%' THEN ap.firma_digital
+                ELSE ''
+              END AS firma_archivo_db,
+              CASE
+                WHEN ap.firma_digital LIKE 'data:image%' OR CHAR_LENGTH(ap.firma_digital) > 80 THEN 1
+                ELSE 0
+              END AS firma_embebida
        FROM matriculas m
        INNER JOIN alumnos a ON a.id = m.alumno_id AND a.colegio_id = m.colegio_id
        INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
@@ -1084,7 +1144,11 @@ router.get('/inscripcion-matricula/con-firma', async (req, res) => {
            FROM familias f2
            INNER JOIN apoderados ap2 ON ap2.id = f2.apoderado_id AND ap2.colegio_id = m.colegio_id
            WHERE f2.alumno_id = a.id
-           ORDER BY (ap2.firma_digital LIKE 'matricula-firma%') DESC, f2.id ASC
+           ORDER BY (
+             ap2.firma_digital LIKE 'data:image%'
+             OR ap2.firma_digital LIKE 'matricula-firma%'
+             OR CHAR_LENGTH(ap2.firma_digital) > 80
+           ) DESC, f2.id ASC
            LIMIT 1
          )
        WHERE ${where.join(' AND ')}
@@ -1113,7 +1177,7 @@ router.get('/inscripcion-matricula/con-firma', async (req, res) => {
           email: r.alumno_email || '',
           domicilio: r.domicilio || '',
           seguro: etiquetaSeguro(r.seguro_id),
-          foto_dni_archivo: nombreMatriculaArchivo(r.foto_dni),
+          foto_dni_archivo: nombreFotoDni(r.foto_dni),
         },
         apoderado: {
           parentesco: PARENTESCO_MATRICULA[Number(r.parentesco)] || '',
@@ -1125,7 +1189,8 @@ router.get('/inscripcion-matricula/con-firma', async (req, res) => {
           email: r.ap_email || '',
           celular: r.ap_celular || '',
           direccion: r.ap_direccion || '',
-          firma_archivo: nombreMatriculaArchivo(r.firma_digital),
+          firma_archivo: nombreMatriculaArchivo(r.firma_archivo_db),
+          firma_apoderado_id: Number(r.firma_embebida) === 1 ? r.apoderado_id : null,
         },
         documentos_aceptados: true,
       };
