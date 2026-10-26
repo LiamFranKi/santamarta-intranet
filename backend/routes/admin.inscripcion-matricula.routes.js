@@ -4,6 +4,7 @@
  */
 const express = require('express');
 const crypto = require('crypto');
+const fs = require('fs');
 const path = require('path');
 const router = express.Router();
 const { query, execute, mysqlReadPool } = require('../utils/mysql');
@@ -12,6 +13,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { DEFAULT_COLEGIO_ID, DEFAULT_SEDE_ID } = require('../utils/defaultColegio');
 const { fechaMySQLLima } = require('../utils/fechaHoraLima');
 const { etiquetaSeguro } = require('../utils/seguroOpciones');
+const { joinStaticFs } = require('../utils/staticStorage');
 
 function sha1Password(plain) {
   return crypto.createHash('sha1').update(String(plain), 'utf8').digest('hex');
@@ -957,15 +959,31 @@ const TIPOS_DOCUMENTO_MATRICULA = {
 
 const ESTADOS_MATRICULA_TXT = ['Regular', 'Irregular', 'Retirado', 'Traslado', 'Temporal'];
 
-function archivoPublico(req, filename) {
+function nombreMatriculaArchivo(filename) {
   const name = path.basename(String(filename || '').trim());
-  if (!name || name === '.' || name === '..') return null;
-  const forwarded = String(req.get('x-forwarded-proto') || '').split(',')[0].trim();
-  const proto = forwarded || req.protocol || 'https';
-  const host = String(req.get('x-forwarded-host') || req.get('host') || '').split(',')[0].trim();
-  if (!host) return `/Static/Archivos/${encodeURIComponent(name)}`;
-  return `${proto}://${host}/Static/Archivos/${encodeURIComponent(name)}`;
+  if (!name || !/^matricula-(firma|dni)-[\w.\-]+$/i.test(name)) return null;
+  return name;
 }
+
+function rutaMatriculaArchivo(filename) {
+  const name = nombreMatriculaArchivo(filename);
+  if (!name) return null;
+  const carpetas = name.toLowerCase().startsWith('matricula-dni')
+    ? ['Documentos', 'Archivos']
+    : ['Archivos', 'Documentos'];
+  for (const carpeta of carpetas) {
+    const full = joinStaticFs(carpeta, name);
+    if (fs.existsSync(full)) return full;
+  }
+  return null;
+}
+
+router.get('/inscripcion-matricula/archivo', (req, res) => {
+  const full = rutaMatriculaArchivo(req.query.nombre);
+  if (!full) return res.status(404).end();
+  res.set('Cache-Control', 'private, max-age=300');
+  res.sendFile(full);
+});
 
 function fechaLatina(val) {
   if (val instanceof Date && !Number.isNaN(val.getTime())) {
@@ -998,21 +1016,11 @@ router.get('/inscripcion-matricula/con-firma', async (req, res) => {
     const anio = parseInt(req.query.anio, 10);
     const nivelId = parseInt(req.query.nivel_id, 10);
     const grado = parseInt(req.query.grado, 10);
+    const dni = String(req.query.dni || '').replace(/\s/g, '');
+    const buscar = String(req.query.buscar || '') === '1';
 
     const aniosRows = await query(
-      `SELECT DISTINCT g.anio
-       FROM matriculas m
-       INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
-       INNER JOIN alumnos a ON a.id = m.alumno_id AND a.colegio_id = m.colegio_id
-       LEFT JOIN familias f ON f.alumno_id = a.id
-       LEFT JOIN apoderados ap ON ap.id = f.apoderado_id AND ap.colegio_id = m.colegio_id
-       WHERE m.colegio_id = ?
-         AND (
-           a.registro_desde = 'ONLINE'
-           OR a.foto_dni LIKE 'matricula-dni%'
-           OR ap.firma_digital LIKE 'matricula-firma%'
-         )
-       ORDER BY g.anio DESC`,
+      `SELECT DISTINCT anio FROM grupos WHERE colegio_id = ? AND anio > 2000 ORDER BY anio DESC`,
       [colegioId]
     );
     const anios = [...new Set((aniosRows || []).map((r) => Number(r.anio)).filter((n) => Number.isFinite(n)))];
@@ -1022,12 +1030,23 @@ router.get('/inscripcion-matricula/con-firma', async (req, res) => {
       [colegioId]
     );
 
-    if (!Number.isFinite(anio)) {
+    if (!buscar) {
       return res.json({ anios, niveles: niveles || [], data: [] });
     }
+    if (!Number.isFinite(anio) && !dni) {
+      return res.status(400).json({ error: 'Indique el año o el DNI del alumno.' });
+    }
 
-    const where = ['m.colegio_id = ?', 'g.anio = ?'];
-    const params = [colegioId, anio];
+    const where = ['m.colegio_id = ?'];
+    const params = [colegioId];
+    if (Number.isFinite(anio)) {
+      where.push('g.anio = ?');
+      params.push(anio);
+    }
+    if (dni) {
+      where.push(`REPLACE(TRIM(a.nro_documento), ' ', '') = ?`);
+      params.push(dni);
+    }
     if (Number.isFinite(nivelId) && nivelId > 0) {
       where.push('g.nivel_id = ?');
       params.push(nivelId);
@@ -1094,7 +1113,7 @@ router.get('/inscripcion-matricula/con-firma', async (req, res) => {
           email: r.alumno_email || '',
           domicilio: r.domicilio || '',
           seguro: etiquetaSeguro(r.seguro_id),
-          foto_dni_url: archivoPublico(req, r.foto_dni),
+          foto_dni_archivo: nombreMatriculaArchivo(r.foto_dni),
         },
         apoderado: {
           parentesco: PARENTESCO_MATRICULA[Number(r.parentesco)] || '',
@@ -1106,7 +1125,7 @@ router.get('/inscripcion-matricula/con-firma', async (req, res) => {
           email: r.ap_email || '',
           celular: r.ap_celular || '',
           direccion: r.ap_direccion || '',
-          firma_url: archivoPublico(req, r.firma_digital),
+          firma_archivo: nombreMatriculaArchivo(r.firma_digital),
         },
         documentos_aceptados: true,
       };

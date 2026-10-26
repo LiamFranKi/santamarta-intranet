@@ -30,14 +30,60 @@ function Campo({ label, value }) {
   );
 }
 
+function ImagenArchivo({ nombre, alt, vacio, cargando }) {
+  const [src, setSrc] = useState('');
+  const [estado, setEstado] = useState(nombre ? 'cargando' : 'vacio');
+
+  useEffect(() => {
+    if (!nombre) {
+      setSrc('');
+      setEstado('vacio');
+      return undefined;
+    }
+    let cancel = false;
+    let blobUrl = '';
+    setEstado('cargando');
+    setSrc('');
+    api
+      .get('/admin/usuarios/inscripcion-matricula/archivo', {
+        params: { nombre },
+        responseType: 'blob',
+      })
+      .then((res) => {
+        if (cancel) return;
+        const type = String(res.data?.type || '');
+        if (!res.data?.size || type.includes('json') || type.includes('html')) {
+          setEstado('vacio');
+          return;
+        }
+        blobUrl = URL.createObjectURL(res.data);
+        setSrc(blobUrl);
+        setEstado('ok');
+      })
+      .catch(() => {
+        if (!cancel) setEstado('vacio');
+      });
+    return () => {
+      cancel = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [nombre]);
+
+  if (estado === 'cargando') return <span className="admin-mat-firma-sin">{cargando}</span>;
+  if (estado !== 'ok' || !src) return <span className="admin-mat-firma-sin">{vacio}</span>;
+  return <img src={src} alt={alt} />;
+}
+
 export default function AdminMatriculasConFirma() {
-  const [anio, setAnio] = useState(() => String(new Date().getFullYear()));
+  const [anio, setAnio] = useState('');
   const [nivelId, setNivelId] = useState('');
   const [grado, setGrado] = useState('');
+  const [dni, setDni] = useState('');
   const [anios, setAnios] = useState([]);
   const [niveles, setNiveles] = useState([]);
   const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [buscado, setBuscado] = useState(false);
   const [error, setError] = useState('');
 
   const nivelNombre = useMemo(
@@ -49,34 +95,47 @@ export default function AdminMatriculasConFirma() {
   useEffect(() => {
     let cancel = false;
     (async () => {
-      setLoading(true);
-      setError('');
       try {
-        const params = {};
-        if (anio) params.anio = anio;
-        if (nivelId) params.nivel_id = nivelId;
-        if (grado !== '') params.grado = grado;
-        const { data } = await api.get('/admin/usuarios/inscripcion-matricula/con-firma', { params });
+        const { data } = await api.get('/admin/usuarios/inscripcion-matricula/con-firma');
         if (cancel) return;
-        const listaAnios = Array.isArray(data?.anios) ? data.anios : [];
-        setAnios(listaAnios);
+        setAnios(Array.isArray(data?.anios) ? data.anios : []);
         setNiveles(Array.isArray(data?.niveles) ? data.niveles : []);
-        setRows(Array.isArray(data?.data) ? data.data : []);
-        if (listaAnios.length && anio && !listaAnios.includes(Number(anio))) {
-          setAnio(String(listaAnios[0]));
-        }
-      } catch (err) {
-        if (cancel) return;
-        setRows([]);
-        setError(err?.response?.data?.error || 'No se pudo cargar el reporte.');
-      } finally {
-        if (!cancel) setLoading(false);
+      } catch (_) {
+        /* los filtros siguen vacíos */
       }
     })();
     return () => {
       cancel = true;
     };
-  }, [anio, nivelId, grado]);
+  }, []);
+
+  const buscar = async () => {
+    const documento = dni.replace(/\s/g, '');
+    if (!anio && !documento) {
+      setBuscado(true);
+      setRows([]);
+      setError('Indique el año o el DNI del alumno.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    setBuscado(true);
+    setRows([]);
+    try {
+      const params = { buscar: 1 };
+      if (anio) params.anio = anio;
+      if (nivelId) params.nivel_id = nivelId;
+      if (grado !== '') params.grado = grado;
+      if (documento) params.dni = documento;
+      const { data } = await api.get('/admin/usuarios/inscripcion-matricula/con-firma', { params });
+      setRows(Array.isArray(data?.data) ? data.data : []);
+    } catch (err) {
+      setRows([]);
+      setError(err?.response?.data?.error || 'No se pudo cargar el reporte.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="admin-mat-page admin-mat-firma-page">
@@ -88,17 +147,24 @@ export default function AdminMatriculasConFirma() {
           <p className="admin-mat-kicker">Administración · Matrículas</p>
           <h1 className="admin-mat-title">Matrículas enviadas por el padre</h1>
           <p className="admin-mat-sub">
-            Día en que se envió, datos que quedaron en la ficha y la firma digital al lado. El padre no puede
-            enviar el formulario si no marca que acepta los documentos institucionales.
+            Elija el año, el nivel, el grado o el DNI y pulse Buscar. Recién ahí se muestra el día, los datos y
+            la firma.
           </p>
         </div>
       </header>
 
-      <div className="admin-mat-firma-filtros">
+      <form
+        className="admin-mat-firma-filtros"
+        onSubmit={(e) => {
+          e.preventDefault();
+          buscar();
+        }}
+      >
         <label>
           <span>Año</span>
           <select value={anio} onChange={(e) => setAnio(e.target.value)}>
-            {(anios.length ? anios : [Number(anio)]).map((y) => (
+            <option value="">Seleccione</option>
+            {anios.map((y) => (
               <option key={y} value={y}>
                 {y}
               </option>
@@ -114,7 +180,7 @@ export default function AdminMatriculasConFirma() {
               setGrado('');
             }}
           >
-            <option value="">Todos</option>
+            <option value="">Seleccione</option>
             {niveles.map((n) => (
               <option key={n.id} value={n.id}>
                 {n.nombre}
@@ -125,7 +191,7 @@ export default function AdminMatriculasConFirma() {
         <label>
           <span>Grado</span>
           <select value={grado} onChange={(e) => setGrado(e.target.value)} disabled={!nivelId}>
-            <option value="">Todos</option>
+            <option value="">Seleccione</option>
             {grados.map((g) => (
               <option key={g.v} value={g.v}>
                 {g.label}
@@ -133,10 +199,20 @@ export default function AdminMatriculasConFirma() {
             ))}
           </select>
         </label>
-        <p className="admin-mat-firma-conteo">
-          {loading ? 'Cargando…' : `${rows.length} matrícula${rows.length === 1 ? '' : 's'}`}
-        </p>
-      </div>
+        <label>
+          <span>DNI del alumno</span>
+          <input
+            value={dni}
+            onChange={(e) => setDni(e.target.value)}
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="Documento"
+          />
+        </label>
+        <button type="submit" className="admin-mat-firma-buscar" disabled={loading}>
+          {loading ? 'Buscando…' : 'Buscar'}
+        </button>
+      </form>
 
       <p className="admin-mat-firma-nota">
         Los datos son los de la ficha actual: si alguien los corrige después, aquí se ve la corrección. La firma
@@ -145,8 +221,20 @@ export default function AdminMatriculasConFirma() {
 
       {error ? <div className="admin-mat-alert admin-mat-alert--danger">{error}</div> : null}
 
-      {!loading && !error && rows.length === 0 ? (
-        <div className="admin-mat-firma-vacio">No hay matrículas enviadas por el padre con estos filtros.</div>
+      {!buscado && !loading ? (
+        <div className="admin-mat-firma-vacio">
+          Todavía no hay resultados. Indique el año o el DNI y pulse Buscar.
+        </div>
+      ) : null}
+
+      {buscado && !loading && !error && rows.length === 0 ? (
+        <div className="admin-mat-firma-vacio">No hay matrículas enviadas por el padre con esos datos.</div>
+      ) : null}
+
+      {buscado && !loading && rows.length > 0 ? (
+        <p className="admin-mat-firma-conteo">
+          {rows.length} matrícula{rows.length === 1 ? '' : 's'}
+        </p>
       ) : null}
 
       <div className="admin-mat-firma-lista">
@@ -190,15 +278,22 @@ export default function AdminMatriculasConFirma() {
 
               <aside className="admin-mat-firma-lado">
                 <p>Firma digital</p>
-                {row.apoderado?.firma_url ? (
-                  <img src={row.apoderado.firma_url} alt="Firma del apoderado" />
-                ) : (
-                  <span className="admin-mat-firma-sin">Sin archivo de firma</span>
-                )}
-                {row.alumno?.foto_dni_url ? (
-                  <a href={row.alumno.foto_dni_url} target="_blank" rel="noreferrer">
-                    Ver foto del DNI
-                  </a>
+                <ImagenArchivo
+                  nombre={row.apoderado?.firma_archivo}
+                  alt="Firma del apoderado"
+                  vacio="Sin archivo de firma"
+                  cargando="Cargando firma…"
+                />
+                {row.alumno?.foto_dni_archivo ? (
+                  <>
+                    <p>Foto del DNI</p>
+                    <ImagenArchivo
+                      nombre={row.alumno.foto_dni_archivo}
+                      alt="Foto del DNI del alumno"
+                      vacio="Sin foto del DNI"
+                      cargando="Cargando DNI…"
+                    />
+                  </>
                 ) : null}
               </aside>
             </div>
