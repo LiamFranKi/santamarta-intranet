@@ -4,12 +4,14 @@
  */
 const express = require('express');
 const crypto = require('crypto');
+const path = require('path');
 const router = express.Router();
 const { query, execute, mysqlReadPool } = require('../utils/mysql');
 const { ensureGrupoConn, insertCostoPersonalizado } = require('../utils/matriculaGrupoCosto');
 const { authenticateToken } = require('../middleware/auth');
 const { DEFAULT_COLEGIO_ID, DEFAULT_SEDE_ID } = require('../utils/defaultColegio');
 const { fechaMySQLLima } = require('../utils/fechaHoraLima');
+const { etiquetaSeguro } = require('../utils/seguroOpciones');
 
 function sha1Password(plain) {
   return crypto.createHash('sha1').update(String(plain), 'utf8').digest('hex');
@@ -931,6 +933,189 @@ router.post('/alumnos/:alumnoId/inscripcion-matricula', async (req, res) => {
     res.status(st).json({ error: e.message || 'Error al registrar matrícula' });
   } finally {
     conn.release();
+  }
+});
+
+const PARENTESCO_MATRICULA = {
+  1: 'Padre',
+  2: 'Madre',
+  3: 'Tutor',
+  4: 'Apoderado',
+};
+
+const TIPOS_DOCUMENTO_MATRICULA = {
+  0: 'DNI',
+  1: 'Pasaporte',
+  2: 'Partida de Nacimiento',
+  3: 'Libreta Electoral',
+  4: 'Libreta Militar',
+  5: 'Carnet de Extranjería',
+  6: 'Licencia de Conducir',
+  7: 'Tarjeta de Seguro',
+  8: 'Otro',
+};
+
+const ESTADOS_MATRICULA_TXT = ['Regular', 'Irregular', 'Retirado', 'Traslado', 'Temporal'];
+
+function archivoPublico(req, filename) {
+  const name = path.basename(String(filename || '').trim());
+  if (!name || name === '.' || name === '..') return null;
+  const forwarded = String(req.get('x-forwarded-proto') || '').split(',')[0].trim();
+  const proto = forwarded || req.protocol || 'https';
+  const host = String(req.get('x-forwarded-host') || req.get('host') || '').split(',')[0].trim();
+  if (!host) return `/Static/Archivos/${encodeURIComponent(name)}`;
+  return `${proto}://${host}/Static/Archivos/${encodeURIComponent(name)}`;
+}
+
+function fechaLatina(val) {
+  if (val instanceof Date && !Number.isNaN(val.getTime())) {
+    const y = val.getUTCFullYear();
+    const mo = String(val.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(val.getUTCDate()).padStart(2, '0');
+    return `${d}/${mo}/${y}`;
+  }
+  const s = String(val || '').slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return '';
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+function etiquetaGrado(nivelNombre, grado) {
+  const g = parseInt(grado, 10);
+  if (!Number.isFinite(g)) return '';
+  if (String(nivelNombre || '').toUpperCase().includes('INICIAL')) return `${g} años`;
+  return `${g}°`;
+}
+
+/**
+ * Matrículas enviadas por el padre en el formulario online (con firma).
+ * El formulario no guarda el nombre de cada documento: si la fila existe,
+ * el padre marcó todos los checks, porque el envío se rechaza si falta uno.
+ */
+router.get('/inscripcion-matricula/con-firma', async (req, res) => {
+  try {
+    const colegioId = req.user.colegio_id || DEFAULT_COLEGIO_ID;
+    const anio = parseInt(req.query.anio, 10);
+    const nivelId = parseInt(req.query.nivel_id, 10);
+    const grado = parseInt(req.query.grado, 10);
+
+    const aniosRows = await query(
+      `SELECT DISTINCT g.anio
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
+       INNER JOIN alumnos a ON a.id = m.alumno_id AND a.colegio_id = m.colegio_id
+       LEFT JOIN familias f ON f.alumno_id = a.id
+       LEFT JOIN apoderados ap ON ap.id = f.apoderado_id AND ap.colegio_id = m.colegio_id
+       WHERE m.colegio_id = ?
+         AND (
+           a.registro_desde = 'ONLINE'
+           OR a.foto_dni LIKE 'matricula-dni%'
+           OR ap.firma_digital LIKE 'matricula-firma%'
+         )
+       ORDER BY g.anio DESC`,
+      [colegioId]
+    );
+    const anios = [...new Set((aniosRows || []).map((r) => Number(r.anio)).filter((n) => Number.isFinite(n)))];
+
+    const niveles = await query(
+      `SELECT id, nombre FROM niveles WHERE colegio_id = ? ORDER BY nombre`,
+      [colegioId]
+    );
+
+    if (!Number.isFinite(anio)) {
+      return res.json({ anios, niveles: niveles || [], data: [] });
+    }
+
+    const where = ['m.colegio_id = ?', 'g.anio = ?'];
+    const params = [colegioId, anio];
+    if (Number.isFinite(nivelId) && nivelId > 0) {
+      where.push('g.nivel_id = ?');
+      params.push(nivelId);
+    }
+    if (Number.isFinite(grado)) {
+      where.push('g.grado = ?');
+      params.push(grado);
+    }
+    where.push(`(
+      a.registro_desde = 'ONLINE'
+      OR a.foto_dni LIKE 'matricula-dni%'
+      OR ap.firma_digital LIKE 'matricula-firma%'
+    )`);
+
+    const rows = await query(
+      `SELECT m.id AS matricula_id,
+              DATE_FORMAT(m.fecha_registro, '%Y-%m-%d') AS fecha_registro,
+              m.estado,
+              a.nombres, a.apellido_paterno, a.apellido_materno, a.nro_documento,
+              DATE_FORMAT(a.fecha_nacimiento, '%Y-%m-%d') AS fecha_nacimiento,
+              a.sexo, a.email AS alumno_email, a.domicilio,
+              a.seguro_id, a.tipo_documento, a.foto_dni, a.registro_desde,
+              n.nombre AS nivel_nombre, g.grado, g.anio, g.seccion,
+              ap.nombres AS ap_nombres, ap.apellido_paterno AS ap_paterno, ap.apellido_materno AS ap_materno,
+              ap.nro_documento AS ap_documento, ap.email AS ap_email, ap.telefono_celular AS ap_celular,
+              ap.direccion AS ap_direccion, ap.parentesco,
+              DATE_FORMAT(ap.fecha_nacimiento, '%Y-%m-%d') AS ap_nacimiento,
+              ap.firma_digital
+       FROM matriculas m
+       INNER JOIN alumnos a ON a.id = m.alumno_id AND a.colegio_id = m.colegio_id
+       INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       LEFT JOIN apoderados ap ON ap.colegio_id = m.colegio_id AND ap.id = (
+           SELECT ap2.id
+           FROM familias f2
+           INNER JOIN apoderados ap2 ON ap2.id = f2.apoderado_id AND ap2.colegio_id = m.colegio_id
+           WHERE f2.alumno_id = a.id
+           ORDER BY (ap2.firma_digital LIKE 'matricula-firma%') DESC, f2.id ASC
+           LIMIT 1
+         )
+       WHERE ${where.join(' AND ')}
+       ORDER BY n.nombre, g.grado, a.apellido_paterno, a.apellido_materno, a.nombres, m.id`,
+      params
+    );
+
+    const data = (rows || []).map((r) => {
+      const estadoN = Number(r.estado);
+      return {
+        matricula_id: r.matricula_id,
+        fecha: fechaLatina(r.fecha_registro),
+        estado: ESTADOS_MATRICULA_TXT[estadoN] || `Cód. ${r.estado}`,
+        anio: r.anio,
+        nivel: r.nivel_nombre || '',
+        grado: etiquetaGrado(r.nivel_nombre, r.grado),
+        seccion: r.seccion || '',
+        alumno: {
+          documento: r.nro_documento || '',
+          tipo_documento: TIPOS_DOCUMENTO_MATRICULA[Number(r.tipo_documento)] || 'DNI',
+          apellido_paterno: r.apellido_paterno || '',
+          apellido_materno: r.apellido_materno || '',
+          nombres: r.nombres || '',
+          nacimiento: fechaLatina(r.fecha_nacimiento),
+          sexo: r.sexo == null || r.sexo === '' ? '' : Number(r.sexo) === 1 ? 'Femenino' : 'Masculino',
+          email: r.alumno_email || '',
+          domicilio: r.domicilio || '',
+          seguro: etiquetaSeguro(r.seguro_id),
+          foto_dni_url: archivoPublico(req, r.foto_dni),
+        },
+        apoderado: {
+          parentesco: PARENTESCO_MATRICULA[Number(r.parentesco)] || '',
+          documento: r.ap_documento || '',
+          apellido_paterno: r.ap_paterno || '',
+          apellido_materno: r.ap_materno || '',
+          nombres: r.ap_nombres || '',
+          nacimiento: fechaLatina(r.ap_nacimiento),
+          email: r.ap_email || '',
+          celular: r.ap_celular || '',
+          direccion: r.ap_direccion || '',
+          firma_url: archivoPublico(req, r.firma_digital),
+        },
+        documentos_aceptados: true,
+      };
+    });
+
+    res.json({ anios, niveles: niveles || [], data });
+  } catch (e) {
+    console.error('GET inscripcion-matricula/con-firma', e);
+    res.status(500).json({ error: e.message || 'No se pudo cargar el reporte' });
   }
 });
 

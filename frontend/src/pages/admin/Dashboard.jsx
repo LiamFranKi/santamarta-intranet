@@ -21,7 +21,7 @@ import AdminModulos from './AdminModulos';
 import AdminApertura from './AdminApertura';
 import AdminConfigCumpleanos from './AdminConfigCumpleanos';
 import AdminConfigIndicadores from './AdminConfigIndicadores';
-import AdminMatriculasInscripcion from './AdminMatriculasInscripcion';
+import AdminMatriculas from './AdminMatriculas';
 import AdminAcademico from './AdminAcademico';
 import AdminCnebPiloto from './AdminCnebPiloto';
 import AdminPsicologiaLista from './AdminPsicologiaLista';
@@ -501,7 +501,7 @@ function Dashboard() {
       return (
         <DashboardLayout>
           <div className="dashboard-container">
-            <AdminMatriculasInscripcion />
+            <AdminMatriculas />
           </div>
         </DashboardLayout>
       );
