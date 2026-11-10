@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
+const { redondearMediaArriba } = require('../utils/promedioCurso');
 const { leerHojasLibreta } = require('../utils/libretaHojas');
 const { esCualitativoNivel, anexarPruebaEnNiveles } = require('../utils/cnebTipoNivel');
 const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
@@ -2972,7 +2973,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
               const num = parseFloat(p);
               return sum + (isNaN(num) ? 0 : num);
             }, 0);
-            promedioFinal = Math.round(suma / promediosValidos.length);
+            promedioFinal = redondearMediaArriba(suma / promediosValidos.length);
           }
 
           return {
@@ -2997,7 +2998,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
             const num = parseFloat(p);
             return sum + (isNaN(num) ? 0 : num);
           }, 0);
-          return Math.round(suma / promediosValidos.length);
+          return redondearMediaArriba(suma / promediosValidos.length);
         };
 
         const promedioAreaB1 = calcularPromedioArea(asignaturasConPromedios, 'promedio_b1');
@@ -3038,7 +3039,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
             const num = parseFloat(p);
             return sum + (isNaN(num) ? 0 : num);
           }, 0);
-          promedioFinal = Math.round(suma / promediosValidos.length);
+          promedioFinal = redondearMediaArriba(suma / promediosValidos.length);
         }
 
         return {

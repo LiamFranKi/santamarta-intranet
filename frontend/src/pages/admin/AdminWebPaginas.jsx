@@ -127,7 +127,10 @@ function NivelFoto({ ruta, alt, className }) {
 
 export default function AdminWebPaginas() {
   const [searchParams] = useSearchParams();
-  const [subTab, setSubTab] = useState(searchParams.get('seccion') === 'banner' ? 'banner' : 'niveles');
+  const seccionInicial = searchParams.get('seccion');
+  const [subTab, setSubTab] = useState(
+    seccionInicial === 'aviso' ? 'aviso' : seccionInicial === 'banner' ? 'banner' : 'niveles'
+  );
   const [nivelId, setNivelId] = useState('inicial');
   const [form, setForm] = useState(VACIO_PRECIO);
   const [media, setMedia] = useState({
@@ -140,6 +143,8 @@ export default function AdminWebPaginas() {
   const [uploading, setUploading] = useState('');
   const [inicioRuta, setInicioRuta] = useState('/FONDOBANNER.jpg');
   const [necesitaInicio, setNecesitaInicio] = useState(false);
+  const [aviso, setAviso] = useState({ activo: false, imagen_ruta: '', enlace: '' });
+  const [necesitaAviso, setNecesitaAviso] = useState(false);
   const [error, setError] = useState('');
   const [necesitaMigracion, setNecesitaMigracion] = useState(false);
   const [necesitaMedia, setNecesitaMedia] = useState(false);
@@ -175,6 +180,17 @@ export default function AdminWebPaginas() {
         setNecesitaInicio(Boolean(ini.data.necesita_migracion_inicio));
       } catch (e) {
         setNecesitaInicio(e.response?.status === 503);
+      }
+      try {
+        const av = await api.get(`${API}/paginas-aviso`);
+        setAviso({
+          activo: Boolean(av.data.activo),
+          imagen_ruta: av.data.imagen_ruta || '',
+          enlace: av.data.enlace || '',
+        });
+        setNecesitaAviso(Boolean(av.data.necesita_migracion_aviso));
+      } catch (e) {
+        setNecesitaAviso(e.response?.status === 503);
       }
     } catch (e) {
       setError(e.response?.data?.error || 'Error al cargar páginas de niveles');
@@ -338,6 +354,70 @@ export default function AdminWebPaginas() {
     }
   };
 
+  const guardarAviso = async (parcial) => {
+    const next = { ...aviso, ...parcial };
+    setAviso(next);
+    try {
+      const { data } = await api.put(`${API}/paginas-aviso`, {
+        activo: next.activo,
+        enlace: next.enlace,
+      });
+      setAviso({
+        activo: Boolean(data.activo),
+        imagen_ruta: data.imagen_ruta || next.imagen_ruta,
+        enlace: data.enlace || '',
+      });
+      setNecesitaAviso(false);
+    } catch (e) {
+      setAviso(aviso);
+      if (e.response?.status === 503) setNecesitaAviso(true);
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo guardar',
+        text: e.response?.data?.error || 'Error',
+        ...swalOpts,
+      });
+    }
+  };
+
+  const subirAviso = async (file) => {
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('imagen', file);
+    try {
+      setUploading('aviso-inicio');
+      const { data } = await api.post(`${API}/paginas-aviso/imagen`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setAviso({
+        activo: Boolean(data.activo),
+        imagen_ruta: data.imagen_ruta || data.ruta || '',
+        enlace: data.enlace || aviso.enlace,
+      });
+      setNecesitaAviso(false);
+      Swal.fire({
+        icon: 'success',
+        title: 'Imagen lista',
+        text: data.activo
+          ? 'El aviso está activado y ya puede verse en la web.'
+          : 'Actívalo para que aparezca al entrar a la web.',
+        timer: 1800,
+        showConfirmButton: false,
+        ...swalOpts,
+      });
+    } catch (e) {
+      if (e.response?.status === 503) setNecesitaAviso(true);
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo subir',
+        text: e.response?.data?.error || 'Error',
+        ...swalOpts,
+      });
+    } finally {
+      setUploading('');
+    }
+  };
+
   if (loading) return <p className="rs-loading">Cargando páginas…</p>;
 
   const tab = NIVEL_TABS.find((t) => t.id === nivelId) || NIVEL_TABS[0];
@@ -359,6 +439,13 @@ export default function AdminWebPaginas() {
           onClick={() => setSubTab('banner')}
         >
           Banner del inicio
+        </button>
+        <button
+          type="button"
+          className={`rs-tab${subTab === 'aviso' ? ' rs-tab--active' : ''}`}
+          onClick={() => setSubTab('aviso')}
+        >
+          Aviso de inicio
         </button>
         <button
           type="button"
@@ -596,6 +683,71 @@ export default function AdminWebPaginas() {
               {uploading === 'inicio-banner' ? 'Subiendo…' : 'Cambiar foto del banner'}
             </label>
           </div>
+        </article>
+      )}
+      {subTab === 'aviso' && (
+        <article className="wp-nivel-panel">
+          <header className="wp-nivel-panel__head">
+            <div>
+              <p className="wp-kicker">Portada · se abre al entrar</p>
+              <h3>Aviso de inicio</h3>
+              <p>
+                Una imagen al frente de la página, con una X para cerrarla. En el celular y en la computadora
+                cabe dentro de la pantalla. Al tocarla, se amplía.
+              </p>
+            </div>
+            <a className="wp-web-link" href={WEB} target="_blank" rel="noopener noreferrer">
+              Ver portada
+            </a>
+          </header>
+
+          {necesitaAviso && (
+            <p className="rs-error" style={{ textAlign: 'left' }}>
+              Falta ejecutar <code>database/migrations/129_web_aviso_inicio_mysql.sql</code> en phpMyAdmin.
+            </p>
+          )}
+
+          <label className="wp-aviso-switch">
+            <input
+              type="checkbox"
+              checked={aviso.activo}
+              onChange={(e) => guardarAviso({ activo: e.target.checked })}
+            />
+            <span>
+              <strong>{aviso.activo ? 'Activado' : 'Desactivado'}</strong>
+              <small>{aviso.activo ? 'Se muestra al entrar a la web.' : 'No se muestra en la web.'}</small>
+            </span>
+          </label>
+
+          <NivelFoto ruta={aviso.imagen_ruta} alt="Aviso de inicio" className="wp-aviso-preview" />
+
+          <div className="wp-hero-edit__copy" style={{ marginTop: '1rem' }}>
+            <TamanoFoto ancho={1080} alto={1350} extra="vertical o cuadrada, JPG o PNG. Máx. 12 MB" />
+            <label className={`wp-file${uploading === 'aviso-inicio' ? ' is-busy' : ''}`}>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                disabled={Boolean(uploading)}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  subirAviso(file);
+                }}
+              />
+              {uploading === 'aviso-inicio' ? 'Subiendo…' : 'Subir imagen del aviso'}
+            </label>
+          </div>
+
+          <label className="rs-field" style={{ marginTop: '1rem' }}>
+            <span>Enlace al toque, opcional</span>
+            <input
+              value={aviso.enlace}
+              placeholder="https:// o /admision"
+              onChange={(e) => setAviso((prev) => ({ ...prev, enlace: e.target.value }))}
+              onBlur={() => guardarAviso({ enlace: aviso.enlace })}
+            />
+          </label>
+          <p className="rs-muted">Si lo dejas vacío, la imagen solo se amplía. El enlace sale como un botón aparte.</p>
         </article>
       )}
       {subTab === 'convenios' && <AdminWebConvenios />}

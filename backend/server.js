@@ -453,7 +453,23 @@ app.listen(PORT, () => {
   console.log(`\n✅ Servidor corriendo en puerto ${PORT}`);
   console.log(`🌐 URL: http://localhost:${PORT}`);
   console.log(`📡 Health: http://localhost:${PORT}/api/health\n`);
-  
+
+  // Una sola vez: los promedios porcentuales guardados se recalculan con su peso.
+  setTimeout(() => {
+    try {
+      const { query, execute } = require('./utils/mysql');
+      const { recalcularPromediosPorcentualesGuardados } = require('./utils/promedioCurso');
+      recalcularPromediosPorcentualesGuardados(query, execute)
+        .then((r) => {
+          if (r?.omitido) return;
+          console.log(`📊 Promedios porcentuales corregidos: ${r?.actualizados ?? 0}`);
+        })
+        .catch((e) => console.error('Error recalculando promedios porcentuales:', e));
+    } catch (e) {
+      console.error('Error recalculando promedios porcentuales:', e);
+    }
+  }, 8000);
+
   // Iniciar verificación automática de tareas por vencer
   // Se ejecuta al iniciar el servidor y luego cada 24 horas (una vez al día)
   const iniciarVerificacionTareas = () => {

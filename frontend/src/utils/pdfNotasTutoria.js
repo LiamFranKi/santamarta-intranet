@@ -3,6 +3,7 @@
  * Igual formato que CURSOS ASIGNADOS - REGISTRAR NOTAS - Imprimir
  */
 import jsPDF from 'jspdf';
+import { redondearMediaArriba } from './redondearMediaArriba';
 
 // Helpers para cálculo de promedios (solo datos de API, sin ediciones)
 function calcPromedioIndicador(alumno, criterioId, indicadorId) {
@@ -76,7 +77,7 @@ function calcPromedioFinal(datosNotas, matriculaId) {
       const pesoExTot = datosNotas.curso.examen_mensual
         ? parseFloat(datosNotas.curso.peso_examen_mensual) || 0
         : 0;
-      return pesoCriterios + pesoExTot > 0 ? Math.round(sumaP) : null;
+      return pesoCriterios + pesoExTot > 0 ? redondearMediaArriba(sumaP) : null;
     }
 
     let sumaP = 0;
@@ -103,8 +104,8 @@ function calcPromedioFinal(datosNotas, matriculaId) {
       }
     }
     if (sumaPesos <= 0) return null;
-    if (Math.abs(sumaPesos - 100) < 0.01) return Math.round(sumaP);
-    return Math.round((sumaP / sumaPesos) * 100);
+    if (Math.abs(sumaPesos - 100) < 0.01) return redondearMediaArriba(sumaP);
+    return redondearMediaArriba((sumaP / sumaPesos) * 100);
   }
 
   const proms = datosNotas.criterios
@@ -121,7 +122,7 @@ function calcPromedioFinal(datosNotas, matriculaId) {
       count += 1;
     }
   }
-  return Math.round(suma / count);
+  return redondearMediaArriba(suma / count);
 }
 
 function getNotaValor(alumno, criterioId, indicadorId, indice) {

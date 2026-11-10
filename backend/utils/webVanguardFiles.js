@@ -5,6 +5,17 @@
 const path = require('path');
 const fs = require('fs');
 
+function resolveWebSantaMartaRoot() {
+  if (process.env.WEB_SANTAMARTA_ROOT) {
+    return String(process.env.WEB_SANTAMARTA_ROOT).replace(/[/\\]+$/, '');
+  }
+  const sibling = path.resolve(__dirname, '..', '..', 'web-santamarta');
+  if (fs.existsSync(sibling)) return sibling;
+  const vpsDefault = '/home/vanguard/santamarta-web';
+  if (fs.existsSync(vpsDefault)) return vpsDefault;
+  return sibling;
+}
+
 function resolveWebVanguardRoot() {
   if (process.env.WEB_VANGUARD_ROOT) {
     return String(process.env.WEB_VANGUARD_ROOT).replace(/[/\\]+$/, '');
@@ -26,8 +37,8 @@ function isUnderRoot(absPath, root) {
 }
 
 /** public/utiles | public/documentos — PDFs servidos por la web Next.js */
-function ensureWebPublicDir(subdir) {
-  const root = path.resolve(resolveWebVanguardRoot());
+function ensureWebPublicDir(subdir, rootOverride) {
+  const root = path.resolve(rootOverride || resolveWebVanguardRoot());
   const dir = path.join(root, 'public', String(subdir || '').replace(/^[/\\]+/, ''));
   if (!isUnderRoot(dir, path.join(root, 'public'))) {
     throw new Error('Subdirectorio público inválido');
@@ -53,8 +64,8 @@ function sanitizeImageBasename(name, fallback = 'imagen.jpg') {
  * Guarda una imagen en web-vanguard/public/<subdir>.
  * ruta pública: /niveles/foo.jpg
  */
-function saveWebPublicImage({ subdir, publicPrefix, originalName, destName, tempPath }) {
-  const dir = ensureWebPublicDir(subdir);
+function saveWebPublicImage({ subdir, publicPrefix, originalName, destName, tempPath, root }) {
+  const dir = ensureWebPublicDir(subdir, root);
   const archivo = sanitizeImageBasename(destName || originalName);
   const absPath = path.join(dir, archivo);
   if (!isUnderRoot(absPath, dir)) throw new Error('Nombre de archivo inválido');
@@ -99,9 +110,9 @@ function saveWebPublicPdf({ subdir, publicPrefix, originalName, destName, tempPa
   return { archivo, ruta: `${prefix}/${archivo}`, absPath };
 }
 
-function removeWebPublicFileIfSafe(rutaPublica) {
+function removeWebPublicFileIfSafe(rutaPublica, rootOverride) {
   if (!rutaPublica) return;
-  const root = path.resolve(resolveWebVanguardRoot());
+  const root = path.resolve(rootOverride || resolveWebVanguardRoot());
   const publicRoot = path.join(root, 'public');
   const rel = String(rutaPublica).replace(/^[/\\]+/, '');
   const abs = path.resolve(publicRoot, rel);
@@ -163,6 +174,7 @@ function resolveWebDataFile({ ruta, nombre, subdirs = [] }) {
 
 module.exports = {
   resolveWebVanguardRoot,
+  resolveWebSantaMartaRoot,
   resolveWebDataFile,
   isUnderRoot,
   ensureWebPublicDir,

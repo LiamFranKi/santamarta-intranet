@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import api from '../../services/api';
+import { redondearMediaArriba } from '../../utils/redondearMediaArriba';
 import Swal from 'sweetalert2';
 import { jsPDF } from 'jspdf';
 import '../../pages/DocenteCursos.css';
@@ -344,7 +345,7 @@ export default function ModalRegistrarNotasAsignatura({ open, asignaturaId, onCl
           ? parseFloat(datosNotas.curso.peso_examen_mensual) || 0
           : 0;
         if (pesoCriterios + pesoEx > 0) {
-          return Math.round(sumaPonderada);
+          return redondearMediaArriba(sumaPonderada);
         }
         return null;
       }
@@ -394,9 +395,9 @@ export default function ModalRegistrarNotasAsignatura({ open, asignaturaId, onCl
 
       if (sumaPesos > 0) {
         if (Math.abs(sumaPesos - 100) < 0.01) {
-          return Math.round(sumaPonderada);
+          return redondearMediaArriba(sumaPonderada);
         }
-        return Math.round((sumaPonderada / sumaPesos) * 100);
+        return redondearMediaArriba((sumaPonderada / sumaPesos) * 100);
       }
     } else {
       // Promedio simple
@@ -437,7 +438,7 @@ export default function ModalRegistrarNotasAsignatura({ open, asignaturaId, onCl
           }
         }
 
-        return Math.round(suma / count);
+        return redondearMediaArriba(suma / count);
       }
     }
 

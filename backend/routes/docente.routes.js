@@ -4,6 +4,11 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
+const {
+  redondearMediaArriba,
+  calcularPromedioPorcentual,
+  calcularPromedioSimple,
+} = require('../utils/promedioCurso');
 const { leerHojasLibreta } = require('../utils/libretaHojas');
 const { esCualitativoNivel, anexarPruebaEnNiveles, bimestrePruebaCneb } = require('../utils/cnebTipoNivel');
 const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
@@ -4751,7 +4756,7 @@ router.post('/cursos/:cursoId/notas', async (req, res) => {
       res,
       cursoId,
       `a.*, g.id as grupo_id, g.anio, g.nivel_id, n.nombre as nivel_nombre, n.tipo_calificacion,
-              c.peso_examen_mensual, c.examen_mensual`
+              n.tipo_calificacion_final, c.peso_examen_mensual, c.examen_mensual`
     );
     if (!cursoInfo) return;
     const esCualitativa = cursoInfo.tipo_calificacion === 0;
@@ -5071,9 +5076,6 @@ router.post('/cursos/:cursoId/notas', async (req, res) => {
       // Calcular promedios finales para cada alumno
       for (const matriculaIdInt of matriculaIds) {
         const notasFinales = notasPorAlumno[matriculaIdInt] || [];
-        const notasByCriterio = Object.fromEntries(
-          notasFinales.map((row) => [row.criterio_id, row])
-        );
         let promedioFinal = null;
 
         if (esCualitativa && rangosLetras.length > 0) {
@@ -5084,80 +5086,23 @@ router.post('/cursos/:cursoId/notas', async (req, res) => {
               promedioFinal = numeroALetra(prom);
             }
           }
-        } else if (cursoInfo.tipo_calificacion_final === 1 && !esCualitativa) {
-          let sumaPonderada = 0;
-          for (const criterio of criterios) {
-            const peso = parseFloat(criterio.peso) || 0;
-            if (peso <= 0) continue;
-            const row = notasByCriterio[criterio.id];
-            const raw = row?.nota;
-            const nota =
-              raw != null && raw !== '' && !isNaN(parseFloat(raw))
-                ? parseFloat(raw)
-                : 0;
-            sumaPonderada += (nota * peso) / 100;
-          }
-          if (cursoInfo.examen_mensual === 'SI') {
-            const pesoExamen = parseFloat(cursoInfo.peso_examen_mensual) || 0;
-            if (pesoExamen > 0) {
-              const examenesAlumno = examenesPorAlumno[matriculaIdInt] || [];
-              let promEx = 0;
-              if (examenesAlumno.length > 0) {
-                const notasExamenes = examenesAlumno
-                  .map(e => parseFloat(e.nota))
-                  .filter(n => !isNaN(n));
-                if (notasExamenes.length > 0) {
-                  promEx = Math.round(
-                    notasExamenes.reduce((sum, n) => sum + n, 0) / notasExamenes.length
-                  );
-                }
-              }
-              sumaPonderada += (promEx * pesoExamen) / 100;
-            }
-          }
-          const pesoCriterios = criterios.reduce((s, c) => s + (parseFloat(c.peso) || 0), 0);
-          const pesoExTot =
-            cursoInfo.examen_mensual === 'SI'
-              ? parseFloat(cursoInfo.peso_examen_mensual) || 0
-              : 0;
-          if (pesoCriterios + pesoExTot > 0) {
-            promedioFinal = Math.round(sumaPonderada);
-          }
+        } else if (Number(cursoInfo.tipo_calificacion_final) === 1 && !esCualitativa) {
+          const notasPorCriterio = {};
+          for (const row of notasFinales) notasPorCriterio[row.criterio_id] = row.nota;
+          promedioFinal = calcularPromedioPorcentual({
+            criterios,
+            notasPorCriterio,
+            examenes: (examenesPorAlumno[matriculaIdInt] || []).map((e) => e.nota),
+            examenMensual: cursoInfo.examen_mensual,
+            pesoExamen: cursoInfo.peso_examen_mensual,
+          });
         } else if (notasFinales.length > 0 && !esCualitativa) {
-          const notasValidas = notasFinales
-            .map((n) => parseFloat(n.nota))
-            .filter((n) => !isNaN(n));
-          if (notasValidas.length > 0) {
-            promedioFinal = Math.round(
-              notasValidas.reduce((sum, n) => sum + n, 0) / notasValidas.length
-            );
-          }
-
-          if (
-            cursoInfo.examen_mensual === 'SI' &&
-            promedioFinal !== null &&
-            typeof promedioFinal === 'number'
-          ) {
-            const examenesAlumno = examenesPorAlumno[matriculaIdInt] || [];
-            if (examenesAlumno.length > 0) {
-              const notasExamenes = examenesAlumno
-                .map((e) => parseFloat(e.nota))
-                .filter((n) => !isNaN(n));
-              if (notasExamenes.length > 0) {
-                const promedioExamen = Math.round(
-                  notasExamenes.reduce((sum, n) => sum + n, 0) / notasExamenes.length
-                );
-                const pesoExamen = cursoInfo.peso_examen_mensual || 0;
-                if (pesoExamen > 0) {
-                  promedioFinal = Math.round(
-                    (promedioFinal * (100 - pesoExamen)) / 100 + (promedioExamen * pesoExamen) / 100
-                  );
-                } else {
-                  promedioFinal = Math.round((promedioFinal + promedioExamen) / 2);
-                }
-              }
-            }
-          }
+          promedioFinal = calcularPromedioSimple({
+            notas: notasFinales.map((n) => n.nota),
+            examenes: (examenesPorAlumno[matriculaIdInt] || []).map((e) => e.nota),
+            examenMensual: cursoInfo.examen_mensual,
+            pesoExamen: cursoInfo.peso_examen_mensual,
+          });
         }
 
         // Agregar a inserts de promedios
@@ -14189,7 +14134,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
               const num = parseFloat(p);
               return sum + (isNaN(num) ? 0 : num);
             }, 0);
-            promedioFinal = Math.round(suma / promediosValidos.length);
+            promedioFinal = redondearMediaArriba(suma / promediosValidos.length);
           }
 
           return {
@@ -14239,7 +14184,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
           const num = parseFloat(p);
           return sum + (isNaN(num) ? 0 : num);
         }, 0);
-        promedioFinal = Math.round(suma / promediosValidos.length);
+        promedioFinal = redondearMediaArriba(suma / promediosValidos.length);
       }
 
       asignaturasSinArea.push({
@@ -14481,7 +14426,7 @@ function calcularPromedioArea(asignaturas, campo) {
     return sum + (isNaN(num) ? 0 : num);
   }, 0);
   
-  return Math.round(suma / promediosValidos.length);
+  return redondearMediaArriba(suma / promediosValidos.length);
 }
 
 // Función auxiliar para obtener promedio de conducta (asignatura_id = -101)

@@ -17,6 +17,7 @@ const { query, execute } = require('../utils/mysql');
 const { fechaMySQLLima } = require('../utils/fechaHoraLima');
 const {
   resolveWebVanguardRoot,
+  resolveWebSantaMartaRoot,
   resolveWebDataFile,
   saveWebPublicImage,
   saveWebPublicPdf,
@@ -40,6 +41,7 @@ const {
   guardarRutaSlot,
 } = require('../utils/webPaginasNivelMedia');
 const { leerBannerInicio, guardarBannerInicio } = require('../utils/webPaginasInicio');
+const { leerAvisoInicio, guardarAvisoInicio, guardarImagenAviso } = require('../utils/webAvisoInicio');
 const {
   leerConvenios,
   guardarPagina: guardarPaginaConvenios,
@@ -1664,18 +1666,95 @@ router.post('/paginas-inicio/imagen', (req, res) => {
   });
 });
 
+router.get('/paginas-aviso', async (_req, res) => {
+  try {
+    const payload = await leerAvisoInicio(query);
+    res.json(payload);
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al leer el aviso de inicio.' });
+  }
+});
+
+router.put('/paginas-aviso', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const payload = await guardarAvisoInicio(execute, query, {
+      activo: body.activo,
+      enlace: body.enlace,
+    });
+    if (payload.necesita_migracion_aviso) {
+      return res.status(503).json({
+        error: 'Falta ejecutar la migración 129 (aviso de inicio).',
+        ...payload,
+      });
+    }
+    res.json({ ...payload, message: payload.activo ? 'Aviso activado' : 'Aviso desactivado' });
+  } catch (e) {
+    if (e && (e.code === 'ER_NO_SUCH_TABLE' || e.errno === 1146 || e.status === 503)) {
+      return res.status(503).json({
+        error: 'Falta ejecutar la migración 129 (aviso de inicio).',
+        ...(e.payload || {}),
+      });
+    }
+    res.status(e.status || 500).json({ error: e.message || 'Error al guardar el aviso.' });
+  }
+});
+
+router.post('/paginas-aviso/imagen', (req, res) => {
+  uploadNivelImg.single('imagen')(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message || 'No se pudo subir la imagen' });
+    }
+    try {
+      if (!req.file?.path) {
+        return res.status(400).json({ error: 'Seleccione una imagen' });
+      }
+      const ext = path.extname(req.file.originalname || req.file.filename || '').toLowerCase() || '.jpg';
+      const rootWeb = resolveWebSantaMartaRoot();
+      const saved = saveWebPublicImage({
+        subdir: 'aviso',
+        publicPrefix: 'aviso',
+        originalName: req.file.originalname,
+        destName: `aviso-${Date.now()}${ext === '.jpeg' ? '.jpg' : ext}`,
+        tempPath: req.file.path,
+        root: rootWeb,
+      });
+      const payload = await guardarImagenAviso(execute, query, {
+        ruta: saved.ruta,
+        removeOld: (ruta) => removeWebPublicFileIfSafe(ruta, rootWeb),
+      });
+      res.json({ ...payload, ruta: saved.ruta, message: 'Imagen del aviso actualizada' });
+    } catch (e) {
+      if (e && (e.code === 'ER_NO_SUCH_TABLE' || e.errno === 1146 || e.status === 503)) {
+        return res.status(503).json({
+          error: 'Falta ejecutar la migración 129 (aviso de inicio).',
+          ...(e.payload || {}),
+        });
+      }
+      res.status(e.status || 500).json({ error: e.message || 'Error al guardar la imagen.' });
+    }
+  });
+});
+
 router.get('/paginas-niveles/archivo', async (req, res) => {
   try {
     const ruta = String(req.query.ruta || '').trim();
     if (!ruta.startsWith('/') || ruta.includes('..')) {
       return res.status(400).json({ error: 'Ruta inválida' });
     }
-    const root = path.resolve(resolveWebVanguardRoot());
-    const publicRoot = path.join(root, 'public');
-    const abs = path.resolve(path.join(publicRoot, ruta.replace(/^[/\\]+/, '')));
-    if (!isUnderRoot(abs, publicRoot) || !fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
-      return res.status(404).json({ error: 'Imagen no encontrada' });
+    const rel = ruta.replace(/^[/\\]+/, '');
+    const candidatos = [resolveWebSantaMartaRoot(), resolveWebVanguardRoot()];
+    let abs = null;
+    for (const base of candidatos) {
+      const root = path.resolve(base);
+      const publicRoot = path.join(root, 'public');
+      const intento = path.resolve(path.join(publicRoot, rel));
+      if (isUnderRoot(intento, publicRoot) && fs.existsSync(intento) && fs.statSync(intento).isFile()) {
+        abs = intento;
+        break;
+      }
     }
+    if (!abs) return res.status(404).json({ error: 'Imagen no encontrada' });
     res.sendFile(abs);
   } catch (e) {
     res.status(500).json({ error: e.message || 'Error al leer imagen.' });

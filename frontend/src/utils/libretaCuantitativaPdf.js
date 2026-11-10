@@ -1,4 +1,5 @@
 import { numeroALetra, textoNotaPf, normalizarRangosLetras } from './notaLetraConversion';
+import { redondearMediaArriba } from './redondearMediaArriba';
 
 /**
  * Dibuja celda de bimestre (B-1…B-4) o PF simple.
@@ -100,7 +101,7 @@ export function calcularPromedioFinalHastaCiclo(obj, cicloSel) {
     if (v !== null && v !== '' && v !== '-') vals.push(parseFloat(v));
   }
   if (vals.length === 0) return null;
-  return Math.round(vals.reduce((s, n) => s + (Number.isNaN(n) ? 0 : n), 0) / vals.length);
+  return redondearMediaArriba(vals.reduce((s, n) => s + (Number.isNaN(n) ? 0 : n), 0) / vals.length);
 }
 
 export function buildValoresFilaLibreta(obj, cicloSel) {

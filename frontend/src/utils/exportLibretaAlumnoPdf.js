@@ -9,6 +9,7 @@ import {
   dibujarCeldaNotaLibreta,
 } from './libretaCuantitativaPdf';
 import { normalizarRangosLetras } from './notaLetraConversion';
+import { redondearMediaArriba } from './redondearMediaArriba';
 import { formatearTutoresLibreta } from './tutoresGrupoTexto';
 import { descargarCnebHijoConAviso, esInicialEnAnio } from './cnebHijoPdfs';
 import { esInicialLibretaPrevia } from './inicialLibretaPrevia';
@@ -592,7 +593,7 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = 
         let col5Val = '-';
         if (label === 'PROMEDIO') {
           col5Val = promB.filter(p => p != null && p !== '').length > 0
-            ? String(Math.round(promB.filter(p => p != null && p !== '').map(Number).reduce((a, b) => a + (isNaN(b) ? 0 : b), 0) / promB.filter(p => p != null && p !== '').length))
+            ? String(redondearMediaArriba(promB.filter(p => p != null && p !== '').map(Number).reduce((a, b) => a + (isNaN(b) ? 0 : b), 0) / promB.filter(p => p != null && p !== '').length))
             : (resumen.promedio?.final != null ? String(resumen.promedio.final) : '-');
         } else if (label === 'PROMEDIO CONDUCTA') {
           col5Val = resumen.promedio_conducta?.final != null && resumen.promedio_conducta.final !== ''

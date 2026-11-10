@@ -463,3 +463,44 @@
     flex-direction: column;
   }
 }
+
+.wp-aviso-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin: 0.25rem 0 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+.wp-aviso-switch input {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: #0f766e;
+}
+
+.wp-aviso-switch span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.wp-aviso-switch strong {
+  color: #0f172a;
+}
+
+.wp-aviso-switch small {
+  color: #64748b;
+}
+
+.wp-aviso-preview {
+  display: block;
+  width: min(100%, 360px);
+  max-height: 460px;
+  object-fit: contain;
+  background: #0f172a;
+  border-radius: 16px;
+}

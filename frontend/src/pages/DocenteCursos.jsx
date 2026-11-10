@@ -7,6 +7,7 @@ import ConductaRegistroPanel from '../components/ConductaRegistroPanel';
 import ModalCopiarContenidoAsignatura from '../components/admin/ModalCopiarContenidoAsignatura';
 import ModalCriteriosIndicadoresAsignatura from '../components/admin/ModalCriteriosIndicadoresAsignatura';
 import api from '../services/api';
+import { redondearMediaArriba } from '../utils/redondearMediaArriba';
 import Swal from 'sweetalert2';
 import SwalSobreModal from '../utils/swalSobreModal';
 import jsPDF from 'jspdf';
@@ -2693,7 +2694,7 @@ function DocenteCursos() {
           ? parseFloat(datosNotas.curso.peso_examen_mensual) || 0
           : 0;
         if (pesoCriterios + pesoEx > 0) {
-          return Math.round(sumaPonderada);
+          return redondearMediaArriba(sumaPonderada);
         }
         return null;
       }
@@ -2743,9 +2744,9 @@ function DocenteCursos() {
 
       if (sumaPesos > 0) {
         if (Math.abs(sumaPesos - 100) < 0.01) {
-          return Math.round(sumaPonderada);
+          return redondearMediaArriba(sumaPonderada);
         }
-        return Math.round((sumaPonderada / sumaPesos) * 100);
+        return redondearMediaArriba((sumaPonderada / sumaPesos) * 100);
       }
     } else {
       // Promedio simple
@@ -2786,7 +2787,7 @@ function DocenteCursos() {
           }
         }
 
-        return Math.round(suma / count);
+        return redondearMediaArriba(suma / count);
       }
     }
 
