@@ -8,6 +8,8 @@ const {
   redondearMediaArriba,
   calcularPromedioPorcentual,
   calcularPromedioSimple,
+  promedioCursoVisible,
+  aplicarPromediosVisibles,
 } = require('../utils/promedioCurso');
 const { leerHojasLibreta } = require('../utils/libretaHojas');
 const { esCualitativoNivel, anexarPruebaEnNiveles, bimestrePruebaCneb } = require('../utils/cnebTipoNivel');
@@ -4459,7 +4461,19 @@ router.get('/cursos/:cursoId/alumnos/:alumnoId/notas-detalladas', async (req, re
 
       // Agregar promedio final del ciclo
       const promedioCiclo = todosPromedios.find(p => p.ciclo === ciclo);
-      notasDetalladas[ciclo].promedio_final = promedioCiclo ? promedioCiclo.promedio : null;
+      const calculado = promedioCursoVisible({
+        tipoCalificacion: cursoInfo.tipo_calificacion,
+        tipoCalificacionFinal: cursoInfo.tipo_calificacion_final,
+        ciclo,
+        criterios,
+        notasPorCriterio: notasMap,
+        examenes: todasExamenesMensuales.filter((e) => e.ciclo === ciclo),
+        examenMensual: cursoInfo.examen_mensual,
+        pesoExamen: cursoInfo.peso_examen_mensual,
+      });
+      notasDetalladas[ciclo].promedio_final = calculado != null
+        ? calculado
+        : (promedioCiclo ? promedioCiclo.promedio : null);
     }
 
     // Obtener información del alumno
@@ -13644,7 +13658,19 @@ router.get('/hijos/:hijoId/notas-detalladas', async (req, res) => {
 
           // Agregar promedio final del ciclo
           const promedioCiclo = todosPromedios.find(p => p.ciclo === ciclo);
-          notasDetalladas[ciclo].promedio_final = promedioCiclo ? promedioCiclo.promedio : null;
+          const calculado = promedioCursoVisible({
+            tipoCalificacion: asignatura.tipo_calificacion,
+            tipoCalificacionFinal: asignatura.tipo_calificacion_final,
+            ciclo,
+            criterios,
+            notasPorCriterio: notasMap,
+            examenes: todasExamenesMensuales.filter((e) => e.ciclo === ciclo),
+            examenMensual: asignatura.examen_mensual,
+            pesoExamen: asignatura.peso_examen_mensual,
+          });
+          notasDetalladas[ciclo].promedio_final = calculado != null
+            ? calculado
+            : (promedioCiclo ? promedioCiclo.promedio : null);
         }
 
         return {
@@ -14110,6 +14136,13 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       promediosPorAsignatura[p.asignatura_id][p.ciclo] = p.promedio;
     });
 
+    await aplicarPromediosVisibles(
+      query,
+      matriculaId,
+      asignaturas.map((a) => a.asignatura_id),
+      promediosPorAsignatura
+    );
+
     // Agrupar asignaturas por área y calcular promedios
     const areasConAsignaturas = [];
     const asignaturasSinArea = [];
@@ -14383,7 +14416,11 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       detalle_notas = (detalleNotasRows || []).map(r => ({
         curso_nombre: r.curso_nombre || '-',
         docente_nombre: (r.docente_nombre || '').trim() || '-',
-        promedio: r.promedio != null && r.promedio !== '' ? r.promedio : '-',
+        promedio: (() => {
+          const visto = promediosPorAsignatura[r.asignatura_id] && promediosPorAsignatura[r.asignatura_id][ciclo];
+          const valor = visto != null && visto !== '' ? visto : r.promedio;
+          return valor != null && valor !== '' ? valor : '-';
+        })(),
         explicacion: (r.explicacion || '').trim() || ''
       }));
     } catch (e) { console.error('[HIJOS-LIBRETA] Error detalle_notas:', e); }

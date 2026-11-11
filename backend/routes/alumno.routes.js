@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
+const { promedioCursoVisible } = require('../utils/promedioCurso');
 const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
 const { requireMatriculaPortalActiva } = require('../middleware/matriculaPortal');
@@ -5473,6 +5474,29 @@ router.get('/cursos/:asignaturaId/notas-detalladas', async (req, res) => {
         notasPorCiclo[ciclo].promedio_final = promedio.promedio_final;
       }
     });
+
+    for (let ciclo = 1; ciclo <= 4; ciclo += 1) {
+      const notasPorCriterio = {};
+      criteriosConIndicadores.forEach((cr) => {
+        const nota = notasPorCiclo[ciclo].criterios?.[cr.id];
+        if (nota != null && nota !== '') notasPorCriterio[cr.id] = nota;
+      });
+      const ex = notasPorCiclo[ciclo].examen_mensual || {};
+      const examenes = [];
+      if (ex[1] != null && ex[1] !== '') examenes.push({ nro: 1, nota: ex[1] });
+      if (ex[2] != null && ex[2] !== '') examenes.push({ nro: 2, nota: ex[2] });
+      const calculado = promedioCursoVisible({
+        tipoCalificacion: asignaturaData.tipo_calificacion,
+        tipoCalificacionFinal: asignaturaData.tipo_calificacion_final,
+        ciclo,
+        criterios: criteriosConIndicadores,
+        notasPorCriterio,
+        examenes,
+        examenMensual: asignaturaData.examen_mensual,
+        pesoExamen: asignaturaData.peso_examen_mensual,
+      });
+      if (calculado != null) notasPorCiclo[ciclo].promedio_final = calculado;
+    }
 
     // Construir respuesta
     const criteriosConNotas = criteriosConIndicadores.map(criterio => {

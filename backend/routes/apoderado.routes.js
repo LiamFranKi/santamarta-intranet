@@ -4,7 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
-const { redondearMediaArriba } = require('../utils/promedioCurso');
+const { redondearMediaArriba, promedioCursoVisible, aplicarPromediosVisibles } = require('../utils/promedioCurso');
 const { leerHojasLibreta } = require('../utils/libretaHojas');
 const { esCualitativoNivel, anexarPruebaEnNiveles } = require('../utils/cnebTipoNivel');
 const { sqlUsuariosSinSuperadmin } = require('../utils/superadminOculto');
@@ -2426,7 +2426,19 @@ router.get('/hijos/:hijoId/notas-detalladas', async (req, res) => {
 
           // Agregar promedio final del ciclo
           const promedioCiclo = todosPromedios.find(p => p.ciclo === ciclo);
-          notasDetalladas[ciclo].promedio_final = promedioCiclo ? promedioCiclo.promedio : null;
+          const calculado = promedioCursoVisible({
+            tipoCalificacion: asignatura.tipo_calificacion,
+            tipoCalificacionFinal: asignatura.tipo_calificacion_final,
+            ciclo,
+            criterios,
+            notasPorCriterio: notasMap,
+            examenes: todasExamenesMensuales.filter((e) => e.ciclo === ciclo),
+            examenMensual: asignatura.examen_mensual,
+            pesoExamen: asignatura.peso_examen_mensual,
+          });
+          notasDetalladas[ciclo].promedio_final = calculado != null
+            ? calculado
+            : (promedioCiclo ? promedioCiclo.promedio : null);
         }
 
         return {
@@ -2914,6 +2926,13 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       promediosPorAsignatura[p.asignatura_id][p.ciclo] = p.promedio;
     });
 
+    await aplicarPromediosVisibles(
+      query,
+      matriculaId,
+      asignaturas.map((a) => a.asignatura_id),
+      promediosPorAsignatura
+    );
+
     // Promedio conducta (asignatura_id = -101); sin fila en ese ciclo → null (no inventar 20)
     const conductaProm = promediosPorAsignatura[-101] || promediosPorAsignatura['-101'] || {};
     const promedioConductaB1 = (conductaProm[1] !== null && conductaProm[1] !== '' && conductaProm[1] !== '-') ? conductaProm[1] : null;
@@ -3164,7 +3183,11 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     const detalle_notas = (detalleNotasRows || []).map(r => ({
       curso_nombre: r.curso_nombre || '-',
       docente_nombre: (r.docente_nombre || '').trim() || '-',
-      promedio: r.promedio != null && r.promedio !== '' ? r.promedio : '-',
+      promedio: (() => {
+        const visto = promediosPorAsignatura[r.asignatura_id] && promediosPorAsignatura[r.asignatura_id][ciclo];
+        const valor = visto != null && visto !== '' ? visto : r.promedio;
+        return valor != null && valor !== '' ? valor : '-';
+      })(),
       explicacion: (r.explicacion || '').trim() || ''
     }));
 
