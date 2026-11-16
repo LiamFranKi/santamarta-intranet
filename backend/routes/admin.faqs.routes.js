@@ -184,15 +184,15 @@ router.get('/preguntas', async (req, res) => {
     if (req.query.pagina_nivel) {
       const raw = String(req.query.pagina_nivel).trim().toLowerCase();
       if (raw === 'web' || raw === 'inicial' || raw === 'primaria' || raw === 'secundaria') {
-        sql += ' AND JSON_CONTAINS(COALESCE(f.pagina_destinos, JSON_ARRAY()), CAST(? AS JSON))';
-        params.push(JSON.stringify(raw));
+        sql += ` AND JSON_CONTAINS(COALESCE(NULLIF(f.pagina_destinos, ''), JSON_ARRAY()), JSON_QUOTE(?))`;
+        params.push(raw);
       } else if (raw === 'todos') {
         sql += ` AND (
-          JSON_CONTAINS(COALESCE(f.pagina_destinos, JSON_ARRAY()), CAST(? AS JSON))
-          AND JSON_CONTAINS(COALESCE(f.pagina_destinos, JSON_ARRAY()), CAST(? AS JSON))
-          AND JSON_CONTAINS(COALESCE(f.pagina_destinos, JSON_ARRAY()), CAST(? AS JSON))
+          JSON_CONTAINS(COALESCE(NULLIF(f.pagina_destinos, ''), JSON_ARRAY()), JSON_QUOTE(?))
+          AND JSON_CONTAINS(COALESCE(NULLIF(f.pagina_destinos, ''), JSON_ARRAY()), JSON_QUOTE(?))
+          AND JSON_CONTAINS(COALESCE(NULLIF(f.pagina_destinos, ''), JSON_ARRAY()), JSON_QUOTE(?))
         )`;
-        params.push(JSON.stringify('inicial'), JSON.stringify('primaria'), JSON.stringify('secundaria'));
+        params.push('inicial', 'primaria', 'secundaria');
       }
     }
     if (req.query.q && String(req.query.q).trim()) {
@@ -254,7 +254,7 @@ router.post('/preguntas', async (req, res) => {
     const pagina_nivel = paginaNivelCompat(destinos);
     const r = await execute(
       `INSERT INTO web_faqs (categoria_id, pregunta, respuesta, orden, activo, pagina_nivel, pagina_destinos)
-       VALUES (?, ?, ?, ?, ?, ?, CAST(? AS JSON))`,
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [categoria_id, pregunta, respuesta, orden, activo, pagina_nivel, JSON.stringify(destinos)]
     );
     const rows = await query(`SELECT * FROM web_faqs WHERE id = ?`, [r.insertId]);
@@ -290,7 +290,7 @@ router.put('/preguntas/:id', async (req, res) => {
     }
     await execute(
       `UPDATE web_faqs SET categoria_id = ?, pregunta = ?, respuesta = ?, orden = ?, activo = ?,
-          pagina_nivel = ?, pagina_destinos = CAST(? AS JSON) WHERE id = ?`,
+          pagina_nivel = ?, pagina_destinos = ? WHERE id = ?`,
       [
         categoria_id,
         pregunta,

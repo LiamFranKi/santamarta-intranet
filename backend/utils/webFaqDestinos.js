@@ -73,8 +73,7 @@ function paginaNivelCompat(destinos) {
 }
 
 function faqSinDestinos(e) {
-  const msg = String(e?.message || '');
-  return e && (e.code === 'ER_BAD_FIELD_ERROR' || msg.includes('pagina_destinos') || msg.includes('pagina_nivel'));
+  return e && e.code === 'ER_BAD_FIELD_ERROR';
 }
 
 module.exports = {
