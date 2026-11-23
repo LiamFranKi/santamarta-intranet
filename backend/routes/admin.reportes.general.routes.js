@@ -29,6 +29,7 @@ const { generarExcelMontoPagarReal } = require('../utils/reportesGeneralMontoPag
 const { generarExcelReporteAlumnos } = require('../utils/reportesGeneralAlumnos');
 const { generarExcelDeudaAnual } = require('../utils/reportesGeneralDeudaAnual');
 const { obtenerRankingNotas } = require('../utils/reportesGeneralRankingNotas');
+const { obtenerReporteConducta } = require('../utils/reportesGeneralConducta');
 const {
   construirDatosAsistenciaPersonal,
   generarExcelAsistenciaPersonal,
@@ -589,6 +590,27 @@ router.get('/ranking-notas', async (req, res) => {
   } catch (e) {
     console.error('[reportes/general/ranking-notas]', e);
     res.status(500).json({ error: e.message || 'Error al generar ranking de notas' });
+  }
+});
+
+/** GET /api/admin/reportes/general/conducta */
+router.get('/conducta', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const result = await obtenerReporteConducta(cid, {
+      anio: req.query.anio,
+      nivelId: req.query.nivel_id,
+      grado: req.query.grado,
+      seccion: req.query.seccion,
+      q: req.query.q,
+    });
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (e) {
+    console.error('[reportes/general/conducta]', e);
+    res.status(500).json({ error: e.message || 'Error al generar el reporte de conducta' });
   }
 });
 

@@ -1296,6 +1296,75 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Conducta */
+.rg-cond-cards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0.35rem 0 0.75rem;
+}
+
+.rg-cond-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  background: #f4f7fb;
+  border: 1px solid #e2e8f0;
+}
+
+.rg-cond-card__label {
+  font-size: 0.72rem;
+  color: #64748b;
+  letter-spacing: 0.01em;
+}
+
+.rg-cond-card strong {
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.rg-cond-card small {
+  color: #64748b;
+  font-size: 0.68rem;
+}
+
+.rg-cond-nota--alta { color: #0f766e; }
+.rg-cond-nota--media { color: #b45309; }
+.rg-cond-nota--baja { color: #b91c1c; font-weight: 700; }
+.rg-cond-nota--vacia { color: #94a3b8; font-weight: 500; }
+
+.rg-cond-table {
+  min-width: 760px;
+}
+
+.rg-cond-table tfoot td {
+  font-weight: 700;
+  background: #eef4ff;
+  border-top: 2px solid #c7d7f5;
+}
+
+.rg-cond-nombre {
+  font-weight: 500;
+}
+
+.rg-cond-detalle-titulo {
+  margin: 1.1rem 0 0.45rem;
+  font-size: 0.95rem;
+}
+
+.rg-cond-detalle {
+  min-width: 720px;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 900px) {
+  .rg-cond-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* Asistencia del personal */
 .rg-asist-personal-table-wrap {
   overflow-x: auto;

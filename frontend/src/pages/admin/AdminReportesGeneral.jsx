@@ -15,6 +15,7 @@ import ReporteMontoPagarReal from './reportesGeneral/ReporteMontoPagarReal';
 import ReporteAlumnos from './reportesGeneral/ReporteAlumnos';
 import ReporteDeudaAnual from './reportesGeneral/ReporteDeudaAnual';
 import ReporteRankingNotas from './reportesGeneral/ReporteRankingNotas';
+import ReporteConducta from './reportesGeneral/ReporteConducta';
 import ReporteAsistenciaPersonal from './reportesGeneral/ReporteAsistenciaPersonal';
 import ReporteHorariosPersonal from './reportesGeneral/ReporteHorariosPersonal';
 import ReporteCurriculumsPersonal from './reportesGeneral/ReporteCurriculumsPersonal';
@@ -192,7 +193,7 @@ const REPORT_CATALOG = [
     titulo: 'Académico',
     icon: '📚',
     tone: 'academico',
-    resumen: 'Asistencia, rankings, consolidados, exámenes, incidencias y avatar.',
+    resumen: 'Asistencia, conducta, rankings, consolidados, exámenes, incidencias y avatar.',
     items: [
       {
         id: 'asistencia-mensual',
@@ -207,6 +208,14 @@ const REPORT_CATALOG = [
         icon: '📊',
         ayuda: 'Todas las aulas: tardanzas, faltas y no justificadas. Clic para ver alumnos y días. Exporta el consolidado a Excel.',
         Component: ReporteAsistenciaConsolidado,
+      },
+      {
+        id: 'conducta',
+        label: 'Conducta',
+        icon: '🧭',
+        ayuda:
+          'Promedio de conducta por alumno. Elija todo el colegio, un nivel, un salón o un alumno. El 1.º, 2.º y 3.º son el promedio final; el 4.º muestra cómo van ahora.',
+        Component: ReporteConducta,
       },
       {
         id: 'ranking-notas',
