@@ -134,7 +134,7 @@ function evaluarPreguntaIndividual(pregunta, respuestaAlumno, examenRow) {
         if (todosParesCorrectos && paresVerificados === alternativasConPar.length) {
           esCorrecta = true;
           puntosPregunta =
-            tipoPuntaje === 'GENERAL' ? puntosCorrecta : parseFloat(pergunta.puntos) || 0;
+            tipoPuntaje === 'GENERAL' ? puntosCorrecta : parseFloat(pregunta.puntos) || 0;
         } else if (examenRow.penalizar_incorrecta === 'SI' && Object.keys(respuestaAlumno).length > 0) {
           puntosPregunta = -(parseFloat(examenRow.penalizacion_incorrecta) || 0);
         }
